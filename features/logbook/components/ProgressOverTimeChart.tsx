@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ComposedChart, CartesianGrid, Legend, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { getGradeFromPoints, type GradeSystem } from '@/lib/grades'
 import { buildProgressChartData, type ProgressRangePreset } from '@/features/logbook/lib/progress-chart'
@@ -79,15 +78,25 @@ export default function ProgressOverTimeChart({ logs, gradeSystem }: ProgressOve
 
   return (
     <div className="space-y-3">
-      <Tabs value={range} onValueChange={(value) => setRange(value as ProgressRangePreset)}>
-        <TabsList className="border-0 px-0 py-0">
-          {RANGE_OPTIONS.map((option) => (
-            <TabsTrigger key={option.id} value={option.id} className="min-h-9 px-3 py-1.5 text-xs sm:text-sm">
+      <div className="flex flex-wrap gap-2">
+        {RANGE_OPTIONS.map((option) => {
+          const isActive = range === option.id
+
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setRange(option.id)}
+              className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors sm:text-sm ${isActive
+                ? 'border-gray-900 bg-gray-900 text-white shadow-sm dark:border-gray-100 dark:bg-gray-100 dark:text-gray-950'
+                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
               {option.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+            </button>
+          )
+        })}
+      </div>
 
       <div className="text-sm text-gray-500 dark:text-gray-400">
         Dots show individual tops and flashes. The line shows your 60-day average.
