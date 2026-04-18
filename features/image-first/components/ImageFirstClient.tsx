@@ -97,8 +97,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     orderedImageIds: navigationContext.orderedImageIds,
     startIndex: navigationContext.startIndex,
     linkedImageIdByDisplayId,
-    countryCode,
-    cragSlug,
     stacks: navigationContext.stacks,
     sectorMarkers: navigationContext.sectorMarkers,
   })
@@ -256,6 +254,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     () => activeRoutes.find((route) => route.routeId === resolvedActiveRouteId) || null,
     [activeRoutes, resolvedActiveRouteId]
   )
+
+  const activeRouteId = resolvedActiveRouteId
 
   const activeClimbId = activeRouteMeta?.climbId || null
 
