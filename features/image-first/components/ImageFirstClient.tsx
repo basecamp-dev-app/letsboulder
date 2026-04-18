@@ -59,7 +59,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [selectedClimbLogged, setSelectedClimbLogged] = useState(false)
   const [selectedClimbLog, setSelectedClimbLog] = useState<{ gradeOpinion: GradeOpinion | null; starRating: number | null; notes: string | null } | null>(null)
   const [communityNotesCount, setCommunityNotesCount] = useState(0)
-  const [communityNotes, setCommunityNotes] = useState<Array<{ userId: string; displayName: string; notes: string }>>([])
+  const [communityNotes, setCommunityNotes] = useState<Array<{ userId: string; displayName: string; notes: string; createdAt: string | null }>>([])
   const [communityNotesExpanded, setCommunityNotesExpanded] = useState(false)
   const [selectedClimbHasSavedFeedback, setSelectedClimbHasSavedFeedback] = useState(false)
   const [selectedClimbFeedbackCollapsed, setSelectedClimbFeedbackCollapsed] = useState(true)
@@ -388,6 +388,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         userId: note.userId,
         displayName: note.displayName,
         notes: note.notes,
+        createdAt: note.createdAt,
       }))
 
       setCommunityNotesCount(notes.length)

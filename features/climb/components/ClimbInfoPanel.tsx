@@ -27,6 +27,7 @@ interface CommunityNoteInfo {
   userId: string
   displayName: string
   notes: string
+  createdAt: string | null
 }
 
 interface SelectedClimbInfo {
@@ -175,7 +176,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             {selectedClimb?.description ? <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedClimb.description}</p> : null}
             {communityNotesCount > 0 ? (
               <p className="mt-1 text-xs text-purple-700 dark:text-purple-300">
-                {communityNotesCount} user{communityNotesCount === 1 ? '' : 's'} described this route
+                {communityNotesCount} user{communityNotesCount === 1 ? '' : 's'} shared route beta
               </p>
             ) : null}
             {publicSubmitter ? (
@@ -243,31 +244,46 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                     Try
                   </button>
                 </div>
-
-                {communityNotes.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      What others say:
-                    </p>
-                    {visibleCommunityNotes.map((note) => (
-                      <div key={note.userId} className="p-2 rounded bg-gray-50 dark:bg-gray-800 text-xs">
-                        <p className="font-medium text-gray-700 dark:text-gray-300">{note.displayName}</p>
-                        <p className="text-gray-600 dark:text-gray-400 mt-1">{note.notes}</p>
-                      </div>
-                    ))}
-                    {hasMoreCommunityNotes ? (
-                      <button
-                        type="button"
-                        onClick={onToggleCommunityNotesExpanded}
-                        className="text-xs font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                      >
-                        {communityNotesExpanded ? 'Show less' : `Show all ${communityNotes.length}`}
-                      </button>
-                    ) : null}
-                  </div>
-                )}
               </>
             )}
+          </div>
+        ) : null}
+
+        {communityNotes.length > 0 ? (
+          <div className="mt-4 rounded-2xl border border-purple-200/70 bg-purple-50/70 p-3 dark:border-purple-900/50 dark:bg-purple-950/20">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">
+                  Route beta
+                </p>
+                <p className="mt-1 text-xs text-purple-700/80 dark:text-purple-200/80">
+                  {communityNotesCount} note{communityNotesCount === 1 ? '' : 's'} from climbers on this line
+                </p>
+              </div>
+              {hasMoreCommunityNotes ? (
+                <button
+                  type="button"
+                  onClick={onToggleCommunityNotesExpanded}
+                  className="text-xs font-medium text-purple-700 transition hover:text-purple-900 dark:text-purple-300 dark:hover:text-purple-100"
+                >
+                  {communityNotesExpanded ? 'Show fewer' : `See all ${communityNotes.length}`}
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {visibleCommunityNotes.map((note) => (
+                <div key={note.userId} className="rounded-2xl border border-purple-200/70 bg-white/80 px-3 py-2 text-xs shadow-sm dark:border-purple-900/40 dark:bg-zinc-900/70">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{note.displayName}</p>
+                    {note.createdAt ? (
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">{new Date(note.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 leading-5 text-gray-700 dark:text-gray-300">{note.notes}</p>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
 
