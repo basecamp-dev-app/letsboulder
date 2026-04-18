@@ -133,12 +133,24 @@ function MapStateWatcher({
   return null
 }
 
-function MapInteractionWatcher({ onInteract }: { onInteract: () => void }) {
+function MapInteractionWatcher({ onInteract, onClearSelection }: { onInteract: () => void; onClearSelection: () => void }) {
   useMapEvents({
-    click: onInteract,
-    mousedown: onInteract,
-    zoomstart: onInteract,
-    movestart: onInteract,
+    click: () => {
+      onInteract()
+      onClearSelection()
+    },
+    mousedown: () => {
+      onInteract()
+      onClearSelection()
+    },
+    zoomstart: () => {
+      onInteract()
+      onClearSelection()
+    },
+    movestart: () => {
+      onInteract()
+      onClearSelection()
+    },
   })
 
   return null
@@ -171,6 +183,7 @@ export default function SatelliteClimbingMap({
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [hasDefaultLocation, setHasDefaultLocation] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(null)
 
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     setMapZoom(state.zoom)
@@ -497,7 +510,7 @@ export default function SatelliteClimbingMap({
       >
         <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />
         <MapStateWatcher onStateChange={handleMapStateChange} />
-        <MapInteractionWatcher onInteract={markMapInteracted} />
+        <MapInteractionWatcher onInteract={markMapInteracted} onClearSelection={() => setSelectedPinId(null)} />
         {!isPinsOnlyOfflineMode ? <TileLayer
           url={baseLayer.imageryUrl}
           attribution={baseLayer.imageryAttribution}
@@ -528,6 +541,7 @@ export default function SatelliteClimbingMap({
           if (!isClusterFeature(feature)) {
             const place = feature.properties
             const isGym = place.type === 'gym'
+            const isSelected = selectedPinId === place.id
             return (
               <Marker
                 key={place.id}
@@ -541,11 +555,15 @@ export default function SatelliteClimbingMap({
                 zIndexOffset={1000}
                 eventHandlers={{
                   click: () => {
-                    navigateToPlace(router, place)
+                    if (isSelected) {
+                      navigateToPlace(router, place)
+                    } else {
+                      setSelectedPinId(place.id)
+                    }
                   },
                 }}
               >
-                <Tooltip direction="center" opacity={1}>
+                <Tooltip direction="center" opacity={isSelected ? 1 : 0}>
                   <span className="font-semibold">{place.name}</span>
                 </Tooltip>
               </Marker>
