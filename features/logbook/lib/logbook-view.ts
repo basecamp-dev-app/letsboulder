@@ -119,7 +119,7 @@ export function normalizeOwnerSubmissionsTab(value: string | null | undefined): 
 export function replaceOwnLogbookLogs(current: OwnLogbookData, nextLogs: LogbookClimb[]): OwnLogbookData {
   return {
     ...current,
-    logs: current.logs.filter((log) => nextLogs.some((nextLog) => nextLog.id === log.id)),
+    logs: nextLogs,
   }
 }
 

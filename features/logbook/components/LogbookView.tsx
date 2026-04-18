@@ -1,7 +1,6 @@
 'use client'
 
-import { startTransition, useEffect, useMemo, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -9,28 +8,13 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useGradeSystem } from '@/lib/grades/preferences'
 import { EmptyLogbook, LogEntrySkeleton } from '@/features/logbook/components/LogbookStates'
 import { LogbookStatsSection } from '@/features/logbook/components/LogbookStatsSection'
-import { ToastContainer } from '@/components/ui/toast'
-import { useToast } from '@/hooks/use-toast'
-import { ownLogbookQueryKey, type OwnLogbookData } from '@/features/logbook/lib/queries'
 import {
   getLogbookLowestGrade,
   getLogbookStats,
   getRecentLogbookLogs,
-  replaceOwnLogbookLogs,
-  replaceOwnLogbookSubmissions,
   type LogbookClimb,
   type LogbookProfile,
 } from '@/features/logbook/lib/logbook-view'
-import { createClient } from '@/lib/supabase'
-import { csrfFetch } from '@/hooks/useCsrf'
-import { fetchOwnSubmissions } from '@/features/submissions/lib/fetch-own-submissions'
-import { deleteLogAction } from '@/features/logbook/actions/delete-log'
-import { loadMorePublicLogsAction } from '@/features/logbook/actions/load-more-public-logs'
-import {
-  deletePublishedSubmissionAction,
-  deleteSubmissionDraftAction,
-  publishSubmissionDraftAction,
-} from '@/features/submissions/public'
 import type { Submission } from '@/types/submissions'
 
 const DeferredLogbookSubmissions = dynamic(() => import('@/app/(shell)/logbook/DeferredLogbookSubmissions'), {
@@ -42,50 +26,53 @@ interface LogbookViewProps {
   isHydratingSubmissions?: boolean
   userId: string
   isOwnProfile: boolean
-  initialLogs?: LogbookClimb[]
-  initialLogsNextCursor?: string | null
+  logs: LogbookClimb[]
   profile?: LogbookProfile
-  initialSubmissions?: Submission[]
+  submissions: Submission[]
+  hasMoreLogs: boolean
+  isLoadingMoreLogs: boolean
+  deletingId: string | null
+  deletingDraftId: string | null
+  deletingSubmissionId: string | null
+  publishingDraftId: string | null
+  onDeleteLog: (logId: string) => void | Promise<void>
+  onDeleteDraft: (draftId: string) => void | Promise<void>
+  onPublishDraft: (draftId: string) => void | Promise<void>
+  onDeleteSubmission: (canonicalImageId: string) => void | Promise<void>
+  onLoadMoreLogs: () => void | Promise<void>
 }
 
 export default function LogbookView({
   toastListener,
   isHydratingSubmissions = false,
-  userId,
   isOwnProfile,
-  initialLogs = [],
-  initialLogsNextCursor,
+  logs,
   profile,
-  initialSubmissions = [],
+  submissions,
+  hasMoreLogs,
+  isLoadingMoreLogs,
+  deletingId,
+  deletingDraftId,
+  deletingSubmissionId,
+  publishingDraftId,
+  onDeleteLog,
+  onDeleteDraft,
+  onPublishDraft,
+  onDeleteSubmission,
+  onLoadMoreLogs,
 }: LogbookViewProps) {
   const gradeSystem = useGradeSystem()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const queryClient = useQueryClient()
-  const [logs, setLogs] = useState<LogbookClimb[]>(initialLogs)
-  const [logsCursor, setLogsCursor] = useState<string | null>(initialLogsNextCursor ?? null)
-  const [loadingMoreLogs, setLoadingMoreLogs] = useState(false)
-  const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
-  const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null)
-  const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null)
-  const [isMounted, setIsMounted] = useState(false)
-  const { toasts, addToast, removeToast } = useToast()
 
   useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (!isMounted) return
     if (searchParams.get('section') !== 'submissions') return
 
     const element = document.getElementById('submissions')
     if (!element) return
 
     element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [isMounted, searchParams])
+  }, [searchParams])
 
   const stats = useMemo(() => getLogbookStats(logs), [logs])
   const lowestGrade = getLogbookLowestGrade(stats)
@@ -100,167 +87,8 @@ export default function LogbookView({
     return map
   }, [logs])
 
-  const syncOwnLogbookCache = (updater: (current: OwnLogbookData) => OwnLogbookData) => {
-    if (!isOwnProfile) return
-
-    queryClient.setQueryData<OwnLogbookData>(ownLogbookQueryKey, (current) => {
-      if (!current) return current
-      return updater(current)
-    })
-  }
-
-  const applyLogsUpdate = (nextLogs: LogbookClimb[]) => {
-    setLogs(nextLogs)
-    syncOwnLogbookCache((current) => replaceOwnLogbookLogs(current, nextLogs))
-  }
-
-  const applySubmissionsUpdate = (nextSubmissions: Submission[]) => {
-    setSubmissions(nextSubmissions)
-    syncOwnLogbookCache((current) => replaceOwnLogbookSubmissions(current, nextSubmissions))
-  }
-
-  const handleDeleteLog = async (logId: string) => {
-    setDeletingId(logId)
-    const previousLogs = logs
-    const nextLogs = previousLogs.filter((log) => log.id !== logId)
-    applyLogsUpdate(nextLogs)
-
-    try {
-      const result = await deleteLogAction(logId)
-      if (!result.success) throw new Error(result.error)
-      addToast('Climb removed from logbook', 'success')
-    } catch {
-      applyLogsUpdate(previousLogs)
-      addToast('Failed to remove climb', 'error')
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
-  const handleDeleteDraft = async (draftId: string) => {
-    setDeletingDraftId(draftId)
-    const previousSubmissions = submissions
-    const nextSubmissions = previousSubmissions.filter((submission) => submission.id !== draftId)
-    applySubmissionsUpdate(nextSubmissions)
-
-    try {
-      const result = await deleteSubmissionDraftAction(draftId)
-      if (result.status === 404) {
-        addToast('Draft already removed', 'success')
-        return
-      }
-
-      if (!result.success) throw new Error()
-      addToast('Draft deleted', 'success')
-    } catch {
-      applySubmissionsUpdate(previousSubmissions)
-      addToast('Failed to delete draft', 'error')
-    } finally {
-      setDeletingDraftId(null)
-    }
-  }
-
-  const handleDeleteSubmission = async (canonicalImageId: string) => {
-    setDeletingSubmissionId(canonicalImageId)
-    const previousSubmissions = submissions
-    const nextSubmissions = previousSubmissions.filter((submission) => {
-      if (submission.id === canonicalImageId) return false
-      if (submission.canonical_image_id === canonicalImageId) return false
-      if (submission.image_ids?.includes(canonicalImageId)) return false
-      return true
-    })
-    applySubmissionsUpdate(nextSubmissions)
-
-    try {
-      const result = await deletePublishedSubmissionAction(canonicalImageId)
-      if (result.status === 404) {
-        addToast('Submission already removed', 'success')
-        return
-      }
-
-      if (!result.success) throw new Error()
-      addToast('Submission deleted', 'success')
-    } catch {
-      applySubmissionsUpdate(previousSubmissions)
-      addToast('Failed to delete submission', 'error')
-    } finally {
-      setDeletingSubmissionId(null)
-    }
-  }
-
-  const handlePublishDraft = async (draftId: string) => {
-    setPublishingDraftId(draftId)
-    const previousSubmissions = submissions
-    const now = new Date().toISOString()
-    const optimisticSubmissions: Submission[] = previousSubmissions.map((submission) => (
-      submission.id === draftId
-        ? {
-            ...submission,
-            status: 'pending_review' as const,
-            updated_at: now,
-            is_optimistic: true,
-          }
-        : submission
-    ))
-    applySubmissionsUpdate(optimisticSubmissions)
-
-    try {
-      const result = await publishSubmissionDraftAction(draftId)
-      const payload = (result.data || {}) as {
-        published?: {
-          imageId?: string
-          imageIds?: string[]
-          routeLineIds?: string[]
-        }
-      }
-      if (!result.success) throw new Error()
-
-      const supabase = createClient()
-      const refreshed = await fetchOwnSubmissions(supabase, userId, csrfFetch, 24)
-      applySubmissionsUpdate(refreshed)
-
-      const imageId = payload.published?.imageId
-      const imageCount = Array.isArray(payload.published?.imageIds)
-        ? payload.published.imageIds.length
-        : (imageId ? 1 : 0)
-      const routeCount = Array.isArray(payload.published?.routeLineIds)
-        ? payload.published.routeLineIds.length
-        : 0
-      addToast(`Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} face${imageCount === 1 ? '' : 's'}.`, 'success')
-      if (imageId) {
-        startTransition(() => {
-          router.push(`/submit?draft=${draftId}&publishedFaces=${imageCount}&publishedRoutes=${routeCount}`)
-        })
-      }
-    } catch {
-      applySubmissionsUpdate(previousSubmissions)
-      addToast('Failed to publish draft', 'error')
-    } finally {
-      setPublishingDraftId(null)
-    }
-  }
-
-  const handleLoadMoreLogs = async () => {
-    if (!logsCursor || loadingMoreLogs) return
-    setLoadingMoreLogs(true)
-    try {
-      const result = await loadMorePublicLogsAction(userId, logsCursor)
-      if (result.success && result.logs.length > 0) {
-        setLogs((prev) => [...prev, ...result.logs])
-        setLogsCursor(result.nextCursor)
-      } else {
-        setLogsCursor(null)
-      }
-    } catch {
-      addToast('Failed to load more climbs', 'error')
-    } finally {
-      setLoadingMoreLogs(false)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
-      {isMounted ? <ToastContainer toasts={toasts} onRemove={removeToast} /> : null}
       {toastListener}
 
       {isOwnProfile && profile && (
@@ -332,7 +160,7 @@ export default function LogbookView({
 
       {logs.length === 0 && submissions.length === 0 ? <EmptyLogbook onGoToMap={() => router.push('/')} /> : null}
 
-      {stats ? (
+          {stats ? (
         <LogbookStatsSection
           gradeSystem={gradeSystem}
           stats={stats}
@@ -340,19 +168,21 @@ export default function LogbookView({
           recentLogs={recentLogs}
           isOwnProfile={isOwnProfile}
           deletingId={deletingId}
-          onDeleteLog={handleDeleteLog}
+          onDeleteLog={onDeleteLog}
           climbUrlMap={climbUrlMap}
         />
       ) : null}
 
-      {!isOwnProfile && logsCursor && (
+      {!isOwnProfile && hasMoreLogs && (
         <div className="px-4 py-6 text-center">
           <button
-            onClick={handleLoadMoreLogs}
-            disabled={loadingMoreLogs}
+            onClick={() => {
+              void onLoadMoreLogs()
+            }}
+            disabled={isLoadingMoreLogs}
             className="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-full hover:bg-gray-200 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
           >
-            {loadingMoreLogs ? 'Loading...' : 'Load more climbs'}
+            {isLoadingMoreLogs ? 'Loading...' : 'Load more climbs'}
           </button>
         </div>
       )}
@@ -361,15 +191,14 @@ export default function LogbookView({
 
       {(isOwnProfile || submissions.length > 0) ? (
         <DeferredLogbookSubmissions
-          userId={userId}
           isOwnProfile={isOwnProfile}
-          initialSubmissions={initialSubmissions}
+          submissions={submissions}
           deletingDraftId={deletingDraftId}
           publishingDraftId={publishingDraftId}
           deletingSubmissionId={deletingSubmissionId}
-          onDeleteDraft={handleDeleteDraft}
-          onPublishDraft={handlePublishDraft}
-          onDeleteSubmission={handleDeleteSubmission}
+          onDeleteDraft={onDeleteDraft}
+          onPublishDraft={onPublishDraft}
+          onDeleteSubmission={onDeleteSubmission}
         />
       ) : null}
     </div>

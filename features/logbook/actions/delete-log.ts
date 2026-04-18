@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { ok, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
@@ -37,6 +38,9 @@ export async function deleteLogAction(logId: string): Promise<ActionResult> {
     reportError(error, { message: 'Delete log error' })
     return { success: false, error: 'Delete log error', status: 500 }
   }
+
+  revalidatePath('/logbook')
+  revalidatePath(`/logbook/${userId}`)
 
   return ok()
 }
