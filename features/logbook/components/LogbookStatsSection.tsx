@@ -3,9 +3,11 @@
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useState } from 'react'
 import { Loader2, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import GradePyramid from '@/components/GradePyramid'
+import type { ProgressRangePreset } from '@/features/logbook/lib/progress-chart'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { getGradeFromPoints, type GradeSystem } from '@/lib/grades'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
@@ -15,6 +17,13 @@ const ProgressOverTimeChart = dynamic(() => import('@/features/logbook/component
   ssr: false,
   loading: () => <div className="h-72 flex items-center justify-center text-gray-400">Loading progress chart...</div>,
 })
+
+const RANGE_OPTIONS: Array<{ id: ProgressRangePreset; label: string }> = [
+  { id: '6m', label: '6M' },
+  { id: '1y', label: '1Y' },
+  { id: '2y', label: '2Y' },
+  { id: 'all', label: 'All' },
+]
 
 interface LogbookStatsSectionProps {
   gradeSystem: GradeSystem
@@ -50,6 +59,8 @@ export function LogbookStatsSection({
   onDeleteLog,
   climbUrlMap,
 }: LogbookStatsSectionProps) {
+  const [progressRange, setProgressRange] = useState<ProgressRangePreset>('1y')
+
   return (
     <div className="space-y-0">
       <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
@@ -68,10 +79,31 @@ export function LogbookStatsSection({
 
       <Card className="m-0 border-x-0 border-t-0 rounded-none">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Progress Over Time</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-lg">Progress Over Time</CardTitle>
+            <div className="flex flex-wrap gap-2">
+              {RANGE_OPTIONS.map((option) => {
+                const isActive = progressRange === option.id
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setProgressRange(option.id)}
+                    className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors sm:text-sm ${isActive
+                      ? 'border-gray-900 bg-gray-900 text-white shadow-sm dark:border-gray-100 dark:bg-gray-100 dark:text-gray-950'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <ProgressOverTimeChart logs={logs} gradeSystem={gradeSystem} />
+          <ProgressOverTimeChart logs={logs} gradeSystem={gradeSystem} range={progressRange} />
         </CardContent>
       </Card>
 
