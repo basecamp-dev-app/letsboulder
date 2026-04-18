@@ -1,3 +1,4 @@
+import sharp from 'sharp'
 import { describe, expect, test } from 'vitest'
 import { computeInstagramCoverLayout, mapNormalizedPointsToInstagramPost } from '@/features/social/server/instagram-template'
 
@@ -33,5 +34,27 @@ describe('instagram template mapping', () => {
       { x: 540, y: 675 },
       { x: 1740, y: 1350 },
     ])
+  })
+
+  test('renders posts from jpeg buffers with trailing corruption', async () => {
+    const sourceImage = await sharp({
+      create: {
+        width: 2,
+        height: 2,
+        channels: 3,
+        background: { r: 255, g: 255, b: 255 },
+      },
+    }).jpeg().toBuffer()
+
+    const corruptImage = Buffer.concat([sourceImage, Buffer.from([0xde, 0xad, 0xbe, 0xef])])
+    const { renderInstagramPost } = await import('@/features/social/server/instagram-template')
+    const output = await renderInstagramPost({
+      imageBuffer: corruptImage,
+      naturalWidth: 2,
+      naturalHeight: 2,
+      routes: [],
+    })
+
+    expect(output.byteLength).toBeGreaterThan(0)
   })
 })

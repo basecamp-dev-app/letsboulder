@@ -95,7 +95,7 @@ function buildOverlaySvg(input: {
 }
 
 export async function renderInstagramPost(input: InstagramPostRenderInput): Promise<Buffer> {
-  const baseImage = await sharp(input.imageBuffer)
+  const baseImage = await sharp(input.imageBuffer, { failOn: 'none' })
     .resize(INSTAGRAM_POST_WIDTH, INSTAGRAM_POST_HEIGHT, {
       fit: 'cover',
       position: 'centre',
