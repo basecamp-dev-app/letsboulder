@@ -48,6 +48,8 @@ export function LogbookStatsSection({
   onDeleteLog,
   climbUrlMap,
 }: LogbookStatsSectionProps) {
+  const hasGradeHistoryData = stats.gradeHistory.some((entry) => entry.top !== null || entry.flash !== null)
+
   return (
     <div className="space-y-0">
       <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
@@ -69,7 +71,7 @@ export function LogbookStatsSection({
           <CardTitle className="text-lg">Grade History (Last 365 Days)</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          {stats.gradeHistory.length > 0 ? (
+          {hasGradeHistoryData ? (
             <GradeHistoryChart data={stats.gradeHistory} />
           ) : (
             <p className="text-gray-500 dark:text-gray-400 py-4">No data for the past year</p>

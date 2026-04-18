@@ -363,6 +363,7 @@ function makeLog(
     climb_id: overrides.climb_id ?? 'climb-1',
     style: overrides.style ?? 'top',
     created_at: overrides.created_at ?? new Date().toISOString(),
+    date_climbed: overrides.date_climbed,
     climbs: {
       grade: overrides.grade ?? '6A',
       name: overrides.climbs?.name ?? 'Test Route',
@@ -507,6 +508,21 @@ describe('calculateStats', () => {
 
     expect(monthWithData).toBeDefined()
     expect(monthWithData?.flash).toBe(getGradePoints('7A'))
+  })
+
+  test('gradeHistory uses date_climbed when present', () => {
+    const recentClimbedDate = new Date().toISOString().split('T')[0]
+    const oldCreatedAt = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString()
+    const logs: LogEntry[] = [
+      makeLog({ style: 'top', grade: '6B', created_at: oldCreatedAt, date_climbed: recentClimbedDate }),
+    ]
+
+    const stats = calculateStats(logs)
+    const monthWithData = stats.gradeHistory.find((entry) => entry.top !== null)
+
+    expect(monthWithData).toBeDefined()
+    expect(monthWithData?.top).toBe(getGradePoints('6B'))
+    expect(stats.gradePyramid['6B']).toBe(1)
   })
 
   test('averageGrade derived from average points', () => {

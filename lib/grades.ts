@@ -244,6 +244,7 @@ export interface LogEntry {
   climb_id: string
   style: string
   created_at: string
+  date_climbed?: string | null
   climbs?: {
     grade: string
     grade_index?: number | null
@@ -267,6 +268,17 @@ interface MonthlyGradeBucket {
   topCount: number
   flashPoints: number
   flashCount: number
+}
+
+function getLogBucketDate(log: LogEntry): Date {
+  if (log.date_climbed) {
+    return new Date(`${log.date_climbed}T00:00:00.000Z`)
+  }
+  return new Date(log.created_at)
+}
+
+function getStartOfUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
 }
 
 function getUtcMonthBucketKey(date: Date): string {
@@ -306,10 +318,10 @@ export function calculateStats(logs: LogEntry[]): StatsResult {
 
   const now = new Date()
   const twoMonthsAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
-  const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
+  const oneYearAgo = getStartOfUtcDay(new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000))
 
   const twoMonthLogs = logs.filter(log => new Date(log.created_at) >= twoMonthsAgo)
-  const yearLogs = logs.filter(log => new Date(log.created_at) >= oneYearAgo)
+  const yearLogs = logs.filter(log => getLogBucketDate(log) >= oneYearAgo)
 
   const twoMonthWithPoints = twoMonthLogs.map(log => {
     const basePoints = getGradePoints(log.climbs?.grade || '6A')
@@ -338,7 +350,7 @@ export function calculateStats(logs: LogEntry[]): StatsResult {
   }
 
   yearLogs.forEach(log => {
-    const logDate = new Date(log.created_at)
+    const logDate = getLogBucketDate(log)
     const monthKey = getUtcMonthBucketKey(logDate)
     
     if (monthlyData[monthKey]) {
