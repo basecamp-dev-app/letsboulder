@@ -45,6 +45,7 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
     },
     initialData: communityPlace,
     staleTime: 5 * 60 * 1000,
+    enabled: !communityPlace,
   })
 
   if (!resolvedCommunityPlace) {

@@ -26,7 +26,7 @@ export default function CragMapView({
   onFlagCrag,
 }: CragMapViewProps) {
   return (
-    <div className="relative z-0 h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
+    <div className="relative z-0 h-[clamp(18rem,34dvh,28rem)] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
       <LightweightCragMap
         pins={mapPins}
         activePinId={selectedImageId}
