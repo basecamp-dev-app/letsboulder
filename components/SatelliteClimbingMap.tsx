@@ -36,8 +36,6 @@ function setupLeafletIcons(leaflet: typeof import('leaflet')) {
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
-const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
-
 interface DefaultLocation {
   lat: number
   lng: number
@@ -46,6 +44,15 @@ interface DefaultLocation {
 
 const WORLD_DEFAULT_VIEW: [number, number] = [20, 0]
 const WORLD_DEFAULT_ZOOM = 2
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
 
 function buildPlaceHref(place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | 'type' | 'name'>) {
   if (place.type === 'gym' && place.slug) {
@@ -548,9 +555,12 @@ export default function SatelliteClimbingMap({
                 position={[latitude, longitude]}
                 icon={leaflet.divIcon({
                   className: isGym ? 'gym-pin' : 'crag-pin',
-                  html: `<div class="place-dot ${isGym ? 'gym-dot' : 'crag-dot'}"></div>`,
-                  iconSize: [20, 20],
-                  iconAnchor: [10, 10]
+                  html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;pointer-events:none;transform:translateY(${isSelected ? '-14px' : '0'});transition:transform 150ms ease;">
+                    <div class="place-dot ${isGym ? 'gym-dot' : 'crag-dot'}"></div>
+                    ${isSelected ? `<div style="margin-top:6px;padding:4px 8px;border-radius:9999px;background:rgba(15,23,42,0.9);color:white;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 12px rgba(15,23,42,0.28);">${escapeHtml(place.name)}</div>` : ''}
+                  </div>`,
+                  iconSize: [120, isSelected ? 48 : 20],
+                  iconAnchor: [60, isSelected ? 44 : 10]
                 })}
                 zIndexOffset={1000}
                 eventHandlers={{
@@ -567,9 +577,6 @@ export default function SatelliteClimbingMap({
                   },
                 }}
               >
-                <Tooltip direction="center" permanent={isSelected} opacity={1} interactive={false}>
-                  <span className="font-semibold">{place.name}</span>
-                </Tooltip>
               </Marker>
             )
           }
