@@ -54,7 +54,6 @@ interface ClimbInfoPanelProps {
   selectedClimbRoundedStars: number
   pendingGradeOpinion: GradeOpinion | null
   pendingStarRating: number | null
-  pendingNotes: string | null
   communityNotesCount: number
   communityNotes: Array<{ userId: string; displayName: string; notes: string }>
   savingFeedback: boolean
@@ -71,7 +70,6 @@ interface ClimbInfoPanelProps {
   onSetFeedbackCollapsed: (collapsed: boolean) => void
   onSetPendingGradeOpinion: (value: GradeOpinion) => void
   onSetPendingStarRating: (value: number | null) => void
-  onSetPendingNotes: (value: string) => void
   onSaveFeedback: () => void
   onGoToLogbook: () => void
   deferredSections: React.ReactNode
@@ -100,7 +98,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     selectedClimbRoundedStars,
     pendingGradeOpinion,
     pendingStarRating,
-    pendingNotes,
     communityNotesCount,
     communityNotes,
     savingFeedback,
@@ -117,7 +114,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     onSetFeedbackCollapsed,
     onSetPendingGradeOpinion,
     onSetPendingStarRating,
-    onSetPendingNotes,
     onGoToLogbook,
     deferredSections,
   } = props
@@ -234,25 +230,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                   <button onClick={() => onLog('try')} disabled={logging || !selectedClimb} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
                     Try
                   </button>
-                </div>
-
-                <div className="mt-3">
-                  <label htmlFor="route-notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Notes (optional)
-                  </label>
-                  <textarea
-                    id="route-notes"
-                    value={pendingNotes ?? ''}
-                    onChange={(e) => onSetPendingNotes(e.target.value)}
-                    disabled={logging}
-                    placeholder="Describe the route..."
-                    maxLength={500}
-                    rows={2}
-                    className="mt-1 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none text-sm"
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 text-right">
-                    {(pendingNotes ?? '').length}/500
-                  </p>
                 </div>
 
                 {communityNotes.length > 0 && (

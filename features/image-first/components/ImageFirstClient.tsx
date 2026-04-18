@@ -76,7 +76,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   })
   const fetchedRouteImageIdsRef = useRef(new Set<string>(Object.keys({ [linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId]: true })))
   const idlePreloadStartedRef = useRef(false)
-  const communityNotesLoadedClimbIdsRef = useRef(new Set<string>())
 
   const {
     activeImageIndex,
@@ -326,7 +325,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       setPendingStarRating(null)
       setCommunityNotesCount(0)
       setCommunityNotes([])
-      communityNotesLoadedClimbIdsRef.current.clear()
       return
     }
 
@@ -365,10 +363,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   useEffect(() => {
     if (!activeClimbId) return
-    if (selectedClimbFeedbackCollapsed) return
-    if (communityNotesLoadedClimbIdsRef.current.has(activeClimbId)) return
-
-    communityNotesLoadedClimbIdsRef.current.add(activeClimbId)
 
     const supabase = createClient()
     let cancelled = false
@@ -415,7 +409,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     return () => {
       cancelled = true
     }
-  }, [activeClimbId, selectedClimbFeedbackCollapsed])
+  }, [activeClimbId])
 
   const allRoutesFlat = useMemo(
     () => Object.values(routesByImageId).flat(),
@@ -545,11 +539,12 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     gradeUpdated?: boolean
     gradeOpinion?: GradeOpinion | null
     starRating?: number | null
+    notes?: string | null
   }, fallback: { gradeOpinion?: GradeOpinion | null; starRating?: number | null }) => {
     setSelectedClimbLog({
       gradeOpinion: payload.gradeOpinion ?? fallback.gradeOpinion ?? null,
       starRating: payload.starRating ?? fallback.starRating ?? null,
-      notes: null,
+      notes: payload.notes ?? (pendingNotes.trim() || null),
     })
     setSelectedClimbHasSavedFeedback(true)
     setSelectedClimbFeedbackCollapsed(true)
@@ -557,7 +552,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     if (activeClimbId && payload.gradeUpdated && payload.updatedGrade) {
       updateLocalClimbGrade(activeClimbId, payload.updatedGrade)
     }
-  }, [activeClimbId, updateLocalClimbGrade])
+  }, [activeClimbId, pendingNotes, updateLocalClimbGrade])
 
   const handleSaveFeedback = useCallback(async () => {
     if (!activeClimbId || !userPresent) return
@@ -814,7 +809,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         selectedClimbRoundedStars={Math.round(activeRouteMeta?.climbAverageStars ?? 0)}
         pendingGradeOpinion={pendingGradeOpinion}
         pendingStarRating={pendingStarRating}
-        pendingNotes={pendingNotes}
         communityNotesCount={communityNotesCount}
         communityNotes={communityNotes}
         savingFeedback={savingFeedback}
@@ -831,7 +825,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onSetFeedbackCollapsed={setSelectedClimbFeedbackCollapsed}
         onSetPendingGradeOpinion={handleGradeOpinionSelect}
         onSetPendingStarRating={handleStarRatingSelect}
-        onSetPendingNotes={setPendingNotes}
         onSaveFeedback={handleSaveFeedback}
         onGoToLogbook={handleGoToLogbook}
         deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
