@@ -40,7 +40,7 @@ This is a maintainer reference for system shape, deployment flow, and module own
 - **Auth**: Supabase Auth with JWT sessions
 - **Extensions**: PostGIS for geo queries
 - **Key RPCs**: `get_crag_pins`, `get_crag_route_intelligence`, `get_upload_context`, `create_unified_submission`
-- **Migrations**: `supabase/migrations/*.sql` (canonical source of truth)
+- **Migrations**: `supabase/migrations/*.sql` (canonical source of truth, 4 migration files)
 - **Types**: Auto-generated in `types/database.ts` via `supabase gen types`
 
 ### Media Pipeline (Cloudflare Worker + R2)
@@ -113,7 +113,7 @@ The web app is standardizing on feature-first product boundaries.
 | `lib/supabase-server.ts` | Server Supabase client with cached RPCs |
 | `types/database.ts` | Auto-generated DB types |
 | `lib/csrf.ts` | JWT-based CSRF token system |
-| `lib/rate-limit.ts` | Rate limiter configuration and helpers |
+| `lib/rate-limit-config.ts` | Rate limiter configuration and helpers (14 tiers) |
 | `lib/media/r2.ts` | Cloudflare R2 S3 operations |
 | `lib/grades.ts` | Grade conversion engine (3A-9C+) |
 | `public/sw.js` | Service worker for offline PWA |
