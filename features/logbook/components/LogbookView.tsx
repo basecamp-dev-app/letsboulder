@@ -77,19 +77,6 @@ export default function LogbookView({
   const stats = useMemo(() => getLogbookStats(logs), [logs])
   const lowestGrade = getLogbookLowestGrade(stats)
   const recentLogs = useMemo(() => getRecentLogbookLogs(logs), [logs])
-  console.log('LOGBOOK_VIEW_STATE', {
-    logsCount: logs.length,
-    sampleLogs: logs.slice(0, 3).map((log) => ({
-      id: log.id,
-      created_at: log.created_at,
-      date_climbed: log.date_climbed ?? null,
-      style: log.style,
-      grade: log.climbs?.grade,
-    })),
-    gradeHistory: stats?.gradeHistory ?? null,
-    gradePyramid: stats?.gradePyramid ?? null,
-    top10First: stats?.top10Hardest?.[0] ?? null,
-  })
   const climbUrlMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const log of logs) {
