@@ -3,27 +3,8 @@ import { getGradePoints } from '@/lib/grades'
 import { csrfFetch } from '@/lib/csrf-client'
 import { fetchOwnSubmissions } from '@/features/submissions/lib/fetch-own-submissions'
 import { createClient } from '@/lib/supabase'
+import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
 import type { Submission } from '@/types/submissions'
-
-export interface LoggedClimb {
-  id: string
-  climb_id: string
-  style: string
-  created_at: string
-  points?: number
-  canonical_url?: string | null
-  climbs: {
-    id: string
-    name: string
-    grade: string
-    slug?: string | null
-    crag_id?: string | null
-    image_url?: string
-    crags: {
-      name: string
-    }
-  }
-}
 
 export interface LogbookProfile {
   id: string
@@ -38,7 +19,7 @@ export interface LogbookProfile {
 
 export interface OwnLogbookData {
   user: User | null
-  logs: LoggedClimb[]
+  logs: LogbookClimb[]
   profile: LogbookProfile | null
   submissions: Submission[]
 }
@@ -126,12 +107,12 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
     }
   })
 
-  const logsWithPoints = logsWithCrags.map((log: RawLogbookRow & LoggedClimb) => ({
+  const logsWithPoints = logsWithCrags.map((log: RawLogbookRow & LogbookClimb) => ({
     ...log,
     points: log.style === 'flash'
       ? getGradePoints(log.climbs?.grade) + 10
       : getGradePoints(log.climbs?.grade),
-  })) as LoggedClimb[]
+  })) as LogbookClimb[]
 
   const cragIds = [...new Set(logsWithPoints.map((log) => log.climbs?.crag_id).filter((id): id is string => !!id))]
   const cragMetaById = new Map<string, { country_code: string | null; slug: string | null }>()

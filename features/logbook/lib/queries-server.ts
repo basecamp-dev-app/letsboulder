@@ -5,6 +5,7 @@ import { selectPreferredDraftPreviewImage, type DraftPreviewImageRef } from '@/f
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 import type { Submission } from '@/types/submissions'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
+import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
 
 interface RawLogbookRow {
   id: string
@@ -90,14 +91,14 @@ const INITIAL_LOGBOOK_LOG_LIMIT = 24
 
 export interface OwnLogbookData {
   user: User | null
-  logs: LoggedClimb[]
+  logs: LogbookClimb[]
   profile: LogbookProfile | null
   submissions: Submission[]
 }
 
 export interface ServerLogbookSummary {
   user: User
-  logs: LoggedClimb[]
+  logs: LogbookClimb[]
   profile: LogbookProfile | null
 }
 
@@ -200,12 +201,12 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
     }
   })
 
-  const logsWithPoints = logsWithCrags.map((log: RawLogbookRow & LoggedClimb) => ({
+  const logsWithPoints = logsWithCrags.map((log: RawLogbookRow & LogbookClimb) => ({
     ...log,
     points: log.style === 'flash'
       ? getGradePoints(log.climbs?.grade) + 10
       : getGradePoints(log.climbs?.grade),
-  })) as LoggedClimb[]
+  })) as LogbookClimb[]
 
   const cragIds = [...new Set(logsWithPoints.map((log) => log.climbs?.crag_id).filter((id): id is string => !!id))]
   const cragMetaById = new Map<string, { country_code: string | null; slug: string | null }>()
