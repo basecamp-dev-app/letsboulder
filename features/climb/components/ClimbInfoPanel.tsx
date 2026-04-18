@@ -119,7 +119,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
   } = props
 
   return (
-    <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
+    <div className="relative z-20 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
       <div className="max-w-md mx-auto">
         <div className="flex items-center justify-between mb-4">
           <div>
