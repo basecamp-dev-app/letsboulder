@@ -80,6 +80,11 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   })
   const fetchedRouteImageIdsRef = useRef(new Set<string>(Object.keys({ [linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId]: true })))
   const idlePreloadStartedRef = useRef(false)
+  const initialRouteSelectionRef = useRef({
+    routeId: initialRouteId,
+    routeSlug: initialRouteSlug,
+    climbId: initialClimbId,
+  })
 
   const {
     activeImageIndex,
@@ -212,25 +217,25 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   const activeRoutes = useMemo(() => routesByImageId[activePrimaryImageId] || [], [activePrimaryImageId, routesByImageId])
 
-  const activeRouteId = useMemo(() => {
+  const seededActiveRouteId = useMemo(() => {
     if (activeRoutes.length === 0) return null
 
-    const routeQuery = initialRouteSlug || initialRouteId
+    const routeQuery = initialRouteSelectionRef.current.routeSlug || initialRouteSelectionRef.current.routeId
     if (routeQuery) {
       const queryMatch = activeRoutes.find((route) => route.climbSlug === routeQuery || route.routeId === routeQuery)
       if (queryMatch) return queryMatch.routeId
     }
 
-    const climbQueryId = initialClimbId
+    const climbQueryId = initialRouteSelectionRef.current.climbId
     if (climbQueryId) {
       const climbMatch = activeRoutes.find((route) => route.climbId === climbQueryId)
       if (climbMatch) return climbMatch.routeId
     }
 
     return activeRoutes[0]?.routeId || null
-  }, [activeRoutes, initialClimbId, initialRouteId, initialRouteSlug])
+  }, [activeRoutes])
 
-  const [resolvedActiveRouteId, setResolvedActiveRouteId] = useState<string | null>(activeRouteId)
+  const [resolvedActiveRouteId, setResolvedActiveRouteId] = useState<string | null>(seededActiveRouteId)
 
   useEffect(() => {
     if (activeRoutes.length === 0) {
@@ -243,9 +248,9 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         return current
       }
 
-      return activeRouteId
+      return seededActiveRouteId
     })
-  }, [activeRouteId, activeRoutes])
+  }, [activeRoutes, seededActiveRouteId])
 
   const activeRouteMeta = useMemo(
     () => activeRoutes.find((route) => route.routeId === resolvedActiveRouteId) || null,
@@ -277,16 +282,29 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
     if (remainingImageIds.length === 0) return
 
+    const preloadInBatches = async () => {
+      const batchSize = 8
+
+      for (let index = 0; index < remainingImageIds.length; index += batchSize) {
+        const batch = remainingImageIds.slice(index, index + batchSize)
+        try {
+          await fetchRoutesForImageIds(batch)
+        } catch {
+          return
+        }
+      }
+    }
+
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     let idleCallbackId: number | null = null
 
     if (typeof window.requestIdleCallback === 'function') {
       idleCallbackId = window.requestIdleCallback(() => {
-        void fetchRoutesForImageIds(remainingImageIds)
+        void preloadInBatches()
       }, { timeout: 2000 })
     } else {
       timeoutId = setTimeout(() => {
-        void fetchRoutesForImageIds(remainingImageIds)
+        void preloadInBatches()
       }, 1500)
     }
 
@@ -502,6 +520,11 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   const handleRouteSelect = useCallback((routeId: string | null) => {
     if (routeId) {
+      initialRouteSelectionRef.current = {
+        routeId: null,
+        routeSlug: null,
+        climbId: null,
+      }
       setResolvedActiveRouteId(routeId)
     }
   }, [])

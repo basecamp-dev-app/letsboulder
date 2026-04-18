@@ -1,30 +1,21 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import useEmblaCarousel from 'embla-carousel-react'
 
 export function useImageNavigation({
   orderedImageIds,
   startIndex,
   linkedImageIdByDisplayId,
-  countryCode,
-  cragSlug,
   stacks,
   sectorMarkers,
 }: {
   orderedImageIds: string[]
   startIndex: number
   linkedImageIdByDisplayId: Record<string, string>
-  countryCode: string
-  cragSlug: string
   stacks: Array<{ stackId: string; imageIds: string[] }>
   sectorMarkers: Record<string, { name: string; firstImageId: string }>
 }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-
   const [activeImageIndex, setActiveImageIndex] = useState(startIndex)
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: false,
@@ -63,18 +54,6 @@ export function useImageNavigation({
       emblaApi.off('select', handleSelect)
     }
   }, [activeImageIndex, emblaApi])
-
-  useEffect(() => {
-    if (!canonicalActiveImageId) return
-
-    const currentPathImageId = pathname.split('/').pop()
-    if (currentPathImageId === canonicalActiveImageId) return
-
-    const newPath = `/${countryCode}/${cragSlug}/i/${canonicalActiveImageId}`
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete('climb')
-    router.replace(`${newPath}${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false })
-  }, [canonicalActiveImageId, countryCode, cragSlug, pathname, router, searchParams])
 
   return {
     activeImageIndex,
