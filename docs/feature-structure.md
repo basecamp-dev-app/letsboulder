@@ -2,7 +2,7 @@
 
 ## Standard Pattern
 
-Features under `features/` SHOULD follow this directory structure:
+Features under `features/` generally follow this directory structure:
 
 ```
 features/<feature-name>/
@@ -92,7 +92,7 @@ A `types.ts` file at the feature root is acceptable alongside a `types/` directo
 
 ## Rules
 
-1. **All five standard directories SHOULD exist** in every feature — the compliance script checks for their presence
+1. **The standard directories should exist where the feature needs them** — the compliance script checks the current repository rules
 2. **Server code MUST stay in `server/`** — never import Supabase client directly in components
 3. **Use `@/features/<name>/...`** imports — never relative imports across features
 4. **Barrel exports** — each directory should have an `index.ts` that re-exports its contents

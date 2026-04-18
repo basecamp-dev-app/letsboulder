@@ -59,7 +59,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | 40 | V19 | 9C | 5.16c | 9c+ | E12 | Elite |
 | 41 | V19+ | 9C+ | 5.16d | 9c+ | E13 | Elite |
 
-**Agent rule:** Always use `gradeMappings` for V-Scale <-> Font <-> YDS <-> French <-> British conversions.
+**Implementation rule:** Always use `gradeMappings` for V-Scale <-> Font <-> YDS <-> French <-> British conversions.
 **Boundary rule:** User-facing validation and selection must stay within `3A-9C+`.
 **Source of truth:** `climbs.grade` stores the Font string (e.g. '6A'). `climbs.grade_index` is a derived column for sorting.
 
@@ -220,7 +220,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `continents` | `un_regions` | no action |
 | `un_regions` | `regions` | no action |
 
-**Agent rule:** Before any DELETE operation, check this table or the migration files in `supabase/migrations/` to confirm ON DELETE behavior. Never assume cascade behavior.
+**Deletion rule:** Before any DELETE operation, check this table or the migration files in `supabase/migrations/` to confirm ON DELETE behavior. Never assume cascade behavior.
 
 ### Polymorphic Comments
 

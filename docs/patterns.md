@@ -1,6 +1,6 @@
 # Climbing Patterns - letsboulder.com
 
-This library contains the "how-to" for unique climbing features.
+This guide captures implementation patterns and edge cases for climbing-related features.
 
 ## 0. UI Visual Language
 

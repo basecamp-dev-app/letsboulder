@@ -24,13 +24,13 @@ Bouldering topo and climbing logbook web app.
 
 ## Components
 
-### Web App (Next.js 16.2.0)
+### Web App (Next.js 16)
 
 - **Location**: Root of repo
-- **Deploy**: Vercel, auto-deploys from `main` branch
+- **Deploy**: Vercel deployment workflow from `main`
 - **Router**: App Router (`app/`) with Server Components and Server Actions
 - **Client State**: feature route editor store (`features/route-editor/store/index.ts`) for route drawing state
-- **Server State**: TanStack React Query with 12-hour IndexedDB persistence (`lib/query-persistence.ts`)
+- **Server State**: TanStack React Query with IndexedDB persistence (`lib/query-persistence.ts`)
 - **Images**: Custom Cloudflare image loader (`lib/media/cloudflare-loader.ts`)
 
 ### Database (Supabase / PostgreSQL 17)
@@ -38,7 +38,7 @@ Bouldering topo and climbing logbook web app.
 - **Auth**: Supabase Auth with JWT sessions
 - **Extensions**: PostGIS for geo queries
 - **Key RPCs**: `get_crag_pins`, `get_crag_route_intelligence`, `get_upload_context`, `create_unified_submission`
-- **Migrations**: `supabase/migrations/*.sql` (includes historical placeholder versions for remote-only migrations; canonical source of truth)
+- **Migrations**: `supabase/migrations/*.sql` (canonical source of truth)
 - **Types**: Auto-generated in `types/database.ts` via `supabase gen types`
 
 ### Media Pipeline (Cloudflare Worker + R2)
@@ -72,7 +72,7 @@ Bouldering topo and climbing logbook web app.
 1. User creates draft in `submission_drafts`
 2. User uploads images → draft images attached
 3. User draws route lines on images (Canvas API)
-4. User promotes draft → `submissions` table + `climbs` table + `images` table
+4. User promotes draft → live climb and image records are created
 5. Community verifies routes (3+ votes to confirm)
 
 ### Authentication
@@ -109,9 +109,9 @@ The web app is standardizing on feature-first product boundaries.
 | `app/layout.tsx` | Root layout, fonts, metadata, theme |
 | `lib/supabase.ts` | Browser Supabase client (singleton) |
 | `lib/supabase-server.ts` | Server Supabase client with cached RPCs |
-| `types/database.ts` | Auto-generated DB types (3,365 lines) |
+| `types/database.ts` | Auto-generated DB types |
 | `lib/csrf.ts` | JWT-based CSRF token system |
-| `lib/rate-limit.ts` | Upstash Redis rate limiter (14 tiers) |
+| `lib/rate-limit.ts` | Rate limiter configuration and helpers |
 | `lib/media/r2.ts` | Cloudflare R2 S3 operations |
 | `lib/grades.ts` | Grade conversion engine (3A-9C+) |
 | `public/sw.js` | Service worker for offline PWA |
@@ -119,4 +119,4 @@ The web app is standardizing on feature-first product boundaries.
 | `features/route-editor/store/index.ts` | Zustand store for route selection |
 | `features/submissions/server/submissions/` | Submission API validation and mode executors |
 | `features/submissions/server/drafts/` | Draft API orchestration, collaboration, and promotion helpers |
-| `supabase/migrations/` | 4 migration files (baseline consolidated) |
+| `supabase/migrations/` | Database migration history |
