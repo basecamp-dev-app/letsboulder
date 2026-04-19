@@ -65,12 +65,12 @@ export async function loadGlobalRankingsLeaderboard(
   }
 ): Promise<{ data: LeaderboardPage | null; error: PostgrestError | null }> {
   const { data, error } = await supabase.rpc('get_rankings_leaderboard', {
-    p_gender: params.gender ?? undefined,
-    p_region_id: params.regionId ?? undefined,
+    p_gender: params.gender as string | undefined,
+    p_region_id: params.regionId as string | undefined,
     p_sort: params.sort,
     p_page: params.page,
     p_limit: params.limit,
-    p_window_start: params.windowStart ?? undefined,
+    p_window_start: params.windowStart as string | undefined,
   })
 
   return {
@@ -94,7 +94,7 @@ export async function loadPlaceRankingsLeaderboard(
     p_sort: params.sort,
     p_page: params.page,
     p_limit: params.limit,
-    p_window_start: params.windowStart ?? undefined,
+    p_window_start: params.windowStart as string | undefined,
   })
 
   return {
@@ -118,7 +118,7 @@ export async function loadCragRankingsLeaderboard(
     p_sort: params.sort,
     p_page: params.page,
     p_limit: params.limit,
-    p_window_start: params.windowStart ?? undefined,
+    p_window_start: params.windowStart as string | undefined,
   })
 
   return {
