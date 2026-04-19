@@ -43,7 +43,7 @@ export async function createSubmissionRoutes(
     supabase,
     imageId,
     userId,
-    'Only the owner or a collaborator can add routes to this image'
+    'You do not have permission to add routes to this submission'
   )
   if (imageContext.error) return imageContext.error
 
@@ -121,18 +121,9 @@ export async function createSubmissionRoutes(
     .select('id, climb_id, points, sequence_order, image_width, image_height, climbs(id, name, grade, status, route_type, description)')
   if (routeLinesError) return createErrorResponse(routeLinesError, 'Create routes error')
 
-  const { data: collaboratorRows, error: collaboratorsError } = await supabase
-    .from('submission_collaborators')
-    .select('user_id')
-    .eq('image_id', imageId)
-
-  if (collaboratorsError) return createErrorResponse(collaboratorsError, 'Create routes error')
   if (!supabaseAdmin) return NextResponse.json({ error: 'Service role key missing' }, { status: 500 })
 
-  const voterUserIds = Array.from(new Set([
-    ownerId,
-    ...((collaboratorRows || []).map((row: { user_id: string | null }) => row.user_id).filter((id: string | null): id is string => typeof id === 'string' && !!id)),
-  ]))
+  const voterUserIds = ownerId ? [ownerId] : []
 
   const gradeVoteRows = climbs.flatMap((climb: { id: string }, index: number) => {
     const grade = routes[index]?.grade
@@ -146,6 +137,24 @@ export async function createSubmissionRoutes(
   }
 
   await writeClient.from('images').update({ last_edited_by: userId }).eq('id', imageId)
+  for (const [index, climb] of climbs.entries()) {
+    const route = routes[index]
+    if (!route) continue
+    await supabase.rpc('log_submission_edit', {
+      p_image_id: imageId,
+      p_edited_by: userId,
+      p_edit_kind: 'route_created',
+      p_summary: climbs.length === 1 ? `Added route "${route.name.trim()}"` : `Added ${climbs.length} routes`,
+      p_before_data: null,
+      p_after_data: {
+        climb_id: climb.id,
+        name: route.name.trim(),
+        grade: route.grade,
+        description: route.description?.trim() || null,
+      },
+    })
+    if (climbs.length > 1) break
+  }
   await revalidateSubmissionImagePaths(supabase, image.crag_id)
 
   return NextResponse.json({

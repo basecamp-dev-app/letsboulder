@@ -54,17 +54,17 @@ export async function loadEditableImageContext(
     return { error: NextResponse.json({ error: 'This submission is not editable' }, { status: 403 }) }
   }
 
-  if (ownerId !== userId) {
-    const { data: collaboratorAccess, error: collaboratorError } = await supabase
-      .from('submission_collaborators')
-      .select('image_id')
-      .eq('image_id', imageId)
-      .eq('user_id', userId)
-      .maybeSingle()
+  const { data: canEdit, error: accessError } = await supabase.rpc('user_can_wiki_edit_submission', {
+    p_image_id: imageId,
+    p_user_id: userId,
+  })
 
-    if (collaboratorError || !collaboratorAccess) {
-      return { error: NextResponse.json({ error: forbiddenMessage }, { status: 403 }) }
-    }
+  if (accessError) {
+    return { error: createErrorResponse(accessError, 'Submission route mutation error') }
+  }
+
+  if (canEdit !== true) {
+    return { error: NextResponse.json({ error: forbiddenMessage }, { status: 403 }) }
   }
 
   return { image, ownerId }

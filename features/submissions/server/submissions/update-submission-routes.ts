@@ -39,7 +39,7 @@ export async function updateSubmissionRoutes(
   if (updateError) {
     const message = (updateError.message || '').toLowerCase()
     if (message.includes('permission')) {
-      return NextResponse.json({ error: 'Only the owner or a collaborator can edit routes for this image' }, { status: 403 })
+      return NextResponse.json({ error: 'You do not have permission to edit routes for this submission' }, { status: 403 })
     }
     return createErrorResponse(updateError, 'Update submitted routes error')
   }

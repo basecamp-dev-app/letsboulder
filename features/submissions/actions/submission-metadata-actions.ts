@@ -123,7 +123,7 @@ export async function updateSubmissionCragAction(imageId: string, cragName: stri
 
   if (rpcError) {
     const message = (rpcError.message || '').toLowerCase()
-    if (message.includes('owner') || message.includes('permission')) return { success: false, error: 'Only the submission owner can edit crag metadata', status: 403 }
+    if (message.includes('owner') || message.includes('permission')) return { success: false, error: 'You do not have permission to edit crag metadata for this submission', status: 403 }
     if (message.includes('not found') || message.includes('required')) return { success: false, error: rpcError.message, status: 400 }
     return { success: false, error: 'Update submission crag metadata error', status: 500 }
   }
@@ -159,18 +159,12 @@ export async function saveSubmissionGradeVotesAction(imageId: string, grades: Ar
   const ownerId = typeof image.created_by === 'string' ? image.created_by : null
   if (!ownerId) return { success: false, error: 'This submission is not editable', status: 403 }
 
-  let hasAccess = ownerId === auth.data.userId
-  if (!hasAccess) {
-    const { data: collaboratorAccess, error: collaboratorError } = await supabase
-      .from('submission_collaborators')
-      .select('image_id')
-      .eq('image_id', validatedImageId)
-      .eq('user_id', auth.data.userId)
-      .maybeSingle()
-    if (collaboratorError) return { success: false, error: 'Save submission grade votes error', status: 500 }
-    hasAccess = !!collaboratorAccess
-  }
-  if (!hasAccess) return { success: false, error: 'Only the owner or a collaborator can set grade votes', status: 403 }
+  const { data: canEdit, error: canEditError } = await supabase.rpc('user_can_wiki_edit_submission', {
+    p_image_id: validatedImageId,
+    p_user_id: auth.data.userId,
+  })
+  if (canEditError) return { success: false, error: 'Save submission grade votes error', status: 500 }
+  if (canEdit !== true) return { success: false, error: 'You do not have permission to update route grades for this submission', status: 403 }
 
   const uniqueRouteLineIds = Array.from(new Set(validatedGrades.map((item) => item.routeLineId)))
   const { data: routeLines, error: routeLinesError } = await supabase.from('route_lines').select('id, climb_id').eq('image_id', validatedImageId).in('id', uniqueRouteLineIds)
@@ -181,11 +175,9 @@ export async function saveSubmissionGradeVotesAction(imageId: string, grades: Ar
     return { success: false, error: 'One or more routes are invalid for this submission', status: 400 }
   }
 
-  const { data: collaboratorRows, error: collaboratorsError } = await supabase.from('submission_collaborators').select('user_id').eq('image_id', validatedImageId)
-  if (collaboratorsError) return { success: false, error: 'Save submission grade votes error', status: 500 }
   if (!supabaseAdmin) return { success: false, error: 'Service role key missing', status: 500 }
 
-  const voterUserIds = Array.from(new Set([ownerId, ...((collaboratorRows || []).map((row) => row.user_id).filter((id): id is string => typeof id === 'string' && !!id))]))
+  const voterUserIds = Array.from(new Set([auth.data.userId, ...(ownerId ? [ownerId] : [])]))
   const voteRows = validatedGrades.flatMap((item) => {
     const climbId = climbIdByRouteLineId.get(item.routeLineId)
     if (!climbId) return []

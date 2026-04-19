@@ -126,10 +126,12 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `submission_draft_images` | Images attached to drafts (storage-aware) |
 | `submission_draft_routes` | Durable per-image draft routes for image-scoped sync |
 | `crag_images` | Multi-image crag gallery |
-| `submission_collaborators` | Shared editing access on published submissions (image-level) |
-| `submission_collaborator_invites` | Token-based invites for submission collaboration |
+| `submission_collaborators` | Legacy invite-based published collaboration rows; no longer required for published wiki editing |
+| `submission_collaborator_invites` | Legacy token-based invites for published collaboration |
 | `submission_draft_collaborators` | Shared editing access on drafts |
 | `submission_draft_collaborator_invites` | Token-based invites for draft collaboration |
+| `submission_contributors` | Non-owner users who have successfully edited a published submission |
+| `submission_edit_history` | Per-image history log for published wiki edits |
 
 ### Gym Tables
 | Table | Purpose |
@@ -196,6 +198,8 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `images` | `route_lines` | CASCADE |
 | `images` | `submission_collaborators` | CASCADE |
 | `images` | `submission_collaborator_invites` | CASCADE |
+| `images` | `submission_contributors` | CASCADE |
+| `images` | `submission_edit_history` | CASCADE |
 | `climbs` | `climb_corrections` | CASCADE |
 | `climbs` | `climb_flags` | CASCADE |
 | `climbs` | `climb_verifications` | CASCADE |
@@ -247,9 +251,12 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - Active ingest runs through Cloudflare Queue + the Worker in `apps/media-worker`; `images` remains the source of truth.
 
 ### Collaboration Tables
-- `submission_collaborators` and `submission_collaborator_invites` enable shared editing on published submissions (image-level).
-- `submission_draft_collaborators` and `submission_draft_collaborator_invites` enable shared editing on drafts.
+- Published submissions use wiki-style editing for authenticated users; `submission_collaborators` and `submission_collaborator_invites` remain legacy published-collaboration tables.
+- `submission_contributors` records successful non-owner published editors.
+- `submission_edit_history` stores field-aware, per-image edit history for published submissions.
+- `submission_draft_collaborators` and `submission_draft_collaborator_invites` continue to enable shared editing on drafts.
 - RLS helper functions: `is_submission_collaborator(image_id, user_id)` and `is_submission_draft_collaborator(draft_id, user_id)`.
+- Wiki helper function: `user_can_wiki_edit_submission(image_id, user_id)`.
 - Invite claims: `claim_submission_collaborator_invite(token)` and `claim_submission_draft_collaborator_invite(token)`.
 
 ### RLS Policy Matrix (Submission & Collaboration)
@@ -263,6 +270,8 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 | `submission_collaborator_invites` | owner | owner only | (none — RPC only) | owner only |
 | `submission_draft_collaborators` | self or owner | owner only (draft status) | (none — RPC only) | owner or self |
 | `submission_draft_collaborator_invites` | owner | owner only (draft status) | (none — RPC only) | owner only |
+| `submission_contributors` | authenticated | service / helper only | service / helper only | service / helper only |
+| `submission_edit_history` | authenticated | service / helper only | service / helper only | service / helper only |
 | `images` | existing + collaborator read | existing | existing | existing |
 
 **Key security notes:**
