@@ -42,8 +42,12 @@ interface InMemoryBucket {
 const inMemoryFallback = new Map<string, InMemoryBucket>()
 let fallbackAlertLogged = false
 
-const UPSTASH_URL = serverEnv.UPSTASH_REDIS_REST_URL
-const UPSTASH_TOKEN = serverEnv.UPSTASH_REDIS_REST_TOKEN
+function getUpstashConfig() {
+  return {
+    url: serverEnv.UPSTASH_REDIS_REST_URL,
+    token: serverEnv.UPSTASH_REDIS_REST_TOKEN,
+  }
+}
 
 export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = Object.fromEntries(
   Object.entries(RATE_LIMIT_TIERS).map(([key, tier]) => [
@@ -53,8 +57,10 @@ export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = Object.fromEn
 )
 
 async function loadUpstashDeps(): Promise<UpstashDeps | null> {
+  const { url, token } = getUpstashConfig()
+
   if (!upstashDepsPromise) {
-    if (!UPSTASH_URL || !UPSTASH_TOKEN) {
+    if (!url || !token) {
       if (!upstashUnavailableWarningLogged) {
         upstashUnavailableWarningLogged = true
         console.warn('Upstash Redis credentials not configured; rate limiting will use fallback')
@@ -88,9 +94,10 @@ export async function getUpstashRedis(): Promise<UpstashRedisClient | null> {
   if (redisClient) return redisClient
 
   const deps = await loadUpstashDeps()
-  if (!deps || !UPSTASH_URL || !UPSTASH_TOKEN) return null
+  const { url, token } = getUpstashConfig()
+  if (!deps || !url || !token) return null
 
-  redisClient = new deps.Redis({ url: UPSTASH_URL, token: UPSTASH_TOKEN })
+  redisClient = new deps.Redis({ url, token })
   return redisClient
 }
 
@@ -175,5 +182,6 @@ function parseWindowMs(window: string): number {
 }
 
 export function isUpstashConfigured(): boolean {
-  return !!(UPSTASH_URL && UPSTASH_TOKEN)
+  const { url, token } = getUpstashConfig()
+  return !!(url && token)
 }
