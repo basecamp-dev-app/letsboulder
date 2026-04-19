@@ -7,7 +7,7 @@ const { getAdminClientWithAudit } = vi.hoisted(() => ({
   getAdminClientWithAudit: vi.fn(() => mockCreateClient()),
 }))
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/supabase-admin', () => ({
   getAdminClientWithAudit,
 }))
 
