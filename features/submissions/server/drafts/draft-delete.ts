@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAdminClientWithAudit } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import type { Database } from '@/types/database'

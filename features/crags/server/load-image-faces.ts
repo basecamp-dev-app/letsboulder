@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getUnauthenticatedClient, getAdminClientWithAudit } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
 import { reportError } from '@/lib/errors'
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest, getAdminClientWithAudit } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { buildMediaProxyUrl, parsePrivateMediaRef } from '@/lib/media-proxy'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
-import { getAdminClientWithAudit } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import type { CompleteSummaryFace, CragRow, FaceRouteSummary, ImageInfoRow, ClimbInfo } from '@/lib/offline/build-climb-pack-types'
 import type { OfflineMapPin } from '@/features/climb/lib/queries'
 

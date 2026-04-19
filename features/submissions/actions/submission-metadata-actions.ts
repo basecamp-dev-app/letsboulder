@@ -8,7 +8,8 @@ import { isValidGrade } from '@/lib/grade-constants'
 import { buildConsensusUpdates } from '@/features/grades/lib/grade-votes'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { assessNonOwnerTextRisk, combineRiskAssessments } from '@/features/submissions/server/submissions/wiki-edit-protection'
-import { getAdminClientWithAudit, getServerClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
+import { getServerClient } from '@/lib/supabase-server'
 import { z } from 'zod'
 
 const submissionCreditSchema = z.object({
