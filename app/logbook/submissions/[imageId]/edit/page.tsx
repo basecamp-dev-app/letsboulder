@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import {
   createPublishedSubmissionRoutesAction,
@@ -63,6 +64,7 @@ function readCreatedRoutesPayload(data: unknown): CreatedPublishedRoutePayload[]
 }
 
 export default function EditSubmittedRoutesPage() {
+  const searchParams = useSearchParams()
   const { toasts, removeToast } = useToast()
   const editor = useSubmissionEditorData()
   const location = useSubmissionLocationMetadata({ currentUserId: editor.currentUserId, ownerUserId: editor.ownerUserId, cragId: editor.cragId, initialLatitude: editor.initialLatitude, initialLongitude: editor.initialLongitude, initialCragName: editor.initialCragName, initialRegionTag: editor.initialRegionTag, initialSubArea: editor.initialSubArea, initialFaceDirections: editor.initialFaceDirections, initialLocationMode: editor.initialLocationMode })
@@ -83,6 +85,7 @@ export default function EditSubmittedRoutesPage() {
     setInteractionTool,
     setRoutes,
   } = useRouteStore()
+  const requestedRouteId = searchParams.get('route')
   usePublishedRouteEditorSync({
     activeImageId: editor.activeImageId,
     editedRoutes: editor.editedRoutes,
@@ -108,6 +111,17 @@ export default function EditSubmittedRoutesPage() {
   useEffect(() => {
     syncLocationFromEditor()
   }, [syncLocationFromEditor])
+
+  useEffect(() => {
+    if (!requestedRouteId || editor.editedRoutes.length === 0) return
+
+    const matchedRoute = editor.editedRoutes.find((route) => route.id === requestedRouteId || route.climb_id === requestedRouteId || route.climb?.id === requestedRouteId)
+    if (!matchedRoute) return
+
+    setSelectedRoute(matchedRoute.id)
+    setActiveRoute(matchedRoute.id)
+    setEditorPanelOpen(true)
+  }, [editor.editedRoutes, requestedRouteId, setActiveRoute, setEditorPanelOpen, setSelectedRoute])
 
   const handleCanvasRoutesUpdate = useCallback((routes: RouteLine[]) => {
     editor.setEditedRoutes(routes)
