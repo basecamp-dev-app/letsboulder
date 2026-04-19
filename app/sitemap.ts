@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next'
+import { env } from '@/lib/env'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { SITE_URL } from '@/lib/site'
 
@@ -30,6 +31,22 @@ function getSupabase() {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const now = new Date()
+  const staticRoutes: MetadataRoute.Sitemap = [
+    { url: SITE_URL, lastModified: now },
+    { url: `${SITE_URL}/about`, lastModified: now },
+    { url: `${SITE_URL}/bouldering-map`, lastModified: now },
+    { url: `${SITE_URL}/climbing-map`, lastModified: now },
+    { url: `${SITE_URL}/rock-climbing-map`, lastModified: now },
+    { url: `${SITE_URL}/guernsey-bouldering`, lastModified: now },
+    { url: `${SITE_URL}/privacy`, lastModified: now },
+    { url: `${SITE_URL}/terms`, lastModified: now },
+  ]
+
+  if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return staticRoutes
+  }
+
   const supabase = getSupabase()
 
   const [cragResult, climbResult] = await Promise.all([
@@ -49,19 +66,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .in('status', ['active', 'approved'])
       .order('updated_at', { ascending: false }),
   ])
-
-  const now = new Date()
-
-  const staticRoutes: MetadataRoute.Sitemap = [
-    { url: SITE_URL, lastModified: now },
-    { url: `${SITE_URL}/about`, lastModified: now },
-    { url: `${SITE_URL}/bouldering-map`, lastModified: now },
-    { url: `${SITE_URL}/climbing-map`, lastModified: now },
-    { url: `${SITE_URL}/rock-climbing-map`, lastModified: now },
-    { url: `${SITE_URL}/guernsey-bouldering`, lastModified: now },
-    { url: `${SITE_URL}/privacy`, lastModified: now },
-    { url: `${SITE_URL}/terms`, lastModified: now },
-  ]
 
   const cragRoutes: MetadataRoute.Sitemap = ((cragResult.data || []) as SitemapCragRow[])
     .filter((crag) => crag.slug && crag.country_code)
