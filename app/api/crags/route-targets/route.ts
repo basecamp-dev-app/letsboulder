@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { parseWithSchema } from '@/lib/api-validation'
-import { getAdminClientWithAudit } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { buildEffectiveClimbLookup, fetchCragRoutePreviewsBatched } from '@/features/crags/lib/crag-route-targets'
 
 export const runtime = 'nodejs'

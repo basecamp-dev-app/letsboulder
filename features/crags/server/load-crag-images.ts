@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { createErrorResponse } from '@/lib/errors'
 import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
-import { getAdminClientWithAudit, getServerClientFromRequest } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 
 type RequestSupabaseClient = ReturnType<typeof getServerClientFromRequest>
 

@@ -5,7 +5,7 @@ import { createErrorResponse, reportError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { buildWelcomeEmail } from '@/lib/email/welcome-email'
-import { getAdminClientWithAudit } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { serverEnv } from '@/lib/env.server'
 import { parseWithSchema } from '@/lib/api-validation'
 

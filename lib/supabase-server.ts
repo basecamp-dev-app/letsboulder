@@ -3,7 +3,6 @@ import { cookies } from 'next/headers'
 import { cache } from 'react'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
-import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
 
 export async function getServerClient() {
@@ -34,20 +33,6 @@ export function getServerClientFromRequest(request: NextRequest) {
         getAll() {
           return requestCookies.getAll()
         },
-        setAll() {},
-      },
-    }
-  )
-}
-
-export function getAdminClientWithAudit(reason: string) {
-  console.log(`[ADMIN_CLIENT_AUDIT] ${reason} - ${new Date().toISOString()}`)
-  return createServerClient(
-    env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    serverEnv.SUPABASE_SERVICE_ROLE_KEY ?? '',
-    {
-      cookies: {
-        getAll() { return [] },
         setAll() {},
       },
     }

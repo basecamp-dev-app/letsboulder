@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getAdminClientWithAudit } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { moderateImageFromBytes, moderateImageFromUrl } from '@/lib/image-moderation'
 import { withApiMiddleware } from '@/lib/csrf-server'
