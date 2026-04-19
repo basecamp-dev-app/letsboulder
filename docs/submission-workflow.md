@@ -6,8 +6,8 @@ Draft-based workflow for creating and publishing route submissions.
 
 1. Create draft → `submission_drafts` row
 2. Upload images → presigned URL → R2 → `submission_draft_images` rows
-3. Draw routes → stored as durable `submission_draft_routes` rows and synced per image
-4. Promote → `promote_draft` RPC publishes the draft into the live route records
+3. Draw routes (optional before publish) → stored as durable `submission_draft_routes` rows and synced per image
+4. Promote → `promote_draft` RPC publishes the draft into the live image records and any draft routes that already exist
 5. Images go through media pipeline for processing
 6. Community can verify routes (3+ votes)
 
@@ -68,6 +68,7 @@ Draft-based workflow for creating and publishing route submissions.
 - Autosave during editing remains for draft metadata and image ordering
 - Draft state persists across sessions
 - Published submissions use wiki-style editing: any authenticated user can add or edit route, image, and crag metadata without an invite
+- Drafts can be published as image-only submissions; the community can add topo/routes later through the published wiki-edit flow
 - Published wiki edits are additive only: published route deletion and face reordering are disabled
 - The original uploader remains the owner via `images.created_by`; successful non-owner editors are tracked in `submission_contributors`
 - Published edits are logged per image in `submission_edit_history`

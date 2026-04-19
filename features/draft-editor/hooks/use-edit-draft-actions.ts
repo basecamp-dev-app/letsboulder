@@ -194,7 +194,6 @@ export function useEditDraftActions({
 
   const publishValidationMessage = useMemo(() => {
     const missingItems: string[] = []
-    const imagesMissingRoutes = getImagesMissingRoutes(routesByImageId)
 
     if (draftId && hasPendingUploads(draftId)) {
       missingItems.push('wait for photo uploads to finish')
@@ -212,12 +211,8 @@ export function useEditDraftActions({
       missingItems.push('add climb location')
     }
 
-    if (imagesMissingRoutes.length > 0) {
-      missingItems.push('draw at least one route on every image or remove the images without routes')
-    }
-
     return missingItems.length > 0 ? `Before publishing, ${missingItems.join(', ')}.` : null
-  }, [cragId, draftId, getImagesMissingRoutes, hasFailedUploads, hasPendingUploads, hasValidLocation, routesByImageId])
+  }, [cragId, draftId, hasFailedUploads, hasPendingUploads, hasValidLocation])
 
   const saveDraft = useCallback(async (options?: { overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null; forceMetadataSave?: boolean }) => {
     const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? routesByImageId
@@ -346,12 +341,10 @@ export function useEditDraftActions({
   const publishDraft = useCallback(async () => {
     if (!draft || !isOwner) return
 
-    const imagesMissingRoutes = getImagesMissingRoutes(routesByImageId)
     const hasBlockingPublishRequirements = Boolean(
       (draftId && hasPendingUploads(draftId))
       || (draftId && hasFailedUploads(draftId))
       || !cragId
-      || imagesMissingRoutes.length > 0
     )
 
     if (hasBlockingPublishRequirements) {
@@ -368,13 +361,6 @@ export function useEditDraftActions({
         return
       }
 
-      if (imagesMissingRoutes.length > 0) {
-        const firstMissingImage = imagesMissingRoutes[0] || null
-        if (firstMissingImage) {
-          setActiveImageId(firstMissingImage.imageId)
-        }
-        publishRequirementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }
       return
     }
 
@@ -404,20 +390,17 @@ export function useEditDraftActions({
           throw new Error(PUBLISH_RATE_LIMIT_ERROR_MESSAGE)
         }
 
-        if (response.status === 409 && Array.isArray(payload.missing_image_ids) && payload.missing_image_ids.length > 0) {
-          const firstMissingImageId = payload.missing_image_ids[0] || null
-          if (firstMissingImageId) {
-            setActiveImageId(firstMissingImageId)
-          }
-          publishRequirementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }
-
         throw new Error(payload.error || 'Failed to publish draft')
       }
 
       const imageCount = Array.isArray(payload.published.imageIds) ? payload.published.imageIds.length : 1
       const routeCount = Array.isArray(payload.published.routeLineIds) ? payload.published.routeLineIds.length : 0
-      addToast(`Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 'success')
+      addToast(
+        routeCount > 0
+          ? `Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} image${imageCount === 1 ? '' : 's'}.`
+          : `Success! Published ${imageCount} image${imageCount === 1 ? '' : 's'} without routes yet. The community can add topo later.`,
+        'success'
+      )
 
       const query = new URLSearchParams({
         publishedImages: String(imageCount),
@@ -434,7 +417,7 @@ export function useEditDraftActions({
     } finally {
       setPublishingDraft(false)
     }
-  }, [addToast, cragId, draft, draftId, flushLocationSync, getImagesMissingRoutes, hasFailedUploads, hasPendingUploads, isOwner, locationSectionRef, publishRequirementsRef, router, routesByImageId, saveDraft, setActiveImageId, setError, cragSectionRef])
+  }, [addToast, cragId, draft, draftId, flushLocationSync, hasFailedUploads, hasPendingUploads, isOwner, locationSectionRef, publishRequirementsRef, router, saveDraft, setError, cragSectionRef])
 
   const handleReloadLatestDraft = useCallback(async () => {
     setConflict(null)
