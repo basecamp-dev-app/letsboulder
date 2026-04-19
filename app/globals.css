@@ -201,6 +201,7 @@
 .gym-pin {
   background: transparent !important;
   border: none !important;
+  overflow: visible !important;
 }
 
 :root {

@@ -551,14 +551,14 @@ export default function SatelliteClimbingMap({
                 position={[latitude, longitude]}
                 icon={leaflet.divIcon({
                   className: isGym ? 'gym-pin' : 'crag-pin',
-                  html: `<div style="position:relative;width:120px;height:58px;pointer-events:none;">
-                    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);">
+                  html: `<div style="position:relative;width:20px;height:20px;pointer-events:none;overflow:visible;">
+                    <div style="position:absolute;left:50%;top:50%;transform:translate(-50%, -50%);">
                       <div class="place-dot ${isGym ? 'gym-dot' : 'crag-dot'}"></div>
                     </div>
                     <div style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);padding:4px 8px;border-radius:9999px;background:rgba(15,23,42,0.9);color:white;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 12px rgba(15,23,42,0.28);opacity:${isSelected ? 1 : 0};transition:opacity 150ms ease;">${escapeHtml(place.name)}</div>
                   </div>`,
-                  iconSize: [120, 58],
-                  iconAnchor: [60, 58]
+                  iconSize: [20, 20],
+                  iconAnchor: [10, 10]
                 })}
                 bubblingMouseEvents={false}
                 zIndexOffset={1000}
