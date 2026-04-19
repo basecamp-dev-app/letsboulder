@@ -2926,6 +2926,41 @@ export type Database = {
               name: string
             }[]
           }
+      get_crag_rankings_leaderboard: {
+        Args: {
+          p_crag_id: string
+          p_limit?: number
+          p_page?: number
+          p_sort?: string
+          p_window_start?: string
+        }
+        Returns: {
+          avg_grade: string
+          avatar_url: string | null
+          climb_count: number
+          rank: number
+          total_users: number
+          user_id: string
+          username: string
+        }[]
+      }
+      get_crag_route_targets_page: {
+        Args: {
+          p_crag_id: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          climb_slug: string | null
+          effective_climb_id: string
+          navigation_image_id: string | null
+          navigation_image_url: string | null
+          navigation_route_id: string | null
+          preview_image_id: string | null
+          preview_image_url: string | null
+          route_image_ids: string[]
+        }[]
+      }
       get_crag_route_intelligence: {
         Args: { p_crag_id: string }
         Returns: {
@@ -4469,4 +4504,3 @@ export const Constants = {
     },
   },
 } as const
-

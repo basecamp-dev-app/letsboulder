@@ -40,7 +40,7 @@ This is a maintainer reference for system shape, deployment flow, and module own
 - **Auth**: Supabase Auth with JWT sessions
 - **Extensions**: PostGIS for geo queries
 - **Key RPCs**: `get_crag_pins`, `get_crag_route_intelligence`, `get_upload_context`, `create_unified_submission`
-- **Migrations**: `supabase/migrations/*.sql` (canonical source of truth, 4 migration files)
+- **Migrations**: `supabase/migrations/*.sql` (canonical source of truth, 5 migration files)
 - **Types**: Auto-generated in `types/database.ts` via `supabase gen types`
 
 ### Media Pipeline (Cloudflare Worker + R2)
