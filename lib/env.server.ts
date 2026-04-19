@@ -3,6 +3,17 @@ import { EnvValidationError, getSharedEnv, type SharedEnv } from '@/lib/env'
 
 const isTest = process.env.NODE_ENV === 'test'
 
+let isBuildRuntime: boolean | undefined
+
+function checkIsBuild(): boolean {
+  if (isBuildRuntime !== undefined) return isBuildRuntime
+  isBuildRuntime =
+    process.env.NEXT_TELEMETRY_DISABLED === '1' &&
+    Array.isArray(process.argv) &&
+    process.argv.some((arg) => arg.includes('next build'))
+  return isBuildRuntime
+}
+
 const serverOnlyEnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   CSRF_SECRET: z.string().min(1),
@@ -52,6 +63,46 @@ let serverEnvCache: ServerEnv | null = null
 
 export function getServerEnv(): ServerEnv {
   if (serverEnvCache) return serverEnvCache
+
+  if (isBuildRuntime) {
+    serverEnvCache = {
+      ...getSharedEnv(),
+      SUPABASE_SERVICE_ROLE_KEY: 'build-placeholder',
+      CSRF_SECRET: 'build-placeholder',
+      DELETE_ACCOUNT_SECRET: 'build-placeholder',
+      R2_S3_ENDPOINT: 'https://build.placeholder',
+      R2_PRIVATE_BUCKET: 'build-placeholder',
+      R2_PUBLIC_BUCKET: 'build-placeholder',
+      R2_ACCESS_KEY_ID: 'build-placeholder',
+      R2_SECRET_ACCESS_KEY: 'build-placeholder',
+      MEDIA_MODERATION_ENABLED: true,
+      MEDIA_MODERATION_PROVIDER: undefined,
+      MEDIA_MODERATION_FAIL_OPEN: false,
+      DISCORD_SUBMISSIONS_WEBHOOK_URL: undefined,
+      DISCORD_FLAGS_WEBHOOK_URL: undefined,
+      DISCORD_GYM_OWNERS_WEBHOOK_URL: undefined,
+      DISCORD_FEEDBACK_WEBHOOK_URL: undefined,
+      RESEND_API_KEY: undefined,
+      UPSTASH_REDIS_REST_URL: undefined,
+      UPSTASH_REDIS_REST_TOKEN: undefined,
+      AWS_REGION: undefined,
+      AWS_ACCESS_KEY_ID: undefined,
+      AWS_SECRET_ACCESS_KEY: undefined,
+      CF_MEDIA_WORKER_URL: undefined,
+      CF_MEDIA_WORKER_SECRET: undefined,
+      VERCEL_ENV: undefined,
+      VERCEL_URL: undefined,
+      DEBUG_SUBMISSIONS_AUTH: undefined,
+      DEV_SUPABASE_SERVICE_ROLE_KEY: undefined,
+      INTERNAL_TEST_KEY: undefined,
+      TEST_API_KEY: undefined,
+      TEST_USER_PASSWORD: undefined,
+      TEST_USER_ID: undefined,
+      TEST_AUTH_PATH_SEGMENT: undefined,
+      SENTRY_DSN: undefined,
+    }
+    return serverEnvCache
+  }
 
   try {
     serverEnvCache = {
