@@ -41,6 +41,7 @@ interface SelectedClimbInfo {
 interface ClimbInfoPanelProps {
   selectedClimb: SelectedClimbInfo | null
   selectedRouteExists: boolean
+  canEditRoute: boolean
   totalRoutesCombined: number
   totalFaces: number
   isFacesLoading: boolean
@@ -71,6 +72,7 @@ interface ClimbInfoPanelProps {
   gradeOpinionLabels: Record<GradeOpinion, string>
   formatRouteTypeLabel: (value: string) => string
   onOpenOffline: () => void
+  onEditRoute: () => void
   onOpenFlag: () => void
   onShare: () => void
   onGoToAuth: () => void
@@ -88,6 +90,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
   const {
     selectedClimb,
     selectedRouteExists,
+    canEditRoute,
     totalRoutesCombined,
     totalFaces,
     isFacesLoading,
@@ -117,6 +120,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     gradeOpinionLabels,
     formatRouteTypeLabel,
     onOpenOffline,
+    onEditRoute,
     onOpenFlag,
     onShare,
     onGoToAuth,
@@ -211,6 +215,11 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             <button onClick={onOpenOffline} disabled={!offlinePackAvailable} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               {isOfflineSaved ? 'Saved offline' : 'Save offline'}
             </button>
+            {canEditRoute ? (
+              <button onClick={onEditRoute} className="px-3 py-1.5 text-sm font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-100 dark:hover:bg-blue-950/40 rounded-lg transition-colors">
+                Edit this route
+              </button>
+            ) : null}
             <button onClick={onOpenFlag} disabled={!selectedClimb} className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Report incorrect route info" title={selectedClimb ? 'Report incorrect route info' : 'Select a route to report'}>
               <Flag className="w-5 h-5" />
             </button>

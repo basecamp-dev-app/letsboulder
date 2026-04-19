@@ -540,6 +540,21 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/${countryCode}/${cragSlug}/i/${heroImage.displayImageId}`)}`)
   }
 
+  const handleEditRoute = useCallback(() => {
+    if (!activePrimaryImageId || !resolvedActiveRouteId) return
+
+    const editParams = new URLSearchParams()
+    editParams.set('route', resolvedActiveRouteId)
+    const editUrl = `/logbook/submissions/${activePrimaryImageId}/edit?${editParams.toString()}`
+
+    if (!userPresent) {
+      router.push(`/auth?redirect_to=${encodeURIComponent(editUrl)}`)
+      return
+    }
+
+    router.push(editUrl)
+  }, [activePrimaryImageId, resolvedActiveRouteId, router, userPresent])
+
   const handleRouteSelect = useCallback((routeId: string | null) => {
     if (routeId) {
       initialRouteSelectionRef.current = {
@@ -806,6 +821,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       <ClimbInfoPanel
         selectedClimb={selectedClimb}
         selectedRouteExists={!!activeRouteId}
+        canEditRoute={!!selectedClimb && !!activePrimaryImageId && !!resolvedActiveRouteId}
         totalRoutesCombined={allRoutesFlat.length}
         totalFaces={navigationContext.orderedImageIds.length}
         isFacesLoading={false}
@@ -836,6 +852,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         gradeOpinionLabels={{ soft: 'Soft', agree: 'Agree', hard: 'Hard' }}
         formatRouteTypeLabel={(value) => value}
         onOpenOffline={() => undefined}
+        onEditRoute={handleEditRoute}
         onOpenFlag={() => undefined}
         onShare={() => undefined}
         onGoToAuth={handleGoToAuth}
