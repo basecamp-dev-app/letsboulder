@@ -255,7 +255,7 @@ export function useSubmissionEditorData() {
       const { data: profileRows } = profileIds.length > 0
         ? await supabase.from('profiles').select('id, username, display_name').in('id', profileIds)
         : { data: [] as ProfileRow[] }
-      const profileMap = new Map((profileRows || []).map((profile) => [profile.id, profile]))
+      const profileMap = new Map<string, ProfileRow>((profileRows || []).map((profile: ProfileRow) => [profile.id, profile]))
       const toCommunityMember = (userId: string): CommunityMember => {
         const profile = profileMap.get(userId)
         return {
