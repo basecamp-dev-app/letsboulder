@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useRouteStore } from '@/features/route-editor/store'
-import { buildMapPins, reorderItemsByIds, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
+import { buildMapPins, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
 import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
-import { reorderSubmissionFacesAction } from '@/features/submissions/actions/editor-write-actions'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine } from '@/features/submissions/lib/submission-types'
+import type { CommunityMember, SubmissionHistoryEntry } from '@/features/submissions/lib/editor-types'
 import type { RoutePoint } from '@/types/climbing'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { normalizePoints } from '@/lib/canvasMath'
@@ -53,6 +53,24 @@ interface EditableImageQuery {
   location_mode?: string | null
   crags?: { name: string; region_name: string | null; sub_area: string | null } | Array<{ name: string; region_name: string | null; sub_area: string | null }> | null
   route_lines: ImageRouteLineQuery[] | null
+}
+
+interface ProfileRow {
+  id: string
+  username: string | null
+  display_name: string | null
+}
+
+interface SubmissionContributorRow {
+  user_id: string
+}
+
+interface SubmissionEditHistoryRow {
+  id: string
+  edit_kind: string
+  summary: string
+  created_at: string
+  edited_by: string
 }
 
 interface ManageFaceTab {
@@ -111,6 +129,9 @@ export function useSubmissionEditorData() {
   const [initialCreditHandle, setInitialCreditHandle] = useState('')
   const [manageFaces, setManageFaces] = useState<ManageFaceTab[]>([])
   const [primaryManageImageId, setPrimaryManageImageId] = useState<string | null>(routeImageId)
+  const [owner, setOwner] = useState<CommunityMember | null>(null)
+  const [contributors, setContributors] = useState<CommunityMember[]>([])
+  const [history, setHistory] = useState<SubmissionHistoryEntry[]>([])
   const manageFacesRef = useRef<ManageFaceTab[]>([])
 
   useEffect(() => {
@@ -118,7 +139,7 @@ export function useSubmissionEditorData() {
   }, [manageFaces])
 
   const canEditContributionCredit = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId
-  const canEditCragMetadata = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId && !!cragId
+  const canEditCragMetadata = !!currentUserId && !!cragId
   const hasReadyData = !!imageSelection
   const markerPosition = useMemo<[number, number] | null>(() => {
     const lat = Number(latitude)
@@ -176,10 +197,6 @@ export function useSubmissionEditorData() {
       }
       if (imageError || !data) { setError(`Failed to load this submission. ${imageError?.message || 'The submission could not be found or loaded.'}`); return }
       const submission = data as EditableImageQuery
-      if (submission.created_by !== user.id) {
-        const { data: collaboratorAccess, error: collaboratorError } = await supabase.from('submission_collaborators').select('image_id').eq('image_id', activeImageId).eq('user_id', user.id).maybeSingle()
-        if (collaboratorError || !collaboratorAccess) { setError('You do not have access to edit this submission'); return }
-      }
       const mappedRouteLines = (submission.route_lines || []).map((line) => {
         const climb = pickOne(line.climbs)
         if (!climb) return null
@@ -225,6 +242,38 @@ export function useSubmissionEditorData() {
       setInitialIsAnonymousSubmission(submission.is_anonymous_submission === true)
       setInitialEditedRoutes(mappedRouteLines)
       setEditedRoutes(mappedRouteLines)
+
+      const ownerId = typeof submission.created_by === 'string' ? submission.created_by : null
+      const contributorQuery = supabase.from('submission_contributors').select('user_id').eq('image_id', submission.id).order('last_contributed_at', { ascending: false })
+      const historyQuery = supabase.from('submission_edit_history').select('id, edit_kind, summary, created_at, edited_by').eq('image_id', submission.id).order('created_at', { ascending: false }).limit(10)
+      const [{ data: contributorRows }, { data: historyRows }] = await Promise.all([contributorQuery, historyQuery])
+      const profileIds = Array.from(new Set([
+        ...(ownerId ? [ownerId] : []),
+        ...((contributorRows || []) as SubmissionContributorRow[]).map((row) => row.user_id),
+        ...((historyRows || []) as SubmissionEditHistoryRow[]).map((row) => row.edited_by),
+      ]))
+      const { data: profileRows } = profileIds.length > 0
+        ? await supabase.from('profiles').select('id, username, display_name').in('id', profileIds)
+        : { data: [] as ProfileRow[] }
+      const profileMap = new Map((profileRows || []).map((profile) => [profile.id, profile]))
+      const toCommunityMember = (userId: string): CommunityMember => {
+        const profile = profileMap.get(userId)
+        return {
+          userId,
+          username: profile?.username || null,
+          displayName: profile?.display_name || profile?.username || 'Community member',
+        }
+      }
+
+      setOwner(ownerId ? toCommunityMember(ownerId) : null)
+      setContributors(((contributorRows || []) as SubmissionContributorRow[]).map((row) => toCommunityMember(row.user_id)))
+      setHistory(((historyRows || []) as SubmissionEditHistoryRow[]).map((entry) => ({
+        id: entry.id,
+        editKind: entry.edit_kind,
+        summary: entry.summary,
+        createdAt: entry.created_at,
+        editor: toCommunityMember(entry.edited_by),
+      })))
     } catch {
       setError('Failed to load this submission. Please refresh and try again.')
     } finally {
@@ -259,23 +308,6 @@ export function useSubmissionEditorData() {
     if (imageId === activeImageId) return
     router.replace(buildEditUrl(primaryManageImageId || routeImageId, imageId))
   }, [activeImageId, buildEditUrl, primaryManageImageId, routeImageId, router])
-
-  const handleReorderImages = useCallback(async (imageIds: string[]) => {
-    if (!routeImageId) return
-
-    const previousManageFaces = manageFacesRef.current
-    setManageFaces((prev) => reorderItemsByIds(prev, imageIds))
-
-    try {
-      const result = await reorderSubmissionFacesAction(routeImageId, { imageIds })
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to reorder submission images')
-      }
-    } catch (error) {
-      setManageFaces(previousManageFaces)
-      setError(error instanceof Error ? error.message : 'Failed to reorder submission images')
-    }
-  }, [routeImageId])
 
   return {
     loading,
@@ -333,6 +365,9 @@ export function useSubmissionEditorData() {
     activeImageUrl,
     quickSwitcherImages,
     publishedDraftPins,
+    owner,
+    contributors,
+    history,
     canEditContributionCredit,
     canEditCragMetadata,
     imageMetadataDirty,
@@ -348,7 +383,6 @@ export function useSubmissionEditorData() {
     requestedFaceImageId,
     buildEditUrl,
     handleQuickSwitchImage,
-    handleReorderImages,
     toggleFaceDirection: (direction: FaceDirection) => setFaceDirections((prev) => prev.includes(direction) ? prev.filter((value) => value !== direction) : [...prev, direction]),
   }
 }

@@ -10,7 +10,6 @@ import {
   type DraftPatchImage,
 } from '@/features/submissions/server/drafts/draft-route-shared'
 import { createSubmissionRoutes } from '@/features/submissions/server/submissions/create-submission-routes'
-import { deleteSubmissionRoute } from '@/features/submissions/server/submissions/delete-submission-route'
 import { updateSubmissionRoutes } from '@/features/submissions/server/submissions/update-submission-routes'
 import { type SubmissionRouteMutationDeps } from '@/features/submissions/server/submissions/route-line-shared'
 import { FACE_DIRECTIONS, type FaceDirection } from '@/features/submissions/lib/submission-types'
@@ -86,15 +85,6 @@ function normalizeImageMetadataPayload(value: unknown) {
     faceDirections: normalizedDirections,
     locationMode: locationMode === 'shared' ? 'shared' : locationMode === 'custom' ? 'custom' : undefined,
   }
-}
-
-function normalizeFacesPayload(value: unknown): { imageIds: string[] } | null {
-  if (!value || typeof value !== 'object') return null
-  const candidate = value as { imageIds?: unknown }
-  if (!Array.isArray(candidate.imageIds)) return null
-  const imageIds = candidate.imageIds.filter((item): item is string => typeof item === 'string' && item.length > 0)
-  if (imageIds.length !== candidate.imageIds.length || imageIds.length === 0) return null
-  return { imageIds }
 }
 
 const draftPatchSchema = z.object({
@@ -317,20 +307,9 @@ export async function updatePublishedSubmissionRoutesAction(imageId: string, bod
 }
 
 export async function deletePublishedSubmissionRouteAction(imageId: string, body: unknown): Promise<ActionResult> {
-  const validation = validateActionInput(imageBodySchema, { imageId, body })
-  if (!validation.success) return validation.result
-
-  const auth = await getActionAuth()
-  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
-  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-
-  const supabase = await getServerClient()
-  const supabaseAdmin = getAdminClientWithAudit('create submission route')
-  const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin, userId: auth.data.userId, imageId: validation.data.imageId }
-  const response = await deleteSubmissionRoute(deps, validation.data.body)
-  const payload = await response.json().catch(() => ({} as { error?: string }))
-  if (!response.ok) return { success: false, error: payload.error || 'Delete route error', status: response.status, data: payload }
-  return { success: true, data: payload }
+  void imageId
+  void body
+  return { success: false, error: 'Community wiki editing is additive only. Deleting published routes is disabled.', status: 403 }
 }
 
 export async function updateSubmissionImageMetadataAction(imageId: string, body: unknown): Promise<ActionResult<{ metadata: Record<string, unknown> }>> {
@@ -402,38 +381,7 @@ export async function updateSubmissionImageMetadataAction(imageId: string, body:
 }
 
 export async function reorderSubmissionFacesAction(imageId: string, body: unknown): Promise<ActionResult<{ updatedCount: number }>> {
-  const validation = validateActionInput(imageBodySchema, { imageId, body })
-  if (!validation.success) return fail<{ updatedCount: number }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
-
-  const auth = await getActionAuth()
-  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
-  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-
-  const payload = normalizeFacesPayload(validation.data.body)
-  if (!payload) return { success: false, error: 'Invalid payload', status: 400 }
-
-  const supabase = await getServerClient()
-  const { data: image, error: imageError } = await supabase
-    .from('images')
-    .select('submission_id, crag_id')
-    .eq('id', validation.data.imageId)
-    .maybeSingle()
-
-  if (imageError) return { success: false, error: 'Reorder submission faces error', status: 500 }
-  if (!image?.submission_id) return { success: false, error: 'Submission not found', status: 404 }
-
-  const { data: result, error: reorderError } = await supabase.rpc('update_submission_image_order', {
-    p_submission_id: image.submission_id,
-    p_image_ids: payload.imageIds,
-  })
-
-  if (reorderError) {
-    const message = (reorderError.message || '').toLowerCase()
-    if (message.includes('permission')) return { success: false, error: 'You do not have permission to edit this submission', status: 403 }
-    return { success: false, error: 'Reorder submission faces error', status: 500 }
-  }
-
-  await revalidateSubmissionImagePaths(supabase, validation.data.imageId)
-
-  return { success: true, data: { updatedCount: typeof result === 'number' ? result : payload.imageIds.length } }
+  void imageId
+  void body
+  return { success: false, error: 'Community wiki editing is additive only. Reordering published faces is disabled.', status: 403 }
 }

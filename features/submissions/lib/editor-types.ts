@@ -29,3 +29,17 @@ export interface EditableRoute {
   points: RoutePoint[]
   sequenceOrder?: number
 }
+
+export interface CommunityMember {
+  userId: string
+  displayName: string
+  username: string | null
+}
+
+export interface SubmissionHistoryEntry {
+  id: string
+  editKind: string
+  summary: string
+  createdAt: string
+  editor: CommunityMember
+}

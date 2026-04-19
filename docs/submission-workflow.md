@@ -38,6 +38,8 @@ Draft-based workflow for creating and publishing route submissions.
 - `submission_draft_routes` — durable draft routes keyed by draft image, synced with last-write-wins per image
 - `images` — final published images with route lines
 - `climbs` — published routes
+- `submission_edit_history` — per-image history log for published wiki edits
+- `submission_contributors` — non-owner contributors for published submissions
 
 ## API Routes
 
@@ -61,10 +63,14 @@ Draft-based workflow for creating and publishing route submissions.
 
 ## Collaboration
 
-- Drafts support multiple editors
+- Drafts support multiple editors via invite/collaboration flows
 - Route drawing persists immediately via image-scoped bulk sync with last-write-wins per image
 - Autosave during editing remains for draft metadata and image ordering
 - Draft state persists across sessions
+- Published submissions use wiki-style editing: any authenticated user can add or edit route, image, and crag metadata without an invite
+- Published wiki edits are additive only: published route deletion and face reordering are disabled
+- The original uploader remains the owner via `images.created_by`; successful non-owner editors are tracked in `submission_contributors`
+- Published edits are logged per image in `submission_edit_history`
 
 ## Server Ownership
 

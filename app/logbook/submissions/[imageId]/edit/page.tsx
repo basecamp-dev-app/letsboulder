@@ -1,10 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import {
   createPublishedSubmissionRoutesAction,
-  deletePublishedSubmissionRouteAction,
   updatePublishedSubmissionRoutesAction,
   updateSubmissionImageMetadataAction,
 } from '@/features/submissions/actions/editor-write-actions'
@@ -25,14 +24,10 @@ import { SubmissionWorkstation } from '@/features/submissions/components/Submiss
 import { SubmissionDetailsPanel } from '@/features/submissions/submission-editor/components/SubmissionDetailsPanel'
 import { SubmissionToolbar } from '@/features/submissions/submission-editor/components/SubmissionToolbar'
 import { SubmissionLocationPanel } from '@/features/submissions/submission-editor/components/SubmissionLocationPanel'
-import { DeleteRouteTransferDialog } from '@/features/submissions/submission-editor/components/DeleteRouteTransferDialog'
-import { CollaboratorDialog } from '@/features/submissions/components/editor/CollaboratorDialog'
 import { useSubmissionEditorData } from '@/features/submissions/submission-editor/hooks/use-submission-editor-data'
 import { useSubmissionLocationMetadata } from '@/features/submissions/editor/location/use-submission-location-metadata'
-import { useSubmissionCollaborators } from '@/features/collaboration/hooks/use-submission-collaborators'
 import {
   normalizePublishedRoute,
-  removePublishedRoute,
   replaceDraftRoutesWithPublishedRoutes,
 } from '@/features/submissions/submission-editor/lib/published-route-editor-state'
 import { usePublishedRouteEditorSync } from '@/features/submissions/submission-editor/hooks/use-published-route-editor-sync'
@@ -68,21 +63,14 @@ function readCreatedRoutesPayload(data: unknown): CreatedPublishedRoutePayload[]
 }
 
 export default function EditSubmittedRoutesPage() {
-  const { toasts, addToast, removeToast } = useToast()
+  const { toasts, removeToast } = useToast()
   const editor = useSubmissionEditorData()
   const location = useSubmissionLocationMetadata({ currentUserId: editor.currentUserId, ownerUserId: editor.ownerUserId, cragId: editor.cragId, initialLatitude: editor.initialLatitude, initialLongitude: editor.initialLongitude, initialCragName: editor.initialCragName, initialRegionTag: editor.initialRegionTag, initialSubArea: editor.initialSubArea, initialFaceDirections: editor.initialFaceDirections, initialLocationMode: editor.initialLocationMode })
-  const collaborators = useSubmissionCollaborators(editor.activeImageId, addToast, editor.setError)
   const drawingAreaRef = useRef<HTMLDivElement | null>(null)
   const routeCanvasRef = useRef<UnifiedRouteCanvasRef | null>(null)
   const [savingAllChanges, setSavingAllChanges] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(true)
   const [orientationOpen, setOrientationOpen] = useState(true)
-  const [deleteTransferOpen, setDeleteTransferOpen] = useState(false)
-  const [deleteTransferSourceRouteName, setDeleteTransferSourceRouteName] = useState('')
-  const [deleteTransferCandidates, setDeleteTransferCandidates] = useState<Array<{ routeLineId: string; climbName: string; grade: string | null }>>([])
-  const [selectedTargetRouteLineId, setSelectedTargetRouteLineId] = useState('')
-  const [pendingDeleteRouteLineId, setPendingDeleteRouteLineId] = useState<string | null>(null)
-  const [deletingRoute, setDeletingRoute] = useState(false)
   const atlasSync = useAtlasAutoSync(editor.markerPosition?.[0] ?? null, editor.markerPosition?.[1] ?? null)
   const {
     selectedRouteId,
@@ -120,11 +108,6 @@ export default function EditSubmittedRoutesPage() {
   useEffect(() => {
     syncLocationFromEditor()
   }, [syncLocationFromEditor])
-
-  useEffect(() => {
-    if (!collaborators.shareOpen) return
-    void collaborators.loadCollaborators()
-  }, [collaborators, collaborators.loadCollaborators, collaborators.shareOpen])
 
   const handleCanvasRoutesUpdate = useCallback((routes: RouteLine[]) => {
     editor.setEditedRoutes(routes)
@@ -246,55 +229,6 @@ export default function EditSubmittedRoutesPage() {
     }
   }, [editor, location, savingAllChanges, setRoutes])
 
-  const handleDeleteRoute = useCallback(async (routeLineId: string, targetRouteLineId?: string) => {
-    if (!editor.activeImageId || deletingRoute) return
-    setDeletingRoute(true)
-    editor.setError(null)
-    try {
-      const result = await deletePublishedSubmissionRouteAction(editor.activeImageId, {
-        routeLineId,
-        transferLogsToSameName: true,
-        targetRouteLineId: targetRouteLineId || null,
-      })
-      const payload = (result.data || null) as {
-        error?: string
-        code?: string
-        sourceRouteName?: string
-        candidates?: Array<{ routeLineId: string; climbName: string; grade: string | null }>
-      } | null
-
-      if (result.status === 409 && payload?.code === 'multiple_transfer_targets' && payload.candidates && payload.candidates.length > 0) {
-        setPendingDeleteRouteLineId(routeLineId)
-        setDeleteTransferSourceRouteName(payload.sourceRouteName || '')
-        setDeleteTransferCandidates(payload.candidates)
-        setSelectedTargetRouteLineId(payload.candidates[0]?.routeLineId || '')
-        setDeleteTransferOpen(true)
-        return
-      }
-
-       if (!result.success) throw new Error(result.error || payload?.error || 'Failed to delete route')
-        const nextRoutes = removePublishedRoute(editor.editedRoutes, routeLineId)
-        editor.setEditedRoutes(nextRoutes)
-        setRoutes(nextRoutes)
-        editor.setInitialEditedRoutes(nextRoutes)
-        setSelectedRoute(null)
-        setActiveRoute(null)
-        setEditorPanelOpen(false)
-        setDeleteTransferOpen(false)
-        setPendingDeleteRouteLineId(null)
-        setDeleteTransferCandidates([])
-        setDeleteTransferSourceRouteName('')
-        setSelectedTargetRouteLineId('')
-        editor.setSuccess('Route deleted')
-    } catch (error) {
-      editor.setError(error instanceof Error ? error.message : 'Failed to delete route')
-    } finally {
-      setDeletingRoute(false)
-    }
-  }, [deletingRoute, editor, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
-
-  const deleteDialogCandidates = useMemo(() => deleteTransferCandidates, [deleteTransferCandidates])
-
   if (editor.loading) {
     return <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-500 dark:text-gray-400" /></div>
   }
@@ -307,10 +241,8 @@ export default function EditSubmittedRoutesPage() {
         {editor.error ? <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">{editor.error}</div> : null}
         {editor.success ? <div className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">{editor.success}</div> : null}
         <SubmissionLocationPanel atlasSync={atlasSync} canEditCragMetadata={location.canEditCragMetadata} cragName={location.cragName} onCragNameChange={(value) => { location.setCragName(value); editor.setCragName(value) }} regionTag={location.regionTag} onRegionTagChange={(value) => { location.setRegionTag(value); editor.setRegionTag(value) }} subArea={location.subArea} onSubAreaChange={(value) => { location.setSubArea(value); editor.setSubArea(value) }} latitude={location.latitude} onLatitudeChange={(value) => { location.setLatitude(value); editor.setLatitude(value) }} longitude={location.longitude} onLongitudeChange={(value) => { location.setLongitude(value); editor.setLongitude(value) }} searchQuery={location.searchQuery} onSearchQueryChange={location.setSearchQuery} onSearchLocation={() => { void location.handleSearchLocation() }} searchingLocation={location.searchingLocation} locationSearchError={location.locationSearchError} />
-        {editor.hasReadyData && editor.activeImageUrl ? <SubmissionWorkstation drawingAreaRef={drawingAreaRef} routeCanvasRef={routeCanvasRef} quickSwitcherImages={editor.quickSwitcherImages} activeImageId={editor.activeImageId} activeImageUrl={editor.activeImageUrl} draftPins={editor.publishedDraftPins} publishedPins={[]} initialCenter={editor.markerPosition} onSelectImage={editor.handleQuickSwitchImage} onReorderImages={(imageIds) => { void editor.handleReorderImages(imageIds) }} existingRouteLines={editor.editedRoutes} selectedRouteId={selectedRouteId} onSelectRoute={(routeId) => { setSelectedRoute(routeId); setActiveRoute(routeId); setEditorPanelOpen(true) }} onReorderRoutes={(routeIds) => { const reordered = routeIds.map((routeId, index) => { const route = editor.editedRoutes.find((item) => item.id === routeId); return route ? { ...route, sequence_order: index } : null }).filter((route): route is RouteLine => route !== null); handleCanvasRoutesUpdate(reordered) }} interactionTool={interactionTool === 'select' ? 'select' : 'draw'} currentPointsCount={currentPoints.length} onSetSelectTool={() => { setInteractionTool('select'); setEditorPanelOpen(true) }} onSetDrawTool={() => { setInteractionTool('draw'); setEditorPanelOpen(false) }} onUndoPoint={() => undoLastPoint()} onFinishRoute={() => routeCanvasRef.current?.finishRoute()} canvasKey={`${editor.canvasKey}:${editor.activeImageId}`} extraAction={null} onRoutesUpdate={handleCanvasRoutesUpdate} /> : null}
-        <SubmissionDetailsPanel detailsOpen={detailsOpen} onDetailsToggle={() => setDetailsOpen((open) => !open)} orientationOpen={orientationOpen} onOrientationToggle={() => setOrientationOpen((open) => !open)} faceDirections={location.faceDirections} onToggleFaceDirection={(direction) => { location.toggleFaceDirection(direction); editor.toggleFaceDirection(direction) }} onShareOpen={() => collaborators.setShareOpen(true)} canEditCredit={editor.canEditContributionCredit} isAnonymous={editor.isAnonymousSubmission} onAnonymousChange={editor.setIsAnonymousSubmission} creditPlatform={editor.creditPlatform} onCreditPlatformChange={editor.setCreditPlatform} creditHandle={editor.creditHandle} onCreditHandleChange={editor.setCreditHandle} />
-        <DeleteRouteTransferDialog open={deleteTransferOpen} sourceRouteName={deleteTransferSourceRouteName} candidates={deleteDialogCandidates} selectedTargetRouteLineId={selectedTargetRouteLineId} onSelectedTargetChange={setSelectedTargetRouteLineId} deleting={deletingRoute} onConfirm={() => { if (pendingDeleteRouteLineId) void handleDeleteRoute(pendingDeleteRouteLineId, selectedTargetRouteLineId) }} onCancel={() => { setDeleteTransferOpen(false); setPendingDeleteRouteLineId(null); setDeleteTransferCandidates([]); setDeleteTransferSourceRouteName(''); setSelectedTargetRouteLineId('') }} />
-        <CollaboratorDialog open={collaborators.shareOpen} onOpenChange={collaborators.setShareOpen} title="Collaborators" description="Create a link for collaborators to edit routes, location, and face directions." isOwner={collaborators.isOwner} ownerUserId={collaborators.ownerUserId} ownerProfile={collaborators.ownerProfile} collaborators={collaborators.collaborators} activeInvites={collaborators.activeInvites} loadingCollaborators={collaborators.loadingCollaborators} creatingInvite={collaborators.creatingInvite} revokingInviteId={collaborators.revokingInviteId} removingCollaboratorId={collaborators.removingCollaboratorId} latestInviteUrl={collaborators.latestInviteUrl} inviteUrlPrefix="/api/submissions/collaborate" onCreateInvite={collaborators.handleCreateInvite} onCopyInvite={collaborators.handleCopyInvite} onRevokeInvite={collaborators.handleRevokeInvite} onRemoveCollaborator={collaborators.handleRemoveCollaborator} />
+        {editor.hasReadyData && editor.activeImageUrl ? <SubmissionWorkstation drawingAreaRef={drawingAreaRef} routeCanvasRef={routeCanvasRef} quickSwitcherImages={editor.quickSwitcherImages} activeImageId={editor.activeImageId} activeImageUrl={editor.activeImageUrl} draftPins={editor.publishedDraftPins} publishedPins={[]} initialCenter={editor.markerPosition} onSelectImage={editor.handleQuickSwitchImage} existingRouteLines={editor.editedRoutes} selectedRouteId={selectedRouteId} onSelectRoute={(routeId) => { setSelectedRoute(routeId); setActiveRoute(routeId); setEditorPanelOpen(true) }} onReorderRoutes={(routeIds) => { const reordered = routeIds.map((routeId, index) => { const route = editor.editedRoutes.find((item) => item.id === routeId); return route ? { ...route, sequence_order: index } : null }).filter((route): route is RouteLine => route !== null); handleCanvasRoutesUpdate(reordered) }} interactionTool={interactionTool === 'select' ? 'select' : 'draw'} currentPointsCount={currentPoints.length} onSetSelectTool={() => { setInteractionTool('select'); setEditorPanelOpen(true) }} onSetDrawTool={() => { setInteractionTool('draw'); setEditorPanelOpen(false) }} onUndoPoint={() => undoLastPoint()} onFinishRoute={() => routeCanvasRef.current?.finishRoute()} canvasKey={`${editor.canvasKey}:${editor.activeImageId}`} extraAction={null} onRoutesUpdate={handleCanvasRoutesUpdate} /> : null}
+        <SubmissionDetailsPanel detailsOpen={detailsOpen} onDetailsToggle={() => setDetailsOpen((open) => !open)} orientationOpen={orientationOpen} onOrientationToggle={() => setOrientationOpen((open) => !open)} faceDirections={location.faceDirections} onToggleFaceDirection={(direction) => { location.toggleFaceDirection(direction); editor.toggleFaceDirection(direction) }} owner={editor.owner} contributors={editor.contributors} history={editor.history} canEditCredit={editor.canEditContributionCredit} isAnonymous={editor.isAnonymousSubmission} onAnonymousChange={editor.setIsAnonymousSubmission} creditPlatform={editor.creditPlatform} onCreditPlatformChange={editor.setCreditPlatform} creditHandle={editor.creditHandle} onCreditHandleChange={editor.setCreditHandle} />
       </div>
     </div>
   )
