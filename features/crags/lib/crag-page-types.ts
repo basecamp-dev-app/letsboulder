@@ -42,6 +42,15 @@ export interface ImageData {
   supplementary_faces_count: number
 }
 
+export interface SelectedPinImage {
+  id: string
+  url: string
+  routeLinesCount: number
+  href: string
+  isSelected: boolean
+  hasRoutes: boolean
+}
+
 export interface CragRoute {
   id: string
   name: string

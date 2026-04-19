@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { buildCragImageDestination } from '@/features/crags/lib/build-crag-image-destination'
 import { formatCragRoutes, dedupeCragRoutes } from '@/features/crags/lib/crag-page-domain'
 import { getSelectedImageIds } from '@/features/crags/lib/crag-route-targets'
 import type { CragRouteIntelligenceRow } from '@/features/crags/lib/crag-page-domain'
@@ -178,6 +179,31 @@ describe('crag page domain', () => {
       })
 
       expect(selectedImageIds).toEqual(new Set(['image-1', 'image-2']))
+    })
+  })
+
+  describe('buildCragImageDestination', () => {
+    it('falls back to the image-first page when an image has no route target', () => {
+      expect(buildCragImageDestination({
+        imageId: 'image-7',
+        target: undefined,
+        routeHrefBase: '/gb/test-crag',
+        offlineOnly: false,
+      })).toBe('/gb/test-crag/i/image-7')
+    })
+
+    it('includes route params when an image has a route target', () => {
+      expect(buildCragImageDestination({
+        imageId: 'image-7',
+        target: {
+          climbId: 'climb-1',
+          routeId: 'route-line-1',
+          climbSlug: 'route-a',
+          imageId: 'image-7',
+        },
+        routeHrefBase: '/gb/test-crag',
+        offlineOnly: false,
+      })).toBe('/gb/test-crag/i/image-7?image=image-7&route=route-line-1&climb=climb-1')
     })
   })
 })

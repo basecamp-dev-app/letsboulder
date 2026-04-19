@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import CragMapView from '@/features/crags/components/CragMapView'
+import SelectedPinImageTray from '@/features/crags/components/SelectedPinImageTray'
 import CragRouteSection from '@/features/crags/components/CragRouteSection'
 import type { CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
 import { useCragData } from '@/features/crags/hooks/use-crag-data'
@@ -125,6 +126,8 @@ export default function CragPageClient({
         onPinSelect={filters.setSelectedImageId}
         onFlagCrag={actions.handleFlagCrag}
       />
+
+      <SelectedPinImageTray images={filters.selectedPinImages} />
 
       <CragRouteSection
         crag={crag}
