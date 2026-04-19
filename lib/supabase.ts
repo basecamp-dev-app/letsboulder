@@ -1,5 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
-import { clientEnv } from '@/lib/env-client'
+import { getSharedEnv } from '@/lib/env'
 
 let browserClient: ReturnType<typeof createBrowserClient> | null = null
 
@@ -8,12 +8,9 @@ export function createClient() {
     return browserClient
   }
 
-  const supabaseUrl = clientEnv.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
-  }
+  const sharedEnv = getSharedEnv()
+  const supabaseUrl = sharedEnv.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co'
+  const supabaseAnonKey = sharedEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder'
 
   const client = createBrowserClient(
     supabaseUrl,
