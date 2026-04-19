@@ -58,6 +58,9 @@ export function SubmissionLocationPanel({
 
       {canEditCragMetadata ? (
         <div className="mt-3 space-y-3">
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            High-risk metadata edits are blocked automatically. Suspicious edits may be flagged for review.
+          </p>
           <label className="text-xs text-gray-600 dark:text-gray-300">
             Crag name
             <input
@@ -88,7 +91,7 @@ export function SubmissionLocationPanel({
         </div>
       ) : (
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-          Only the submission owner can edit crag and region details.
+          Sign in to edit crag and region details. High-risk metadata edits are blocked automatically.
         </p>
       )}
 
