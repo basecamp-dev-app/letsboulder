@@ -40,7 +40,7 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ClimbInfoPan
     savingFeedback: false,
     logging: false,
     userPresent: true,
-    gradeSystem: 'font',
+    gradeSystem: 'font_scale',
     gradeOpinionLabels: { soft: 'Soft', agree: 'Agree', hard: 'Hard' },
     formatRouteTypeLabel: (value: string) => value,
     onOpenOffline: vi.fn(),
