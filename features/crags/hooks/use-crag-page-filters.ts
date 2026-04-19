@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { useGradeSystem } from '@/lib/grades/preferences'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import { buildCragImageDestination } from '@/features/crags/lib/build-crag-image-destination'
 import { buildActiveRouteFilterChips, buildCragRouteStats, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, filterAndSortCragRoutes, getAvailableDirections, getHighlightedRouteIds, getSearchModalResults, getSelectedImageIds, getRouteTypeChips, resolveCragRouteDestination, sortImagesByViewCenter } from '@/features/crags/lib/crag-page-domain'
 import type { ActiveRouteFilterChip, ResolvedRouteDestination } from '@/features/crags/lib/crag-page-domain'
-import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
+import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview, SelectedPinImage } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 
 interface ClusteredImageData {
@@ -74,6 +75,7 @@ export interface UseCragPageFiltersResult {
   mapPins: LightweightCragMapPin[]
   pinNumberByImageId: Map<string, number>
   selectedImageIds: Set<string>
+  selectedPinImages: SelectedPinImage[]
   highlightedRouteIds: Set<string>
   selectedRouteCount: number
   routePreviewDisplayByClimbId: Record<string, RoutePreview>
@@ -191,6 +193,27 @@ export function useCragPageFilters({
   const routeNavigationDisplayByClimbId = useMemo(() => buildRouteNavigationDisplayByClimbId(routeNavigationTargetByClimbId, imageById), [imageById, routeNavigationTargetByClimbId])
 
   const selectedImageIds = useMemo(() => getSelectedImageIds(selectedImageId, clusteredPins), [clusteredPins, selectedImageId])
+
+  const selectedPinImages = useMemo(() => {
+    if (!selectedImageId) return []
+
+    const offlineOnly = typeof navigator !== 'undefined' && navigator.onLine === false
+    return orderedImages
+      .filter((image) => selectedImageIds.has(image.id))
+      .map((image) => ({
+        id: image.id,
+        url: image.url,
+        routeLinesCount: image.route_lines_count,
+        href: buildCragImageDestination({
+          imageId: image.id,
+          target: defaultRouteTargetByImageId[image.id],
+          routeHrefBase,
+          offlineOnly,
+        }),
+        isSelected: image.id === selectedImageId,
+        hasRoutes: image.route_lines_count > 0,
+      }))
+  }, [defaultRouteTargetByImageId, orderedImages, routeHrefBase, selectedImageId, selectedImageIds])
 
   const highlightedRouteIds = useMemo(() => getHighlightedRouteIds(
     routes,
@@ -334,6 +357,7 @@ export function useCragPageFilters({
     mapPins,
     pinNumberByImageId,
     selectedImageIds,
+    selectedPinImages,
     highlightedRouteIds,
     selectedRouteCount,
     routePreviewDisplayByClimbId,
