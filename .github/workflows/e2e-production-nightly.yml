@@ -1,0 +1,91 @@
+name: E2E Production Nightly
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-production-nightly
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  production-safe:
+    name: Production-Safe E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      PLAYWRIGHT_BASE_URL: 'https://letsboulder.com'
+      PLAYWRIGHT_SKIP_GLOBAL_SETUP: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.20.0'
+          cache: 'npm'
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+
+      - name: Validate production-safe configuration
+        run: |
+          if [ "$PLAYWRIGHT_BASE_URL" != 'https://letsboulder.com' ]; then
+            echo "::error::PLAYWRIGHT_BASE_URL must be https://letsboulder.com"
+            exit 1
+          fi
+
+          forbidden_vars=(TEST_API_KEY TEST_USER_ID TEST_USER_EMAIL TEST_USER_PASSWORD TEST_AUTH_PATH_SEGMENT INTERNAL_TEST_KEY SUPABASE_SERVICE_ROLE_KEY DEV_SUPABASE_SERVICE_ROLE_KEY CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET)
+          for var in "${forbidden_vars[@]}"; do
+            if [ -n "${!var}" ]; then
+              echo "::error::Forbidden environment variable present: $var"
+              exit 1
+            fi
+          done
+
+      - name: Install dependencies
+        run: npm install --prefer-offline
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Wait for production readiness
+        run: |
+          for i in $(seq 1 20); do
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" "$PLAYWRIGHT_BASE_URL/auth")
+            if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 500 ]; then
+              exit 0
+            fi
+
+            echo "Production not ready yet (HTTP $status_code), retry $i/20"
+            sleep 6
+          done
+
+          echo "Production URL did not become ready in time: $PLAYWRIGHT_BASE_URL"
+          exit 1
+
+      - name: Run production-safe Playwright suite
+        run: >-
+          npx playwright test
+          tests/map.spec.ts
+          tests/auth.spec.ts
+          tests/auth-guards.spec.ts
+          tests/logbook.spec.ts
+          tests/settings.spec.ts
+
+      - name: Upload Playwright production report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-production-nightly
+          path: playwright-report
+          retention-days: 7
