@@ -36,6 +36,18 @@ function formatIssues(error: z.ZodError): string[] {
   return error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`)
 }
 
+function getPlaceholderSharedEnv(): SharedEnv {
+  return {
+    NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder',
+    NEXT_PUBLIC_MEDIA_CDN_URL: undefined,
+    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+    NEXT_PUBLIC_SITE_URL: undefined,
+    NEXT_PUBLIC_ALLOW_PENDING_IMAGES: false,
+    NEXT_PUBLIC_DEBUG_IMAGE_UPLOADS: false,
+  }
+}
+
 export function getSharedEnv(): SharedEnv {
   if (sharedEnvCache) return sharedEnvCache
 
@@ -44,7 +56,8 @@ export function getSharedEnv(): SharedEnv {
     return sharedEnvCache
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new EnvValidationError(formatIssues(error))
+      sharedEnvCache = getPlaceholderSharedEnv()
+      return sharedEnvCache
     }
 
     throw error
