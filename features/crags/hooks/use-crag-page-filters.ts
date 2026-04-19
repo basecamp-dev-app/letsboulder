@@ -194,26 +194,48 @@ export function useCragPageFilters({
 
   const selectedImageIds = useMemo(() => getSelectedImageIds(selectedImageId, clusteredPins), [clusteredPins, selectedImageId])
 
+  const selectedPinRouteCountByImageId = useMemo(() => {
+    if (!selectedImageId) return new Map<string, number>()
+
+    const countByImageId = new Map<string, number>()
+    for (const route of routes) {
+      const routeTargetImageId = routeNavigationDisplayByClimbId[route.id]?.displayImageId
+        || routePreviewDisplayByClimbId[route.id]?.imageId
+        || routeImageIdsByClimbId[route.id]?.find((imageId) => selectedImageIds.has(imageId))
+        || null
+
+      if (!routeTargetImageId || !selectedImageIds.has(routeTargetImageId)) continue
+      countByImageId.set(routeTargetImageId, (countByImageId.get(routeTargetImageId) || 0) + 1)
+    }
+
+    return countByImageId
+  }, [routeImageIdsByClimbId, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId, routes, selectedImageId, selectedImageIds])
+
   const selectedPinImages = useMemo(() => {
     if (!selectedImageId) return []
 
     const offlineOnly = typeof navigator !== 'undefined' && navigator.onLine === false
     return orderedImages
       .filter((image) => selectedImageIds.has(image.id))
-      .map((image) => ({
-        id: image.id,
-        url: image.url,
-        routeLinesCount: image.route_lines_count,
-        href: buildCragImageDestination({
-          imageId: image.id,
-          target: defaultRouteTargetByImageId[image.id],
-          routeHrefBase,
-          offlineOnly,
-        }),
-        isSelected: image.id === selectedImageId,
-        hasRoutes: image.route_lines_count > 0,
-      }))
-  }, [defaultRouteTargetByImageId, orderedImages, routeHrefBase, selectedImageId, selectedImageIds])
+      .map((image) => {
+        const mappedRouteCount = selectedPinRouteCountByImageId.get(image.id)
+        const routeLinesCount = mappedRouteCount ?? image.route_lines_count
+
+        return {
+          id: image.id,
+          url: image.url,
+          routeLinesCount,
+          href: buildCragImageDestination({
+            imageId: image.id,
+            target: defaultRouteTargetByImageId[image.id],
+            routeHrefBase,
+            offlineOnly,
+          }),
+          isSelected: image.id === selectedImageId,
+          hasRoutes: routeLinesCount > 0,
+        }
+      })
+  }, [defaultRouteTargetByImageId, orderedImages, routeHrefBase, selectedImageId, selectedImageIds, selectedPinRouteCountByImageId])
 
   const highlightedRouteIds = useMemo(() => getHighlightedRouteIds(
     routes,
