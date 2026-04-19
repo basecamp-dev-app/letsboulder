@@ -54,11 +54,12 @@ tests/
 - Auth state stored in `playwright/.auth/user.json`
 - See `e2e-auth-security.md` for security rules
 
-## CI (`.github/workflows/test.yml`)
+## CI
 
-- **Smoke tests** — Run on PR or deployment, `--grep @smoke`, `public` + `authenticated` projects
-- **Nightly full** — Daily at 2 AM UTC, `--grep @full`, all projects
-- Uses Cloudflare Access headers for protected environments
+- **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, docs drift, typecheck, build, unit, component, and integration checks
+- **Smoke tests** — Run on deployment or manual dispatch in `.github/workflows/test.yml`, `--grep @smoke`, `public` + `authenticated` projects
+- **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests
+- Protected non-production E2E runs use Cloudflare Access headers when required
 
 ## Conventions
 
