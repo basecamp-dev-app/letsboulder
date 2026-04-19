@@ -12,7 +12,7 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: (...args: unknown[]) => mockCreateClient(...args),
 }))
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/supabase-admin', () => ({
   getAdminClientWithAudit,
 }))
 
