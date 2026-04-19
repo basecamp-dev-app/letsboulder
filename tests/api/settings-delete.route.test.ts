@@ -10,6 +10,10 @@ vi.mock('@/lib/supabase-server', () => ({
   getAdminClientWithAudit: vi.fn(),
 }))
 
+vi.mock('@/lib/supabase-admin', () => ({
+  getAdminClientWithAudit: vi.fn(),
+}))
+
 vi.mock('@/lib/env.server', () => ({
   serverEnv: {
     DELETE_ACCOUNT_SECRET: 'test-delete-secret',
@@ -27,7 +31,7 @@ vi.mock('@/lib/errors', async () => {
 import { POST as confirmDelete } from '@/app/api/settings/delete/route'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { reportError } from '@/lib/errors'
-import { getAdminClientWithAudit } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 
 type MiddlewareResult = Awaited<ReturnType<typeof withApiMiddleware>>
 
