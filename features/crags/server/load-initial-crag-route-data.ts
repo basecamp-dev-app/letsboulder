@@ -14,6 +14,10 @@ interface ImageRow {
   longitude: number | null
 }
 
+interface RouteLineImageRow {
+  image_id: string | null
+}
+
 const INITIAL_CRAG_IMAGE_LIMIT = 24
 const SSR_ROUTE_PREVIEW_SEED_LIMIT = 100
 
@@ -51,12 +55,26 @@ export async function loadInitialCragRouteData(
     ...image,
     url: resolveRouteImageUrl(image.url),
   }))
+  const routeLineCountByImageId = new Map<string, number>()
+
+  if (images.length > 0) {
+    const { data: routeLineImageData } = await supabase
+      .from('route_lines')
+      .select('image_id')
+      .in('image_id', images.map((image) => image.id))
+
+    for (const row of (routeLineImageData || []) as RouteLineImageRow[]) {
+      if (!row.image_id) continue
+      routeLineCountByImageId.set(row.image_id, (routeLineCountByImageId.get(row.image_id) || 0) + 1)
+    }
+  }
+
   const initialImages = images.map((image) => ({
     id: image.id,
     url: image.url,
     latitude: image.latitude,
     longitude: image.longitude,
-    route_lines_count: 0,
+    route_lines_count: routeLineCountByImageId.get(image.id) || 0,
     is_verified: false,
     verification_count: 0,
     supplementary_faces_count: 0,
@@ -84,6 +102,16 @@ export async function loadInitialCragRouteData(
     const missingPreviewImageIds = previewImageIds.filter((imageId) => !imageById.has(imageId))
 
     if (missingPreviewImageIds.length > 0) {
+      const { data: previewRouteLineData } = await previewSupabase
+        .from('route_lines')
+        .select('image_id')
+        .in('image_id', missingPreviewImageIds)
+
+      for (const row of (previewRouteLineData || []) as RouteLineImageRow[]) {
+        if (!row.image_id) continue
+        routeLineCountByImageId.set(row.image_id, (routeLineCountByImageId.get(row.image_id) || 0) + 1)
+      }
+
       const { data: previewImageData } = await previewSupabase
         .from('images')
         .select('id, url, latitude, longitude')
@@ -95,7 +123,7 @@ export async function loadInitialCragRouteData(
           url: resolveRouteImageUrl(image.url),
           latitude: image.latitude,
           longitude: image.longitude,
-          route_lines_count: 0,
+          route_lines_count: routeLineCountByImageId.get(image.id) || 0,
           is_verified: false,
           verification_count: 0,
           supplementary_faces_count: 0,
