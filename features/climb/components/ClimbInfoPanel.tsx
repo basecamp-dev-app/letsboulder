@@ -42,6 +42,7 @@ interface ClimbInfoPanelProps {
   selectedClimb: SelectedClimbInfo | null
   selectedRouteExists: boolean
   canEditRoute: boolean
+  canAddRoutes: boolean
   totalRoutesCombined: number
   totalFaces: number
   isFacesLoading: boolean
@@ -73,6 +74,7 @@ interface ClimbInfoPanelProps {
   formatRouteTypeLabel: (value: string) => string
   onOpenOffline: () => void
   onEditRoute: () => void
+  onAddRoutes: () => void
   onOpenFlag: () => void
   onShare: () => void
   onGoToAuth: () => void
@@ -91,6 +93,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     selectedClimb,
     selectedRouteExists,
     canEditRoute,
+    canAddRoutes,
     totalRoutesCombined,
     totalFaces,
     isFacesLoading,
@@ -121,6 +124,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     formatRouteTypeLabel,
     onOpenOffline,
     onEditRoute,
+    onAddRoutes,
     onOpenFlag,
     onShare,
     onGoToAuth,
@@ -141,12 +145,14 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-              {selectedClimb ? selectedClimb.name : 'Select a route'}
+              {selectedClimb ? selectedClimb.name : totalRoutesCombined === 0 ? 'No routes added yet' : 'Select a route'}
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
               {selectedClimb
                 ? `Grade: ${formatGradeForDisplay(selectedClimb.grade, gradeSystem)}`
-                : 'Tap a route on the image to select it'}
+                : totalRoutesCombined === 0
+                  ? 'Open the editor to add the first topo lines for this image'
+                  : 'Tap a route on the image to select it'}
             </p>
             {selectedClimb?.route_type ? (
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -220,6 +226,11 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                 Edit this route
               </button>
             ) : null}
+            {!canEditRoute && canAddRoutes ? (
+              <button onClick={onAddRoutes} className="px-3 py-1.5 text-sm font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-100 dark:hover:bg-blue-950/40 rounded-lg transition-colors">
+                Add routes to this image
+              </button>
+            ) : null}
             <button onClick={onOpenFlag} disabled={!selectedClimb} className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Report incorrect route info" title={selectedClimb ? 'Report incorrect route info' : 'Select a route to report'}>
               <Flag className="w-5 h-5" />
             </button>
@@ -232,14 +243,18 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
 
         {!selectedClimbLogged ? (
           <div className="space-y-3">
-            {!userPresent ? (
+            {!userPresent && selectedRouteExists ? (
               <button onClick={onGoToAuth} className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
                 Sign in to Log This Climb
               </button>
             ) : (
               <>
                 <p className="text-gray-400 text-sm">
-                  {selectedRouteExists ? 'Route selected - choose an option below' : 'Tap a route to select it'}
+                  {selectedRouteExists
+                    ? 'Route selected - choose an option below'
+                    : totalRoutesCombined === 0
+                      ? 'No routes have been added to this image yet'
+                      : 'Tap a route to select it'}
                 </p>
 
                 <div className="grid grid-cols-3 gap-2">

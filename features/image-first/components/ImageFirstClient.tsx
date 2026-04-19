@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
@@ -58,7 +58,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const gradePreferences = useGradePreferences()
   const { toasts, addToast, removeToast } = useToast()
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
-  const [userPresent, setUserPresent] = useState(false)
+  const [userPresent, setUserPresent] = useState(true)
   const [selectedClimbLogged, setSelectedClimbLogged] = useState(false)
   const [selectedClimbLog, setSelectedClimbLog] = useState<{ gradeOpinion: GradeOpinion | null; starRating: number | null; notes: string | null } | null>(null)
   const [communityNotesCount, setCommunityNotesCount] = useState(0)
@@ -106,19 +106,33 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     const supabase = createClient()
 
     const syncUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        startTransition(() => {
+          setUserPresent(true)
+          setHasHydratedAuth(true)
+        })
+        return
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser()
-      setUserPresent(!!user)
-      setHasHydratedAuth(true)
+
+      startTransition(() => {
+        setUserPresent(!!user)
+        setHasHydratedAuth(true)
+      })
     }
 
     void syncUser()
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
-      setUserPresent(!!session?.user)
-      setHasHydratedAuth(true)
+      startTransition(() => {
+        setUserPresent(!!session?.user)
+        setHasHydratedAuth(true)
+      })
     })
 
     return () => subscription.unsubscribe()
@@ -555,6 +569,19 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     router.push(editUrl)
   }, [activePrimaryImageId, resolvedActiveRouteId, router, userPresent])
 
+  const handleAddRoutes = useCallback(() => {
+    if (!activePrimaryImageId) return
+
+    const editUrl = `/logbook/submissions/${activePrimaryImageId}/edit`
+
+    if (!userPresent) {
+      router.push(`/auth?redirect_to=${encodeURIComponent(editUrl)}`)
+      return
+    }
+
+    router.push(editUrl)
+  }, [activePrimaryImageId, router, userPresent])
+
   const handleRouteSelect = useCallback((routeId: string | null) => {
     if (routeId) {
       initialRouteSelectionRef.current = {
@@ -822,6 +849,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         selectedClimb={selectedClimb}
         selectedRouteExists={!!activeRouteId}
         canEditRoute={!!selectedClimb && !!activePrimaryImageId && !!resolvedActiveRouteId}
+        canAddRoutes={!!activePrimaryImageId && allRoutesFlat.length === 0}
         totalRoutesCombined={allRoutesFlat.length}
         totalFaces={navigationContext.orderedImageIds.length}
         isFacesLoading={false}
@@ -847,12 +875,13 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         communityNotesExpanded={communityNotesExpanded}
         savingFeedback={savingFeedback}
         logging={logging}
-        userPresent={hasHydratedAuth ? userPresent : true}
+        userPresent={userPresent || !hasHydratedAuth}
         gradeSystem={gradeSystem}
         gradeOpinionLabels={{ soft: 'Soft', agree: 'Agree', hard: 'Hard' }}
         formatRouteTypeLabel={(value) => value}
         onOpenOffline={() => undefined}
         onEditRoute={handleEditRoute}
+        onAddRoutes={handleAddRoutes}
         onOpenFlag={() => undefined}
         onShare={() => undefined}
         onGoToAuth={handleGoToAuth}
