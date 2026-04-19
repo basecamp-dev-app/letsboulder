@@ -10,6 +10,7 @@ interface SelectedPinImageTrayProps {
 export default function SelectedPinImageTray({ images }: SelectedPinImageTrayProps) {
   if (images.length === 0) return null
 
+  // Keep the selected pin tray readable when a location has many images.
   const allWithoutRoutes = images.every((image) => !image.hasRoutes)
 
   return (
