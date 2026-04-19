@@ -409,6 +409,92 @@ describe('useEditDraftActions', () => {
     )
   })
 
+  it('publishes image-only drafts without blocking on empty route sets', async () => {
+    const flushLocationSync = vi.fn().mockResolvedValue({ ok: true })
+    const addToast = vi.fn()
+    const draft = createDraft()
+    let publishDraft: (() => Promise<unknown>) | null = null
+
+    mockCsrfFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          draft: {
+            updated_at: '2026-04-12T21:15:00.000Z',
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          published: {
+            defaultImageId: 'image-1',
+            canonicalPath: '/test/crag/i/image-1',
+            imageIds: ['image-1', 'image-2'],
+            routeLineIds: [],
+          },
+        }),
+      })
+
+    function Harness() {
+      const result = useEditDraftActions({
+        draftId: draft.id,
+        draft,
+        draftUpdatedAt: draft.updated_at,
+        currentUserId: 'user-1',
+        isOwner: true,
+        routeType: 'boulder',
+        creditPlatform: 'instagram',
+        creditHandle: '',
+        isAnonymousSubmission: false,
+        cragId: 'crag-1',
+        sectorId: null,
+        canvasSource: null,
+        defaultImageId: 'image-1',
+        manageImages: [createManageImage('image-1'), createManageImage('image-2')],
+        routesByImageId: { 'image-1': [], 'image-2': [] },
+        orientationByImageId: {},
+        locationModeByImageId: {},
+        customGpsByImageId: {},
+        markerPosition: [51.5, -0.1],
+        publishRequirementsRef: { current: null },
+        cragSectionRef: { current: null },
+        locationSectionRef: { current: null },
+        hasPendingUploads: () => false,
+        hasFailedUploads: () => false,
+        hasValidLocation: true,
+        flushLocationSync,
+        loadDraft: vi.fn().mockResolvedValue(undefined),
+        loadCollaborators: vi.fn().mockResolvedValue(undefined),
+        addToast,
+        setDraft: vi.fn(),
+        setDraftUpdatedAt: vi.fn(),
+        setError: vi.fn(),
+        setSuccess: vi.fn(),
+        setConflict: vi.fn(),
+        setActiveImageId: vi.fn(),
+      })
+
+      useEffect(() => {
+        publishDraft = result.publishDraft
+      }, [result.publishDraft])
+
+      return null
+    }
+
+    render(createElement(Harness))
+
+    await act(async () => {
+      await publishDraft?.()
+    })
+
+    expect(mockCsrfFetch).toHaveBeenCalledTimes(2)
+    expect(addToast).toHaveBeenCalledWith('Success! Published 2 images without routes yet. The community can add topo later.', 'success')
+    expect(mockPush).toHaveBeenCalledWith('/test/crag/i/image-1?publishedImages=2&publishedRoutes=0')
+  })
+
   it('shows a save rate limit error when location sync is rate limited before publish', async () => {
     const flushLocationSync = vi.fn().mockResolvedValue({ ok: false, reason: 'rate_limited' })
     const draft = createDraft()

@@ -184,7 +184,7 @@ describe('promoteDraftToSubmission', () => {
     )
   })
 
-  test('rejects publish when the default image has no durable draft routes', async () => {
+  test('publishes image-only drafts when some images have no durable draft routes', async () => {
     const supabase = makeSupabase({ includeAllImageRoutes: false })
 
     const response = await promoteDraftToSubmission({
@@ -194,12 +194,53 @@ describe('promoteDraftToSubmission', () => {
       userId: 'user-1',
     })
 
-    expect(response.status).toBe(409)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Every image in the submission must have at least one route before publishing. Remove images without routes or add routes to them.',
-      missing_image_ids: ['draft-image-1'],
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({
+      published: expect.objectContaining({
+        defaultImageId: 'image-1',
+        routeLineIds: ['route-line-1'],
+      }),
+    }))
+    expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
+  })
+
+  test('publishes image-only drafts when the promotion result has no route lines', async () => {
+    const supabase = makeSupabase()
+
+    ;(supabase.rpc as unknown) = vi.fn(async (fnName: string) => {
+      if (fnName === 'promote_draft_to_submission') {
+        return {
+          data: {
+            success: true,
+            status: 'submitted',
+            image_id: 'image-1',
+            default_image_id: 'image-1',
+            image_ids: ['image-1'],
+            climb_ids: [],
+            route_line_ids: [],
+            published_at: '2026-03-01T00:00:00Z',
+          },
+          error: null,
+        }
+      }
+
+      return { data: null, error: null }
     })
-    expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({
+      published: expect.objectContaining({
+        defaultImageId: 'image-1',
+        routeLineIds: [],
+      }),
+    }))
   })
 
   test('repairs missing durable routes from image route_data before publishing', async () => {

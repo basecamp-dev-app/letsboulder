@@ -361,6 +361,24 @@ describe('publishSubmissionDraftAction', () => {
     expect(result.data?.published?.imageId).toBe('test-img-id')
   })
 
+  test('publishes image-only draft successfully when routeLineIds is empty', async () => {
+    mockGetActionAuth.mockResolvedValue({ success: true, data: { userId: 'user-123' } })
+    const { promoteDraftToSubmission } = await import('@/features/submissions/server/drafts/draft-promote')
+    ;(promoteDraftToSubmission as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        published: {
+          imageId: 'test-img-id',
+          imageIds: ['test-img-id'],
+          routeLineIds: [],
+        },
+      }), { status: 200 })
+    )
+
+    const result = await publishSubmissionDraftAction('draft-123')
+    expect(result.success).toBe(true)
+    expect(result.data?.published?.routeLineIds).toEqual([])
+  })
+
   test('handles publish failure', async () => {
     mockGetActionAuth.mockResolvedValue({ success: true, data: { userId: 'user-123' } })
     const { promoteDraftToSubmission } = await import('@/features/submissions/server/drafts/draft-promote')

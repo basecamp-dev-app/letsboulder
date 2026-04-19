@@ -197,20 +197,10 @@ export async function promoteDraftToSubmission(input: {
     imagesMissingRoutes = resolveImagesMissingRoutes(routeRows)
   }
 
-  if (imagesMissingRoutes.length > 0) {
-    return NextResponse.json({
-      error: 'Every image in the submission must have at least one route before publishing. Remove images without routes or add routes to them.',
-      missing_image_ids: imagesMissingRoutes,
-    }, { status: 409 })
-  }
-
   const { data, error } = await supabase.rpc('promote_draft_to_submission', { p_draft_id: draftId })
   if (error) {
     if (typeof error.message === 'string' && error.message.includes('Draft location is required before publishing')) {
       return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
-    }
-    if (typeof error.message === 'string' && error.message.includes('Default draft image must contain at least one route before publishing')) {
-      return NextResponse.json({ error: 'Draw at least one route on the default image before publishing this draft' }, { status: 400 })
     }
     if (isPermissionDeniedError(error)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -221,10 +211,6 @@ export async function promoteDraftToSubmission(input: {
   const result = (Array.isArray(data) ? data[0] : data) as PromoteResult | null
   if (!result?.success || !result.image_id) {
     return NextResponse.json({ error: 'Failed to publish draft' }, { status: 500 })
-  }
-
-  if (!Array.isArray(result.route_line_ids) || result.route_line_ids.length === 0) {
-    return NextResponse.json({ error: 'Failed to publish draft routes. Every image must have at least one route before publishing.' }, { status: 409 })
   }
 
   const defaultImageId = result.default_image_id || result.image_id

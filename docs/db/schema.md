@@ -252,6 +252,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 
 ### Collaboration Tables
 - Published submissions use wiki-style editing for authenticated users; `submission_collaborators` and `submission_collaborator_invites` remain legacy published-collaboration tables.
+- Published images may exist before any `route_lines` are added, enabling image-only submissions that receive topo later.
 - `submission_contributors` records successful non-owner published editors.
 - `submission_edit_history` stores field-aware, per-image edit history for published submissions.
 - `submission_draft_collaborators` and `submission_draft_collaborator_invites` continue to enable shared editing on drafts.
