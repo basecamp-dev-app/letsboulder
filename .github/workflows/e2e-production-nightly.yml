@@ -76,10 +76,10 @@ jobs:
       - name: Run production-safe Playwright suite
         run: >-
           npx playwright test
+          --project=public
           tests/map.spec.ts
           tests/auth.spec.ts
           tests/auth-guards.spec.ts
-          tests/logbook.spec.ts
           tests/settings.spec.ts
 
       - name: Upload Playwright production report

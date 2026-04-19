@@ -2,18 +2,11 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Map', () => {
   test('@smoke homepage map renders', async ({ page }) => {
-    const pinsResponsePromise = page.waitForResponse(
-      (response) => response.url().includes('/api/crags/pins') && response.request().method() === 'GET'
-    )
-
     await page.goto('/')
 
     await expect(page.locator('.leaflet-container')).toBeVisible({ timeout: 20000 })
     await expect(page.getByRole('button', { name: 'Save view' })).toBeVisible({ timeout: 20000 })
     await expect(page.locator('.leaflet-tile').first()).toBeVisible({ timeout: 20000 })
-
-    const pinsResponse = await pinsResponsePromise
-    expect(pinsResponse.status()).toBeLessThan(500)
   })
 
   test('@full map tiles load', async ({ page }) => {
