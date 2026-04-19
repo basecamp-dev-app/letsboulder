@@ -325,6 +325,88 @@ describe('Slug retry routes', () => {
     expect(json.slug).toBe('smith-rock-2')
   })
 
+  test('crags route accepts null optional fields during creation', async () => {
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: {
+        auth: {
+          getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
+        },
+        from: vi.fn((table: string) => {
+          if (table === 'crags') {
+            return {
+              select: vi.fn((query: string) => {
+                if (query === 'id, name' || query === 'id, name, latitude, longitude') {
+                  return makeSelectChain({ data: [], error: null })
+                }
+
+                if (query === 'slug') {
+                  return makeSelectChain({ data: [], error: null })
+                }
+
+                return makeSelectChain({ data: [], error: null })
+              }),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(async () => ({
+                    data: {
+                      id: 'crag-2',
+                      name: 'Stone Garden',
+                      slug: 'stone-garden',
+                      country_code: 'US',
+                      latitude: 44.36,
+                      longitude: -121.14,
+                      rock_type: null,
+                      type: 'sport',
+                      region_name: 'Colorado',
+                      sub_area: null,
+                      created_at: new Date().toISOString(),
+                    },
+                    error: null,
+                  })),
+                })),
+              })),
+            }
+          }
+
+          if (table === 'profiles') {
+            return {
+              select: vi.fn(() => makeSelectChain({ data: { is_admin: false }, error: null })),
+            }
+          }
+
+          if (table === 'location_tags' || table === 'crag_location_tags') {
+            return {
+              select: vi.fn(() => makeSelectChain({ data: null, error: null })),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(async () => ({ data: { id: 'tag-1' }, error: null })),
+                })),
+              })),
+            }
+          }
+
+          return {
+            select: vi.fn(() => makeThenableResult({ data: [], error: null })),
+            insert: vi.fn(async () => ({ error: null })),
+          }
+        }),
+        rpc: vi.fn(async () => ({ data: null, error: null })),
+      } as never,
+    } as unknown as MiddlewareResult)
+
+    const response = await postCrag(makeRequest('http://localhost:3000/api/crags', {
+      name: 'Stone Garden',
+      latitude: 44.36,
+      longitude: -121.14,
+      type: 'sport',
+      rock_type: null,
+      sub_area: null,
+    }))
+
+    expect(response.status).toBe(201)
+  })
+
   test('crags route rejects coordinate-based creation when country resolution fails', async () => {
     const insertCrag = vi.fn()
 
