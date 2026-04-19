@@ -48,7 +48,7 @@ export function SubmissionDetailsPanel({
   return (
     <CollapsiblePanel
       title="More details"
-      subtitle="Orientation, collaborators, and credit settings."
+      subtitle="Orientation, community safeguards, and credit settings."
       open={detailsOpen}
       onToggle={onDetailsToggle}
     >
@@ -69,6 +69,9 @@ export function SubmissionDetailsPanel({
           </div>
         </div>
         <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+          <p className="text-xs text-blue-700 dark:text-blue-300">
+            Grades are set by community consensus. High-risk edits are blocked automatically, and suspicious edits may be flagged.
+          </p>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Owner</p>
             <p className="mt-1 font-medium text-gray-900 dark:text-gray-100">{owner?.displayName || 'Unknown uploader'}</p>
