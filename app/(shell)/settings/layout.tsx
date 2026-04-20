@@ -1,6 +1,8 @@
 import { Metadata } from 'next'
 import Providers from '@/components/Providers'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Settings',
   description: 'Manage your account settings and preferences',
