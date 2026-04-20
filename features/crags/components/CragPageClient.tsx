@@ -144,11 +144,11 @@ export default function CragPageClient({
       const result = nextSaved ? await saveCragAction(id) : await unsaveCragAction(id)
       if (!result.success) {
         setIsSaved(!nextSaved)
-        actions.setToast(nextSaved ? 'Failed to save crag' : 'Failed to remove saved crag')
+        actions.showToast(nextSaved ? 'Failed to save crag' : 'Failed to remove saved crag')
         return
       }
 
-      actions.setToast(nextSaved ? 'Crag saved' : 'Crag removed from saved')
+      actions.showToast(nextSaved ? 'Crag saved' : 'Crag removed from saved')
     } finally {
       setSaveLoading(false)
     }

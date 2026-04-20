@@ -18,6 +18,7 @@ export interface UseCragPageActionsResult {
   isAdmin: boolean
   isFlagging: boolean
   toast: string | null
+  showToast: (message: string, durationMs?: number) => void
   cragSwitcherOpen: boolean
   setCragSwitcherOpen: (open: boolean) => void
   cragSwitcherQuery: string
@@ -48,13 +49,17 @@ export function useCragPageActions({
   const offline = useCragOfflineActions({ id })
   const switcher = useCragSwitcher({ initialCrag })
 
+  const showToast = useCallback((message: string, durationMs = 3000) => {
+    setToast(message)
+    setTimeout(() => setToast(null), durationMs)
+  }, [])
+
   const handleFlagCrag = useCallback(async (cragId: string) => {
     setToast(null)
     const message = await admin.handleFlagCrag(cragId)
     if (!message) return
-    setToast(message)
-    setTimeout(() => setToast(null), 3000)
-  }, [admin])
+    showToast(message)
+  }, [admin, showToast])
 
   const handleOpenOfflineDialog = useCallback(async () => {
     offline.handleOpenOfflineDialog()
@@ -63,21 +68,20 @@ export function useCragPageActions({
   const handleSaveCragOffline = useCallback(async () => {
     const message = await offline.handleSaveCragOffline()
     if (!message) return
-    setToast(message)
-    setTimeout(() => setToast(null), 3000)
-  }, [offline])
+    showToast(message)
+  }, [offline, showToast])
 
   const handleRemoveCragOffline = useCallback(async () => {
     const message = await offline.handleRemoveCragOffline()
     if (!message) return
-    setToast(message)
-    setTimeout(() => setToast(null), 2500)
-  }, [offline])
+    showToast(message, 2500)
+  }, [offline, showToast])
 
   return {
     isAdmin: admin.isAdmin,
     isFlagging: admin.isFlagging,
     toast,
+    showToast,
     cragSwitcherOpen: switcher.cragSwitcherOpen,
     setCragSwitcherOpen: switcher.setCragSwitcherOpen,
     cragSwitcherQuery: switcher.cragSwitcherQuery,

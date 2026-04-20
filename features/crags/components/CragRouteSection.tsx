@@ -46,6 +46,8 @@ interface CragRouteSectionProps {
   canDownloadCrag: boolean
   offlineDialogLoading: boolean
   offlinePreviewLoading: boolean
+  saveLoading: boolean
+  isSaved: boolean
   offlineDialogOpen: boolean
   offlinePreview: Awaited<ReturnType<typeof getCragOfflinePreview>> | null
   offlineProgress: OfflineJobProgressEvent | null
@@ -63,6 +65,7 @@ interface CragRouteSectionProps {
   onCragSwitcherQueryChange: (value: string) => void
   onCloseCragSwitcher: () => void
   onOpenOfflineDialog: () => void
+  onToggleSaveCrag: () => void
   onOpenSearchModal: () => void
   onOpenFilterModal: () => void
   onOpenSortModal: () => void
@@ -118,6 +121,8 @@ const CragRouteSection = React.memo(function CragRouteSection({
   canDownloadCrag,
   offlineDialogLoading,
   offlinePreviewLoading,
+  saveLoading,
+  isSaved,
   offlineDialogOpen,
   offlinePreview,
   offlineProgress,
@@ -135,6 +140,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
   onCragSwitcherQueryChange,
   onCloseCragSwitcher,
   onOpenOfflineDialog,
+  onToggleSaveCrag,
   onOpenSearchModal,
   onOpenFilterModal,
   onOpenSortModal,
@@ -178,6 +184,8 @@ const CragRouteSection = React.memo(function CragRouteSection({
           canDownloadCrag={canDownloadCrag}
           offlineDialogLoading={offlineDialogLoading}
           offlinePreviewLoading={offlinePreviewLoading}
+          saveLoading={saveLoading}
+          isSaved={isSaved}
           hasActiveRouteFilters={hasActiveRouteFilters}
           selectedImageId={selectedImageId}
           selectedRouteCount={selectedRouteCount}
@@ -186,6 +194,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
           onCragSwitcherQueryChange={onCragSwitcherQueryChange}
           onCloseCragSwitcher={onCloseCragSwitcher}
           onOpenOfflineDialog={onOpenOfflineDialog}
+          onToggleSaveCrag={onToggleSaveCrag}
           onOpenSearchModal={onOpenSearchModal}
           onOpenFilterModal={onOpenFilterModal}
           onOpenSortModal={onOpenSortModal}

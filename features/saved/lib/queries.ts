@@ -4,6 +4,10 @@ import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 
 type TypedSupabase = SupabaseClient<Database>
+type SavedClimbRow = Database['public']['Tables']['saved_climbs']['Row']
+type SavedCragRow = Database['public']['Tables']['saved_crags']['Row']
+type ClimbRow = Pick<Database['public']['Tables']['climbs']['Row'], 'id' | 'name' | 'grade' | 'slug' | 'crag_id'>
+type CragRow = Pick<Database['public']['Tables']['crags']['Row'], 'id' | 'name' | 'slug' | 'country_code' | 'region_name' | 'country'>
 
 export async function isClimbSavedByUser(
   supabase: TypedSupabase,
@@ -44,21 +48,52 @@ export async function fetchSavedClimbs(
 ): Promise<SavedClimb[]> {
   const { data, error } = await supabase
     .from('saved_climbs')
-    .select('created_at, climbs!inner(id, name, grade, slug, crag_id, crags(id, name, slug, country_code))')
+    .select('user_id, climb_id, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
   if (error || !data) return []
 
-  return data.flatMap((row) => {
-    const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
-    const crag = Array.isArray(climb?.crags) ? climb.crags[0] : climb?.crags
+  const savedRows = data as SavedClimbRow[]
+  const climbIds = Array.from(new Set(savedRows.map((row) => row.climb_id)))
+  if (climbIds.length === 0) return []
+
+  const { data: climbsData, error: climbsError } = await supabase
+    .from('climbs')
+    .select('id, name, grade, slug, crag_id')
+    .in('id', climbIds)
+
+  if (climbsError || !climbsData) return []
+
+  const climbs = climbsData as ClimbRow[]
+  const cragIds = Array.from(new Set(climbs.map((climb) => climb.crag_id).filter((value): value is string => typeof value === 'string')))
+  const cragMap = new Map<string, Pick<CragRow, 'id' | 'name' | 'slug' | 'country_code'>>()
+
+  if (cragIds.length > 0) {
+    const { data: cragsData, error: cragsError } = await supabase
+      .from('crags')
+      .select('id, name, slug, country_code, region_name, country')
+      .in('id', cragIds)
+
+    if (!cragsError && cragsData) {
+      for (const crag of cragsData as CragRow[]) {
+        cragMap.set(crag.id, crag)
+      }
+    }
+  }
+
+  const climbMap = new Map(climbs.map((climb) => [climb.id, climb]))
+
+  return savedRows.flatMap((row) => {
+    const climb = climbMap.get(row.climb_id)
     if (!climb) return []
+
+    const crag = climb.crag_id ? cragMap.get(climb.crag_id) : undefined
 
     return [{
       climbId: climb.id,
       createdAt: row.created_at,
-      name: climb.name,
+      name: climb.name || 'Unnamed climb',
       grade: climb.grade,
       cragName: crag?.name || 'Unknown crag',
       canonicalUrl: climb.slug && crag?.slug && crag.country_code
@@ -74,14 +109,27 @@ export async function fetchSavedCrags(
 ): Promise<SavedCrag[]> {
   const { data, error } = await supabase
     .from('saved_crags')
-    .select('created_at, crags!inner(id, name, slug, country_code, region_name, country)')
+    .select('user_id, crag_id, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
   if (error || !data) return []
 
-  return data.flatMap((row) => {
-    const crag = Array.isArray(row.crags) ? row.crags[0] : row.crags
+  const savedRows = data as SavedCragRow[]
+  const cragIds = Array.from(new Set(savedRows.map((row) => row.crag_id)))
+  if (cragIds.length === 0) return []
+
+  const { data: cragsData, error: cragsError } = await supabase
+    .from('crags')
+    .select('id, name, slug, country_code, region_name, country')
+    .in('id', cragIds)
+
+  if (cragsError || !cragsData) return []
+
+  const cragMap = new Map((cragsData as CragRow[]).map((crag) => [crag.id, crag]))
+
+  return savedRows.flatMap((row) => {
+    const crag = cragMap.get(row.crag_id)
     if (!crag) return []
 
     return [{
