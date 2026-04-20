@@ -9,8 +9,12 @@ export function createClient() {
   }
 
   const sharedEnv = getSharedEnv()
-  const supabaseUrl = sharedEnv.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co'
-  const supabaseAnonKey = sharedEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder'
+  const supabaseUrl = sharedEnv.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = sharedEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing public Supabase environment variables')
+  }
 
   const client = createBrowserClient(
     supabaseUrl,

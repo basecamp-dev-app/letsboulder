@@ -36,18 +36,6 @@ function formatIssues(error: z.ZodError): string[] {
   return error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`)
 }
 
-function getPlaceholderSharedEnv(): SharedEnv {
-  return {
-    NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co',
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder',
-    NEXT_PUBLIC_MEDIA_CDN_URL: undefined,
-    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
-    NEXT_PUBLIC_SITE_URL: undefined,
-    NEXT_PUBLIC_ALLOW_PENDING_IMAGES: false,
-    NEXT_PUBLIC_DEBUG_IMAGE_UPLOADS: false,
-  }
-}
-
 export function getSharedEnv(): SharedEnv {
   if (sharedEnvCache) return sharedEnvCache
 
@@ -56,8 +44,20 @@ export function getSharedEnv(): SharedEnv {
     return sharedEnvCache
   } catch (error) {
     if (error instanceof z.ZodError) {
-      sharedEnvCache = getPlaceholderSharedEnv()
-      return sharedEnvCache
+      if (isTest) {
+        sharedEnvCache = sharedEnvSchema.parse({
+          NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co',
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'anon-test-key',
+          NEXT_PUBLIC_MEDIA_CDN_URL: process.env.NEXT_PUBLIC_MEDIA_CDN_URL,
+          NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+          NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+          NEXT_PUBLIC_ALLOW_PENDING_IMAGES: process.env.NEXT_PUBLIC_ALLOW_PENDING_IMAGES,
+          NEXT_PUBLIC_DEBUG_IMAGE_UPLOADS: process.env.NEXT_PUBLIC_DEBUG_IMAGE_UPLOADS,
+        })
+        return sharedEnvCache
+      }
+
+      throw new EnvValidationError(formatIssues(error))
     }
 
     throw error
