@@ -205,6 +205,8 @@ export default function LogbookView({
         </div>
       )}
 
+      {isOwnProfile ? <LogbookSavedSection savedClimbs={savedClimbs} savedCrags={savedCrags} /> : null}
+
       {isHydratingSubmissions && submissions.length === 0 ? <LogEntrySkeleton count={3} /> : null}
 
       {(isOwnProfile || submissions.length > 0) ? (
@@ -219,8 +221,6 @@ export default function LogbookView({
           onDeleteSubmission={onDeleteSubmission}
         />
       ) : null}
-
-      {isOwnProfile ? <LogbookSavedSection savedClimbs={savedClimbs} savedCrags={savedCrags} /> : null}
     </div>
   )
 }
