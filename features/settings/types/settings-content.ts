@@ -2,6 +2,7 @@ import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submis
 import type { GradeSystem } from '@/lib/grade-display'
 
 export interface SettingsProfileFormData {
+  avatarUrl: string
   firstName: string
   lastName: string
   gender: string

@@ -91,7 +91,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
 
     return (
       <div className="space-y-1">
-        <p className="px-4 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">{title}</p>
+        <p className="rounded-lg bg-gray-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-700 dark:bg-gray-800 dark:text-gray-200">{title}</p>
         {items.map((item) => (
           <button
             key={item.href}
