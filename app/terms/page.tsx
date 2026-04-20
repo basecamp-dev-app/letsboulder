@@ -15,7 +15,7 @@ export default function TermsPage() {
 
       <div className="prose max-w-none dark:prose-invert">
         <p className="mb-6 text-gray-600 dark:text-gray-400">
-          <strong>Last Updated:</strong> March 2026
+          <strong>Last Updated:</strong> April 2026
         </p>
 
         <section className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900/50">
@@ -86,7 +86,7 @@ export default function TermsPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">6. User Content</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            You keep ownership of the content you upload. By uploading content, you grant letsboulder a non-exclusive, worldwide, royalty-free license to host, store, reproduce, adapt for technical delivery, display, and distribute that content as needed to operate, improve, and promote the service.
+            You keep ownership of the content you upload. By uploading content, you grant letsboulder a non-exclusive, worldwide, royalty-free license to host, store, reproduce, adapt for technical delivery, display, and distribute that content as needed to operate and improve the service.
           </p>
           <p className="text-gray-700 dark:text-gray-300">
             You represent that you have the rights and permissions needed to upload the content and that sharing it does not violate the rights of others.
@@ -129,10 +129,10 @@ export default function TermsPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">10. Limitation of Liability</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            To the fullest extent permitted by law, letsboulder and its operator will not be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for injury, death, property damage, lost profits, lost data, business interruption, or similar losses arising out of or related to your use of the service, your climbing or travel activities, your reliance on route or map information, user content, or third-party conduct.
+            To the fullest extent permitted by law, letsboulder and its operator will not be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for property damage, lost profits, lost data, business interruption, or similar losses arising out of or related to your use of the service, your climbing or travel activities, your reliance on route or map information, user content, or third-party conduct.
           </p>
           <p className="text-gray-700 dark:text-gray-300">
-            Nothing in these Terms excludes liability that cannot lawfully be excluded.
+            Nothing in these Terms excludes or limits liability that cannot lawfully be excluded or limited, including liability for death or personal injury caused by negligence, fraud, or fraudulent misrepresentation.
           </p>
         </section>
 
@@ -146,7 +146,7 @@ export default function TermsPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">12. Third-Party Services</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            letsboulder relies on third-party services including Supabase, Vercel, Vercel Analytics, Resend, AWS Rekognition, Cloudflare (R2 storage, Workers, CDN), and Sentry. Their services are subject to their own terms and privacy practices.
+            letsboulder relies on third-party services including Supabase, Vercel, Vercel Analytics, Vercel Speed Insights, Resend, AWS Rekognition, Cloudflare (R2 storage, Workers, CDN), and Sentry. Their services are subject to their own terms and privacy practices.
           </p>
         </section>
 
