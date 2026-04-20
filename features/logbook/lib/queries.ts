@@ -26,9 +26,14 @@ export interface OwnLogbookData {
   user: User | null
   logs: LogbookClimb[]
   profile: LogbookProfile | null
-  submissions: Submission[]
   savedClimbs: SavedClimb[]
   savedCrags: SavedCrag[]
+  submissionCounts: {
+    all: number
+    drafts: number
+    'pending-review': number
+    published: number
+  }
 }
 
 interface RawLogbookRow {
@@ -49,9 +54,19 @@ interface RawLogbookRow {
 
 const INITIAL_LOGBOOK_LOG_LIMIT = 24
 
-export const ownLogbookQueryKey = ['logbook', 'own'] as const
+export const ownLogbookSummaryQueryKey = ['logbook', 'own', 'summary'] as const
+export const ownLogbookSubmissionsQueryKey = ['logbook', 'own', 'submissions'] as const
 
-export async function fetchOwnLogbookData(passedUser?: User | null): Promise<OwnLogbookData> {
+function emptySubmissionCounts() {
+  return {
+    all: 0,
+    drafts: 0,
+    'pending-review': 0,
+    published: 0,
+  }
+}
+
+export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<OwnLogbookData> {
   let user: User | null = passedUser ?? null
 
   if (!user) {
@@ -63,7 +78,7 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
 
     if (userError) {
       if (userError.name === 'AuthSessionMissingError' || userError.message.includes('session')) {
-        return { user: null, logs: [], profile: null, submissions: [], savedClimbs: [], savedCrags: [] }
+        return { user: null, logs: [], profile: null, savedClimbs: [], savedCrags: [], submissionCounts: emptySubmissionCounts() }
       }
       throw userError
     }
@@ -72,7 +87,7 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
   }
 
   if (!user) {
-    return { user: null, logs: [], profile: null, submissions: [], savedClimbs: [], savedCrags: [] }
+    return { user: null, logs: [], profile: null, savedClimbs: [], savedCrags: [], submissionCounts: emptySubmissionCounts() }
   }
 
   const userId = user.id
@@ -154,8 +169,39 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
     user,
     logs: logsWithUrls,
     profile: (profileData || null) as LogbookProfile | null,
-    submissions,
     savedClimbs,
     savedCrags,
+    submissionCounts: {
+      all: submissions.length,
+      drafts: submissions.filter((submission) => submission.status === 'draft').length,
+      'pending-review': submissions.filter((submission) => submission.status === 'pending_review').length,
+      published: submissions.filter((submission) => submission.status === 'published').length,
+    },
   }
+}
+
+export async function fetchOwnLogbookSubmissions(passedUser?: User | null): Promise<Submission[]> {
+  let user: User | null = passedUser ?? null
+
+  if (!user) {
+    const supabase = createClient()
+    const {
+      data: { user: authUser },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError) {
+      if (userError.name === 'AuthSessionMissingError' || userError.message.includes('session')) {
+        return []
+      }
+      throw userError
+    }
+
+    user = authUser
+  }
+
+  if (!user) return []
+
+  const supabase = createClient()
+  return fetchOwnSubmissions(supabase, user.id, csrfFetch, 24)
 }

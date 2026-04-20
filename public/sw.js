@@ -146,6 +146,22 @@ self.addEventListener('fetch', (event) => {
   if (isClimbPage || isCragPage) {
     event.respondWith((async () => {
       const cache = await caches.open(PACK_CACHE)
+      const cached = await matchCachedRequest(cache, request)
+
+      if (cached) {
+        event.waitUntil((async () => {
+          try {
+            const response = await fetch(request)
+            if (response.ok) {
+              await cache.put(request, response.clone())
+            }
+          } catch {
+            // Continue serving cached canonical pages when refresh fails.
+          }
+        })())
+
+        return cached
+      }
 
       try {
         const response = await fetch(request)

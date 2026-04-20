@@ -13,6 +13,7 @@ import type { Submission } from '@/types/submissions'
 
 interface LogbookSubmissionsSectionProps {
   isOwnProfile: boolean
+  expanded: boolean
   submissions: Submission[]
   visibleSubmissions: Submission[]
   isLoading?: boolean
@@ -21,6 +22,7 @@ interface LogbookSubmissionsSectionProps {
   deletingDraftId: string | null
   publishingDraftId: string | null
   deletingSubmissionId: string | null
+  onExpand: () => void
   onOwnerSubmissionTabChange: (tab: OwnerSubmissionsTab) => void
   onDeleteDraft: (draftId: string) => void
   onPublishDraft: (draftId: string) => void
@@ -29,6 +31,7 @@ interface LogbookSubmissionsSectionProps {
 
 export function LogbookSubmissionsSection({
   isOwnProfile,
+  expanded,
   submissions,
   visibleSubmissions,
   isLoading = false,
@@ -37,6 +40,7 @@ export function LogbookSubmissionsSection({
   deletingDraftId,
   publishingDraftId,
   deletingSubmissionId,
+  onExpand,
   onOwnerSubmissionTabChange,
   onDeleteDraft,
   onPublishDraft,
@@ -51,7 +55,7 @@ export function LogbookSubmissionsSection({
       </CardHeader>
       <CardContent className="pt-0">
         {isOwnProfile && (
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="mb-3 flex min-h-20 flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               {ownerSubmissionTabs.map((tab) => {
                 const isActive = ownerSubmissionTab === tab.id
@@ -60,9 +64,14 @@ export function LogbookSubmissionsSection({
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => onOwnerSubmissionTabChange(tab.id)}
+                    onClick={() => {
+                      if (!expanded) {
+                        onExpand()
+                      }
+                      onOwnerSubmissionTabChange(tab.id)
+                    }}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                      isActive
+                      isActive && expanded
                         ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
                     }`}
@@ -72,15 +81,31 @@ export function LogbookSubmissionsSection({
                 )
               })}
             </div>
-            <Link
-              href="/submit"
-              prefetch={false}
-              className="inline-flex rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-            >
-              New upload
-            </Link>
+            <div className="flex items-center gap-2">
+              {!expanded ? (
+                <button
+                  type="button"
+                  onClick={onExpand}
+                  className="inline-flex rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+                >
+                  Show submissions
+                </button>
+              ) : null}
+              <Link
+                href="/submit"
+                prefetch={false}
+                className="inline-flex rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+              >
+                New upload
+              </Link>
+            </div>
           </div>
         )}
+        {!expanded ? (
+          <p className="py-2 text-sm text-gray-500 dark:text-gray-400">
+            Your submissions stay collapsed on entry to keep logbook navigation fast and stable offline.
+          </p>
+        ) : null}
         {isLoading ? (
           <p className="py-2 text-sm text-gray-500 dark:text-gray-400">
             Loading submissions...
@@ -91,16 +116,18 @@ export function LogbookSubmissionsSection({
             {getOwnerSubmissionEmptyMessage(ownerSubmissionTab)}
           </p>
         ) : null}
-        <SubmissionList
-          submissions={isOwnProfile ? visibleSubmissions : submissions}
-          isOwnProfile={isOwnProfile}
-          deletingDraftId={deletingDraftId}
-          publishingDraftId={publishingDraftId}
-          deletingSubmissionId={deletingSubmissionId}
-          onDeleteDraft={onDeleteDraft}
-          onPublishDraft={onPublishDraft}
-          onDeleteSubmission={onDeleteSubmission}
-        />
+        {expanded ? (
+          <SubmissionList
+            submissions={isOwnProfile ? visibleSubmissions : submissions}
+            isOwnProfile={isOwnProfile}
+            deletingDraftId={deletingDraftId}
+            publishingDraftId={publishingDraftId}
+            deletingSubmissionId={deletingSubmissionId}
+            onDeleteDraft={onDeleteDraft}
+            onPublishDraft={onPublishDraft}
+            onDeleteSubmission={onDeleteSubmission}
+          />
+        ) : null}
       </CardContent>
     </Card>
   )

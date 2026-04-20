@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -10,8 +10,10 @@ import { EmptyLogbook, LogEntrySkeleton } from '@/features/logbook/components/Lo
 import { LogbookStatsSection } from '@/features/logbook/components/LogbookStatsSection'
 import {
   getLogbookLowestGrade,
+  getOwnerSubmissionCounts,
   getLogbookStats,
   getRecentLogbookLogs,
+  type OwnerSubmissionCounts,
   type LogbookClimb,
   type LogbookProfile,
 } from '@/features/logbook/lib/logbook-view'
@@ -31,6 +33,8 @@ interface LogbookViewProps {
   logs: LogbookClimb[]
   profile?: LogbookProfile
   submissions: Submission[]
+  submissionCounts?: OwnerSubmissionCounts
+  initialSubmissionsExpanded?: boolean
   savedClimbs: SavedClimb[]
   savedCrags: SavedCrag[]
   hasMoreLogs: boolean
@@ -43,6 +47,7 @@ interface LogbookViewProps {
   onDeleteDraft: (draftId: string) => void | Promise<void>
   onPublishDraft: (draftId: string) => void | Promise<void>
   onDeleteSubmission: (canonicalImageId: string) => void | Promise<void>
+  onExpandSubmissions?: () => void
   onLoadMoreLogs: () => void | Promise<void>
 }
 
@@ -53,6 +58,8 @@ export default function LogbookView({
   logs,
   profile,
   submissions,
+  submissionCounts,
+  initialSubmissionsExpanded = false,
   savedClimbs,
   savedCrags,
   hasMoreLogs,
@@ -65,24 +72,27 @@ export default function LogbookView({
   onDeleteDraft,
   onPublishDraft,
   onDeleteSubmission,
+  onExpandSubmissions,
   onLoadMoreLogs,
 }: LogbookViewProps) {
   const gradeSystem = useGradeSystem()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [isSubmissionsExpanded, setIsSubmissionsExpanded] = useState(initialSubmissionsExpanded)
 
   useEffect(() => {
-    if (searchParams.get('section') !== 'submissions') return
+    if (!isSubmissionsExpanded || searchParams.get('section') !== 'submissions') return
 
     const element = document.getElementById('submissions')
     if (!element) return
 
     element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [searchParams])
+  }, [isSubmissionsExpanded, searchParams])
 
   const stats = useMemo(() => getLogbookStats(logs), [logs])
   const lowestGrade = getLogbookLowestGrade(stats)
   const recentLogs = useMemo(() => getRecentLogbookLogs(logs), [logs])
+  const resolvedSubmissionCounts = useMemo(() => submissionCounts ?? getOwnerSubmissionCounts(submissions), [submissionCounts, submissions])
   const climbUrlMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const log of logs) {
@@ -176,6 +186,7 @@ export default function LogbookView({
       )}
 
       {logs.length === 0 && submissions.length === 0 && savedClimbs.length === 0 && savedCrags.length === 0 ? <EmptyLogbook onGoToMap={() => router.push('/')} /> : null}
+      {logs.length === 0 && (resolvedSubmissionCounts.all === 0) && savedClimbs.length === 0 && savedCrags.length === 0 ? <EmptyLogbook onGoToMap={() => router.push('/')} /> : null}
 
           {stats ? (
         <LogbookStatsSection
@@ -211,11 +222,17 @@ export default function LogbookView({
 
       {(isOwnProfile || submissions.length > 0) ? (
         <DeferredLogbookSubmissions
+          expanded={isSubmissionsExpanded}
           isOwnProfile={isOwnProfile}
           submissions={submissions}
+          ownerSubmissionCounts={resolvedSubmissionCounts}
           deletingDraftId={deletingDraftId}
           publishingDraftId={publishingDraftId}
           deletingSubmissionId={deletingSubmissionId}
+          onExpand={() => {
+            setIsSubmissionsExpanded(true)
+            onExpandSubmissions?.()
+          }}
           onDeleteDraft={onDeleteDraft}
           onPublishDraft={onPublishDraft}
           onDeleteSubmission={onDeleteSubmission}

@@ -15,7 +15,7 @@ import ClimbInfoPanel from '@/features/climb/components/ClimbInfoPanel'
 import { saveClimbFeedbackAction } from '@/features/climb/actions/save-climb-feedback'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/lib/grades/preferences'
 import { logRoutesAction } from '@/features/logbook/actions/log-routes'
-import { ownLogbookQueryKey } from '@/features/logbook/lib/queries'
+import { ownLogbookSubmissionsQueryKey, ownLogbookSummaryQueryKey } from '@/features/logbook/lib/queries'
 import { saveClimbAction } from '@/features/saved/actions/save-climb'
 import { unsaveClimbAction } from '@/features/saved/actions/unsave-climb'
 import { isClimbSavedByUser } from '@/features/saved/lib/queries'
@@ -645,7 +645,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         return false
       }
 
-      await queryClient.invalidateQueries({ queryKey: ownLogbookQueryKey })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ownLogbookSummaryQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ownLogbookSubmissionsQueryKey }),
+      ])
 
       setSelectedClimbLogged(true)
       setSelectedClimbFeedbackCollapsed(false)
@@ -807,7 +810,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         return
       }
 
-      await queryClient.invalidateQueries({ queryKey: ownLogbookQueryKey })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ownLogbookSummaryQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ownLogbookSubmissionsQueryKey }),
+      ])
       addToast(nextSaved ? 'Saved to Want to try' : 'Removed from Want to try', 'success')
     } finally {
       setSavingWantToTry(false)

@@ -133,7 +133,7 @@ export function replaceOwnLogbookLogs(current: OwnLogbookData, nextLogs: Logbook
 export function replaceOwnLogbookSubmissions(current: OwnLogbookData, nextSubmissions: Submission[]): OwnLogbookData {
   return {
     ...current,
-    submissions: nextSubmissions,
+    submissionCounts: getOwnerSubmissionCounts(nextSubmissions),
   }
 }
 

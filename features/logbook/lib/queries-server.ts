@@ -99,9 +99,14 @@ export interface OwnLogbookData {
   user: User | null
   logs: LogbookClimb[]
   profile: LogbookProfile | null
-  submissions: Submission[]
   savedClimbs: SavedClimb[]
   savedCrags: SavedCrag[]
+  submissionCounts: {
+    all: number
+    drafts: number
+    'pending-review': number
+    published: number
+  }
 }
 
 export interface ServerLogbookSummary {
@@ -316,8 +321,13 @@ export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData
     user,
     logs,
     profile,
-    submissions,
     savedClimbs,
     savedCrags,
+    submissionCounts: {
+      all: submissions.length,
+      drafts: submissions.filter((submission) => submission.status === 'draft').length,
+      'pending-review': submissions.filter((submission) => submission.status === 'pending_review').length,
+      published: submissions.filter((submission) => submission.status === 'published').length,
+    },
   }
 }

@@ -4,8 +4,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import OfflineLibraryClient from '@/features/offline/components/OfflineLibraryClient'
 
 export const metadata: Metadata = {
-  title: 'Offline Library',
-  description: 'Open saved crag and climb packs stored on this device.',
+  title: 'Downloads',
+  description: 'Open saved crag and climb downloads stored on this device.',
   robots: {
     index: false,
     follow: false,

@@ -12,22 +12,28 @@ import {
 import type { Submission } from '@/types/submissions'
 
 interface DeferredLogbookSubmissionsProps {
+  expanded: boolean
   isOwnProfile: boolean
   submissions: Submission[]
+  ownerSubmissionCounts: ReturnType<typeof getOwnerSubmissionCounts>
   deletingDraftId: string | null
   publishingDraftId: string | null
   deletingSubmissionId: string | null
+  onExpand: () => void
   onDeleteDraft: (draftId: string) => void
   onPublishDraft: (draftId: string) => void
   onDeleteSubmission: (canonicalImageId: string) => void
 }
 
 export default function DeferredLogbookSubmissions({
+  expanded,
   isOwnProfile,
   submissions,
+  ownerSubmissionCounts,
   deletingDraftId,
   publishingDraftId,
   deletingSubmissionId,
+  onExpand,
   onDeleteDraft,
   onPublishDraft,
   onDeleteSubmission,
@@ -40,8 +46,7 @@ export default function DeferredLogbookSubmissions({
     ? normalizeOwnerSubmissionsTab(searchParams.get('tab'))
     : ownerSubmissionTab
 
-  const ownerSubmissionCounts = getOwnerSubmissionCounts(submissions)
-  const visibleSubmissions = getVisibleOwnerSubmissions(submissions, activeOwnerSubmissionTab)
+  const visibleSubmissions = expanded ? getVisibleOwnerSubmissions(submissions, activeOwnerSubmissionTab) : []
 
   const handleOwnerSubmissionTabChange = (tab: OwnerSubmissionsTab) => {
     setOwnerSubmissionTab(tab)
@@ -63,6 +68,7 @@ export default function DeferredLogbookSubmissions({
   return (
     <LogbookSubmissionsSection
       isOwnProfile={isOwnProfile}
+      expanded={expanded}
       submissions={submissions}
       visibleSubmissions={visibleSubmissions}
       isLoading={false}
@@ -71,6 +77,7 @@ export default function DeferredLogbookSubmissions({
       deletingDraftId={deletingDraftId}
       publishingDraftId={publishingDraftId}
       deletingSubmissionId={deletingSubmissionId}
+      onExpand={onExpand}
       onOwnerSubmissionTabChange={handleOwnerSubmissionTabChange}
       onDeleteDraft={onDeleteDraft}
       onPublishDraft={onPublishDraft}

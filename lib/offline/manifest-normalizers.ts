@@ -14,12 +14,18 @@ export function buildPackRecord(input: {
   coverImageUrl?: string | null
   tileCount?: number
   childClimbCount?: number
+  lastAutoSyncAt?: string | null
+  lastAccessedAt?: string | null
+  priorityClass?: 'saved-climb' | 'saved-crag' | null
 }): OfflinePackRecord {
   const now = new Date().toISOString()
   return {
     ...input,
     savedAt: now,
     lastSyncedAt: now,
+    lastAutoSyncAt: input.lastAutoSyncAt || null,
+    lastAccessedAt: input.lastAccessedAt || now,
+    priorityClass: input.priorityClass || null,
     syncState: 'idle',
   }
 }

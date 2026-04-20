@@ -84,7 +84,7 @@ export default function OfflineLibraryClient() {
         )
         setError(null)
       } catch (loadError) {
-        reportError(loadError, { message: 'Failed to load offline library' })
+        reportError(loadError, { message: 'Failed to load downloads' })
         if (cancelled) return
         setError('Unable to read offline storage on this device.')
         setStatus('Unable to load saved offline packs right now.')
@@ -127,7 +127,7 @@ export default function OfflineLibraryClient() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-300">Offline</p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-950 dark:text-white">Offline library</h1>
+               <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-950 dark:text-white">Downloads</h1>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{status}</p>
               <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-300">Saved crags and climbs on this device can launch directly into the route image pages that matter most when you are offline.</p>
             </div>

@@ -1,5 +1,22 @@
 async function handleShellFetch(request) {
   const url = new URL(request.url)
+  const cached = await matchShellRequest(request)
+
+  if (cached) {
+    void (async () => {
+      try {
+        const response = await fetch(request)
+        if (!response.ok) return
+
+        const shellCache = await caches.open(SHELL_CACHE)
+        await shellCache.put(request, response.clone())
+      } catch {
+        // Ignore background refresh failures and continue serving cached content.
+      }
+    })()
+
+    return cached
+  }
 
   try {
     const response = await fetch(request)

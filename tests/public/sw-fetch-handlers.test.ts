@@ -52,6 +52,19 @@ beforeEach(() => {
 })
 
 describe('sw-fetch-handlers', () => {
+  test('handleShellFetch serves cached shell response before network refresh', async () => {
+    const cachedResponse = new Response('cached shell', { status: 200 })
+    vi.mocked(matchShellRequest).mockResolvedValue(cachedResponse)
+    fetchMock.mockResolvedValue(new Response('fresh shell', { status: 200 }))
+
+    await import('../../public/sw-fetch-handlers.js')
+
+    const response = await globalThis.handleShellFetch(new Request('https://letsboulder.com/logbook'))
+
+    expect(response).toBe(cachedResponse)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   test('handleRouteAssetFetch serves next static assets from shared build cache before network', async () => {
     const cachedResponse = new Response('cached build asset', { status: 200 })
     vi.mocked(matchRouteAssetRequest).mockResolvedValue(cachedResponse)
