@@ -33,12 +33,8 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
 
   return (
     <section className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500">Fresh on letsboulder</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-stone-950 dark:text-stone-50">Recent crag updates</h2>
-          <p className="mt-2 max-w-2xl text-sm text-stone-600 dark:text-stone-300">New topos and edits grouped by crag, so the newest areas are easy to spot while you browse.</p>
-        </div>
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold tracking-tight text-stone-950 dark:text-stone-50">Recent crag updates</h2>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-3">
