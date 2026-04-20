@@ -16,7 +16,7 @@ export default function PrivacyPage() {
 
       <div className="prose max-w-none dark:prose-invert">
         <p className="mb-6 text-gray-600 dark:text-gray-400">
-          <strong>Last Updated:</strong> March 2026
+          <strong>Last Updated:</strong> April 2026
         </p>
 
         <section className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900/50">
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
           </h2>
           <ul className="mb-0 list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
             <li>letsboulder helps climbers log ascents, upload climbing photos, discover routes, and use community features.</li>
-            <li>We collect account details, profile details, climbing activity, uploaded media, location-related data, and limited technical usage data.</li>
+            <li>We collect account details, profile details, climbing activity, uploaded media, location-related data, and limited technical, analytics, and error-monitoring data.</li>
             <li>Some content is public by design, including route submissions, map data, public profiles, and community posts.</li>
             <li>You can ask us to access, correct, delete, or export your personal data by emailing hello@letsboulder.com.</li>
             <li>letsboulder is operated by Patrick William Hadow trading as letsboulder, an individual / sole trader based in the United Kingdom.</li>
@@ -73,8 +73,8 @@ export default function PrivacyPage() {
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">3.3 Data Collected Automatically</h3>
           <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
             <li>IP address, browser type, operating system, referral information, timestamps, and request logs.</li>
-            <li>Session identifiers, cookies, CSRF/security tokens, local storage values, and limited offline cache data.</li>
-            <li>Limited product analytics and performance data.</li>
+            <li>Session identifiers, cookies, CSRF/security tokens, local storage values, IndexedDB records, and service-worker-managed offline cache data.</li>
+            <li>Limited analytics, performance, and error-monitoring data from tools we use to understand reliability and usage.</li>
           </ul>
         </section>
 
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
             <li>To process, display, moderate, and store uploaded climbing content.</li>
             <li>To detect abuse, spam, fraud, unsafe uploads, and policy violations.</li>
             <li>To send transactional emails such as sign-in, welcome, and account deletion confirmations.</li>
-            <li>To improve product reliability, performance, and usability.</li>
+            <li>To improve product reliability, performance, usability, and offline functionality.</li>
             <li>To comply with legal obligations and resolve disputes.</li>
           </ul>
         </section>
@@ -117,7 +117,7 @@ export default function PrivacyPage() {
           <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
             <li><strong>Supabase</strong> for authentication, database services, and storage.</li>
             <li><strong>Vercel</strong> for hosting and infrastructure.</li>
-            <li><strong>Vercel Analytics</strong> for limited analytics.</li>
+            <li><strong>Vercel Analytics and Vercel Speed Insights</strong> for usage and performance measurement.</li>
             <li><strong>Resend</strong> for transactional email delivery.</li>
             <li><strong>AWS Rekognition</strong> for image moderation and safety checks.</li>
             <li><strong>Cloudflare</strong> for storage (R2), Workers, and CDN delivery.</li>
@@ -131,7 +131,7 @@ export default function PrivacyPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">8. Cookies, Local Storage, and Similar Technologies</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            We use cookies and similar technologies for authentication, session continuity, security, storing preferences, and limited analytics. We also use local storage and offline/browser storage for app state, CSRF handling, and product features.
+            We use cookies and similar technologies for authentication, session continuity, security, storing preferences, analytics, and performance monitoring. We also use local storage, IndexedDB, and service-worker-managed browser storage for app state, CSRF handling, cached content, and offline features.
           </p>
           <p className="text-gray-700 dark:text-gray-300">
             For more detail, see our <Link href="/cookies" className="underline">Cookie Policy</Link>. You can also control many cookies through your browser settings.
@@ -141,7 +141,7 @@ export default function PrivacyPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">9. International Transfers</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            Your data may be processed in the United Kingdom, European Economic Area, United States, or other countries where our providers operate. Where required, we rely on appropriate safeguards for international transfers.
+            Your data may be processed in the United Kingdom, European Economic Area, United States, or other countries where our providers operate. Where required, we rely on contractual and other legally recognized safeguards for international transfers used by our providers and hosting partners.
           </p>
         </section>
 
@@ -151,7 +151,7 @@ export default function PrivacyPage() {
             We keep personal data only for as long as reasonably necessary for the purposes described in this policy. Account and profile data are generally kept while your account is active. Uploaded files, submissions, and community content may be deleted, anonymized, or retained depending on the feature and the deletion option you select.
           </p>
           <p className="text-gray-700 dark:text-gray-300">
-            We may retain limited records of completed deletions, security events, moderation decisions, or legal requests where reasonably necessary for compliance, fraud prevention, or dispute handling.
+            We may retain limited records of deletion requests, completed deletions, security events, moderation decisions, or legal requests where reasonably necessary for compliance, fraud prevention, dispute handling, and service integrity.
           </p>
         </section>
 
@@ -176,7 +176,7 @@ export default function PrivacyPage() {
             letsboulder provides an account deletion flow. When you delete your account, we may delete your profile, avatar, account access, and related user records. For route uploads, you may be offered a choice to delete the uploads or keep some content on letsboulder without personal attribution.
           </p>
           <p className="text-gray-700 dark:text-gray-300">
-            We may keep limited deletion audit records and other information that must be retained for security, fraud prevention, legal compliance, or dispute resolution.
+            We may keep limited deletion audit records, including deletion request and completed deletion logs, and other information that must be retained for security, fraud prevention, legal compliance, or dispute resolution.
           </p>
         </section>
 
