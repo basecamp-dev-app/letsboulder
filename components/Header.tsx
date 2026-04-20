@@ -65,8 +65,6 @@ export default function Header() {
   const moreRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = useMemo(() => createClient(), [])
-
   useEffect(() => {
     const el = headerRef.current
     if (!el) return
@@ -134,6 +132,7 @@ export default function Header() {
     searchAbortRef.current = abortController
     setIsSearching(true)
     try {
+      const supabase = createClient()
       const [cragsResponse, climbsResponse] = await Promise.all([
         supabase
           .from('crags')
@@ -201,7 +200,7 @@ export default function Header() {
         }
       }
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     if (searchTimeoutRef.current) {

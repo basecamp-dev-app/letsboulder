@@ -25,13 +25,13 @@ function createQueryClient() {
 
 export default function QueryProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(createQueryClient)
-  const supabase = useMemo(() => createClient(), [])
   const [authScope, setAuthScope] = useState(ANON_QUERY_CACHE_SCOPE)
   const previousAuthScopeRef = useRef(authScope)
   const persister = useMemo(() => createIdbPersister(authScope), [authScope])
 
   useEffect(() => {
     let mounted = true
+    const supabase = createClient()
 
     void removeLegacyPersistedQueryCache()
 
@@ -48,7 +48,7 @@ export default function QueryProviders({ children }: { children: ReactNode }) {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     const previousAuthScope = previousAuthScopeRef.current
