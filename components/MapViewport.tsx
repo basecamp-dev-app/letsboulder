@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import MapLoadingShell from '@/components/map/MapLoadingShell'
 import { listStoredOfflineMapPins } from '@/lib/offline/storage'
 import type { PlacePin } from '@/lib/map/place-pins'
+import { cn } from '@/lib/utils'
 
 const SatelliteClimbingMap = dynamic(() => import('@/components/SatelliteClimbingMap'), {
   ssr: false,
@@ -17,7 +18,13 @@ function MapViewportFallback() {
   )
 }
 
-export default function MapViewport({ initialPlacePins = [] }: { initialPlacePins?: PlacePin[] }) {
+interface MapViewportProps {
+  initialPlacePins?: PlacePin[]
+  mode?: 'fullscreen' | 'hero'
+  className?: string
+}
+
+export default function MapViewport({ initialPlacePins = [], mode = 'fullscreen', className }: MapViewportProps) {
   const [isMapReady, setIsMapReady] = useState(false)
   const [resolvedPlacePins, setResolvedPlacePins] = useState<PlacePin[]>(initialPlacePins)
 
@@ -34,7 +41,12 @@ export default function MapViewport({ initialPlacePins = [] }: { initialPlacePin
   }, [initialPlacePins])
 
   return (
-    <div className="fixed inset-0 overflow-visible">
+    <div className={cn(
+      mode === 'fullscreen'
+        ? 'fixed inset-0 overflow-visible'
+        : 'relative w-full overflow-hidden rounded-none md:rounded-[2rem]',
+      className
+    )}>
       {!isMapReady && <MapViewportFallback />}
       <SatelliteClimbingMap initialPlacePins={resolvedPlacePins} onReady={() => setIsMapReady(true)} />
     </div>
