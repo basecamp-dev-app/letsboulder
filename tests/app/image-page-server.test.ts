@@ -8,6 +8,8 @@ const state = {
   rawImage: null as Record<string, unknown> | null,
   routeLines: [] as unknown[],
   cragImagesForCrag: [] as unknown[],
+  submissionContributorsCount: 0,
+  uploaderProfile: null as Record<string, unknown> | null,
 }
 
 vi.mock('react', () => ({ cache: cacheMock }))
@@ -54,6 +56,20 @@ vi.mock('@supabase/ssr', () => ({
               order: () => ({
                 order: async () => ({ data: state.routeLines, error: null }),
               }),
+            }),
+          }
+        }
+
+        if (table === 'submission_contributors') {
+          return {
+            eq: async () => ({ count: state.submissionContributorsCount, error: null }),
+          }
+        }
+
+        if (table === 'profiles') {
+          return {
+            eq: () => ({
+              maybeSingle: async () => ({ data: state.uploaderProfile, error: null }),
             }),
           }
         }
@@ -117,9 +133,29 @@ describe('image-page-server raw image fallback', () => {
       },
     ]
     state.cragImagesForCrag = []
+    state.submissionContributorsCount = 0
+    state.uploaderProfile = null
   })
 
   test('builds payload for raw images.id image-first route', async () => {
+    state.rawImage = {
+      ...state.rawImage,
+      created_by: 'user-1',
+      is_anonymous_submission: false,
+      contribution_credit_platform: 'instagram',
+      contribution_credit_handle: 'maya_beta',
+    }
+    state.uploaderProfile = {
+      id: 'user-1',
+      username: 'maya_beta',
+      display_name: 'Maya Stone',
+      first_name: 'Maya',
+      last_name: 'Stone',
+      avatar_url: null,
+      is_public: true,
+    }
+    state.submissionContributorsCount = 2
+
     const { buildImageFirstPayload } = await import('../../features/image-first/server/load-image-first-page')
 
     const result = await buildImageFirstPayload({
@@ -138,7 +174,42 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.initialRouteId).toBe('fd88f866-1eac-47a9-97c2-462574a95f55')
     expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
     expect(result.payload?.heroImage.displayImageId).toBe('215b8180-4727-404d-8fbf-6cb9bd8f5f9a')
+    expect(result.payload?.attribution.ownerDisplayLabel).toBe('Maya Stone')
+    expect(result.payload?.attribution.ownerProfileId).toBe('user-1')
+    expect(result.payload?.attribution.formattedContributionHandle).toBe('@maya_beta')
+    expect(result.payload?.attribution.communityEditorsCount).toBe(2)
   }, 15000)
+
+  test('uses Private Contributor for non-public uploader profiles', async () => {
+    state.rawImage = {
+      ...state.rawImage,
+      created_by: 'user-2',
+      is_anonymous_submission: false,
+      contribution_credit_platform: 'instagram',
+      contribution_credit_handle: 'private_handle',
+    }
+    state.uploaderProfile = {
+      id: 'user-2',
+      username: 'private_handle',
+      display_name: 'Private Person',
+      first_name: 'Private',
+      last_name: 'Person',
+      avatar_url: null,
+      is_public: false,
+    }
+
+    const { buildImageFirstPayload } = await import('../../features/image-first/server/load-image-first-page')
+
+    const result = await buildImageFirstPayload({
+      country: 'gg',
+      crag: 'point-de-la-moye-east',
+      imageId: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
+    })
+
+    expect(result.payload?.attribution.ownerDisplayLabel).toBe('Private Contributor')
+    expect(result.payload?.attribution.ownerProfileId).toBeNull()
+    expect(result.payload?.attribution.formattedContributionHandle).toBeNull()
+  })
 
   test('builds payload from stored offline climb manifest when offline', async () => {
     vi.stubGlobal('navigator', { onLine: false })
@@ -236,6 +307,15 @@ describe('image-page-server raw image fallback', () => {
         summary: { total_faces: 1, total_routes: 1 },
         crag_path: '/gg/point-de-la-moye-east',
         public_submitter: null,
+        route_attribution: {
+          ownerRoleLabel: 'Original Uploader',
+          ownerDisplayLabel: 'Anonymous Contributor',
+          ownerProfileId: null,
+          formattedContributionHandle: null,
+          contributionCreditUrl: null,
+          communityEditorsRoleLabel: 'Community Editors',
+          communityEditorsCount: 4,
+        },
         offline_pack: {
           packId: 'climb:f9676bde-fbb2-4d90-a178-dec6cdb903f4',
           type: 'climb',
@@ -268,6 +348,8 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.initialRouteId).toBe('fd88f866-1eac-47a9-97c2-462574a95f55')
     expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
     expect(result.payload?.navigationContext.orderedImageIds).toEqual(['215b8180-4727-404d-8fbf-6cb9bd8f5f9a'])
+    expect(result.payload?.attribution.ownerDisplayLabel).toBe('Anonymous Contributor')
+    expect(result.payload?.attribution.communityEditorsCount).toBe(4)
 
     vi.unstubAllGlobals()
   })
@@ -368,6 +450,15 @@ describe('image-page-server raw image fallback', () => {
         summary: { total_faces: 1, total_routes: 1 },
         crag_path: '/gg/point-de-la-moye-east',
         public_submitter: null,
+        route_attribution: {
+          ownerRoleLabel: 'Original Uploader',
+          ownerDisplayLabel: 'Anonymous Contributor',
+          ownerProfileId: null,
+          formattedContributionHandle: null,
+          contributionCreditUrl: null,
+          communityEditorsRoleLabel: 'Community Editors',
+          communityEditorsCount: 3,
+        },
         offline_pack: {
           packId: 'climb:f9676bde-fbb2-4d90-a178-dec6cdb903f4',
           type: 'climb',
@@ -397,6 +488,8 @@ describe('image-page-server raw image fallback', () => {
     expect(result.redirectTo).toBeNull()
     expect(result.payload?.heroImage.displayImageId).toBe('215b8180-4727-404d-8fbf-6cb9bd8f5f9a')
     expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
+    expect(result.payload?.attribution.ownerDisplayLabel).toBe('Anonymous Contributor')
+    expect(result.payload?.attribution.communityEditorsCount).toBe(3)
 
     vi.unstubAllGlobals()
   })

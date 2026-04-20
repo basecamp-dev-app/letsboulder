@@ -14,6 +14,16 @@ export interface ImageFirstRouteLine {
   isPrimary: boolean
 }
 
+export interface ImageFirstAttribution {
+  ownerRoleLabel: string
+  ownerDisplayLabel: string
+  ownerProfileId: string | null
+  formattedContributionHandle: string | null
+  contributionCreditUrl: string | null
+  communityEditorsRoleLabel: string
+  communityEditorsCount: number
+}
+
 export interface ImageFirstPayload {
   heroImage: {
     displayImageId: string
@@ -44,5 +54,6 @@ export interface ImageFirstPayload {
     activeImageIds: string[]
     routeSlug: string | null
   }>
+  attribution: ImageFirstAttribution
   isAdmin: boolean
 }

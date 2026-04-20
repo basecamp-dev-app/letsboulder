@@ -9,6 +9,16 @@ export interface ClimbPackPublicSubmitter {
   profileContributionCreditHandle: string | null
 }
 
+export interface ClimbPackRouteAttribution {
+  ownerRoleLabel: string
+  ownerDisplayLabel: string
+  ownerProfileId: string | null
+  formattedContributionHandle: string | null
+  contributionCreditUrl: string | null
+  communityEditorsRoleLabel: string
+  communityEditorsCount: number
+}
+
 export interface ClimbPackClimbInfo {
   id: string
   name: string
@@ -165,6 +175,7 @@ export interface ClimbPackResponse {
   }
   crag_path: string | null
   public_submitter: ClimbPackPublicSubmitter | null
+  route_attribution?: ClimbPackRouteAttribution
   offline_pack: ClimbOfflinePackManifest
 }
 
