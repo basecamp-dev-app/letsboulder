@@ -150,6 +150,19 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
   }
 
   const primaryImage = context.primary_image
+  const contributorCountResultPromise = (async () => {
+    try {
+      const result = await supabase
+        .from('submission_contributors')
+        .select('user_id', { count: 'exact', head: true })
+        .eq('image_id', primaryImage.id)
+
+      return { count: result.count || 0 }
+    } catch {
+      return { count: 0 }
+    }
+  })()
+
   const [completeSummaryResult, cragResult, profileResult, primaryImageGeoResult, contributorCountResult] = await Promise.all([
     supabase.rpc('get_crag_faces_complete_summary', { p_image_id: primaryImage.id }),
     primaryImage.crag_id
@@ -167,10 +180,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
       .select('latitude, longitude')
       .eq('id', primaryImage.id)
       .maybeSingle(),
-    supabase
-      .from('submission_contributors')
-      .select('user_id', { count: 'exact', head: true })
-      .eq('image_id', primaryImage.id),
+    contributorCountResultPromise,
   ])
 
   const completeSummary = (!completeSummaryResult.error && completeSummaryResult.data)
