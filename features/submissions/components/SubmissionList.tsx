@@ -139,20 +139,22 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
         const isOptimisticPublishing = submission.is_optimistic && submission.status === 'pending_review'
         const isDraftActionsVisible = submission.kind === 'draft' && submission.status === 'draft' && !isOptimisticPublishing
         const isSubmittedActionsVisible = submission.kind === 'submitted' && !isOptimisticPublishing
+        const isPendingReview = submission.status === 'pending_review'
+        const showProcessingStatus = isOwnProfile && isPendingReview
         const statusLabel = isOptimisticPublishing
           ? 'Publishing'
           : submission.status === 'draft'
-          ? 'Draft'
-          : submission.status === 'pending_review'
-            ? 'Processing'
-            : 'Published'
+            ? 'Draft'
+            : showProcessingStatus
+              ? 'Processing'
+              : 'Published'
         const statusClassName = isOptimisticPublishing
           ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
           : submission.status === 'draft'
-          ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
-          : submission.status === 'pending_review'
-            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
-            : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
+            ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
+            : showProcessingStatus
+              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+              : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
         const destinationHref = submission.kind === 'draft'
           ? draftHref
           : (() => {
