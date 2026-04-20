@@ -3,7 +3,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useMapEvents } from 'react-leaflet'
-import { uploadDebug } from '@/lib/media/upload-debug'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { getMapBaseLayerConfig } from '@/lib/map/base-layer'
 import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult } from '@/lib/map/place-pins'
@@ -131,10 +130,6 @@ const MapPinMarker = memo(function MapPinMarker({
   leafletLib,
   onPinSelect,
 }: MapPinMarkerProps) {
-  useEffect(() => {
-    uploadDebug('map-render-debug', { pinId: pin.id, isActive: active })
-  }, [pin.id, active])
-
   const visual = pinVisualStyles(active)
 
   return (
@@ -417,15 +412,6 @@ export default function LightweightCragMap({
       cancelled = true
     }
   }, [disableClustering, interactiveViewport, pinFeatures, usesStaticPreview])
-
-  useEffect(() => {
-    uploadDebug('map-debug-state', {
-      activePinId,
-      resolvedPinsCount: resolvedPins.length,
-      renderedPinsCount: renderedPins.length,
-      hasActivePin: Boolean(activePinId && resolvedPins.some((pin) => isPinActive(pin, activePinId))),
-    })
-  }, [activePinId, renderedPins, resolvedPins])
 
   useEffect(() => {
     if (!interactiveViewport || usesStaticPreview || disableAutoFit) return
