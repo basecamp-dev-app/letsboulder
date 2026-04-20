@@ -469,9 +469,10 @@ LANGUAGE sql
 STABLE
 AS $$
   WITH target_place AS (
-    SELECT place_id
-    FROM public.crags
-    WHERE id = p_crag_id
+    SELECT i.place_id
+    FROM public.images i
+    WHERE i.crag_id = p_crag_id
+      AND i.place_id IS NOT NULL
     LIMIT 1
   )
   SELECT *
