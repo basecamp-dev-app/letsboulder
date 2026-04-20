@@ -2,6 +2,7 @@ import type { RoutePoint } from '@/types/domain'
 import { getCanonicalRouteFaces } from '@/features/climb/lib/canonical-logic'
 import { estimateCompressedImageBytes } from '@/lib/media-proxy'
 import type { ClimbPackResponse } from '@/features/climb/lib/queries'
+import { buildRouteAttribution } from '@/features/image-first/lib/route-attribution'
 import { getDisplayImageId } from '@/lib/image-identity'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { reportError } from '@/lib/errors'
@@ -149,7 +150,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
   }
 
   const primaryImage = context.primary_image
-  const [completeSummaryResult, cragResult, profileResult, primaryImageGeoResult] = await Promise.all([
+  const [completeSummaryResult, cragResult, profileResult, primaryImageGeoResult, contributorCountResult] = await Promise.all([
     supabase.rpc('get_crag_faces_complete_summary', { p_image_id: primaryImage.id }),
     primaryImage.crag_id
       ? supabase.from('crags').select('id, country_code, slug, name').eq('id', primaryImage.crag_id).maybeSingle()
@@ -166,12 +167,17 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
       .select('latitude, longitude')
       .eq('id', primaryImage.id)
       .maybeSingle(),
+    supabase
+      .from('submission_contributors')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('image_id', primaryImage.id),
   ])
 
   const completeSummary = (!completeSummaryResult.error && completeSummaryResult.data)
     ? completeSummaryResult.data as CompleteSummaryPayload
     : null
   const primaryImageGeo = ('data' in primaryImageGeoResult ? primaryImageGeoResult.data : null) as { latitude: number | null; longitude: number | null } | null
+  const communityEditorsCount = contributorCountResult.count || 0
   let canonicalRouteFaces: Awaited<ReturnType<typeof getCanonicalRouteFaces>> | null = null
   let routeFaceRows: RouteFaceRow[] = []
 
@@ -405,6 +411,15 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
         profileContributionCreditHandle: profileData.contribution_credit_handle,
       }
     : null
+  const routeAttribution = buildRouteAttribution({
+    image: {
+      is_anonymous_submission: primaryImage.is_anonymous_submission,
+      contribution_credit_platform: primaryImage.contribution_credit_platform,
+      contribution_credit_handle: primaryImage.contribution_credit_handle,
+    },
+    uploaderProfile: (profileData || null) as ProfileRow | null,
+    communityEditorsCount,
+  })
 
   const mediaUrls = Array.from(new Set([decoratedPrimary.url, ...faces.map((face) => face.url)].filter(Boolean)))
   const primaryPin = buildPrimaryPin({
@@ -465,6 +480,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
     },
     crag_path: canonical.cragPath,
     public_submitter: publicSubmitter,
+    route_attribution: routeAttribution,
     offline_pack: {
       packId: `climb:${climbId}`,
       type: 'climb',

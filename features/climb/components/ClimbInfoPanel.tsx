@@ -7,9 +7,14 @@ import type { GradeOpinion } from '@/lib/grade-feedback'
 import type { GradeSystem } from '@/lib/grades'
 import LocationMapSnippet from '@/features/climb/components/LocationMapSnippet'
 
-interface SubmitterInfo {
-  id: string
-  displayName: string
+interface AttributionInfo {
+  ownerRoleLabel: string
+  ownerDisplayLabel: string
+  ownerProfileId: string | null
+  formattedContributionHandle: string | null
+  contributionCreditUrl: string | null
+  communityEditorsRoleLabel: string
+  communityEditorsCount: number
 }
 
 interface RatingSummary {
@@ -49,9 +54,7 @@ interface ClimbInfoPanelProps {
   cragPath: string | null
   isOfflineSaved: boolean
   offlinePackAvailable: boolean
-  publicSubmitter: SubmitterInfo | null
-  formattedContributionHandle: string | null
-  contributionCreditUrl: string | null
+  attribution: AttributionInfo
   imageLatitude: number | null
   imageLongitude: number | null
   selectedClimbLogged: boolean
@@ -100,9 +103,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     cragPath,
     isOfflineSaved,
     offlinePackAvailable,
-    publicSubmitter,
-    formattedContributionHandle,
-    contributionCreditUrl,
+    attribution,
     imageLatitude,
     imageLongitude,
     selectedClimbLogged,
@@ -189,28 +190,43 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                 {communityNotesCount} user{communityNotesCount === 1 ? '' : 's'} shared route beta
               </p>
             ) : null}
-            {publicSubmitter ? (
-              <>
-                {formattedContributionHandle ? (
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Credit to{' '}
-                    {contributionCreditUrl ? (
-                      <a href={contributionCreditUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-gray-400 underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200">
-                        {formattedContributionHandle}
-                      </a>
-                    ) : (
-                      <span>{formattedContributionHandle}</span>
-                    )}
-                  </p>
-                ) : null}
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Submitted by{' '}
-                  <Link href={`/logbook/${publicSubmitter.id}`} prefetch={false} className="underline decoration-gray-400 underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200">
-                    {publicSubmitter.displayName}
+            <div className="mt-3 rounded-2xl border border-blue-200/70 bg-blue-50/70 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                {attribution.ownerRoleLabel}
+              </p>
+              <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                Uploaded by{' '}
+                {attribution.ownerProfileId ? (
+                  <Link href={`/logbook/${attribution.ownerProfileId}`} prefetch={false} className="font-medium underline decoration-gray-400 underline-offset-2 hover:text-gray-900 dark:hover:text-white">
+                    {attribution.ownerDisplayLabel}
                   </Link>
+                ) : (
+                  <span className="font-medium">{attribution.ownerDisplayLabel}</span>
+                )}
+              </p>
+              {attribution.formattedContributionHandle ? (
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                  Contribution credit:{' '}
+                  {attribution.contributionCreditUrl ? (
+                    <a href={attribution.contributionCreditUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-gray-400 underline-offset-2 hover:text-gray-900 dark:hover:text-white">
+                      {attribution.formattedContributionHandle}
+                    </a>
+                  ) : (
+                    <span>{attribution.formattedContributionHandle}</span>
+                  )}
                 </p>
-              </>
-            ) : null}
+              ) : null}
+              {attribution.communityEditorsCount > 0 ? (
+                <div className="mt-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                    {attribution.communityEditorsRoleLabel}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                    Refined by {attribution.communityEditorsCount} contributor{attribution.communityEditorsCount === 1 ? '' : 's'}
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {cragPath ? (

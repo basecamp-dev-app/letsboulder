@@ -7,8 +7,53 @@ import { startServerTiming, timeServerStep } from '@/lib/performance/server-timi
 import { getStoredClimbManifest, getStoredClimbManifestByImageId } from '@/lib/offline/storage'
 import { getServerClient } from '@/lib/supabase-server'
 import type { RoutePoint } from '@/types/domain'
+import { buildRouteAttribution, buildRouteAttributionFromClimbPack } from '@/features/image-first/lib/route-attribution'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
 import type { ClimbPackResponse } from '@/features/climb/lib/queries'
+import type { ProfileRow } from '@/lib/profile-helpers'
+
+interface RoutePageAttributionRow {
+  created_by: string | null
+  is_anonymous_submission: boolean | null
+  contribution_credit_platform: string | null
+  contribution_credit_handle: string | null
+}
+
+async function getImageAttribution(displayImageId: string) {
+  const supabase = await getSupabase()
+  const [{ data: imageRow }, contributorCountResult] = await Promise.all([
+    supabase
+      .from('images')
+      .select('created_by, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle')
+      .eq('id', displayImageId)
+      .maybeSingle(),
+    supabase
+      .from('submission_contributors')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('image_id', displayImageId),
+  ])
+
+  const typedImage = (imageRow || {
+    created_by: null,
+    is_anonymous_submission: false,
+    contribution_credit_platform: null,
+    contribution_credit_handle: null,
+  }) as RoutePageAttributionRow
+
+  const uploaderProfile = typedImage.created_by
+    ? await supabase
+        .from('profiles')
+        .select('id, username, display_name, first_name, last_name, avatar_url, is_public')
+        .eq('id', typedImage.created_by)
+        .maybeSingle()
+    : { data: null }
+
+  return {
+    image: typedImage,
+    uploaderProfile: (uploaderProfile.data || null) as ProfileRow | null,
+    communityEditorsCount: contributorCountResult.count || 0,
+  }
+}
 
 interface CragRow {
   id: string
@@ -384,6 +429,7 @@ function buildOfflineImageFirstPayload(
             routeSlug: args.routeSlug || resolvedRoute?.climbSlug || pathParts[2] || null,
           }]
         : [],
+      attribution: payload.route_attribution || buildRouteAttributionFromClimbPack({ payload, communityEditorsCount: 0 }),
       isAdmin: false,
     },
   }
@@ -433,7 +479,7 @@ export async function buildImageFirstPayload(args: {
     }
   }
 
-  const [initialRouteRows, cragImages, cragImageRows, isAdmin] = await Promise.all([
+  const [initialRouteRows, cragImages, cragImageRows, isAdmin, attributionData] = await Promise.all([
     timeServerStep('buildImageFirstPayload', 'initial-routes', () => getRoutesByImage(image.canonicalId)),
     (async () => {
       return timeServerStep('buildImageFirstPayload', 'crag-images', async () => {
@@ -472,6 +518,7 @@ export async function buildImageFirstPayload(args: {
       })
     })(),
     getIsCurrentUserAdmin(),
+    getImageAttribution(image.canonicalId),
   ])
 
   const linkedImageIdByDisplayId: Record<string, string> = {}
@@ -596,6 +643,11 @@ export async function buildImageFirstPayload(args: {
       cragSlug: image.cragSlug,
       countryCode: image.countryCode,
       mapPins,
+      attribution: buildRouteAttribution({
+        image: attributionData.image,
+        uploaderProfile: attributionData.uploaderProfile,
+        communityEditorsCount: attributionData.communityEditorsCount,
+      }),
       isAdmin,
     },
   }

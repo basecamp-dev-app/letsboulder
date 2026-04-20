@@ -856,9 +856,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         cragPath={`/${countryCode}/${cragSlug}`}
         isOfflineSaved={false}
         offlinePackAvailable={false}
-        publicSubmitter={null}
-        formattedContributionHandle={null}
-        contributionCreditUrl={null}
+        attribution={payload.attribution}
         imageLatitude={null}
         imageLongitude={null}
         selectedClimbLogged={selectedClimbLogged}

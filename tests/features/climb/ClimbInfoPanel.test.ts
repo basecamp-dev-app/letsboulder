@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import ClimbInfoPanel from '@/features/climb/components/ClimbInfoPanel'
 
 function renderPanel(overrides: Partial<React.ComponentProps<typeof ClimbInfoPanel>> = {}) {
@@ -20,9 +20,15 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ClimbInfoPan
     cragPath: '/gb/test-crag',
     isOfflineSaved: false,
     offlinePackAvailable: false,
-    publicSubmitter: null,
-    formattedContributionHandle: null,
-    contributionCreditUrl: null,
+    attribution: {
+      ownerRoleLabel: 'Original Uploader',
+      ownerDisplayLabel: 'Anonymous Contributor',
+      ownerProfileId: null,
+      formattedContributionHandle: null,
+      contributionCreditUrl: null,
+      communityEditorsRoleLabel: 'Community Editors',
+      communityEditorsCount: 0,
+    },
     imageLatitude: null,
     imageLongitude: null,
     selectedClimbLogged: false,
@@ -64,6 +70,10 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ClimbInfoPan
 }
 
 describe('ClimbInfoPanel', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
   it('shows route-less empty state copy and add routes CTA', async () => {
     const user = userEvent.setup()
     const { onAddRoutes } = renderPanel()
@@ -85,5 +95,42 @@ describe('ClimbInfoPanel', () => {
     })
 
     expect(screen.getByRole('button', { name: 'Sign in to Log This Climb' })).toBeTruthy()
+  })
+
+  it('renders named uploader and contributor count when present', () => {
+    renderPanel({
+      attribution: {
+        ownerRoleLabel: 'Original Uploader',
+        ownerDisplayLabel: 'Maya Stone',
+        ownerProfileId: 'user-1',
+        formattedContributionHandle: '@maya_beta',
+        contributionCreditUrl: 'https://instagram.com/maya_beta',
+        communityEditorsRoleLabel: 'Community Editors',
+        communityEditorsCount: 3,
+      },
+    })
+
+    expect(screen.getAllByText('Original Uploader').length).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: 'Maya Stone' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: '@maya_beta' })).toBeTruthy()
+    expect(screen.getByText('Community Editors')).toBeTruthy()
+    expect(screen.getByText('Refined by 3 contributors')).toBeTruthy()
+  })
+
+  it('renders anonymous uploader label and hides community editors row at zero', () => {
+    renderPanel({
+      attribution: {
+        ownerRoleLabel: 'Original Uploader',
+        ownerDisplayLabel: 'Anonymous Contributor',
+        ownerProfileId: null,
+        formattedContributionHandle: null,
+        contributionCreditUrl: null,
+        communityEditorsRoleLabel: 'Community Editors',
+        communityEditorsCount: 0,
+      },
+    })
+
+    expect(screen.getAllByText((_, node) => node?.textContent === 'Uploaded by Anonymous Contributor').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Community Editors')).toBeNull()
   })
 })
