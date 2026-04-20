@@ -132,5 +132,68 @@ describe('loadInitialCragRouteData', () => {
       expect.objectContaining({ id: 'image-1', route_lines_count: 2 }),
       expect.objectContaining({ id: 'image-2', route_lines_count: 1 }),
     ]))
+    expect(result.initialImagesComplete).toBe(false)
+  })
+
+  it('marks initial images complete when seeded previews already use the initial image set', async () => {
+    const imagesSelect = createSelectBuilder({
+      data: [
+        { id: 'image-1', url: 'https://example.com/1.jpg', latitude: 51.0, longitude: 0.1 },
+      ],
+    })
+
+    const routeLinesSelect = createSelectBuilder({
+      data: [
+        { image_id: 'image-1' },
+      ],
+    })
+
+    const climbsSelect = createSelectBuilder({
+      data: [
+        { id: 'climb-1', shared_climb_id: null },
+      ],
+    })
+
+    const supabase = {
+      rpc: vi.fn(async () => ({
+        data: [{
+          id: 'climb-1',
+          name: 'Route 1',
+          grade: '6A',
+          slug: 'route-1',
+          route_type: 'boulder',
+          directions: ['N'],
+          has_topo: true,
+          topo_image_count: 1,
+          rating_avg: 4,
+          rating_count: 1,
+          weighted_rating: 4,
+          send_count: 1,
+          recent_send_count_60d: 1,
+        }],
+        error: null,
+      })),
+      from: vi.fn((table: string) => {
+        if (table === 'images') return { select: vi.fn(() => imagesSelect) }
+        if (table === 'route_lines') return { select: vi.fn(() => routeLinesSelect) }
+        if (table === 'climbs') return { select: vi.fn(() => climbsSelect) }
+        throw new Error(`Unexpected table: ${table}`)
+      }),
+    }
+
+    const { getAdminClientWithAudit } = await import('@/lib/supabase-admin')
+    vi.mocked(getAdminClientWithAudit).mockReturnValue({ from: vi.fn() } as never)
+
+    const { fetchCragRoutePreviewsBatched } = await import('@/features/crags/lib/crag-route-targets')
+    vi.mocked(fetchCragRoutePreviewsBatched).mockResolvedValue({
+      nextRouteImageIdsByClimbId: { 'climb-1': ['image-1'] },
+      nextRoutePreviewByClimbId: { 'climb-1': { imageId: 'image-1', imageUrl: 'https://example.com/1.jpg' } },
+      nextDefaultRouteTargetByImageId: {},
+      nextRouteNavigationTargetByClimbId: {},
+    })
+
+    const result = await loadInitialCragRouteData(supabase as never, 'crag-1')
+
+    expect(result.initialImagesComplete).toBe(true)
   })
 })

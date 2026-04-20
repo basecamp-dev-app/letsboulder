@@ -52,6 +52,10 @@ function buildPinsSignature(pins: LightweightCragMapPin[]) {
     .join('|')
 }
 
+function getPinCoordinateKey(latitude: number, longitude: number) {
+  return `${latitude.toFixed(6)}:${longitude.toFixed(6)}`
+}
+
 type RenderedMapItem =
   | { kind: 'cluster'; cluster: ClusterMarkerPin }
   | { kind: 'pin'; pin: LightweightCragMapPin }
@@ -264,6 +268,22 @@ export default function LightweightCragMap({
     route_count: null,
   }))), [resolvedPins])
 
+  const pinsByCoordinateKey = useMemo(() => {
+    const nextPinsByCoordinateKey = new Map<string, LightweightCragMapPin[]>()
+
+    for (const pin of resolvedPins) {
+      const coordinateKey = getPinCoordinateKey(pin.latitude, pin.longitude)
+      const matchingPins = nextPinsByCoordinateKey.get(coordinateKey)
+      if (matchingPins) {
+        matchingPins.push(pin)
+        continue
+      }
+      nextPinsByCoordinateKey.set(coordinateKey, [pin])
+    }
+
+    return nextPinsByCoordinateKey
+  }, [resolvedPins])
+
   const clusteredResults = useMemo<ClusterResult[]>(() => {
     if (usesStaticPreview) return pinFeatures
     if (disableClustering) return pinFeatures
@@ -305,10 +325,9 @@ export default function LightweightCragMap({
         }]
       }
 
-      const matchingPins = resolvedPins.filter((pin) => (
-        Math.abs(pin.latitude - feature.geometry.coordinates[1]) < 0.000001
-        && Math.abs(pin.longitude - feature.geometry.coordinates[0]) < 0.000001
-      ))
+      const matchingPins = pinsByCoordinateKey.get(
+        getPinCoordinateKey(feature.geometry.coordinates[1], feature.geometry.coordinates[0])
+      ) || []
       const representative = activePinId
         ? matchingPins.find((pin) => isPinActive(pin, activePinId)) || matchingPins[0]
         : matchingPins[0]
@@ -324,7 +343,7 @@ export default function LightweightCragMap({
         },
       }]
     })
-  }, [activePinId, clusteredResults, resolvedPins])
+  }, [activePinId, clusteredResults, pinsByCoordinateKey])
 
   const baseLayer = useMemo(() => {
     if (tileUrl) {
