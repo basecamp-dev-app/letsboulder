@@ -6,6 +6,7 @@ import {
   getOfflinePackUsageBytes,
   getStoredClimbManifest,
   getStoredCragManifest,
+  listOfflinePackRecords,
   listStoredClimbManifests,
   removePackRecord,
   removeStoredClimbManifest,
@@ -15,6 +16,7 @@ import {
   upsertStoredCragManifest,
 } from '@/lib/offline/storage'
 import { buildPackRecord, normalizeClimbManifest, normalizeCragManifest } from '@/lib/offline/manifest-normalizers'
+import { isStoredCragManifestFresh, sortOfflinePackEvictionCandidates } from '@/lib/offline/pack-status'
 import { sendServiceWorkerMessage, subscribeToOfflineJobProgress, type OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { OFFLINE_PACK_BUDGET_BYTES } from '@/lib/offline/pack-types'
 import type { CragOfflinePreview, SaveCragOfflineResult } from '@/lib/offline/pack-types'
@@ -57,8 +59,17 @@ export async function saveCragOffline(
   const existingPack = await getStoredCragManifest(cragId)
   const latestManifest = normalizeCragManifest(preview.manifest)
 
+  if (isStoredCragManifestFresh(existingPack, latestManifest.cragVersionHash)) {
+    return {
+      preview,
+      unsubscribe: () => {},
+      completed: Promise.resolve(),
+      warning: preview.warning || undefined,
+    }
+  }
+
   if (preview.deltaBytes > 0 && (preview.usageBytes - (existingPack?.manifest.estimatedBytes || 0) + preview.deltaBytes) > preview.budgetBytes) {
-    throw new Error('Not enough offline storage budget. Remove another pack first.')
+    await evictNonPriorityPacksForBudget(preview.deltaBytes, latestManifest.packId, existingPack?.manifest.estimatedBytes || 0)
   }
 
   const toFetch = [] as typeof latestManifest.climbs
@@ -181,6 +192,32 @@ export async function saveCragOffline(
     completed,
     warning: swResponse.warning,
   }
+}
+
+async function evictNonPriorityPacksForBudget(requiredBytes: number, currentPackId: string, existingBytes: number) {
+  let usageBytes = await getOfflinePackUsageBytes()
+  if ((usageBytes - existingBytes + requiredBytes) <= OFFLINE_PACK_BUDGET_BYTES) return
+
+  const records = await listOfflinePackRecords()
+  const candidates = sortOfflinePackEvictionCandidates(records)
+
+  for (const candidate of candidates) {
+    if (candidate.packId === currentPackId) continue
+
+    if (candidate.type === 'crag') {
+      await removeCragOffline(candidate.entityId)
+    } else {
+      const { deleteClimbOfflinePack } = await import('@/lib/offline/climb-pack-ops')
+      await deleteClimbOfflinePack(candidate.entityId)
+    }
+
+    usageBytes = await getOfflinePackUsageBytes()
+    if ((usageBytes - existingBytes + requiredBytes) <= OFFLINE_PACK_BUDGET_BYTES) {
+      return
+    }
+  }
+
+  throw new Error('Not enough offline storage budget. Remove another pack first.')
 }
 
 export async function removeCragOffline(cragId: string) {

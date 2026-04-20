@@ -1,4 +1,3 @@
-import type { ClimbOfflinePackManifest } from '@/features/climb/lib/queries'
 import {
   getOfflineClimbPack,
   getOfflineCragPack,
@@ -6,8 +5,34 @@ import {
   listOfflinePackRecords,
   listStoredCragManifests,
   listStoredClimbManifests,
+  type OfflinePackRecord,
+  type StoredClimbManifest,
+  type StoredCragManifest,
 } from '@/lib/offline/storage'
 import { OFFLINE_PACK_BUDGET_BYTES, type OfflinePackStatus, type CragOfflineStatus } from '@/lib/offline/pack-types'
+
+export function isStoredClimbManifestFresh(stored: StoredClimbManifest | null, latestVersionHash: string) {
+  return stored?.manifest.version === latestVersionHash
+}
+
+export function isStoredCragManifestFresh(stored: StoredCragManifest | null, latestVersionHash: string) {
+  return stored?.manifest.cragVersionHash === latestVersionHash
+}
+
+export function sortOfflinePackEvictionCandidates(records: OfflinePackRecord[]) {
+  return [...records]
+    .filter((record) => !record.priorityClass)
+    .sort((a, b) => {
+      const aLastTouched = a.lastAccessedAt || a.lastSyncedAt || a.savedAt
+      const bLastTouched = b.lastAccessedAt || b.lastSyncedAt || b.savedAt
+
+      if (aLastTouched !== bLastTouched) {
+        return aLastTouched.localeCompare(bLastTouched)
+      }
+
+      return a.estimatedBytes - b.estimatedBytes
+    })
+}
 
 export async function getOfflinePackStatus(climbId: string): Promise<OfflinePackStatus> {
   const [pack, usageBytes] = await Promise.all([
