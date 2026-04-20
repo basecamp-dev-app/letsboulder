@@ -8,9 +8,11 @@ Reference for offline routing, cache layers, and pack behavior.
 - Saved packs now prefer deterministic launch URLs via manifest fields such as `offlineLaunchUrl` and `imageFirstUrl`.
 - Saved climbs prefer image-first topo routes.
 - Saved crags prefer a saved child climb topo/image route when available, otherwise the canonical crag page.
-- `/offline` is now a dispatcher route. It redirects to `/` when online and `/offline/library?reason=offline` when offline.
+- `/launch` is the installed-app startup route. It restores exact link intent first, then the last valid route seen within 72 hours, and finally falls back to `/` or `/offline/library?reason=offline`.
+- `/offline` remains a dispatcher route. It redirects to `/` when online and `/offline/library?reason=offline` when offline.
 - `/offline/library` is the Downloads management and recovery surface, not the primary offline entry path.
 - Uncached offline navigations now recover to `/offline/library?reason=offline-miss&from=<requested-path>` instead of failing hard.
+- Restorable last-route state stores the full relative href, including query string, for canonical crag/image routes and `/logbook`.
 - The map stack may still support a degraded offline basemap path, but crag downloads no longer include map tiles.
 
 ## Service Worker — `public/sw.js`
@@ -92,6 +94,7 @@ TanStack React Query persisted to IndexedDB via `@tanstack/react-query-persist-c
 
 | Route | Purpose |
 |---|---|
+| `/launch` | Installed startup route with launch-intent restore |
 | `/offline` | Online/offline dispatcher route |
 | `/offline/library` | Downloads management and offline recovery surface |
 
