@@ -194,7 +194,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
               <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
                 {attribution.ownerRoleLabel}
               </p>
-              <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+              <p className="mt-1 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200">
                 Uploaded by{' '}
                 {attribution.ownerProfileId ? (
                   <Link href={`/logbook/${attribution.ownerProfileId}`} prefetch={false} className="font-medium underline decoration-gray-400 underline-offset-2 hover:text-gray-900 dark:hover:text-white">
