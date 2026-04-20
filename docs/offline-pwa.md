@@ -9,6 +9,7 @@ Reference for offline routing, cache layers, and pack behavior.
 - Saved climbs prefer image-first topo routes.
 - Saved crags prefer a saved child climb topo/image route when available, otherwise the canonical crag page.
 - `/offline` is now a dispatcher route. It redirects to `/` when online and `/offline/library?reason=offline` when offline.
+- `/offline/library` is the Downloads management and recovery surface, not the primary offline experience.
 - Uncached offline navigations now recover to `/offline/library?reason=offline-miss&from=<requested-path>` instead of failing hard.
 - The map stack may still support a degraded offline basemap path, but crag downloads no longer include map tiles.
 
@@ -39,10 +40,10 @@ Reference for offline routing, cache layers, and pack behavior.
 
 | Resource | Strategy |
 |---|---|
-| Shell routes | Network-first, shell cache fallback |
+| Shell routes | Cache-first, background refresh |
 | Media | Cache-first, network fallback (504 if offline and uncached) |
 | Tiles | Cache-first, offline tile cache fallback via `/api/offline-tiles/{layer}/{z}/{x}/{y}` when maps request them |
-| Climb/crag pages | Network-first, pack cache fallback |
+| Climb/crag pages | Cache-first, background refresh |
 | Route assets | Cache-first, network fallback |
 
 ### Offline Navigation Recovery
@@ -92,7 +93,7 @@ TanStack React Query persisted to IndexedDB via `@tanstack/react-query-persist-c
 | Route | Purpose |
 |---|---|
 | `/offline` | Online/offline dispatcher route |
-| `/offline/library` | Saved pack library and offline recovery surface |
+| `/offline/library` | Downloads management and offline recovery surface |
 
 ## Offline Map Basemap
 

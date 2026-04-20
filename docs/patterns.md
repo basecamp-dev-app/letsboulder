@@ -294,7 +294,7 @@ await removeCragOffline(cragId)
 - `public/sw.js` — service worker with 6 cache layers
 - `lib/query-persistence.ts` — React Query IndexedDB persistence (12h max age)
 - `app/offline/page.tsx` — offline launcher
-- `app/offline/library/page.tsx` — offline pack library
+- `app/offline/library/page.tsx` — downloads and offline recovery surface
 
 ### Service Worker Messages
 - `SAVE_CLIMB_PACK` — cache climb page, media, and tiles
@@ -309,7 +309,7 @@ await removeCragOffline(cragId)
 - **Media URL consistency:** Persist and render saved media with the same proxied `/api/media/...` URLs. If the UI renders proxied media but the pack cached raw Supabase URLs, offline thumbnails will 504.
 - **Network-first vs Cache-first:** Routes and unsaved pages stay network-first; saved media is cache-first; optional map tiles remain best-effort outside the crag pack contract.
 - **Offline scope:** Keep offline support limited to saved `crag -> climb` flows. Use full document navigations for offline entry/open/back actions instead of relying on App Router client transitions.
-- **Offline launcher:** Keep `/offline` as a dispatcher, hydrate saved packs in `/offline/library`, and fall back to `/offline/library?reason=offline-miss` for uncached offline navigations.
+- **Offline launcher:** Keep `/offline` as a dispatcher, use `/offline/library` for downloads management and recovery, and fall back to `/offline/library?reason=offline-miss` for uncached offline navigations.
 - **Critical vs optional cache:** Saved crag/climb documents, required route assets, face images, and route-line payloads are required for a successful pack. Media can warn on partial failure. Crag map tiles are out of scope for the pack contract.
 - **Storage failures:** Handle `QuotaExceededError` and partial media failures with a clear warning so the saved pack remains usable for core image/route navigation.
 - **Degraded basemap:** Offline/degraded maps should keep the same UI but swap the base layer to app-owned offline tile routes (`imagery` + `labels`) instead of assuming satellite imagery is always available.

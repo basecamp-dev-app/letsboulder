@@ -121,6 +121,8 @@ export async function saveCragOffline(
           pinnedStandalone: existing?.pinnedStandalone || false,
           savedAt: existing?.savedAt || new Date().toISOString(),
           lastUsedAt: new Date().toISOString(),
+          lastAutoSyncAt: existing?.lastAutoSyncAt || null,
+          priorityClass: existing?.priorityClass || null,
         })
       }
 
@@ -133,6 +135,7 @@ export async function saveCragOffline(
             ...existing,
             ownerPackIds: remainingOwners,
             lastUsedAt: new Date().toISOString(),
+            lastAutoSyncAt: existing.lastAutoSyncAt || null,
           })
           continue
         }
@@ -159,6 +162,8 @@ export async function saveCragOffline(
           ownerPackIds: [latestManifest.packId],
           savedAt: existingPack?.savedAt || new Date().toISOString(),
           lastUsedAt: new Date().toISOString(),
+          lastAutoSyncAt: existingPack?.lastAutoSyncAt || null,
+          priorityClass: existingPack?.priorityClass || null,
         }),
       ])
     } finally {
@@ -225,6 +230,7 @@ export async function removeCragOffline(cragId: string) {
         ...climb,
         ownerPackIds: remainingOwners,
         lastUsedAt: new Date().toISOString(),
+        lastAutoSyncAt: climb.lastAutoSyncAt || null,
       })
       continue
     }

@@ -33,6 +33,9 @@ async function persistStandaloneClimbPack(payload: ClimbPackResponse) {
       coverImageUrl: manifest.coverImageUrl || null,
       tileCount: manifest.tileCount || 0,
       childClimbCount: 0,
+      lastAutoSyncAt: existing?.lastAutoSyncAt || null,
+      lastAccessedAt: now,
+      priorityClass: existing?.priorityClass || null,
     })),
     upsertStoredClimbManifest({
       climbId: manifest.climbId,
@@ -42,14 +45,25 @@ async function persistStandaloneClimbPack(payload: ClimbPackResponse) {
       pinnedStandalone: true,
       savedAt: existing?.savedAt || now,
       lastUsedAt: now,
+      lastAutoSyncAt: existing?.lastAutoSyncAt || null,
+      priorityClass: existing?.priorityClass || null,
     }),
   ])
 }
 
-export async function saveClimbOfflinePack(packOrPayload: ClimbOfflinePackManifest | ClimbPackResponse) {
-  const payload = 'offline_pack' in packOrPayload
-    ? packOrPayload
-    : await fetchClimbOfflinePack(packOrPayload.climbId)
+export async function isStoredClimbPackCurrent(climbId: string) {
+  const existing = await getStoredClimbManifest(climbId)
+  if (!existing) return false
+
+  return existing.manifest.version === existing.payload?.offline_pack.version
+}
+
+export async function saveClimbOfflinePack(packOrPayload: string | ClimbOfflinePackManifest | ClimbPackResponse) {
+  const payload = typeof packOrPayload === 'string'
+    ? await fetchClimbOfflinePack(packOrPayload)
+    : 'offline_pack' in packOrPayload
+      ? packOrPayload
+      : await fetchClimbOfflinePack(packOrPayload.climbId)
   const manifest = getClimbPackManifest(payload)
 
   const response = await sendServiceWorkerMessage({

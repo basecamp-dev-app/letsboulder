@@ -57,7 +57,7 @@ This is a maintainer reference for system shape, deployment flow, and module own
 - **Location**: `public/sw.js`
 - **Caches**: shell, packs, media, tiles, route assets, transient
 - **Pack System**: Save crags/climbs for offline via `SAVE_CRAG_PACK` / `SAVE_CLIMB_PACK` messages
-- **Offline Pages**: `/offline` (launcher), `/offline/library` (saved packs)
+- **Offline Pages**: `/offline` (dispatcher), `/offline/library` (Downloads and recovery)
 
 ## Data Flow
 

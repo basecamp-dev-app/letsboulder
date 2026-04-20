@@ -21,6 +21,9 @@ export interface OfflinePackRecord {
   childClimbCount?: number
   savedAt: string
   lastSyncedAt: string
+  lastAutoSyncAt?: string | null
+  lastAccessedAt?: string | null
+  priorityClass?: 'saved-climb' | 'saved-crag' | null
   syncState: 'idle' | 'syncing' | 'error'
 }
 
@@ -32,6 +35,8 @@ export interface StoredClimbManifest {
   pinnedStandalone: boolean
   savedAt: string
   lastUsedAt: string
+  lastAutoSyncAt?: string | null
+  priorityClass?: 'saved-climb' | null
 }
 
 export interface StoredCragManifest {
@@ -40,6 +45,8 @@ export interface StoredCragManifest {
   ownerPackIds: string[]
   savedAt: string
   lastUsedAt: string
+  lastAutoSyncAt?: string | null
+  priorityClass?: 'saved-crag' | null
 }
 
 type LegacyClimbPackMap = Record<string, ClimbOfflinePackManifest>
@@ -81,9 +88,12 @@ async function migrateLegacyClimbPacks() {
         tileCount: pack.tileCount || 0,
         childClimbCount: 0,
         savedAt: now,
-      lastSyncedAt: now,
-      syncState: 'idle',
-    }
+        lastAutoSyncAt: null,
+        lastAccessedAt: now,
+        priorityClass: null,
+       lastSyncedAt: now,
+       syncState: 'idle',
+     }
 
     climbManifests[pack.climbId] = {
       climbId: pack.climbId,
@@ -92,11 +102,13 @@ async function migrateLegacyClimbPacks() {
         type: 'climb',
       },
       ownerPackIds: [pack.packId],
-      pinnedStandalone: true,
-      savedAt: now,
-      lastUsedAt: now,
-    }
-  }
+       pinnedStandalone: true,
+       savedAt: now,
+       lastUsedAt: now,
+       lastAutoSyncAt: null,
+       priorityClass: null,
+     }
+   }
 
   await Promise.all([
     writeMap(PACK_RECORDS_KEY, packRecords),
@@ -126,6 +138,11 @@ export async function upsertPackRecord(record: OfflinePackRecord) {
   const records = await readMap<OfflinePackRecord>(PACK_RECORDS_KEY)
   records[record.packId] = record
   await writeMap(PACK_RECORDS_KEY, records)
+}
+
+export async function listPriorityPackRecords(): Promise<OfflinePackRecord[]> {
+  const records = await listOfflinePackRecords()
+  return records.filter((record) => record.priorityClass)
 }
 
 export async function removePackRecord(packId: string) {
