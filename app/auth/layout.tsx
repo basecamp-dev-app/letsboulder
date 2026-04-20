@@ -1,5 +1,7 @@
 import { Metadata } from 'next'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Authentication',
   description: 'Sign in or create your letsboulder account to access climbing routes and logbook features.',
