@@ -452,7 +452,7 @@ export async function fetchCragRouteTargetPage(
   limit: number,
   offset: number
 ) {
-  const { data, error } = await supabase.rpc('get_crag_route_targets_page', {
+  const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: CragRouteTargetPageRow[] | null; error: Error | null }> }).rpc('get_crag_route_targets_page', {
     p_crag_id: cragId,
     p_limit: limit,
     p_offset: offset,
@@ -460,7 +460,7 @@ export async function fetchCragRouteTargetPage(
 
   if (error) throw error
 
-  const resolvedRows = (data || []).map((row: CragRouteTargetPageRow) => ({
+  const resolvedRows = ((Array.isArray(data) ? data : []) as CragRouteTargetPageRow[]).map((row: CragRouteTargetPageRow) => ({
     ...row,
     preview_image_url: row.preview_image_url
       ? resolveRouteImageUrl(row.preview_image_url)

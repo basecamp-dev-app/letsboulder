@@ -107,7 +107,8 @@ export interface ProfileRow {
   display_name: string | null
   first_name: string | null
   last_name: string | null
-  is_public: boolean | null
+  avatar_url: string | null
+  is_public: boolean
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
 }

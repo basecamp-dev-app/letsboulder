@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createErrorResponse } from '@/lib/errors'
 import { isValidGrade } from '@/lib/grade-constants'
 import { makeUniqueSlug, fetchUsedSlugs } from '@/lib/slug'
+import { recordAcceptedWikiContribution } from '@/features/community/lib/contributor-score'
 import {
   MAX_ROUTES_PER_REQUEST,
   normalizeNewRoutes,
@@ -140,7 +141,7 @@ export async function createSubmissionRoutes(
   for (const [index, climb] of climbs.entries()) {
     const route = routes[index]
     if (!route) continue
-    await supabase.rpc('log_submission_edit', {
+    const { data: editHistoryId } = await supabase.rpc('log_submission_edit', {
       p_image_id: imageId,
       p_edited_by: userId,
       p_edit_kind: 'route_created',
@@ -153,6 +154,20 @@ export async function createSubmissionRoutes(
         description: route.description?.trim() || null,
       },
     })
+
+    if (typeof editHistoryId === 'string') {
+      await recordAcceptedWikiContribution(supabase, {
+        userId,
+        imageId,
+        sourceId: editHistoryId,
+        climbId: climb.id,
+        metadata: {
+          edit_kind: 'route_created',
+          climb_id: climb.id,
+        },
+      })
+    }
+
     if (climbs.length > 1) break
   }
   await revalidateSubmissionImagePaths(supabase, image.crag_id)

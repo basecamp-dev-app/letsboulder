@@ -15,6 +15,9 @@ export interface LogbookProfile {
   total_climbs?: number
   total_points?: number
   highest_grade?: string
+  contributor_score_total?: number
+  accepted_contribution_count?: number
+  contributor_tier?: string | null
 }
 
 export interface OwnLogbookData {
@@ -74,7 +77,7 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
   const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade')
+      .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade, contributor_score_total, accepted_contribution_count, contributor_tier')
       .eq('id', userId)
       .single(),
     supabase

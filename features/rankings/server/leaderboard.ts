@@ -5,7 +5,15 @@ type RankingSort = 'grade' | 'tops'
 
 type RankingsRow = Database['public']['Functions']['get_rankings_leaderboard']['Returns'][number]
 type PlaceRankingsRow = Database['public']['Functions']['get_place_rankings_leaderboard']['Returns'][number]
-type CragRankingsRow = Database['public']['Functions']['get_crag_rankings_leaderboard']['Returns'][number]
+type CragRankingsRow = {
+  rank: number
+  user_id: string
+  username: string
+  avatar_url: string | null
+  avg_grade: string
+  climb_count: number
+  total_users: number
+}
 
 export interface LeaderboardEntry {
   rank: number
@@ -113,7 +121,7 @@ export async function loadCragRankingsLeaderboard(
     windowStart: string | null
   }
 ): Promise<{ data: LeaderboardPage | null; error: PostgrestError | null }> {
-  const { data, error } = await supabase.rpc('get_crag_rankings_leaderboard', {
+  const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: CragRankingsRow[] | null; error: PostgrestError | null }> }).rpc('get_crag_rankings_leaderboard', {
     p_crag_id: params.cragId,
     p_sort: params.sort,
     p_page: params.page,

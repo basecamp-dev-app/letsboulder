@@ -33,6 +33,9 @@ export interface LogbookProfile {
   total_climbs?: number
   total_points?: number
   highest_grade?: string
+  contributor_score_total?: number
+  accepted_contribution_count?: number
+  contributor_tier?: string | null
   first_name?: string
   last_name?: string
 }

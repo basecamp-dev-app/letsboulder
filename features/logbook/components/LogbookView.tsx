@@ -153,6 +153,17 @@ export default function LogbookView({
               </h1>
               <p className="text-gray-500 dark:text-gray-400">@{profile.username}</p>
               {profile.bio && <p className="mt-3 max-w-xl text-gray-600 dark:text-gray-300">{profile.bio}</p>}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200">
+                  Contributor Score {profile.contributor_score_total || 0}
+                </span>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                  {profile.accepted_contribution_count || 0} accepted
+                </span>
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium capitalize text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">
+                  {(profile.contributor_tier || 'new_contributor').replace(/_/g, ' ')}
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>
