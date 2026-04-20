@@ -33,6 +33,7 @@ browser-debug.log
 
 # local test artifacts
 /dev.log
+/.eslintcache
 /playwright-report/
 /test-results/
 /playwright/.auth/
