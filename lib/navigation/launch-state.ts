@@ -8,17 +8,6 @@ interface StoredLastRoute {
   kind: 'logbook' | 'crag' | 'image'
 }
 
-export function isStandaloneRuntime() {
-  if (typeof window === 'undefined') return false
-
-  const mediaQuery = typeof window.matchMedia === 'function'
-    ? window.matchMedia('(display-mode: standalone)').matches
-    : false
-  const navigatorStandalone = 'standalone' in window.navigator && window.navigator.standalone === true
-
-  return mediaQuery || navigatorStandalone
-}
-
 export function isGenericLaunchPath(pathname: string) {
   return pathname === '/launch' || pathname === '/offline'
 }
