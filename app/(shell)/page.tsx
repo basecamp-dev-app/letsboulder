@@ -89,24 +89,6 @@ export default async function Home() {
           />
         </section>
 
-        <section className="relative z-10 -mt-14 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 gap-4 rounded-[2rem] border border-white/60 bg-white/90 p-5 shadow-[0_22px_60px_-24px_rgba(15,23,42,0.35)] backdrop-blur dark:border-white/10 dark:bg-slate-950/78 md:grid-cols-3 md:gap-5 md:p-6">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500">Map first</p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-stone-950 dark:text-stone-50">Explore crags through the map, then keep scrolling.</h1>
-              <p className="mt-3 text-sm leading-6 text-stone-600 dark:text-stone-300">Browse the map for the big picture, then dip into the latest crag updates and contributor credit below without losing the lightweight letsboulder feel.</p>
-            </div>
-            <div className="rounded-2xl border border-stone-200/80 bg-stone-50/85 p-4 dark:border-white/10 dark:bg-slate-900/80">
-              <p className="text-sm font-semibold text-stone-900 dark:text-stone-50">Top crags area</p>
-              <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">Stay close to the map and scan the most active areas before diving into what was added recently.</p>
-            </div>
-            <div className="rounded-2xl border border-stone-200/80 bg-stone-50/85 p-4 dark:border-white/10 dark:bg-slate-900/80">
-              <p className="text-sm font-semibold text-stone-900 dark:text-stone-50">Fresh community signal</p>
-              <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">Recent topos are grouped by crag, and public contributors get visible credit for the work that keeps the map current.</p>
-            </div>
-          </div>
-        </section>
-
         <HomeRecentCragUpdates updates={recentCragUpdates} />
         <HomeContributorHighlights recentContributors={recentContributors} topContributors={topContributors} />
       </main>

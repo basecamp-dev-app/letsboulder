@@ -54,7 +54,7 @@ function ContributorRow({
       <Avatar name={contributor.displayName} avatarUrl={contributor.avatarUrl} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-stone-950 dark:text-stone-50">{contributor.displayName}</p>
-        <p className="truncate text-xs text-stone-500 dark:text-stone-400">{contributor.username ? `@${contributor.username}` : 'Public profile'}</p>
+        {contributor.username ? <p className="truncate text-xs text-stone-500 dark:text-stone-400">@{contributor.username}</p> : null}
       </div>
       <div className="shrink-0 text-right">{trailing}</div>
     </Link>
@@ -76,11 +76,6 @@ export default function HomeContributorHighlights({
 
   return (
     <section className="mx-auto w-full max-w-7xl px-4 pb-14 sm:px-6 lg:px-8 lg:pb-20">
-      <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500">Community credit</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-stone-950 dark:text-stone-50">Public contributors shaping the map</h2>
-      </div>
-
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card className="border-white/60 bg-white/88 py-0 shadow-[0_18px_45px_-24px_rgba(15,23,42,0.45)] backdrop-blur dark:border-white/10 dark:bg-slate-950/72">
           <CardHeader className="px-4 pt-4 pb-0 sm:px-5">
@@ -94,6 +89,16 @@ export default function HomeContributorHighlights({
                 trailing={<p className="text-xs font-medium text-stone-500 dark:text-stone-300">{contributor.contributedAt ? formatRelativeTime(contributor.contributedAt) : 'Recently'}</p>}
               />
             ))}
+
+            <div className="rounded-2xl border border-stone-200/80 bg-stone-50/90 p-3 dark:border-white/10 dark:bg-slate-900/80">
+              <p className="text-sm text-stone-600 dark:text-stone-300">Share a topo photo and help the next climber find the line.</p>
+              <Link
+                href="/submit"
+                className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-stone-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-800 dark:bg-stone-100 dark:text-slate-950 dark:hover:bg-white"
+              >
+                Upload a topo
+              </Link>
+            </div>
           </CardContent>
         </Card>
 
