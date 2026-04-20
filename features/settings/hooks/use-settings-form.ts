@@ -26,6 +26,7 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
   const [isDirty, setIsDirty] = useState(false)
 
   const [formData, setFormData] = useState({
+    avatarUrl: '',
     firstName: '',
     lastName: '',
     gender: 'prefer_not_to_say',
@@ -67,6 +68,7 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
     }
 
     setFormData({
+      avatarUrl: data.settings.avatarUrl || '',
       firstName: data.settings.firstName || '',
       lastName: data.settings.lastName || '',
       gender: data.settings.gender || 'prefer_not_to_say',
@@ -114,6 +116,38 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
   const handleFormChange = (field: keyof typeof formData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     setIsDirty(true)
+  }
+
+  const handleAvatarUpdate = (avatarUrl: string) => {
+    setFormData((prev) => ({ ...prev, avatarUrl }))
+    syncSettingsCache({
+      ...(data?.settings || {
+        username: '',
+        avatarUrl: '',
+        defaultLocation: '',
+        defaultLocationName: '',
+        defaultLocationLat: null,
+        defaultLocationLng: null,
+        defaultLocationZoom: null,
+      }),
+      avatarUrl,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      gender: formData.gender,
+      heightCm: parseLengthInputToCm(formData.heightCm, units),
+      reachCm: parseLengthInputToCm(formData.reachCm, units),
+      bio: formData.bio,
+      boulderSystem,
+      routeSystem,
+      tradSystem,
+      units,
+      isPublic,
+      themePreference,
+      contributionCreditPlatform: formData.contributionCreditHandle.trim()
+        ? formData.contributionCreditPlatform
+        : '',
+      contributionCreditHandle: normalizeSubmissionCreditHandle(formData.contributionCreditHandle) || '',
+    })
   }
 
   const handleUnitsChange = (nextUnits: MeasurementUnits) => {
@@ -286,6 +320,7 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
     setDeleteRouteUploads,
     isConfirmed: confirmText.trim().toLowerCase() === 'delete my account',
     handleFormChange,
+    handleAvatarUpdate,
     handleUnitsChange,
     handleSave,
     handleThemeChange,

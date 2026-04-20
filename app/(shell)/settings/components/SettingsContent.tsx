@@ -162,7 +162,12 @@ export default function SettingsContent({ user }: SettingsContentProps) {
             </div>
 
             {activeTab === 'profile' && (
-              <ProfileSettingsSection formData={formData} units={units} onFieldChange={handleFormChange} />
+              <ProfileSettingsSection
+                formData={formData}
+                units={units}
+                onFieldChange={handleFormChange}
+                onAvatarUpdate={form.handleAvatarUpdate}
+              />
             )}
 
             {activeTab === 'units' && (
