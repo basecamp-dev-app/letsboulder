@@ -333,20 +333,28 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   useEffect(() => {
     if (!activePrimaryImageId) return
 
+    const currentUrl = new URL(window.location.href)
     const currentPathImageId = pathname?.split('/').pop()
-    const currentRouteQuery = new URLSearchParams(window.location.search).get('route')
+    const currentRouteQuery = currentUrl.searchParams.get('route')
     const nextRouteQuery = activeRouteMeta?.climbSlug || resolvedActiveRouteId
 
-    if (currentPathImageId === activePrimaryImageId && currentRouteQuery === (nextRouteQuery || null)) {
-      return
-    }
-
-    const params = new URLSearchParams(window.location.search)
+    const params = new URLSearchParams(currentUrl.search)
     params.delete('climb')
     if (nextRouteQuery) params.set('route', nextRouteQuery)
     else params.delete('route')
 
-    router.replace(`/${countryCode}/${cragSlug}/i/${activePrimaryImageId}${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false })
+    const nextHref = `/${countryCode}/${cragSlug}/i/${activePrimaryImageId}${params.toString() ? `?${params.toString()}` : ''}`
+    const currentHref = `${currentUrl.pathname}${currentUrl.search}`
+
+    if (currentPathImageId === activePrimaryImageId && currentRouteQuery === (nextRouteQuery || null) && currentHref === nextHref) {
+      return
+    }
+
+    if (currentHref === nextHref) {
+      return
+    }
+
+    router.replace(nextHref, { scroll: false })
   }, [activePrimaryImageId, activeRouteMeta, countryCode, cragSlug, pathname, resolvedActiveRouteId, router])
 
   useEffect(() => {
