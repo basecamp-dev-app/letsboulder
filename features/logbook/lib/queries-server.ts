@@ -6,6 +6,8 @@ import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted
 import type { Submission } from '@/types/submissions'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
 import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
+import { fetchSavedClimbs, fetchSavedCrags } from '@/features/saved/lib/queries'
+import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 
 interface RawLogbookRow {
   id: string
@@ -98,6 +100,8 @@ export interface OwnLogbookData {
   logs: LogbookClimb[]
   profile: LogbookProfile | null
   submissions: Submission[]
+  savedClimbs: SavedClimb[]
+  savedCrags: SavedCrag[]
 }
 
 export interface ServerLogbookSummary {
@@ -294,11 +298,18 @@ export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData
   const timing = startServerTiming('fetchServerLogbookData')
   const { logs, profile } = await timeServerStep('fetchServerLogbookData', 'logs-and-profile', () => fetchServerLogbookLogsAndProfile(user.id))
   const submissions = await timeServerStep('fetchServerLogbookData', 'submissions', () => fetchServerLogbookSubmissions(user))
+  const supabase = await getServerClient()
+  const [savedClimbs, savedCrags] = await Promise.all([
+    fetchSavedClimbs(supabase, user.id),
+    fetchSavedCrags(supabase, user.id),
+  ])
 
   timing.end({
     logs: logs.length,
     hasProfile: !!profile,
     submissions: submissions.length,
+    savedClimbs: savedClimbs.length,
+    savedCrags: savedCrags.length,
   })
 
   return {
@@ -306,5 +317,7 @@ export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData
     logs,
     profile,
     submissions,
+    savedClimbs,
+    savedCrags,
   }
 }

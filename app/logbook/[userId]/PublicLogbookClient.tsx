@@ -72,6 +72,8 @@ export default function PublicLogbookClient({ userId, initialPage }: PublicLogbo
         logs={logs}
         profile={profile}
         submissions={submissions}
+        savedClimbs={[]}
+        savedCrags={[]}
         hasMoreLogs={Boolean(hasNextPage)}
         isLoadingMoreLogs={isFetchingNextPage}
         deletingId={null}

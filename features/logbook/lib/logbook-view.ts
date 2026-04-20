@@ -1,6 +1,7 @@
 import { calculateStats, getLowestGrade, type LogEntry } from '@/lib/grades'
 import type { OwnLogbookData } from '@/features/logbook/lib/queries'
 import type { Submission } from '@/types/submissions'
+import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 
 export interface LogbookClimb {
   id: string
@@ -133,6 +134,20 @@ export function replaceOwnLogbookSubmissions(current: OwnLogbookData, nextSubmis
   return {
     ...current,
     submissions: nextSubmissions,
+  }
+}
+
+export function replaceOwnSavedClimbs(current: OwnLogbookData, nextSavedClimbs: SavedClimb[]): OwnLogbookData {
+  return {
+    ...current,
+    savedClimbs: nextSavedClimbs,
+  }
+}
+
+export function replaceOwnSavedCrags(current: OwnLogbookData, nextSavedCrags: SavedCrag[]): OwnLogbookData {
+  return {
+    ...current,
+    savedCrags: nextSavedCrags,
   }
 }
 

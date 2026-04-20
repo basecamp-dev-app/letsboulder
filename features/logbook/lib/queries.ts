@@ -5,6 +5,8 @@ import { fetchOwnSubmissions } from '@/features/submissions/lib/fetch-own-submis
 import { createClient } from '@/lib/supabase'
 import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
 import type { Submission } from '@/types/submissions'
+import { fetchSavedClimbs, fetchSavedCrags } from '@/features/saved/lib/queries'
+import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 
 export interface LogbookProfile {
   id: string
@@ -25,6 +27,8 @@ export interface OwnLogbookData {
   logs: LogbookClimb[]
   profile: LogbookProfile | null
   submissions: Submission[]
+  savedClimbs: SavedClimb[]
+  savedCrags: SavedCrag[]
 }
 
 interface RawLogbookRow {
@@ -59,7 +63,7 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
 
     if (userError) {
       if (userError.name === 'AuthSessionMissingError' || userError.message.includes('session')) {
-        return { user: null, logs: [], profile: null, submissions: [] }
+        return { user: null, logs: [], profile: null, submissions: [], savedClimbs: [], savedCrags: [] }
       }
       throw userError
     }
@@ -68,7 +72,7 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
   }
 
   if (!user) {
-    return { user: null, logs: [], profile: null, submissions: [] }
+    return { user: null, logs: [], profile: null, submissions: [], savedClimbs: [], savedCrags: [] }
   }
 
   const userId = user.id
@@ -141,11 +145,17 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
   })
 
   const submissions = await fetchOwnSubmissions(supabase, userId, csrfFetch, 24)
+  const [savedClimbs, savedCrags] = await Promise.all([
+    fetchSavedClimbs(supabase, userId),
+    fetchSavedCrags(supabase, userId),
+  ])
 
   return {
     user,
     logs: logsWithUrls,
     profile: (profileData || null) as LogbookProfile | null,
     submissions,
+    savedClimbs,
+    savedCrags,
   }
 }

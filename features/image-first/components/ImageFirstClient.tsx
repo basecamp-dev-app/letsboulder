@@ -16,6 +16,9 @@ import { saveClimbFeedbackAction } from '@/features/climb/actions/save-climb-fee
 import { getGradeSystemForClimbType, useGradePreferences } from '@/lib/grades/preferences'
 import { logRoutesAction } from '@/features/logbook/actions/log-routes'
 import { ownLogbookQueryKey } from '@/features/logbook/lib/queries'
+import { saveClimbAction } from '@/features/saved/actions/save-climb'
+import { unsaveClimbAction } from '@/features/saved/actions/unsave-climb'
+import { isClimbSavedByUser } from '@/features/saved/lib/queries'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 import { ToastContainer } from '@/components/ui/toast'
@@ -72,9 +75,11 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [pendingNotes, setPendingNotes] = useState('')
   const [savingFeedback, setSavingFeedback] = useState(false)
   const [logging, setLogging] = useState(false)
+  const [savingWantToTry, setSavingWantToTry] = useState(false)
   const [downloadingPost, setDownloadingPost] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [notesDialogOpen, setNotesDialogOpen] = useState(false)
+  const [isWantToTrySaved, setIsWantToTrySaved] = useState(false)
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
     const primaryId = linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId
     return { [primaryId]: initialRoutes }
@@ -356,6 +361,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       setCommunityNotesCount(0)
       setCommunityNotes([])
       setCommunityNotesExpanded(false)
+      setIsWantToTrySaved(false)
       return
     }
 
@@ -390,6 +396,33 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
     void fetchData()
     return () => { cancelled = true }
+  }, [activeClimbId, userPresent])
+
+  useEffect(() => {
+    if (!activeClimbId || !userPresent) {
+      setIsWantToTrySaved(false)
+      return
+    }
+
+    const supabase = createClient()
+    let cancelled = false
+
+    const fetchSavedState = async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData.user?.id
+      if (!userId) {
+        if (!cancelled) setIsWantToTrySaved(false)
+        return
+      }
+
+      const saved = await isClimbSavedByUser(supabase, userId, activeClimbId)
+      if (!cancelled) setIsWantToTrySaved(saved)
+    }
+
+    void fetchSavedState()
+    return () => {
+      cancelled = true
+    }
   }, [activeClimbId, userPresent])
 
   useEffect(() => {
@@ -550,9 +583,9 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     .filter((route) => route.points.length >= 2)
   }, [activeImageMeta, activePrimaryImageId, activeRoutes])
 
-  const handleGoToAuth = () => {
+  const handleGoToAuth = useCallback(() => {
     router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/${countryCode}/${cragSlug}/i/${heroImage.displayImageId}`)}`)
-  }
+  }, [countryCode, cragSlug, heroImage.displayImageId, pathname, router])
 
   const handleEditRoute = useCallback(() => {
     if (!activePrimaryImageId || !resolvedActiveRouteId) return
@@ -747,6 +780,32 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     router.push('/logbook')
   }, [router])
 
+  const handleToggleWantToTry = useCallback(async () => {
+    if (!activeClimbId) return
+    if (!userPresent) {
+      handleGoToAuth()
+      return
+    }
+
+    const nextSaved = !isWantToTrySaved
+    setIsWantToTrySaved(nextSaved)
+    setSavingWantToTry(true)
+
+    try {
+      const result = nextSaved ? await saveClimbAction(activeClimbId) : await unsaveClimbAction(activeClimbId)
+      if (!result.success) {
+        setIsWantToTrySaved(!nextSaved)
+        addToast(nextSaved ? 'Failed to save climb' : 'Failed to remove saved climb', 'error')
+        return
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ownLogbookQueryKey })
+      addToast(nextSaved ? 'Saved to Want to try' : 'Removed from Want to try', 'success')
+    } finally {
+      setSavingWantToTry(false)
+    }
+  }, [activeClimbId, addToast, handleGoToAuth, isWantToTrySaved, queryClient, userPresent])
+
   const handleDownloadInstagramPost = useCallback(async (mode: ExportMode) => {
     if (!isAdmin || !activeImageId || downloadingPost) return
     if (mode === 'selected-route' && !activeRouteId) {
@@ -873,7 +932,9 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         communityNotesExpanded={communityNotesExpanded}
         savingFeedback={savingFeedback}
         logging={logging}
+        savingWantToTry={savingWantToTry}
         userPresent={userPresent || !hasHydratedAuth}
+        isWantToTrySaved={isWantToTrySaved}
         gradeSystem={gradeSystem}
         gradeOpinionLabels={{ soft: 'Soft', agree: 'Agree', hard: 'Hard' }}
         formatRouteTypeLabel={(value) => value}
@@ -883,6 +944,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onOpenFlag={() => undefined}
         onShare={() => undefined}
         onGoToAuth={handleGoToAuth}
+        onToggleWantToTry={handleToggleWantToTry}
         onLog={handleLog}
         onSetFeedbackCollapsed={setSelectedClimbFeedbackCollapsed}
         onSetPendingGradeOpinion={handleGradeOpinionSelect}

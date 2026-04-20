@@ -16,6 +16,8 @@ import {
   type LogbookProfile,
 } from '@/features/logbook/lib/logbook-view'
 import type { Submission } from '@/types/submissions'
+import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
+import { LogbookSavedSection } from '@/features/logbook/components/LogbookSavedSection'
 
 const DeferredLogbookSubmissions = dynamic(() => import('@/app/(shell)/logbook/DeferredLogbookSubmissions'), {
   ssr: false,
@@ -29,6 +31,8 @@ interface LogbookViewProps {
   logs: LogbookClimb[]
   profile?: LogbookProfile
   submissions: Submission[]
+  savedClimbs: SavedClimb[]
+  savedCrags: SavedCrag[]
   hasMoreLogs: boolean
   isLoadingMoreLogs: boolean
   deletingId: string | null
@@ -49,6 +53,8 @@ export default function LogbookView({
   logs,
   profile,
   submissions,
+  savedClimbs,
+  savedCrags,
   hasMoreLogs,
   isLoadingMoreLogs,
   deletingId,
@@ -169,7 +175,7 @@ export default function LogbookView({
         </Card>
       )}
 
-      {logs.length === 0 && submissions.length === 0 ? <EmptyLogbook onGoToMap={() => router.push('/')} /> : null}
+      {logs.length === 0 && submissions.length === 0 && savedClimbs.length === 0 && savedCrags.length === 0 ? <EmptyLogbook onGoToMap={() => router.push('/')} /> : null}
 
           {stats ? (
         <LogbookStatsSection
@@ -213,6 +219,8 @@ export default function LogbookView({
           onDeleteSubmission={onDeleteSubmission}
         />
       ) : null}
+
+      {isOwnProfile ? <LogbookSavedSection savedClimbs={savedClimbs} savedCrags={savedCrags} /> : null}
     </div>
   )
 }
