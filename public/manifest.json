@@ -3,7 +3,7 @@
   "short_name": "letsboulder",
   "description": "Offline climbing maps, topos, and saved climbs.",
   "id": "/",
-  "start_url": "/offline",
+  "start_url": "/launch",
   "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
