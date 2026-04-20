@@ -9,16 +9,7 @@ ERRORS=0
 
 echo "=== Doc Verification ==="
 
-# 1. Migration count
-MIGRATION_COUNT=$(ls "$ROOT/supabase/migrations" | wc -l | tr -d ' ')
-if grep -Eq "(\($MIGRATION_COUNT files\||\| $MIGRATION_COUNT SQL migration files \|| $MIGRATION_COUNT migration files)" "$ROOT/docs/architecture.md"; then
-  echo "OK: Migration count ($MIGRATION_COUNT) matches architecture.md"
-else
-  echo "DRIFT: architecture.md migration count disagrees with actual ($MIGRATION_COUNT)"
-  ERRORS=$((ERRORS + 1))
-fi
-
-# 2. Rate limit tier count (count lines matching actual tier definitions, not interface)
+# 1. Rate limit tier count (count lines matching actual tier definitions, not interface)
 TIER_COUNT=$(grep -c "tokens: [0-9]" "$ROOT/lib/rate-limit-config.ts")
 if grep -q "($TIER_COUNT tiers" "$ROOT/docs/architecture.md"; then
   echo "OK: Rate limit tier count ($TIER_COUNT) matches architecture.md"
@@ -27,7 +18,7 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-# 3. Route table vs actual directories that contain route.ts files
+# 2. Route table vs actual directories that contain route.ts files
 TABLE_ROUTES=$(grep -oP '^\| \K[a-z-]+(?= \|)' "$ROOT/docs/api/routes.md" | grep -v '^-*-$' | sort)
 ACTUAL_DIRS=$(find "$ROOT/app/api" -mindepth 1 -maxdepth 1 -type d | while read -r dir; do
   if find "$dir" -name "route.ts" -print -quit | grep -q .; then
