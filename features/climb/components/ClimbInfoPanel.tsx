@@ -71,7 +71,9 @@ interface ClimbInfoPanelProps {
   communityNotesExpanded: boolean
   savingFeedback: boolean
   logging: boolean
+  savingWantToTry: boolean
   userPresent: boolean
+  isWantToTrySaved: boolean
   gradeSystem: GradeSystem
   gradeOpinionLabels: Record<GradeOpinion, string>
   formatRouteTypeLabel: (value: string) => string
@@ -81,6 +83,7 @@ interface ClimbInfoPanelProps {
   onOpenFlag: () => void
   onShare: () => void
   onGoToAuth: () => void
+  onToggleWantToTry: () => void
   onLog: (style: 'flash' | 'top' | 'try') => void
   onSetFeedbackCollapsed: (collapsed: boolean) => void
   onSetPendingGradeOpinion: (value: GradeOpinion) => void
@@ -119,7 +122,9 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     communityNotesExpanded,
     savingFeedback,
     logging,
+    savingWantToTry,
     userPresent,
+    isWantToTrySaved,
     gradeSystem,
     gradeOpinionLabels,
     formatRouteTypeLabel,
@@ -129,6 +134,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     onOpenFlag,
     onShare,
     onGoToAuth,
+    onToggleWantToTry,
     onLog,
     onSetFeedbackCollapsed,
     onSetPendingGradeOpinion,
@@ -236,6 +242,13 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             ) : null}
             <button onClick={onOpenOffline} disabled={!offlinePackAvailable} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               {isOfflineSaved ? 'Saved offline' : 'Save offline'}
+            </button>
+            <button
+              onClick={userPresent ? onToggleWantToTry : onGoToAuth}
+              disabled={!selectedClimb || savingWantToTry}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isWantToTrySaved ? 'bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50' : 'text-amber-800 hover:text-amber-900 hover:bg-amber-50 dark:text-amber-300 dark:hover:text-amber-100 dark:hover:bg-amber-950/40'}`}
+            >
+              {savingWantToTry ? 'Saving...' : isWantToTrySaved ? 'Saved' : 'Want to try'}
             </button>
             {canEditRoute ? (
               <button onClick={onEditRoute} className="px-3 py-1.5 text-sm font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-100 dark:hover:bg-blue-950/40 rounded-lg transition-colors">

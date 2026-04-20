@@ -84,6 +84,8 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `comments` | User comments on crags, images, climbs (soft-deletable) |
 | `route_lines` | Route line geometry drawn on images |
 | `user_climbs` | User climb logs (flash/top/try) with star ratings and grade opinions |
+| `saved_climbs` | User saved climbs / want-to-try list |
+| `saved_crags` | User saved crags for future trips |
 
 ### Grade & Voting Tables
 | Table | Purpose |
@@ -177,6 +179,8 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `auth.users` | `grade_votes` | CASCADE |
 | `auth.users` | `route_grades` | CASCADE |
 | `auth.users` | `route_lines` | CASCADE |
+| `auth.users` | `saved_climbs` | CASCADE |
+| `auth.users` | `saved_crags` | CASCADE |
 | `auth.users` | `user_climbs` | no action |
 | `crags` | `climbs` | CASCADE |
 | `crags` | `crag_images` | CASCADE |
@@ -207,8 +211,10 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `climbs` | `grade_votes` | CASCADE |
 | `climbs` | `route_grades` | CASCADE |
 | `climbs` | `route_lines` | CASCADE |
+| `climbs` | `saved_climbs` | CASCADE |
 | `climbs` | `user_climbs` | CASCADE |
 | `climbs` | `climbs` (self-ref via shared_climb_id) | SET NULL |
+| `crags` | `saved_crags` | CASCADE |
 | `submission_drafts` | `submission_draft_images` | CASCADE |
 | `submission_drafts` | `submission_draft_routes` | CASCADE |
 | `submission_drafts` | `submission_draft_collaborators` | CASCADE |

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CragMapView from '@/features/crags/components/CragMapView'
 import SelectedPinImageTray from '@/features/crags/components/SelectedPinImageTray'
 import CragRouteSection from '@/features/crags/components/CragRouteSection'
@@ -10,6 +10,11 @@ import { useCragPageFilters } from '@/features/crags/hooks/use-crag-page-filters
 import { useCragPageActions } from '@/features/crags/hooks/use-crag-page-actions'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
+import { createClient } from '@/lib/supabase'
+import { saveCragAction } from '@/features/saved/actions/save-crag'
+import { unsaveCragAction } from '@/features/saved/actions/unsave-crag'
+import { isCragSavedByUser } from '@/features/saved/lib/queries'
+import { useRouter } from 'next/navigation'
 
 interface CragPageClientProps {
   id: string
@@ -44,6 +49,7 @@ export default function CragPageClient({
   communityPlace,
   initialSelectedImageId = null,
 }: CragPageClientProps) {
+  const router = useRouter()
   const {
     crag,
     images,
@@ -97,6 +103,56 @@ export default function CragPageClient({
     id,
     initialCrag,
   })
+  const [isSaved, setIsSaved] = useState(false)
+  const [saveLoading, setSaveLoading] = useState(false)
+
+  useEffect(() => {
+    const supabase = createClient()
+    let cancelled = false
+
+    const loadSavedState = async () => {
+      const { data } = await supabase.auth.getUser()
+      const userId = data.user?.id
+      if (!userId) {
+        if (!cancelled) setIsSaved(false)
+        return
+      }
+
+      const saved = await isCragSavedByUser(supabase, userId, id)
+      if (!cancelled) setIsSaved(saved)
+    }
+
+    void loadSavedState()
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  const handleToggleSaveCrag = async () => {
+    const supabase = createClient()
+    const { data } = await supabase.auth.getUser()
+    if (!data.user) {
+      router.push(`/auth?redirect_to=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname + window.location.search : `/crag/${id}`)}`)
+      return
+    }
+
+    const nextSaved = !isSaved
+    setIsSaved(nextSaved)
+    setSaveLoading(true)
+
+    try {
+      const result = nextSaved ? await saveCragAction(id) : await unsaveCragAction(id)
+      if (!result.success) {
+        setIsSaved(!nextSaved)
+        actions.setToast(nextSaved ? 'Failed to save crag' : 'Failed to remove saved crag')
+        return
+      }
+
+      actions.setToast(nextSaved ? 'Crag saved' : 'Crag removed from saved')
+    } finally {
+      setSaveLoading(false)
+    }
+  }
 
   if (!crag) {
     return (
@@ -160,6 +216,8 @@ export default function CragPageClient({
         canDownloadCrag={canDownloadCrag}
         offlineDialogLoading={actions.offlineDialogLoading}
         offlinePreviewLoading={actions.offlinePreviewLoading}
+        saveLoading={saveLoading}
+        isSaved={isSaved}
         offlineDialogOpen={actions.offlineDialogOpen}
         offlinePreview={actions.offlinePreview}
         offlineProgress={actions.offlineProgress}
@@ -177,6 +235,7 @@ export default function CragPageClient({
         onCragSwitcherQueryChange={actions.setCragSwitcherQuery}
         onCloseCragSwitcher={() => actions.setCragSwitcherOpen(false)}
         onOpenOfflineDialog={actions.handleOpenOfflineDialog}
+        onToggleSaveCrag={() => void handleToggleSaveCrag()}
         onOpenSearchModal={() => filters.setSearchModalOpen(true)}
         onOpenFilterModal={() => filters.setFilterModalOpen(true)}
         onOpenSortModal={() => filters.setSortModalOpen(true)}

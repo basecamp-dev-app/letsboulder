@@ -36,6 +36,8 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
         logs: initialData.logs,
         profile: initialData.profile,
         submissions: initialData.submissions,
+        savedClimbs: initialData.savedClimbs,
+        savedCrags: initialData.savedCrags,
       }
     : undefined
 
@@ -54,6 +56,8 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
   const logs = data?.logs ?? initialData?.logs ?? []
   const profile = data?.profile ?? initialData?.profile ?? undefined
   const submissions = data?.submissions ?? initialData?.submissions ?? []
+  const savedClimbs = data?.savedClimbs ?? initialData?.savedClimbs ?? []
+  const savedCrags = data?.savedCrags ?? initialData?.savedCrags ?? []
 
   const updateOwnLogbookData = (updater: (current: OwnLogbookData) => OwnLogbookData) => {
     queryClient.setQueryData<OwnLogbookData>(ownLogbookQueryKey, (current) => {
@@ -200,6 +204,8 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
       logs={logs}
       profile={profile}
       submissions={submissions}
+      savedClimbs={savedClimbs}
+      savedCrags={savedCrags}
       hasMoreLogs={false}
       isLoadingMoreLogs={false}
       deletingId={deletingId}
