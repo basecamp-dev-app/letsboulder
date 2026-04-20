@@ -4,7 +4,7 @@ import { afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
 vi.mock('next/image', () => ({
-  default: ({ alt, src, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+  default: ({ alt, src, fill: _fill, unoptimized: _unoptimized, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; unoptimized?: boolean }) => {
     return React.createElement('img', { alt, src, ...props })
   },
 }))
