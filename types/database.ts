@@ -500,6 +500,58 @@ export type Database = {
           },
         ]
       }
+      saved_climbs: {
+        Row: {
+          climb_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          climb_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          climb_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_climbs_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_crags: {
+        Row: {
+          crag_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          crag_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          crag_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_crags_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_posts: {
         Row: {
           author_id: string
@@ -4469,4 +4521,3 @@ export const Constants = {
     },
   },
 } as const
-
