@@ -17,7 +17,7 @@ const mockRetryUpload = vi.fn()
 const mockRemoveUpload = vi.fn()
 
 vi.mock('next/link', () => ({
-  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+  default: ({ children, href, prefetch: _prefetch, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; prefetch?: boolean }) => (
     <a href={href} {...props}>{children}</a>
   ),
 }))
