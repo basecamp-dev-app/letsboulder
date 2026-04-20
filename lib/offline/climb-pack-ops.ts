@@ -1,13 +1,17 @@
 import type { ClimbOfflinePackManifest, ClimbPackResponse } from '@/features/climb/lib/queries'
 import { fetchClimbOfflinePack } from '@/features/climb/lib/queries'
 import {
+  getOfflinePackUsageBytes,
   getStoredClimbManifest,
+  listOfflinePackRecords,
   removePackRecord,
   removeStoredClimbManifest,
   upsertPackRecord,
   upsertStoredClimbManifest,
 } from '@/lib/offline/storage'
 import { buildPackRecord, getClimbPackManifest, normalizeClimbManifest } from '@/lib/offline/manifest-normalizers'
+import { OFFLINE_PACK_BUDGET_BYTES } from '@/lib/offline/pack-types'
+import { isStoredClimbManifestFresh, sortOfflinePackEvictionCandidates } from '@/lib/offline/pack-status'
 import { sendServiceWorkerMessage } from '@/lib/offline/sw-messages'
 
 async function persistStandaloneClimbPack(payload: ClimbPackResponse) {
@@ -58,6 +62,34 @@ export async function isStoredClimbPackCurrent(climbId: string) {
   return existing.manifest.version === existing.payload?.offline_pack.version
 }
 
+async function ensureOfflineBudgetForBytes(requiredBytes: number, currentPackId: string) {
+  if (requiredBytes <= 0) return
+
+  let usageBytes = await getOfflinePackUsageBytes()
+  if (usageBytes + requiredBytes <= OFFLINE_PACK_BUDGET_BYTES) return
+
+  const records = await listOfflinePackRecords()
+  const candidates = sortOfflinePackEvictionCandidates(records)
+
+  for (const candidate of candidates) {
+    if (candidate.packId === currentPackId) continue
+
+    if (candidate.type === 'crag') {
+      const { removeCragOffline } = await import('@/lib/offline/crag-pack-ops')
+      await removeCragOffline(candidate.entityId)
+    } else {
+      await deleteClimbOfflinePack(candidate.entityId)
+    }
+
+    usageBytes = await getOfflinePackUsageBytes()
+    if (usageBytes + requiredBytes <= OFFLINE_PACK_BUDGET_BYTES) {
+      return
+    }
+  }
+
+  throw new Error('Not enough offline storage budget. Remove another pack first.')
+}
+
 export async function saveClimbOfflinePack(packOrPayload: string | ClimbOfflinePackManifest | ClimbPackResponse) {
   const payload = typeof packOrPayload === 'string'
     ? await fetchClimbOfflinePack(packOrPayload)
@@ -65,6 +97,15 @@ export async function saveClimbOfflinePack(packOrPayload: string | ClimbOfflineP
       ? packOrPayload
       : await fetchClimbOfflinePack(packOrPayload.climbId)
   const manifest = getClimbPackManifest(payload)
+  const existing = await getStoredClimbManifest(manifest.climbId)
+
+  if (isStoredClimbManifestFresh(existing, manifest.version)) {
+    return { warning: undefined }
+  }
+
+  const existingBytes = existing?.manifest.estimatedBytes || 0
+  const requiredBytes = Math.max(0, manifest.estimatedBytes - existingBytes)
+  await ensureOfflineBudgetForBytes(requiredBytes, manifest.packId)
 
   const response = await sendServiceWorkerMessage({
     type: 'SAVE_CLIMB_PACK',

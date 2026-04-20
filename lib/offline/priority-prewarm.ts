@@ -1,6 +1,8 @@
 'use client'
 
+import { fetchClimbOfflinePack, fetchCragOfflinePack } from '@/features/climb/lib/queries'
 import { saveClimbOfflinePack, saveCragOffline } from '@/lib/offline/packs'
+import { isStoredClimbManifestFresh, isStoredCragManifestFresh } from '@/lib/offline/pack-status'
 import { shouldEnableServiceWorker } from '@/lib/offline/service-worker-client'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 import {
@@ -61,15 +63,28 @@ async function flushPriorityCandidates() {
           priorityClass: 'saved-crag',
         })
       }
+      const latestManifest = await fetchCragOfflinePack(cragId)
+      if (isStoredCragManifestFresh(existingCrag, latestManifest.cragVersionHash)) {
+        continue
+      }
       const result = await saveCragOffline(cragId)
       await result.completed
+      const syncedAt = new Date().toISOString()
       const record = await getPackRecord(`crag:${cragId}`)
       if (record) {
         await upsertPackRecord({
           ...record,
           priorityClass: 'saved-crag',
-          lastAutoSyncAt: new Date().toISOString(),
-          lastAccessedAt: new Date().toISOString(),
+          lastAutoSyncAt: syncedAt,
+          lastAccessedAt: syncedAt,
+        })
+      }
+      const refreshedCrag = await getStoredCragManifest(cragId)
+      if (refreshedCrag) {
+        await upsertStoredCragManifest({
+          ...refreshedCrag,
+          lastAutoSyncAt: syncedAt,
+          priorityClass: 'saved-crag',
         })
       }
     } catch {
@@ -87,21 +102,26 @@ async function flushPriorityCandidates() {
           priorityClass: 'saved-climb',
         })
       }
+      const latestPayload = await fetchClimbOfflinePack(climbId)
+      if (isStoredClimbManifestFresh(existingClimb, latestPayload.offline_pack.version)) {
+        continue
+      }
       await saveClimbOfflinePack(climbId)
+      const syncedAt = new Date().toISOString()
       const record = await getPackRecord(`climb:${climbId}`)
       if (record) {
         await upsertPackRecord({
           ...record,
           priorityClass: 'saved-climb',
-          lastAutoSyncAt: new Date().toISOString(),
-          lastAccessedAt: new Date().toISOString(),
+          lastAutoSyncAt: syncedAt,
+          lastAccessedAt: syncedAt,
         })
       }
       const refreshedClimb = await getStoredClimbManifest(climbId)
       if (refreshedClimb) {
         await upsertStoredClimbManifest({
           ...refreshedClimb,
-          lastAutoSyncAt: new Date().toISOString(),
+          lastAutoSyncAt: syncedAt,
           priorityClass: 'saved-climb',
         })
       }

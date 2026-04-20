@@ -51,6 +51,15 @@ beforeEach(() => {
   vi.resetModules()
 })
 
+function createNavigateRequest(url: string): Request {
+  const request = new Request(url)
+  Object.defineProperty(request, 'mode', {
+    configurable: true,
+    value: 'navigate',
+  })
+  return request
+}
+
 describe('sw-fetch-handlers', () => {
   test('handleShellFetch serves cached shell response before network refresh', async () => {
     const cachedResponse = new Response('cached shell', { status: 200 })
@@ -63,6 +72,66 @@ describe('sw-fetch-handlers', () => {
 
     expect(response).toBe(cachedResponse)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('handleShellFetch serves a cached climb navigation when offline', async () => {
+    const cachedResponse = new Response('cached climb', { status: 200 })
+    vi.mocked(matchShellRequest).mockImplementation(async (request: Request) => {
+      const pathname = new URL(request.url).pathname
+      return pathname === '/usa/joe/barefoot-on-sacrifice' ? cachedResponse : undefined
+    })
+    fetchMock.mockRejectedValue(new Error('offline'))
+
+    await import('../../public/sw-fetch-handlers.js')
+
+    const response = await globalThis.handleShellFetch(createNavigateRequest('https://letsboulder.com/usa/joe/barefoot-on-sacrifice'))
+
+    expect(response).toBe(cachedResponse)
+  })
+
+  test('handleShellFetch serves a cached crag navigation when offline', async () => {
+    const cachedResponse = new Response('cached crag', { status: 200 })
+    vi.mocked(matchShellRequest).mockImplementation(async (request: Request) => {
+      const pathname = new URL(request.url).pathname
+      return pathname === '/usa/joe' ? cachedResponse : undefined
+    })
+    fetchMock.mockRejectedValue(new Error('offline'))
+
+    await import('../../public/sw-fetch-handlers.js')
+
+    const response = await globalThis.handleShellFetch(createNavigateRequest('https://letsboulder.com/usa/joe'))
+
+    expect(response).toBe(cachedResponse)
+  })
+
+  test('handleShellFetch serves a cached logbook navigation when offline', async () => {
+    const cachedResponse = new Response('cached logbook', { status: 200 })
+    vi.mocked(matchShellRequest).mockImplementation(async (request: Request) => {
+      const pathname = new URL(request.url).pathname
+      return pathname === '/logbook' ? cachedResponse : undefined
+    })
+    fetchMock.mockRejectedValue(new Error('offline'))
+
+    await import('../../public/sw-fetch-handlers.js')
+
+    const response = await globalThis.handleShellFetch(createNavigateRequest('https://letsboulder.com/logbook'))
+
+    expect(response).toBe(cachedResponse)
+  })
+
+  test('handleShellFetch falls back to Downloads recovery when an offline navigation is uncached', async () => {
+    const offlineLibraryResponse = new Response('downloads recovery', { status: 200 })
+    vi.mocked(matchShellRequest).mockImplementation(async (request: Request) => {
+      const pathname = new URL(request.url).pathname
+      return pathname === '/offline/library' ? offlineLibraryResponse : undefined
+    })
+    fetchMock.mockRejectedValue(new Error('offline'))
+
+    await import('../../public/sw-fetch-handlers.js')
+
+    const response = await globalThis.handleShellFetch(createNavigateRequest('https://letsboulder.com/usa/joe/missing-problem'))
+
+    expect(response).toBe(offlineLibraryResponse)
   })
 
   test('handleRouteAssetFetch serves next static assets from shared build cache before network', async () => {
