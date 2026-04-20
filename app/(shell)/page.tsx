@@ -54,10 +54,7 @@ export default async function Home() {
     item: [
       { name: 'Logbook', url: `${SITE_URL}/logbook` },
       { name: 'Upload Topos', url: `${SITE_URL}/submit` },
-      { name: 'Bouldering Map', url: `${SITE_URL}/bouldering-map` },
-      { name: 'Climbing Map', url: `${SITE_URL}/climbing-map` },
-      { name: 'Rock Climbing Map', url: `${SITE_URL}/rock-climbing-map` },
-      { name: 'Guernsey Bouldering', url: `${SITE_URL}/guernsey-bouldering` },
+      { name: 'Gym Owners', url: `${SITE_URL}/gym-owners` },
       { name: 'About', url: `${SITE_URL}/about` },
     ],
   }
