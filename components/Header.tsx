@@ -288,7 +288,7 @@ export default function Header() {
 
     return (
       <div className="py-1 first:pt-0 last:pb-0">
-        <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="mx-2 mb-1 rounded-md bg-gray-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-600 dark:bg-gray-800/80 dark:text-gray-300">{label}</p>
         {items.map((item) => (
           <Link
             key={item.href}
