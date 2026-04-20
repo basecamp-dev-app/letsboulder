@@ -1,5 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
-import { getSharedEnv } from '@/lib/env'
+import { clientEnv } from '@/lib/env-client'
 
 let browserClient: ReturnType<typeof createBrowserClient> | null = null
 
@@ -8,9 +8,8 @@ export function createClient() {
     return browserClient
   }
 
-  const sharedEnv = getSharedEnv()
-  const supabaseUrl = sharedEnv.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = sharedEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const supabaseUrl = clientEnv.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing public Supabase environment variables')
