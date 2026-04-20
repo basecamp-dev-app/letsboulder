@@ -55,6 +55,7 @@ export async function loadInitialCragRouteData(
     ...image,
     url: resolveRouteImageUrl(image.url),
   }))
+  const initialImageIds = new Set(images.map((image) => image.id))
   const routeLineCountByImageId = new Map<string, number>()
 
   if (images.length > 0) {
@@ -86,6 +87,7 @@ export async function loadInitialCragRouteData(
   const initialRouteImageIdsByClimbId: InitialCragRouteData['initialRouteImageIdsByClimbId'] = {}
   let initialDefaultRouteTargetByImageId: InitialCragRouteData['initialDefaultRouteTargetByImageId'] = {}
   let initialRouteNavigationTargetByClimbId: InitialCragRouteData['initialRouteNavigationTargetByClimbId'] = {}
+  let previewImagesHydrated = true
 
   if (initialRoutes.length > 0) {
     const previewSupabase = getAdminClientWithAudit('loadInitialCragRouteData preview seed')
@@ -100,6 +102,7 @@ export async function loadInitialCragRouteData(
 
     const previewImageIds = Array.from(new Set(Object.values(targetMaps.nextRoutePreviewByClimbId).map((preview) => preview.imageId)))
     const missingPreviewImageIds = previewImageIds.filter((imageId) => !imageById.has(imageId))
+    previewImagesHydrated = missingPreviewImageIds.every((imageId) => initialImageIds.has(imageId))
 
     if (missingPreviewImageIds.length > 0) {
       const { data: previewRouteLineData } = await previewSupabase
@@ -172,7 +175,7 @@ export async function loadInitialCragRouteData(
       initialRoutePreviewByClimbId,
       initialRouteNavigationTargetByClimbId
     ),
-    initialImagesComplete: false,
+    initialImagesComplete: previewImagesHydrated,
     loadedAt: Date.now(),
   }
 }
