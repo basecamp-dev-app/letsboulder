@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createErrorResponse } from '@/lib/errors'
+import { recordAcceptedWikiContribution } from '@/features/community/lib/contributor-score'
 import { MAX_ROUTES_PER_REQUEST, normalizeRoutes } from '@/features/submissions/server/submissions/route-line-utils'
 import { revalidateSubmissionImagePaths, type SubmissionRouteMutationDeps } from '@/features/submissions/server/submissions/route-line-shared'
 import { assessNonOwnerGeometryRisk, assessNonOwnerTextRisk, combineRiskAssessments } from '@/features/submissions/server/submissions/wiki-edit-protection'
@@ -87,6 +88,16 @@ export async function updateSubmissionRoutes(
     }
   }
 
+  const routeIds = routes.map((route) => route.id)
+  const { data: existingAcceptedEditIds } = await supabase
+    .from('submission_edit_history')
+    .select('id')
+    .eq('image_id', imageId)
+    .eq('edited_by', userId)
+    .eq('moderation_state', 'accepted')
+
+  const acceptedEditIdsBeforeUpdate = new Set((existingAcceptedEditIds || []).map((row) => row.id))
+
   const { data: updateResult, error: updateError } = await supabase.rpc('update_own_submitted_routes', {
     p_image_id: imageId,
     p_routes: routes.map((route) => ({
@@ -104,6 +115,34 @@ export async function updateSubmissionRoutes(
       return NextResponse.json({ error: 'You do not have permission to edit routes for this submission' }, { status: 403 })
     }
     return createErrorResponse(updateError, 'Update submitted routes error')
+  }
+
+  const { data: acceptedEditsAfterUpdate } = await supabase
+    .from('submission_edit_history')
+    .select('id, after_data')
+    .eq('image_id', imageId)
+    .eq('edited_by', userId)
+    .eq('moderation_state', 'accepted')
+    .in('edit_kind', ['route_updated'])
+    .order('created_at', { ascending: false })
+    .limit(Math.max(routeIds.length, 1))
+
+  const newAcceptedEdits = (acceptedEditsAfterUpdate || []).filter((row) => !acceptedEditIdsBeforeUpdate.has(row.id))
+
+  for (const edit of newAcceptedEdits) {
+    const afterData = edit.after_data && typeof edit.after_data === 'object'
+      ? edit.after_data as Record<string, unknown>
+      : null
+
+    await recordAcceptedWikiContribution(supabase, {
+      userId,
+      imageId,
+      sourceId: edit.id,
+      climbId: typeof afterData?.climb_id === 'string' ? afterData.climb_id : null,
+      metadata: {
+        edit_kind: 'route_updated',
+      },
+    })
   }
 
   const { data: image } = await supabase

@@ -13,6 +13,7 @@ export interface CommunityPlaceInfo {
 
 const TopThisPlacePanel = dynamic(() => import('@/features/community/components/TopThisPlacePanel'))
 const PlaceRankingsPanel = dynamic(() => import('@/features/community/components/PlaceRankingsPanel'))
+const PlaceContributorsPanel = dynamic(() => import('@/features/community/components/PlaceContributorsPanel'))
 
 interface CragCommunitySidebarProps {
   cragId: string
@@ -20,8 +21,8 @@ interface CragCommunitySidebarProps {
 }
 
 export default function CragCommunitySidebar({ cragId, communityPlace }: CragCommunitySidebarProps) {
-  const [activeTab, setActiveTab] = useState<'recent' | 'rankings'>('recent')
-  const [expandedTab, setExpandedTab] = useState<'recent' | 'rankings' | null>(null)
+  const [activeTab, setActiveTab] = useState<'recent' | 'rankings' | 'contributors'>('recent')
+  const [expandedTab, setExpandedTab] = useState<'recent' | 'rankings' | 'contributors' | null>(null)
   const { data: resolvedCommunityPlace } = useQuery({
     queryKey: ['crag-community-place', cragId],
     queryFn: async (): Promise<CommunityPlaceInfo | null> => {
@@ -57,7 +58,7 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
       <Tabs.Root
         value={activeTab}
         onValueChange={(value) => {
-          const nextTab = value === 'rankings' ? 'rankings' : 'recent'
+          const nextTab = value === 'rankings' || value === 'contributors' ? value : 'recent'
           setActiveTab(nextTab)
           setExpandedTab(null)
         }}
@@ -75,6 +76,12 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
             className="rounded-md px-3 py-1 text-xs font-medium text-gray-600 transition data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100"
           >
             Rankings
+          </Tabs.Trigger>
+          <Tabs.Trigger
+            value="contributors"
+            className="rounded-md px-3 py-1 text-xs font-medium text-gray-600 transition data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100"
+          >
+            Contributors
           </Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value="recent" className="mt-4">
@@ -96,6 +103,17 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
             previewLimit={3}
             expanded={expandedTab === 'rankings'}
             onToggleExpanded={() => setExpandedTab((current) => current === 'rankings' ? null : 'rankings')}
+          />
+        </Tabs.Content>
+        <Tabs.Content value="contributors" className="mt-4">
+          <PlaceContributorsPanel
+            slug={resolvedCommunityPlace.slug}
+            cragId={cragId}
+            placeType={resolvedCommunityPlace.type}
+            embedded
+            previewLimit={3}
+            expanded={expandedTab === 'contributors'}
+            onToggleExpanded={() => setExpandedTab((current) => current === 'contributors' ? null : 'contributors')}
           />
         </Tabs.Content>
       </Tabs.Root>

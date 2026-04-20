@@ -4,6 +4,7 @@ import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
+import { recordCorrectionApprovedEvent } from '@/features/community/lib/contributor-score'
 
 const correctionVoteSchema = z.object({
   vote_type: z.enum(['approve', 'reject']),
@@ -204,7 +205,7 @@ async function applyCorrection(correctionId: string, climbId: string) {
   // Get correction details
   const { data: correction } = await supabase
     .from('climb_corrections')
-    .select('correction_type, suggested_value')
+    .select('correction_type, suggested_value, user_id')
     .eq('id', correctionId)
     .single()
 
@@ -248,6 +249,14 @@ async function applyCorrection(correctionId: string, climbId: string) {
     .from('climbs')
     .update({ status: 'pending' })
     .eq('id', climbId)
+
+  if (typeof correction.user_id === 'string') {
+    await recordCorrectionApprovedEvent(supabase, {
+      userId: correction.user_id,
+      correctionId,
+      climbId,
+    })
+  }
 }
 
 export async function DELETE(

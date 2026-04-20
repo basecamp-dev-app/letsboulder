@@ -3,6 +3,7 @@ import { serverEnv } from '@/lib/env.server'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { getMediaModerationConfig } from '@/lib/media/config'
+import { recordSubmissionPublishedEvent } from '@/features/community/lib/contributor-score'
 import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
 
 const INTERNAL_MODERATION_SECRET = serverEnv.INTERNAL_MODERATION_SECRET
@@ -276,6 +277,14 @@ export async function promoteDraftToSubmission(input: {
   })[0] || null
 
   const canonicalPath = `/${crag.country_code.toLowerCase()}/${crag.slug}/i/${defaultImageId}`
+
+  await recordSubmissionPublishedEvent(supabase, {
+    userId,
+    imageId: defaultImageId,
+    sourceId: defaultImageId,
+  }).catch((contributorScoreError) => {
+    reportError(contributorScoreError, { message: 'Contributor score publish event error' })
+  })
 
   const moderationConfig = getMediaModerationConfig()
   if (INTERNAL_MODERATION_SECRET && moderationConfig.enabled) {

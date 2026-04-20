@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
+import { recordVerificationAcceptedEvent } from '@/features/community/lib/contributor-score'
 
 const verifyClimbParamsSchema = z.object({
   id: z.string().min(1, 'id is required'),
@@ -65,12 +66,14 @@ export async function POST(
     }
 
     // Add verification
-    const { error: insertError } = await supabase
+    const { data: verificationRow, error: insertError } = await supabase
       .from('climb_verifications')
       .insert({
         climb_id: climbId,
         user_id: userId
       })
+      .select('id')
+      .single()
 
     if (insertError) {
       return createErrorResponse(insertError, 'Error adding verification')
@@ -83,6 +86,14 @@ export async function POST(
       .eq('climb_id', climbId)
 
     const isVerified = (verificationCount || 0) >= 3
+
+    if (isVerified && typeof verificationRow?.id === 'string') {
+      await recordVerificationAcceptedEvent(supabase, {
+        userId,
+        verificationId: verificationRow.id,
+        climbId,
+      })
+    }
 
     return NextResponse.json({
       success: true,

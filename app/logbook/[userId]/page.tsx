@@ -43,7 +43,7 @@ const getProfile = cache(async function getProfile(userId: string): Promise<Publ
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade, is_public, first_name, last_name')
+    .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade, contributor_score_total, accepted_contribution_count, contributor_tier, is_public, first_name, last_name')
     .eq('id', userId)
     .single()
 

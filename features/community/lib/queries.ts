@@ -8,6 +8,29 @@ export const communityKeys = {
     [...communityKeys.all, 'engagement', postId] as const,
   posts: (slug: string) =>
     [...communityKeys.all, 'posts', slug] as const,
+  contributors: (scope: string, page: number) =>
+    [...communityKeys.all, 'contributors', scope, page] as const,
+}
+
+export interface ContributorLeaderboardEntry {
+  rank: number
+  user_id: string
+  username: string
+  avatar_url: string | null
+  contributor_score_total: number
+  accepted_contribution_count: number
+}
+
+export interface ContributorLeaderboardPagination {
+  page: number
+  limit: number
+  total_users: number
+  total_pages: number
+}
+
+export interface ContributorLeaderboardResponse {
+  leaderboard: ContributorLeaderboardEntry[]
+  pagination: ContributorLeaderboardPagination
 }
 
 export interface PlaceRankingEntry {
@@ -60,6 +83,30 @@ export async function fetchCragRankings(
   )
   if (!response.ok) {
     throw new Error(`Failed to fetch crag rankings: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function fetchPlaceContributors(
+  slug: string,
+  page: number,
+  limit = 20
+): Promise<ContributorLeaderboardResponse> {
+  const response = await fetch(`/api/community/places/${slug}/contributors?page=${page}&limit=${limit}`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch contributors: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function fetchCragContributors(
+  cragId: string,
+  page: number,
+  limit = 20
+): Promise<ContributorLeaderboardResponse> {
+  const response = await fetch(`/api/crags/${cragId}/contributors?page=${page}&limit=${limit}`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch crag contributors: ${response.status}`)
   }
   return response.json()
 }

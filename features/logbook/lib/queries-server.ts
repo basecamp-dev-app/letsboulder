@@ -52,6 +52,9 @@ interface LogbookProfile {
   total_climbs?: number
   total_points?: number
   highest_grade?: string
+  contributor_score_total?: number
+  accepted_contribution_count?: number
+  contributor_tier?: string | null
 }
 
 interface ContributionRow {
@@ -161,7 +164,7 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
   const profileRes = await timeServerStep('fetchServerLogbookLogsAndProfile', 'profile', async () =>
     supabase
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade')
+      .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade, contributor_score_total, accepted_contribution_count, contributor_tier')
       .eq('id', userId)
       .single()
   )
