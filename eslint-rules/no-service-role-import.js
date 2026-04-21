@@ -22,7 +22,7 @@ const AUDITED_IMPORTS = [
   '@/lib/offline/build-climb-pack-helpers',
 ]
 
-export default {
+const noServiceRoleImportRule = {
   meta: {
     type: 'problem',
     docs: {
@@ -66,3 +66,5 @@ export default {
     }
   },
 }
+
+export default noServiceRoleImportRule

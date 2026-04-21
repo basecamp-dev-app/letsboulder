@@ -2,7 +2,7 @@ import type { Database } from '@/types/database'
 import { VALID_GRADES, isValidGrade } from '@/lib/grade-constants'
 import type { GpsData, FaceDirection, FaceDirectionsByImage } from '@/types/domain'
 import { FACE_DIRECTIONS } from '@/types/domain'
-import { ClimbRouteTypeEnum, type ClimbRouteType } from '@/lib/enums'
+import type { ClimbRouteType } from '@/lib/enums'
 
 import type { RoutePoint } from '@/types/climbing'
 

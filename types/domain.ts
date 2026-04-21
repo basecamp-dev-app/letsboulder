@@ -1,5 +1,3 @@
-import { z } from 'zod'
-
 export interface GpsData {
   latitude: number
   longitude: number

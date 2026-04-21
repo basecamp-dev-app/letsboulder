@@ -1,7 +1,5 @@
 import { z } from 'zod'
-import { EnvValidationError, getSharedEnv, type SharedEnv } from '@/lib/env'
-
-const isTest = process.env.NODE_ENV === 'test'
+import { getSharedEnv, type SharedEnv } from '@/lib/env'
 
 const serverOnlyEnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),

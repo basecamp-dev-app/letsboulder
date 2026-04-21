@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { fetchDraft } from '@/features/submissions/server/drafts/draft-fetch'
 import { patchDraft } from '@/features/submissions/server/drafts/draft-patch'

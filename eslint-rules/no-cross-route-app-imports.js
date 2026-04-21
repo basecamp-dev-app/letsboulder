@@ -61,7 +61,7 @@ function isSameOrNestedScope(sourceScope, importScope) {
   return importScope === sourceScope || importScope.startsWith(`${sourceScope}/`)
 }
 
-export default {
+const noCrossRouteAppImportsRule = {
   meta: {
     type: 'problem',
     docs: {
@@ -111,3 +111,5 @@ export default {
     }
   },
 }
+
+export default noCrossRouteAppImportsRule

@@ -29,8 +29,7 @@ export async function fetchOwnSubmissions(
   supabase: SupabaseClient,
   userId: string,
   _signedFetch: typeof fetch,
-  limit = 24,
-  _baseUrl?: string
+  limit = 24
 ): Promise<Submission[]> {
   const dedupeSubmissions = (items: Submission[]): Submission[] => {
     const byKey = new Map<string, Submission>()

@@ -25,26 +25,6 @@ interface RawLogbookRow {
   }
 }
 
-interface LoggedClimb {
-  id: string
-  climb_id: string
-  style: string
-  created_at: string
-  points?: number
-  canonical_url?: string | null
-  climbs: {
-    id: string
-    name: string
-    grade: string
-    slug?: string | null
-    crag_id?: string | null
-    image_url?: string
-    crags: {
-      name: string
-    }
-  }
-}
-
 interface LogbookProfile {
   id: string
   username: string

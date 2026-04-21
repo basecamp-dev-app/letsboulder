@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import type { Database } from '@/types/database'
 import {
   normalizeJsonRecord,
   resolveDraftImageReadinessStatus,
