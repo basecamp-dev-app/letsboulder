@@ -4,9 +4,9 @@ import JsonLd from '@/components/JsonLd'
 import HomeContributorHighlights from '@/features/home/components/HomeContributorHighlights'
 import HomeRecentCragUpdates from '@/features/home/components/HomeRecentCragUpdates'
 import {
+  fetchHomepageRecentClimbLogs,
   fetchHomepageRecentContributors,
   fetchHomepageRecentCragUpdates,
-  fetchHomepageTopContributors,
 } from '@/features/home/server/homepage-data'
 import { SITE_URL } from '@/lib/site'
 import { fetchMapPins } from '@/lib/supabase-server'
@@ -41,11 +41,11 @@ export const metadata: Metadata = {
 }
 
 export default async function Home() {
-  const [initialPlacePins, recentCragUpdates, recentContributors, topContributors] = await Promise.all([
+  const [initialPlacePins, recentCragUpdates, recentContributors, recentClimbLogs] = await Promise.all([
     fetchMapPins(),
     fetchHomepageRecentCragUpdates(),
     fetchHomepageRecentContributors(),
-    fetchHomepageTopContributors(),
+    fetchHomepageRecentClimbLogs(),
   ])
   const siteNavigation = {
     '@context': 'https://schema.org',
@@ -87,7 +87,7 @@ export default async function Home() {
         </section>
 
         <HomeRecentCragUpdates updates={recentCragUpdates} />
-        <HomeContributorHighlights recentContributors={recentContributors} topContributors={topContributors} />
+        <HomeContributorHighlights recentContributors={recentContributors} recentClimbLogs={recentClimbLogs} />
       </main>
       <JsonLd data={[siteNavigation, webSite]} />
     </>
