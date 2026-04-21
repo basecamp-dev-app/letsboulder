@@ -32,16 +32,19 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
   }
 
   return (
-    <section className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold tracking-tight text-stone-950 dark:text-stone-50">Recent crag updates</h2>
+    <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="mb-5 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">New beta coming in</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-stone-950 dark:text-stone-50">Recent crag updates</h2>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-3">
         {updates.map((update) => (
           <Link key={update.cragId} href={update.href} className="group block">
-            <Card className="overflow-hidden border-white/60 bg-white/90 py-0 shadow-[0_18px_45px_-24px_rgba(15,23,42,0.45)] backdrop-blur dark:border-white/10 dark:bg-slate-950/70">
-              <div className="relative aspect-[16/10] overflow-hidden">
+            <Card className="overflow-hidden border border-stone-200/80 bg-white/95 py-0 dark:border-white/10 dark:bg-slate-950/72">
+              <div className="relative aspect-[16/9] overflow-hidden">
                 <Image
                   src={update.coverImageUrl}
                   alt={update.cragName}
@@ -51,18 +54,18 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
                   unoptimized
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
-                <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-slate-950/75 px-3 py-1 text-xs font-medium text-white backdrop-blur">
+                <div className="absolute bottom-3 left-3 rounded-full border border-white/20 bg-slate-950/75 px-3 py-1 text-xs font-medium text-white backdrop-blur">
                   Updated {formatRelativeTime(update.latestContributionAt)}
                 </div>
               </div>
-              <CardHeader className="gap-3 px-4 pt-4 pb-0 sm:px-5">
+              <CardHeader className="gap-2 px-4 pt-3.5 pb-0 sm:px-5 sm:pt-4">
                 <CardTitle className="text-lg leading-tight text-stone-950 dark:text-stone-50">{update.cragName}</CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center justify-between gap-3 px-4 pt-0 pb-4 sm:px-5 sm:pb-5">
+              <CardContent className="flex items-center justify-between gap-3 px-4 pt-0 pb-3.5 sm:px-5 sm:pb-4">
                 <p className="text-sm text-stone-600 dark:text-stone-300">
                   {update.recentContributionCount} new {update.recentContributionCount === 1 ? 'topo' : 'topos'} in the latest activity window.
                 </p>
-                <span className="shrink-0 rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-700 dark:bg-slate-800 dark:text-stone-200">Explore</span>
+                <span className="shrink-0 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-700 transition group-hover:border-stone-300 group-hover:bg-stone-100 dark:border-white/10 dark:bg-slate-900 dark:text-stone-200 dark:group-hover:bg-slate-800">Explore</span>
               </CardContent>
             </Card>
           </Link>

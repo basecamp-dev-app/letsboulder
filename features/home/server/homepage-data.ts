@@ -38,21 +38,13 @@ interface HomeRecentLogRow {
   id: string
   created_at: string
   style: string
+  user_id: string
   climbs: {
     id: string
     name: string
     grade: string
     slug: string | null
     crag_id: string | null
-  } | null
-  profiles: {
-    id: string
-    username: string | null
-    display_name: string | null
-    first_name: string | null
-    last_name: string | null
-    avatar_url: string | null
-    is_public: boolean | null
   } | null
 }
 
@@ -262,16 +254,32 @@ export const fetchHomepageRecentClimbLogs = cache(async function fetchHomepageRe
 
   const { data, error } = await supabase
     .from('user_climbs')
-    .select('id, created_at, style, climbs(id, name, grade, slug, crag_id), profiles!inner(id, username, display_name, first_name, last_name, avatar_url, is_public)')
-    .eq('profiles.is_public', true)
+    .select('id, created_at, style, user_id, climbs(id, name, grade, slug, crag_id)')
     .order('created_at', { ascending: false })
-    .limit(6)
+    .limit(24)
 
   if (error || !data) {
     return []
   }
 
-  const rows = (data as unknown as HomeRecentLogRow[]).filter((row) => row.climbs && row.profiles)
+  const rows = (data as unknown as HomeRecentLogRow[]).filter((row) => row.climbs)
+  const userIds = [...new Set(rows.map((row) => row.user_id).filter((id): id is string => !!id))]
+
+  if (userIds.length === 0) {
+    return []
+  }
+
+  const { data: profileRows, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, username, display_name, first_name, last_name, avatar_url, is_public')
+    .in('id', userIds)
+    .eq('is_public', true)
+
+  if (profileError || !profileRows) {
+    return []
+  }
+
+  const profileById = new Map((profileRows as HomeProfileRow[]).map((profile) => [profile.id, profile]))
   const cragIds = [...new Set(rows.map((row) => row.climbs?.crag_id).filter((id): id is string => !!id))]
   const cragMetaById = new Map<string, { country_code: string | null; slug: string | null; name: string }>()
 
@@ -291,7 +299,12 @@ export const fetchHomepageRecentClimbLogs = cache(async function fetchHomepageRe
   }
 
   return rows.flatMap((row) => {
-    if (!row.climbs || !row.profiles) {
+    if (!row.climbs) {
+      return []
+    }
+
+    const profile = profileById.get(row.user_id)
+    if (!profile) {
       return []
     }
 
@@ -303,24 +316,24 @@ export const fetchHomepageRecentClimbLogs = cache(async function fetchHomepageRe
     return [{
       logId: row.id,
       href,
-      profileHref: `/logbook/${row.profiles.id}`,
-      userId: row.profiles.id,
+      profileHref: `/logbook/${profile.id}`,
+      userId: profile.id,
       displayName: getDisplayName({
-        id: row.profiles.id,
-        username: row.profiles.username,
-        display_name: row.profiles.display_name,
-        first_name: row.profiles.first_name,
-        last_name: row.profiles.last_name,
-        avatar_url: row.profiles.avatar_url,
+        id: profile.id,
+        username: profile.username,
+        display_name: profile.display_name,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        avatar_url: profile.avatar_url,
         is_public: true,
       }),
-      avatarUrl: row.profiles.avatar_url,
-      username: row.profiles.username,
+      avatarUrl: profile.avatar_url,
+      username: profile.username,
       loggedAt: row.created_at,
       style: row.style,
       climbName: row.climbs.name,
       grade: row.climbs.grade,
       cragName: cragMeta?.name || 'Unknown crag',
     } satisfies HomeRecentClimbLog]
-  })
+  }).slice(0, 6)
 })
