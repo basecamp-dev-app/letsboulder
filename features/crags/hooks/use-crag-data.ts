@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import { useCragImages } from '@/features/crags/hooks/use-crag-images'
 import { useCragRoutes } from '@/features/crags/hooks/use-crag-routes'
 import { useCragRouteTargets } from '@/features/crags/hooks/use-crag-route-targets'
 import { readCachedCragLocalFallback } from '@/features/crags/lib/crag-local-fallback'
-import type { UseCragDataParams, UseCragDataResult } from '@/features/crags/hooks/use-crag-data-types'
+import type { CragRouteTargetsState, UseCragDataParams, UseCragDataResult } from '@/features/crags/hooks/use-crag-data-types'
 
 export type { UseCragDataParams, UseCragDataResult, CragDataState } from '@/features/crags/hooks/use-crag-data-types'
 
@@ -26,14 +26,18 @@ export function useCragData({
   const [crag, setCrag] = useState(initialCrag)
   const [images, setImages] = useState(initialImages)
   const [routes, setRoutes] = useState(initialRoutes || [])
-  const [routeImageIdsByClimbId, setRouteImageIdsByClimbId] = useState(initialRouteImageIdsByClimbId)
-  const [routePreviewByClimbId, setRoutePreviewByClimbId] = useState(initialRoutePreviewByClimbId)
-  const [routeNavigationTargetByClimbId, setRouteNavigationTargetByClimbId] = useState(initialRouteNavigationTargetByClimbId)
-  const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState(initialDefaultRouteTargetByImageId)
+  const [routeTargets, setRouteTargets] = useState<CragRouteTargetsState>({
+    routeImageIdsByClimbId: initialRouteImageIdsByClimbId,
+    routePreviewByClimbId: initialRoutePreviewByClimbId,
+    routeNavigationTargetByClimbId: initialRouteNavigationTargetByClimbId,
+    defaultRouteTargetByImageId: initialDefaultRouteTargetByImageId,
+  })
   const [routesLoadState, setRoutesLoadState] = useState<'idle' | 'loading' | 'loaded' | 'error'>(initialRoutes !== null ? 'loaded' : 'idle')
   const [loading, setLoading] = useState(!initialCrag)
   const [cragCenter, setCragCenter] = useState(initialCragCenter)
   const [usingCachedFallback, setUsingCachedFallback] = useState(false)
+
+  const setCragRouteTargets: Dispatch<SetStateAction<CragRouteTargetsState>> = setRouteTargets
 
   useCragImages({
     id,
@@ -50,10 +54,7 @@ export function useCragData({
     initialPayloadLoadedAt,
     setCrag,
     setImages,
-    setRouteImageIdsByClimbId,
-    setRoutePreviewByClimbId,
-    setRouteNavigationTargetByClimbId,
-    setDefaultRouteTargetByImageId,
+    setRouteTargets: setCragRouteTargets,
     setCragCenter,
     setLoading,
     setRoutesLoadState,
@@ -66,12 +67,9 @@ export function useCragData({
     routesLoadState,
     setRoutes,
     setRoutesLoadState,
-    setRoutePreviewByClimbId,
-    setRouteNavigationTargetByClimbId,
     setImages,
     setCragCenter,
-    setDefaultRouteTargetByImageId,
-    setRouteImageIdsByClimbId,
+    setRouteTargets: setCragRouteTargets,
     setUsingCachedFallback,
     readCachedFallback: () => readCachedCragLocalFallback(id),
   })
@@ -80,20 +78,17 @@ export function useCragData({
     cragId: id,
     routes,
     initialRouteTargetsComplete,
-    setDefaultRouteTargetByImageId,
-    setRouteImageIdsByClimbId,
-    setRoutePreviewByClimbId,
-    setRouteNavigationTargetByClimbId,
+    setRouteTargets: setCragRouteTargets,
   })
 
   return {
     crag,
     images,
     routes,
-    routeImageIdsByClimbId,
-    routePreviewByClimbId,
-    routeNavigationTargetByClimbId,
-    defaultRouteTargetByImageId,
+    routeImageIdsByClimbId: routeTargets.routeImageIdsByClimbId,
+    routePreviewByClimbId: routeTargets.routePreviewByClimbId,
+    routeNavigationTargetByClimbId: routeTargets.routeNavigationTargetByClimbId,
+    defaultRouteTargetByImageId: routeTargets.defaultRouteTargetByImageId,
     routesLoadState,
     retryRoutes,
     loading,
