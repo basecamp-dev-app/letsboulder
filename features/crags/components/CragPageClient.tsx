@@ -85,7 +85,7 @@ export default function CragPageClient({
     const slug = crag?.slug
     if (!countryCode || !slug) return null
     return `/${countryCode.toLowerCase()}/${slug}`
-  }, [crag])
+  }, [crag?.country_code, crag?.slug])
 
   const filters = useCragPageFilters({
     crag,
