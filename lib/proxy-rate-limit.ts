@@ -43,7 +43,10 @@ async function getUpstashDeps(): Promise<UpstashDeps | null> {
       if (!redisModule || !ratelimitModule) {
         if (!upstashMissingWarningLogged) {
           upstashMissingWarningLogged = true
-          console.warn('Upstash rate limiting deps missing; skipping')
+          reportError(new Error('Upstash rate limiting deps missing; skipping'), {
+            message: 'Upstash rate limiting deps missing; skipping',
+            level: 'warning',
+          })
         }
 
         return null

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { generateErrorId } from '@/lib/errors'
+import { generateErrorId, reportError } from '@/lib/errors'
 import { deleteObject } from '@/lib/media/r2'
 import type { Database } from '@/types/database'
 
@@ -18,17 +18,15 @@ function resolveProvider(provider: DraftStorageProvider): 'r2' | 'supabase' {
 
 function logStorageCleanupWarning(image: DraftStorageCleanupRow, error: unknown) {
   const errorId = generateErrorId()
-  const message = error instanceof Error ? error.message : String(error)
-
-  console.warn(
-    `[${errorId}] Draft storage cleanup failed`,
-    {
+  reportError(error, {
+    message: `[${errorId}] Draft storage cleanup failed`,
+    level: 'warning',
+    extra: {
       storage_provider: image.storage_provider ?? null,
       storage_bucket: image.storage_bucket,
       storage_path: image.storage_path,
-      error: message,
-    }
-  )
+    },
+  })
 }
 
 export async function cleanupDraftStorageObjects(

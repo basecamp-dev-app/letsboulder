@@ -63,7 +63,10 @@ async function loadUpstashDeps(): Promise<UpstashDeps | null> {
     if (!url || !token) {
       if (!upstashUnavailableWarningLogged) {
         upstashUnavailableWarningLogged = true
-        console.warn('Upstash Redis credentials not configured; rate limiting will use fallback')
+        reportError(new Error('Upstash Redis credentials not configured; rate limiting will use fallback'), {
+          message: 'Upstash Redis credentials not configured; rate limiting will use fallback',
+          level: 'warning',
+        })
       }
       return null
     }
@@ -75,7 +78,10 @@ async function loadUpstashDeps(): Promise<UpstashDeps | null> {
       if (!redisModule || !ratelimitModule) {
         if (!upstashUnavailableWarningLogged) {
           upstashUnavailableWarningLogged = true
-          console.warn('Upstash rate limiting dependencies missing; skipping')
+          reportError(new Error('Upstash rate limiting dependencies missing; skipping'), {
+            message: 'Upstash rate limiting dependencies missing; skipping',
+            level: 'warning',
+          })
         }
         return null
       }
@@ -107,7 +113,11 @@ export async function getRateLimiter(configKey: string): Promise<RateLimiterInst
 
   const config = RATE_LIMIT_CONFIGS[configKey]
   if (!config) {
-    console.warn(`Unknown rate limit config key: ${configKey}`)
+    reportError(new Error(`Unknown rate limit config key: ${configKey}`), {
+      message: 'Unknown rate limit config key',
+      level: 'warning',
+      extra: { configKey },
+    })
     return null
   }
 

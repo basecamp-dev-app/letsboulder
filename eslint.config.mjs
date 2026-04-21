@@ -34,6 +34,7 @@ const eslintConfig = defineConfig([
       'apps/media-worker/**/*.{ts,tsx,js,jsx,mjs,cjs}',
       'components/DevBrowserLogger.tsx',
       'components/WebVitalsReporter.tsx',
+      'lib/errors.ts',
       'lib/media/upload-debug.ts',
       'lib/performance/server-timing.ts',
       'lib/supabase-admin.ts',

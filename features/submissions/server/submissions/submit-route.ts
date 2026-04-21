@@ -110,14 +110,18 @@ export async function submitRoute(request: NextRequest) {
 
     if (authError || !userId) {
       if (debugAuth) {
-        console.warn('[submissions] auth.getUser failed', {
-          host: requestUrl.host,
-          path: requestUrl.pathname,
-          hasUser: Boolean(userId),
-          authError: authError ? {
-            name: (authError as { name?: string }).name,
-            message: (authError as { message?: string }).message,
-          } : null,
+        reportError(authError ?? new Error('Missing user during submission auth'), {
+          message: '[submissions] auth.getUser failed',
+          level: 'warning',
+          extra: {
+            host: requestUrl.host,
+            path: requestUrl.pathname,
+            hasUser: Boolean(userId),
+            authError: authError ? {
+              name: (authError as { name?: string }).name,
+              message: (authError as { message?: string }).message,
+            } : null,
+          },
         })
       }
       return Response.json({ error: 'Authentication required' }, { status: 401 })

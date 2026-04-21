@@ -25,7 +25,10 @@ interface DiscordWebhookPayload {
 
 async function sendDiscordWebhook(webhookUrl: string, payload: DiscordWebhookPayload): Promise<void> {
   if (!webhookUrl) {
-    console.warn('[Discord] Webhook URL not configured')
+    reportError(new Error('Discord webhook URL not configured'), {
+      message: '[Discord] Webhook URL not configured',
+      level: 'warning',
+    })
     return
   }
 

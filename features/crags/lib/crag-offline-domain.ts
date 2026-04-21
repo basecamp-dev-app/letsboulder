@@ -1,4 +1,5 @@
 import { normalizeGrade } from '@/lib/grades'
+import { reportError } from '@/lib/errors'
 import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
 import type { ClimbPackResponse } from '@/features/climb/lib/queries'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
@@ -64,7 +65,11 @@ export async function getStoredCragClimbPayloadsSafely(cragId: string): Promise<
       }),
     ])
   } catch (error) {
-    console.warn('Failed to read stored crag climb payloads:', { cragId, error })
+    reportError(error, {
+      message: 'Failed to read stored crag climb payloads',
+      level: 'warning',
+      extra: { cragId },
+    })
     return []
   }
 }
