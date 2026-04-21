@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useCragImages } from '@/features/crags/hooks/use-crag-images'
 import { useCragRoutes } from '@/features/crags/hooks/use-crag-routes'
 import { useCragRouteTargets } from '@/features/crags/hooks/use-crag-route-targets'
+import { readCachedCragLocalFallback } from '@/features/crags/lib/crag-local-fallback'
 import type { UseCragDataParams, UseCragDataResult } from '@/features/crags/hooks/use-crag-data-types'
 
 export type { UseCragDataParams, UseCragDataResult, CragDataState } from '@/features/crags/hooks/use-crag-data-types'
@@ -32,6 +33,7 @@ export function useCragData({
   const [routesLoadState, setRoutesLoadState] = useState<'idle' | 'loading' | 'loaded' | 'error'>(initialRoutes !== null ? 'loaded' : 'idle')
   const [loading, setLoading] = useState(!initialCrag)
   const [cragCenter, setCragCenter] = useState(initialCragCenter)
+  const [usingCachedFallback, setUsingCachedFallback] = useState(false)
 
   useCragImages({
     id,
@@ -55,6 +57,7 @@ export function useCragData({
     setCragCenter,
     setLoading,
     setRoutesLoadState,
+    setUsingCachedFallback,
   })
 
   const { retryRoutes } = useCragRoutes({
@@ -65,6 +68,12 @@ export function useCragData({
     setRoutesLoadState,
     setRoutePreviewByClimbId,
     setRouteNavigationTargetByClimbId,
+    setImages,
+    setCragCenter,
+    setDefaultRouteTargetByImageId,
+    setRouteImageIdsByClimbId,
+    setUsingCachedFallback,
+    readCachedFallback: () => readCachedCragLocalFallback(id),
   })
 
   const { routeTargetsHydrating, routeTargetsComplete } = useCragRouteTargets({
@@ -91,5 +100,6 @@ export function useCragData({
     cragCenter,
     routeTargetsHydrating,
     routeTargetsComplete,
+    usingCachedFallback,
   }
 }

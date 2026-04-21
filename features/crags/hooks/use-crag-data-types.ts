@@ -32,6 +32,7 @@ export interface UseCragDataResult {
   cragCenter: [number, number] | null
   routeTargetsHydrating: boolean
   routeTargetsComplete: boolean
+  usingCachedFallback: boolean
 }
 
 export interface CragDataState {
@@ -48,4 +49,5 @@ export interface CragDataState {
   cragCenter: [number, number] | null
   routeTargetsHydrating: boolean
   routeTargetsComplete: boolean
+  usingCachedFallback: boolean
 }

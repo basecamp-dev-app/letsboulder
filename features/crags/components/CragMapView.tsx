@@ -11,6 +11,7 @@ interface CragMapViewProps {
   cragCenter: [number, number] | null
   isAdmin: boolean
   isFlagging: boolean
+  usingCachedFallback: boolean
   onPinSelect: (imageId: string) => void
   onFlagCrag: (cragId: string) => void
 }
@@ -22,9 +23,26 @@ export default function CragMapView({
   cragCenter,
   isAdmin,
   isFlagging,
+  usingCachedFallback,
   onPinSelect,
   onFlagCrag,
 }: CragMapViewProps) {
+  if (!cragCenter || mapPins.length === 0) {
+    return (
+      <div className="relative z-0 h-[clamp(18rem,34dvh,28rem)] bg-gray-200 dark:bg-gray-800 md:h-[58vh]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.35),_transparent_38%),linear-gradient(180deg,_rgba(229,231,235,0.9),_rgba(209,213,219,0.9))] dark:bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_34%),linear-gradient(180deg,_rgba(31,41,55,0.92),_rgba(17,24,39,0.96))]" />
+        <div className="absolute left-4 top-4 z-[1000] rounded-lg bg-white/90 px-3 py-2 text-sm font-semibold text-gray-900 shadow-md backdrop-blur dark:bg-gray-800/90 dark:text-gray-100">
+          {crag.name}
+        </div>
+        <div className="absolute inset-x-4 bottom-4 z-[1000] max-w-md rounded-2xl border border-white/60 bg-white/90 px-4 py-3 text-sm text-gray-700 shadow-lg backdrop-blur dark:border-white/10 dark:bg-gray-900/85 dark:text-gray-200">
+          {usingCachedFallback
+            ? 'Map data is not cached on this device yet. Cached routes below are still available.'
+            : 'Map data is unavailable right now. Route content below is still available.'}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="relative z-0 h-[clamp(18rem,34dvh,28rem)] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
       <LightweightCragMap

@@ -63,6 +63,7 @@ export default function CragPageClient({
     cragCenter,
     routeTargetsHydrating,
     routeTargetsComplete,
+    usingCachedFallback,
   } = useCragData({
     id,
     initialCrag,
@@ -181,6 +182,7 @@ export default function CragPageClient({
         isFlagging={actions.isFlagging}
         onPinSelect={filters.setSelectedImageId}
         onFlagCrag={actions.handleFlagCrag}
+        usingCachedFallback={usingCachedFallback}
       />
 
       <SelectedPinImageTray images={filters.selectedPinImages} />
@@ -194,6 +196,7 @@ export default function CragPageClient({
         routePreviewDisplayByClimbId={filters.routePreviewDisplayByClimbId}
         routeTargetsHydrating={routeTargetsHydrating}
         routeTargetsComplete={routeTargetsComplete}
+        usingCachedFallback={usingCachedFallback}
         pinNumberByImageId={filters.pinNumberByImageId}
         gradeSystem={filters.gradeSystem}
         routeInsightsUnavailable={filters.routeInsightsUnavailable}
