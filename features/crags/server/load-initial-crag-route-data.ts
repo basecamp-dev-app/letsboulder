@@ -129,9 +129,6 @@ export async function loadInitialCragRouteData(
       }
     }
 
-    // This flag only tracks whether the initial seed already contained all preview images.
-    previewImagesHydrated = missingPreviewImageIds.every((imageId) => initialImageIds.has(imageId))
-
     if (missingPreviewImageIds.length > 0) {
       const { data: previewImageData } = await previewSupabase
         .from('images')
@@ -156,6 +153,9 @@ export async function loadInitialCragRouteData(
         }
       }
     }
+
+    // The SSR payload is complete once every seeded preview image has been hydrated into initialImages.
+    previewImagesHydrated = previewImageIds.every((imageId) => imageById.has(imageId))
 
     Object.assign(initialRouteImageIdsByClimbId, targetMaps.nextRouteImageIdsByClimbId)
     Object.assign(initialRoutePreviewByClimbId, Object.fromEntries(
