@@ -24,6 +24,11 @@ interface ClusteredImageData {
   supplementary_faces_count: number
 }
 
+interface LocatedClusteredImageData extends ClusteredImageData {
+  latitude: number
+  longitude: number
+}
+
 export interface UseCragPageFiltersParams {
   crag: CragPageCrag | null
   images: ImageData[]
@@ -133,17 +138,17 @@ export function useCragPageFilters({
   const imageById = useMemo(() => new Map(orderedImages.map((image) => [image.id, image as ClusteredImageData])), [orderedImages])
 
   const locationGroups = useMemo(() => {
-    const groups = new Map<string, ClusteredImageData[]>()
+    const groups = new Map<string, LocatedClusteredImageData[]>()
 
     orderedImages.forEach((image) => {
       if (typeof image.latitude !== 'number' || typeof image.longitude !== 'number') return
       const key = `${image.latitude.toFixed(6)}:${image.longitude.toFixed(6)}`
       const existing = groups.get(key)
       if (existing) {
-        existing.push(image as ClusteredImageData)
+        existing.push(image as LocatedClusteredImageData)
         return
       }
-      groups.set(key, [image as ClusteredImageData])
+      groups.set(key, [image as LocatedClusteredImageData])
     })
 
     return groups
@@ -163,18 +168,18 @@ export function useCragPageFilters({
     return { clusters, clusterIdByImageId }
   }, [locationGroups])
 
-  const mapPins = useMemo(() => orderedImages.flatMap((image) => {
-    if (typeof image.latitude !== 'number' || typeof image.longitude !== 'number') return []
-    const key = `${image.latitude.toFixed(6)}:${image.longitude.toFixed(6)}`
-    const group = locationGroups.get(key) || [image as ClusteredImageData]
-    return [{
-      id: image.id,
-      latitude: image.latitude,
-      longitude: image.longitude,
-      label: String(group.length),
-      activeImageIds: group.map((groupedImage) => groupedImage.id),
-    } satisfies LightweightCragMapPin]
-  }), [locationGroups, orderedImages])
+  const mapPins = useMemo(() => Array.from(locationGroups.entries()).map(([clusterId, groupedImages]) => {
+    const primaryImage = groupedImages[0]
+
+    return {
+      id: clusterId,
+      latitude: primaryImage.latitude,
+      longitude: primaryImage.longitude,
+      label: String(groupedImages.length),
+      activeImageIds: groupedImages.map((image) => image.id),
+      primaryImageId: primaryImage.id,
+    } satisfies LightweightCragMapPin
+  }), [locationGroups])
 
   const pinNumberByImageId = useMemo(() => {
     const mapping = new Map<string, number>()

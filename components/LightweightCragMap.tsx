@@ -146,7 +146,7 @@ const MapPinMarker = memo(function MapPinMarker({
         iconSize: [visual.size, visual.size],
         iconAnchor: [12, 12],
       })}
-      eventHandlers={onPinSelect && pin.interactive !== false ? { click: () => onPinSelect(pin.id) } : undefined}
+      eventHandlers={onPinSelect && pin.interactive !== false ? { click: () => onPinSelect(pin.primaryImageId || pin.id) } : undefined}
     />
   )
 }, (prev, next) => {
@@ -154,6 +154,7 @@ const MapPinMarker = memo(function MapPinMarker({
     && prev.pin.longitude === next.pin.longitude
     && prev.active === next.active
     && prev.pin.label === next.pin.label
+    && prev.pin.primaryImageId === next.pin.primaryImageId
     && prev.pin.interactive === next.pin.interactive
     && prev.index === next.index
     && prev.onPinSelect === next.onPinSelect
