@@ -2,10 +2,12 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import CragPageShell from '@/features/crags/components/CragPageShell'
+import ShallowLocalCragPage from '@/features/offline/components/ShallowLocalCragPage'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import CragStructuredData from '@/features/crags/components/CragStructuredData'
 import type { BreadcrumbItem, CragPageCrag } from '@/features/crags/lib/crag-page-types'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
+import { readMostRecentLocalEntry } from '@/lib/offline/recent-local'
 
 export const revalidate = 60
 
@@ -164,10 +166,8 @@ export default async function CragSlugPage({
 
   const countryCode = country.toUpperCase()
   const crag = await getCragByCountrySlug(countryCode, cragSlug)
-  
-  if (!crag) {
-    notFound()
-  }
+
+  if (!crag) notFound()
 
   const supabase = await getSupabase()
   const countryRow = Array.isArray(crag.countries) ? crag.countries[0] : crag.countries
@@ -185,6 +185,18 @@ export default async function CragSlugPage({
   }
 
   const canonicalPath = `/${country.toLowerCase()}/${cragSlug}`
+  const recentLocalEntry = readMostRecentLocalEntry()
+  if (recentLocalEntry?.href === canonicalPath) {
+    return (
+      <ShallowLocalCragPage
+        cragId={crag.id}
+        title={recentLocalEntry.title}
+        subtitle={recentLocalEntry.subtitle}
+        href={canonicalPath}
+      />
+    )
+  }
+
   const breadcrumbs: BreadcrumbItem[] = [
     { label: 'Home', href: '/' },
     ...(initialCrag.continent_name ? [{ label: initialCrag.continent_name }] : []),

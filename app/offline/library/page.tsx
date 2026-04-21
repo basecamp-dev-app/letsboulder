@@ -4,8 +4,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import OfflineLibraryClient from '@/features/offline/components/OfflineLibraryClient'
 
 export const metadata: Metadata = {
-  title: 'Downloads',
-  description: 'Open saved crag and climb downloads stored on this device.',
+  title: 'Available Locally',
+  description: 'Open pinned and locally available crag and climb pages stored on this device.',
   robots: {
     index: false,
     follow: false,
@@ -20,13 +20,13 @@ function OfflineLibraryLoadingFallback() {
           <div className="mb-4 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
             <span>Offline</span>
             <span>/</span>
-            <span className="text-gray-700 dark:text-gray-200">Saved downloads</span>
+            <span className="text-gray-700 dark:text-gray-200">Available locally</span>
           </div>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-300">Offline</p>
               <Skeleton className="mt-3 h-9 w-52" />
-              <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">Loading saved offline packs from this device...</p>
+              <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">Loading pinned and locally available pages from this device...</p>
               <Skeleton className="mt-3 h-4 w-full max-w-2xl" />
             </div>
             <div className="flex gap-3">

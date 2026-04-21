@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import MapLoadingShell from '@/components/map/MapLoadingShell'
 import { resolveLaunchTarget } from '@/lib/navigation/launch-state'
+import { resolveConnectivityState } from '@/lib/offline/connectivity'
 
 export default function LaunchRedirector() {
   const pathname = usePathname()
@@ -11,10 +12,13 @@ export default function LaunchRedirector() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
+    const connectivity = resolveConnectivityState({
+      isOnline: window.navigator.onLine !== false,
+    })
     const target = resolveLaunchTarget({
       pathname: pathname || '/launch',
       search: searchParams.toString() ? `?${searchParams.toString()}` : '',
-      isOnline: window.navigator.onLine !== false,
+      connectivityMode: connectivity.mode,
     })
     router.replace(target)
   }, [pathname, router, searchParams])

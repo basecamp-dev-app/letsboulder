@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import type { StoredClimbManifest, StoredCragManifest } from '@/lib/offline/storage'
 import { listOfflinePacksForLaunch } from '@/lib/offline/packs'
+import { listRecentLocalEntries } from '@/lib/offline/recent-local'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { reportError } from '@/lib/errors'
 
@@ -21,6 +22,10 @@ function getOfflineCragLaunchHref(crag: StoredCragManifest) {
 interface OfflineLibraryState {
   climbs: StoredClimbManifest[]
   crags: StoredCragManifest[]
+}
+
+interface RecentLocalState {
+  entries: ReturnType<typeof listRecentLocalEntries>
 }
 
 function formatBytes(bytes: number) {
@@ -52,17 +57,18 @@ function OfflineLaunchLink({
 export default function OfflineLibraryClient() {
   const searchParams = useSearchParams()
   const [state, setState] = useState<OfflineLibraryState>({ climbs: [], crags: [] })
-  const [status, setStatus] = useState('Loading saved climbs on this device...')
+  const [recentLocal, setRecentLocal] = useState<RecentLocalState>({ entries: [] })
+  const [status, setStatus] = useState('Loading content available on this device...')
   const [error, setError] = useState<string | null>(null)
 
   const reason = searchParams.get('reason')
   const requestedPath = searchParams.get('from')
   const reasonMessage = reason === 'weak-signal'
-    ? 'Optimizing for offline use due to weak signal.'
+    ? 'Weak signal detected. Open content already available on this device.'
     : reason === 'offline'
-      ? 'You are offline. Open saved downloads stored on this device.'
+      ? 'You are offline. Open pinned or locally available content stored on this device.'
       : reason === 'offline-miss'
-        ? `That page is not saved for offline use yet${requestedPath ? `: ${requestedPath}` : '.'}`
+        ? `That page is not available locally yet${requestedPath ? `: ${requestedPath}` : '.'}`
       : null
 
   useEffect(() => {
@@ -76,18 +82,20 @@ export default function OfflineLibraryClient() {
         const crags = launch.crags
         const climbs = launch.climbs
         const standaloneCount = climbs.filter((entry) => entry.pinnedStandalone).length
+        const recentEntries = listRecentLocalEntries()
         setState({ climbs, crags })
+        setRecentLocal({ entries: recentEntries })
         setStatus(
-          crags.length + standaloneCount === 0
-            ? 'No saved offline packs found on this device yet.'
-            : `${crags.length + standaloneCount} saved offline pack${crags.length + standaloneCount === 1 ? '' : 's'} ready to open.`
+          crags.length + standaloneCount + recentEntries.length === 0
+            ? 'No pinned or locally available pages found on this device yet.'
+            : `${crags.length + standaloneCount} pinned item${crags.length + standaloneCount === 1 ? '' : 's'} and ${recentEntries.length} recent local page${recentEntries.length === 1 ? '' : 's'} ready to open.`
         )
         setError(null)
       } catch (loadError) {
-        reportError(loadError, { message: 'Failed to load downloads' })
+        reportError(loadError, { message: 'Failed to load local availability' })
         if (cancelled) return
         setError('Unable to read offline storage on this device.')
-        setStatus('Unable to load saved offline packs right now.')
+        setStatus('Unable to load pinned or locally available pages right now.')
       }
     }
 
@@ -122,14 +130,14 @@ export default function OfflineLibraryClient() {
               Offline
             </OfflineLaunchLink>
             <span>/</span>
-            <span className="text-gray-700 dark:text-gray-200">Saved downloads</span>
+            <span className="text-gray-700 dark:text-gray-200">Available locally</span>
           </div>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-300">Offline</p>
-               <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-950 dark:text-white">Downloads</h1>
+              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-950 dark:text-white">Available locally</h1>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{status}</p>
-              <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-300">Saved crags and climbs on this device can launch directly into the route image pages that matter most when you are offline.</p>
+              <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-300">Pinned pages are guaranteed on this device. Locally available pages are recent shallow views that can help in weak signal, but may be incomplete.</p>
             </div>
             <div className="flex gap-3">
               <Button
@@ -158,12 +166,12 @@ export default function OfflineLibraryClient() {
               </div>
             ) : null}
             <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em]">Crag folders</p>
-              <p className="mt-2">Use saved crag pages for context, then launch individual route pages from the climb grid.</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em]">Pinned for field use</p>
+              <p className="mt-2">Pinned crag and climb pages stay available with stronger on-device guarantees.</p>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-4 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em]">Standalone climbs</p>
-              <p className="mt-2">Open individually pinned route pages directly from this device.</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em]">Available locally</p>
+              <p className="mt-2">Recent crag and climb pages can reopen in shallow view when they were already seen on this device.</p>
             </div>
           </div>
 
@@ -173,20 +181,43 @@ export default function OfflineLibraryClient() {
             </div>
           ) : null}
 
-          {!error && state.crags.length === 0 && standaloneClimbs.length === 0 ? (
+          {!error && state.crags.length === 0 && standaloneClimbs.length === 0 && recentLocal.entries.length === 0 ? (
             <div className="mt-8 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-5 py-6 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-300">
-              <p>No saved offline packs found on this device yet.</p>
+              <p>No pinned or locally available pages found on this device yet.</p>
               <Button asChild type="button" variant="outline" className="mt-4 rounded-xl">
                 <OfflineLaunchLink href="/offline">Browse offline options</OfflineLaunchLink>
               </Button>
             </div>
           ) : null}
 
+          {recentLocal.entries.length > 0 ? (
+            <section className="mt-8 space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-gray-400">Available locally</p>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Recent pages reopen as shallow local views. They may be incomplete and are not guaranteed like pinned content.</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {recentLocal.entries.map((entry) => (
+                  <div key={entry.href} className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700 dark:text-cyan-300">
+                      {entry.kind === 'crag' ? 'Shallow local crag view' : 'Shallow local climb view'}
+                    </p>
+                    <p className="mt-3 text-base font-semibold text-gray-900 dark:text-gray-100">{entry.title}</p>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Recently viewed on this device</p>
+                    <Button asChild size="sm" className="mt-4 w-full rounded-xl">
+                      <OfflineLaunchLink href={entry.href}>Open local view</OfflineLaunchLink>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {state.crags.length > 0 ? (
             <section className="mt-8 space-y-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-gray-400">Saved crags</p>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Open a saved crag for orientation, or use the explicit route-page actions below to jump straight into saved climbs.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-gray-400">Pinned crags</p>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Open a pinned crag for orientation, or use the explicit route-page actions below to jump straight into pinned climbs.</p>
               </div>
               <div className="grid gap-5 lg:grid-cols-2">
                 {state.crags.map((crag) => {
@@ -200,11 +231,11 @@ export default function OfflineLibraryClient() {
                           {coverImageUrl ? (
                             <Image src={coverImageUrl} alt={`${crag.manifest.cragName} cover`} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 50vw" unoptimized />
                           ) : (
-                            <div className="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">Saved crag</div>
+                            <div className="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">Pinned crag</div>
                           )}
                           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-4 py-4 text-white">
                             <p className="text-lg font-semibold">{crag.manifest.cragName}</p>
-                            <p className="mt-1 text-xs text-white/80">{childClimbs.length} saved climb{childClimbs.length === 1 ? '' : 's'} · {formatBytes(crag.manifest.estimatedBytes)}</p>
+                            <p className="mt-1 text-xs text-white/80">{childClimbs.length} pinned climb{childClimbs.length === 1 ? '' : 's'} · {formatBytes(crag.manifest.estimatedBytes)}</p>
                           </div>
                         </div>
                       </div>
@@ -212,8 +243,8 @@ export default function OfflineLibraryClient() {
                       <div className="space-y-3 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
                           <div>
-                            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">Start with the saved crag page</p>
-                            <p className="mt-1 text-sm text-emerald-800/80 dark:text-emerald-100/80">Open the crag for context, or jump directly to a saved route page below.</p>
+                            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">Start with the pinned crag page</p>
+                            <p className="mt-1 text-sm text-emerald-800/80 dark:text-emerald-100/80">Open the crag for context, or jump directly to a pinned route page below.</p>
                           </div>
                           <Button asChild>
                             <OfflineLaunchLink href={launchHref}>Open crag page</OfflineLaunchLink>
@@ -250,8 +281,8 @@ export default function OfflineLibraryClient() {
           {standaloneClimbs.length > 0 ? (
             <section className="mt-8 space-y-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-gray-400">Standalone climbs</p>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">These saved route pages stay available even if you later remove a crag pack.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-gray-400">Pinned climbs</p>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">These pinned route pages stay available even if you later remove a pinned crag.</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {standaloneClimbs.map((climb) => {
@@ -268,7 +299,7 @@ export default function OfflineLibraryClient() {
                       <div className="space-y-2 p-4">
                         <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{climb.manifest.climbName}</p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">{climb.manifest.mediaCount} photo{climb.manifest.mediaCount === 1 ? '' : 's'} · {formatBytes(climb.manifest.estimatedBytes)}</p>
-                        <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{climb.ownerPackIds.length > 1 ? 'Shared across packs' : 'Saved directly'}</p>
+                        <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{climb.ownerPackIds.length > 1 ? 'Shared across pinned items' : 'Pinned directly'}</p>
                         <Button asChild size="sm" className="w-full rounded-xl">
                           <OfflineLaunchLink href={getOfflineClimbLaunchHref(climb)}>Open route page</OfflineLaunchLink>
                         </Button>
