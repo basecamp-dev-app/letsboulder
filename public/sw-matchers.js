@@ -37,3 +37,9 @@ async function matchRouteAssetRequest(request) {
   const shellCache = await caches.open(SHELL_CACHE)
   return shellCache.match(request)
 }
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.matchCachedRequest = matchCachedRequest
+  globalThis.matchShellRequest = matchShellRequest
+  globalThis.matchRouteAssetRequest = matchRouteAssetRequest
+}

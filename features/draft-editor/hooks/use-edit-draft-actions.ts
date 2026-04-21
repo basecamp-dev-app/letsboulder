@@ -88,7 +88,6 @@ export function useEditDraftActions({
   setError,
   setSuccess,
   setConflict,
-  setActiveImageId,
   setLocationSyncInFlight,
 }: UseEditDraftActionsParams) {
   const router = useRouter()
@@ -134,12 +133,6 @@ export function useEditDraftActions({
 
     return dirtyImageIds
   }, [draft])
-
-  const getImagesMissingRoutes = useCallback((resolvedRoutesByImageId: Record<string, DraftRoute[]>) => {
-    return manageImages
-      .filter((image) => image.sourceKind === 'draft-image')
-      .filter((image) => (resolvedRoutesByImageId[image.imageId] || []).length === 0)
-  }, [manageImages])
 
   const buildSavePayload = useCallback((resolvedRoutesByImageId: Record<string, DraftRoute[]>, resolvedCragId: string | null) => {
     const nextImagesPayload = buildRouteCompletionPayload(draft?.images || [], resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))
@@ -417,7 +410,7 @@ export function useEditDraftActions({
     } finally {
       setPublishingDraft(false)
     }
-  }, [addToast, cragId, draft, draftId, flushLocationSync, hasFailedUploads, hasPendingUploads, isOwner, locationSectionRef, publishRequirementsRef, router, saveDraft, setError, cragSectionRef])
+  }, [addToast, cragId, draft, draftId, flushLocationSync, hasFailedUploads, hasPendingUploads, hasValidLocation, isOwner, locationSectionRef, router, saveDraft, setError, cragSectionRef])
 
   const handleReloadLatestDraft = useCallback(async () => {
     setConflict(null)

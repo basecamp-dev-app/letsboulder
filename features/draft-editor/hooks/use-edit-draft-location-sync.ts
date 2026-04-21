@@ -82,7 +82,6 @@ export function useEditDraftLocationSync({
   locationModeByImageId,
   mergedManageImages,
   imagesPayload,
-  imagesPayloadSignature,
   routesByImageId,
   selectedCrag,
   cragId,
@@ -222,7 +221,7 @@ export function useEditDraftLocationSync({
     }
 
     return { ok: true }
-  }, [atlasSync.atlas, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, lastLocationSyncRef, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setRouteType, setSelectedCrag])
+  }, [atlasSync.atlas, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, lastLocationSyncRef, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setLocationSyncInFlight, setRouteType, setSelectedCrag])
 
   const averagedRouteImageLocation = useMemo<[number, number] | null>(() => {
     const qualifyingCoordinates = mergedManageImages

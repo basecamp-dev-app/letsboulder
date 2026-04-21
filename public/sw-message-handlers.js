@@ -16,7 +16,7 @@ function handleMessageEvent(event) {
 
       if (message.type === 'CLEAR_AUTH_CACHES') {
         await caches.delete(MEDIA_CACHE)
-        const newMediaCache = await caches.open(MEDIA_CACHE)
+        await caches.open(MEDIA_CACHE)
         respond({ ok: true })
         return
       }
@@ -165,4 +165,8 @@ function handleMessageEvent(event) {
       respond({ ok: false, error: payload.error })
     }
   })())
+}
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.handleMessageEvent = handleMessageEvent
 }

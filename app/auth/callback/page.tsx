@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, Suspense } from 'react'
+import { useEffect, useState, useRef, Suspense, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -163,7 +163,7 @@ function AuthCallbackContent() {
     return checkSession
   }
 
-  const completeAuth = async () => {
+  const completeAuth = useCallback(async () => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -201,7 +201,7 @@ function AuthCallbackContent() {
     setLoadingStep(`Taking you back to ${getRedirectLabel(redirectTo)}`)
     setStatus('success')
     router.push(redirectTo)
-  }
+  }, [router, searchParams])
 
   useEffect(() => {
     const startTime = Date.now()
@@ -231,7 +231,7 @@ function AuthCallbackContent() {
       handleAuthCallback()
     }, 100)
     return () => clearTimeout(timer)
-  }, [router, searchParams])
+  }, [completeAuth, router, searchParams])
 
   const handleRetry = () => {
     attemptCountRef.current = 0
