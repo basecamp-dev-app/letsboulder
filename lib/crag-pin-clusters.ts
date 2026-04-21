@@ -84,6 +84,7 @@ export function buildCragPinClusters<TImage extends ClusterableCragImage>(
 ): {
   clusters: Array<CragPinCluster<TImage>>
   clusterIdByImageId: Map<string, string>
+  clusterById: Map<string, CragPinCluster<TImage>>
 } {
   const sortableImages = images
     .filter(
@@ -130,9 +131,11 @@ export function buildCragPinClusters<TImage extends ClusterableCragImage>(
       images: [...cluster.images].sort(compareImages),
     }
   })
+  const clusterById = new Map(clusters.map((cluster) => [cluster.id, cluster]))
 
   return {
     clusters,
     clusterIdByImageId,
+    clusterById,
   }
 }
