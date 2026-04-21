@@ -104,7 +104,7 @@ export default function HomeContributorHighlights({
               <p className="text-sm text-stone-600 dark:text-stone-300">Share a topo photo and help the next climber find the line.</p>
               <Link
                 href="/submit"
-                className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-stone-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-800 dark:bg-stone-100 dark:text-slate-950 dark:hover:bg-white"
+                className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-pink-500 dark:bg-pink-500 dark:hover:bg-pink-400"
               >
                 Upload a topo
               </Link>

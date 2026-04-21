@@ -58,8 +58,8 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
                   Updated {formatRelativeTime(update.latestContributionAt)}
                 </div>
               </div>
-              <CardHeader className="gap-2 px-4 pt-3.5 pb-0 sm:px-5 sm:pt-4">
-                <CardTitle className="text-lg leading-tight text-stone-950 dark:text-stone-50">{update.cragName}</CardTitle>
+              <CardHeader className="gap-1 px-4 pt-2.5 pb-0 sm:px-5 sm:pt-3">
+                <CardTitle className="text-xl leading-tight text-stone-950 dark:text-stone-50">{update.cragName}</CardTitle>
               </CardHeader>
               <CardContent className="flex items-center justify-between gap-3 px-4 pt-0 pb-3.5 sm:px-5 sm:pb-4">
                 <p className="text-sm text-stone-600 dark:text-stone-300">
