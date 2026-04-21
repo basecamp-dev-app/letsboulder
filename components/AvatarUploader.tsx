@@ -220,12 +220,12 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/60"
             onClick={closeModal}
           />
-          <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-6">
+          <div className="relative z-[4001] bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-6">
             <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">
               Profile Picture
             </h2>

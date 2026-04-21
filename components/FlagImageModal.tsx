@@ -86,7 +86,7 @@ export default function FlagImageModal({ imageId, onClose, onSubmitted }: FlagIm
 
   if (success) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/50" onClick={onClose}>
         <div
           className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md mx-4 p-6"
           onClick={e => e.stopPropagation()}
@@ -107,7 +107,7 @@ export default function FlagImageModal({ imageId, onClose, onSubmitted }: FlagIm
 
   if (step === 'comment' && selectedType) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/50" onClick={onClose}>
         <div
           className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden"
           onClick={e => e.stopPropagation()}
@@ -179,7 +179,7 @@ export default function FlagImageModal({ imageId, onClose, onSubmitted }: FlagIm
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
         className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden"
         onClick={e => e.stopPropagation()}
