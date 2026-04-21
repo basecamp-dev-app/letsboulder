@@ -91,13 +91,8 @@ export async function loadInitialCragRouteData(
 
   if (initialRoutes.length > 0) {
     const previewSupabase = getAdminClientWithAudit('loadInitialCragRouteData preview seed')
-    const prioritizedClimbIds = initialRoutes
-      .slice(0, SSR_ROUTE_PREVIEW_SEED_LIMIT)
-      .map((route) => effectiveClimbIdByClimbId[route.id] || route.id)
-
     const targetMaps = await fetchCragRoutePreviewsBatched(previewSupabase, cragId, effectiveClimbIdByClimbId, {
       limit: SSR_ROUTE_PREVIEW_SEED_LIMIT,
-      prioritizedClimbIds,
     })
 
     const previewImageIds = Array.from(new Set(Object.values(targetMaps.nextRoutePreviewByClimbId).map((preview) => preview.imageId)))
