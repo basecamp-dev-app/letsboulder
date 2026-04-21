@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardTitle } from '@/components/ui/card'
 import type { HomeRecentCragUpdate } from '@/features/home/server/homepage-data'
 
 function formatRelativeTime(dateString: string) {
@@ -58,15 +58,15 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
                   Updated {formatRelativeTime(update.latestContributionAt)}
                 </div>
               </div>
-              <CardHeader className="gap-1 px-4 pt-2.5 pb-0 sm:px-5 sm:pt-3">
-                <CardTitle className="text-xl leading-tight text-stone-950 dark:text-stone-50">{update.cragName}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between gap-3 px-4 pt-0 pb-3.5 sm:px-5 sm:pb-4">
-                <p className="text-sm text-stone-600 dark:text-stone-300">
-                  {update.recentContributionCount} new {update.recentContributionCount === 1 ? 'topo' : 'topos'} in the latest activity window.
-                </p>
+              <div className="flex items-center justify-between gap-2 px-4 pt-2.5 pb-3 sm:px-5 sm:pt-3 sm:pb-3.5">
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-xl leading-tight text-stone-950 dark:text-stone-50">{update.cragName}</CardTitle>
+                  <p className="text-sm leading-snug text-stone-600 dark:text-stone-300">
+                    {update.recentContributionCount} new {update.recentContributionCount === 1 ? 'topo' : 'topos'} in the latest activity window.
+                  </p>
+                </div>
                 <span className="shrink-0 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-700 transition group-hover:border-stone-300 group-hover:bg-stone-100 dark:border-white/10 dark:bg-slate-900 dark:text-stone-200 dark:group-hover:bg-slate-800">Explore</span>
-              </CardContent>
+              </div>
             </Card>
           </Link>
         ))}
