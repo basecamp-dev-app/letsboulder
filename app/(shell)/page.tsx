@@ -77,13 +77,15 @@ export default async function Home() {
 
   return (
     <>
-      <main className="min-h-screen bg-[linear-gradient(180deg,_rgba(248,250,252,0)_0%,_rgba(248,250,252,0.92)_28%,_#f8fafc_52%,_#f8fafc_100%)] dark:bg-[linear-gradient(180deg,_#020617_0%,_#020617_40%,_#020617_100%)]">
-        <section className="w-full">
+      <main className="min-h-screen bg-[linear-gradient(180deg,_rgba(248,250,252,0)_0%,_rgba(248,250,252,0.82)_22%,_#f8fafc_42%,_#f8fafc_100%)] dark:bg-[linear-gradient(180deg,_#020617_0%,_#020617_34%,_#020617_100%)]">
+        <section className="relative w-full">
           <MapViewport
             initialPlacePins={initialPlacePins}
             mode="hero"
-            className="h-[72svh] min-h-[540px] w-full md:h-[64svh] md:min-h-[600px]"
+            className="h-[58svh] min-h-[420px] w-full md:h-[54svh] md:min-h-[480px]"
           />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-slate-950/20 via-slate-950/5 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-slate-50 via-slate-50/70 to-transparent dark:from-slate-950 dark:via-slate-950/70" />
         </section>
 
         <HomeRecentCragUpdates updates={recentCragUpdates} />
