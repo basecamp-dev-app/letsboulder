@@ -82,7 +82,7 @@ export default async function Home() {
           <MapViewport
             initialPlacePins={initialPlacePins}
             mode="hero"
-            className="h-[72svh] min-h-[540px] w-full md:h-[78svh] md:min-h-[680px]"
+            className="h-[72svh] min-h-[540px] w-full md:h-[64svh] md:min-h-[600px]"
           />
         </section>
 
