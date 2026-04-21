@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { formatGradeForDisplay } from '@/lib/grade-display'
@@ -70,13 +71,13 @@ export default function ShallowLocalCragPage({ cragId, title, href, subtitle }: 
 
           <div className="mt-8 flex flex-wrap gap-3">
             <Button asChild className="rounded-xl">
-              <a href={href}>Retry this crag</a>
+              <Link href={href}>Retry this crag</Link>
             </Button>
             <Button asChild variant="outline" className="rounded-xl">
-              <a href="/offline/library">Open available locally</a>
+              <Link href="/offline/library">Open available locally</Link>
             </Button>
             <Button asChild variant="outline" className="rounded-xl">
-              <a href="/">Open live map</a>
+              <Link href="/">Open live map</Link>
             </Button>
           </div>
         </div>
