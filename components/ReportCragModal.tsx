@@ -71,7 +71,7 @@ export default function ReportCragModal({ cragId, cragName, onClose, onSubmitted
 
   if (success) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/50" onClick={onClose}>
         <div 
           className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md mx-4 p-6"
           onClick={e => e.stopPropagation()}
@@ -91,7 +91,7 @@ export default function ReportCragModal({ cragId, cragName, onClose, onSubmitted
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/50" onClick={onClose}>
       <div 
         className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden"
         onClick={e => e.stopPropagation()}
