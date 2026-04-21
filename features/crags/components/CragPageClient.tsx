@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import CragMapView from '@/features/crags/components/CragMapView'
 import SelectedPinImageTray from '@/features/crags/components/SelectedPinImageTray'
 import CragRouteSection from '@/features/crags/components/CragRouteSection'
@@ -13,7 +13,6 @@ import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-des
 import { createClient } from '@/lib/supabase'
 import { saveCragAction } from '@/features/saved/actions/save-crag'
 import { unsaveCragAction } from '@/features/saved/actions/unsave-crag'
-import { isCragSavedByUser } from '@/features/saved/lib/queries'
 import { useRouter } from 'next/navigation'
 
 interface CragPageClientProps {
@@ -31,6 +30,7 @@ interface CragPageClientProps {
   initialPayloadLoadedAt?: number
   communityPlace?: CommunityPlaceInfo | null
   initialSelectedImageId?: string | null
+  initialIsSaved?: boolean
 }
 
 export default function CragPageClient({
@@ -48,6 +48,7 @@ export default function CragPageClient({
   initialPayloadLoadedAt,
   communityPlace,
   initialSelectedImageId = null,
+  initialIsSaved = false,
 }: CragPageClientProps) {
   const router = useRouter()
   const {
@@ -104,30 +105,8 @@ export default function CragPageClient({
     id,
     initialCrag,
   })
-  const [isSaved, setIsSaved] = useState(false)
+  const [isSaved, setIsSaved] = useState(initialIsSaved)
   const [saveLoading, setSaveLoading] = useState(false)
-
-  useEffect(() => {
-    const supabase = createClient()
-    let cancelled = false
-
-    const loadSavedState = async () => {
-      const { data } = await supabase.auth.getUser()
-      const userId = data.user?.id
-      if (!userId) {
-        if (!cancelled) setIsSaved(false)
-        return
-      }
-
-      const saved = await isCragSavedByUser(supabase, userId, id)
-      if (!cancelled) setIsSaved(saved)
-    }
-
-    void loadSavedState()
-    return () => {
-      cancelled = true
-    }
-  }, [id])
 
   const handleToggleSaveCrag = async () => {
     const supabase = createClient()
