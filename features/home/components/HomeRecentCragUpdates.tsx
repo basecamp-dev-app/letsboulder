@@ -32,10 +32,9 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
   }
 
   return (
-    <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <div className="mb-5 flex items-end justify-between gap-4">
+    <section className="mx-auto w-full max-w-7xl px-4 pt-4 pb-8 sm:px-6 lg:px-8 lg:pt-5 lg:pb-10">
+      <div className="mb-4 flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">New beta coming in</p>
           <h2 className="text-2xl font-semibold tracking-tight text-stone-950 dark:text-stone-50">Recent crag updates</h2>
         </div>
       </div>
@@ -62,10 +61,10 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
                 <div className="min-w-0 flex-1">
                   <CardTitle className="text-xl leading-tight text-stone-950 dark:text-stone-50">{update.cragName}</CardTitle>
                   <p className="text-sm leading-snug text-stone-600 dark:text-stone-300">
-                    {update.recentContributionCount} new {update.recentContributionCount === 1 ? 'topo' : 'topos'} in the latest activity window.
+                    {update.recentContributionCount} new {update.recentContributionCount === 1 ? 'topo' : 'topos'}.
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-700 transition group-hover:border-stone-300 group-hover:bg-stone-100 dark:border-white/10 dark:bg-slate-900 dark:text-stone-200 dark:group-hover:bg-slate-800">Explore</span>
+                <span className="shrink-0 rounded-full border border-stone-200/80 bg-stone-50/80 px-2.5 py-0.5 text-[11px] font-medium text-stone-700 transition group-hover:border-stone-300 group-hover:bg-stone-100 dark:border-white/10 dark:bg-slate-900/80 dark:text-stone-200 dark:group-hover:bg-slate-800">Explore</span>
               </div>
             </Card>
           </Link>

@@ -58,7 +58,7 @@ function ContributorRow({
   return (
     <Link
       href={contributor.href}
-      className="flex items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/90 px-3 py-3 transition hover:border-stone-300 hover:bg-white dark:border-white/10 dark:bg-slate-950/55 dark:hover:border-white/20 dark:hover:bg-slate-950/72"
+      className="flex items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/90 px-3 py-2.5 transition hover:border-stone-300 hover:bg-white dark:border-white/10 dark:bg-slate-950/55 dark:hover:border-white/20 dark:hover:bg-slate-950/72"
     >
       <Avatar name={contributor.displayName} avatarUrl={contributor.avatarUrl} />
       <div className="min-w-0 flex-1">
@@ -85,7 +85,7 @@ export default function HomeContributorHighlights({
 
   return (
     <section className="mx-auto w-full max-w-7xl px-4 pb-14 sm:px-6 lg:px-8 lg:pb-18">
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
         <Card className="border border-stone-200/80 bg-white/92 py-0 dark:border-white/10 dark:bg-slate-950/72">
           <CardHeader className="px-4 pt-4 pb-0 sm:px-5">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">Community</p>
@@ -121,7 +121,7 @@ export default function HomeContributorHighlights({
             {recentClimbLogs.map((log) => (
               <div
                 key={log.logId}
-                className="flex items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/90 px-3 py-3 transition hover:border-stone-300 hover:bg-white dark:border-white/10 dark:bg-slate-950/55 dark:hover:border-white/20 dark:hover:bg-slate-950/72"
+                className="flex items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/90 px-3 py-2.5 transition hover:border-stone-300 hover:bg-white dark:border-white/10 dark:bg-slate-950/55 dark:hover:border-white/20 dark:hover:bg-slate-950/72"
               >
                 <Link href={log.profileHref} aria-label={`View ${log.displayName}'s logbook`} className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 dark:focus-visible:ring-stone-500 dark:focus-visible:ring-offset-slate-950">
                   <Avatar name={log.displayName} avatarUrl={log.avatarUrl} />
