@@ -5,7 +5,8 @@ import CragPageShell from '@/features/crags/components/CragPageShell'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import CragStructuredData from '@/features/crags/components/CragStructuredData'
 import type { BreadcrumbItem, CragPageCrag } from '@/features/crags/lib/crag-page-types'
-import { getUnauthenticatedClient } from '@/lib/supabase-server'
+import { isCragSavedByUser } from '@/features/saved/lib/queries'
+import { getServerClient, getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const revalidate = 60
 
@@ -167,7 +168,10 @@ export default async function CragSlugPage({
 
   if (!crag) notFound()
 
-  const supabase = await getSupabase()
+  const supabase = await getServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
   const countryRow = Array.isArray(crag.countries) ? crag.countries[0] : crag.countries
   const regionRow = Array.isArray(countryRow?.regions) ? countryRow.regions[0] : countryRow?.regions
   const unRegionRow = Array.isArray(regionRow?.un_regions) ? regionRow.un_regions[0] : regionRow?.un_regions
@@ -197,6 +201,7 @@ export default async function CragSlugPage({
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
   })
+  const initialIsSaved = user ? await isCragSavedByUser(supabase, user.id, crag.id) : false
 
   return (
     <>
@@ -215,6 +220,7 @@ export default async function CragSlugPage({
         initialImagesComplete={initialRouteData.initialImagesComplete}
         initialPayloadLoadedAt={initialRouteData.loadedAt}
         initialSelectedImageId={image || null}
+        initialIsSaved={initialIsSaved}
       />
     </>
   )

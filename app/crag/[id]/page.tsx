@@ -2,9 +2,10 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import CragPageShell from '@/features/crags/components/CragPageShell'
 import type { CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
+import { isCragSavedByUser } from '@/features/saved/lib/queries'
+import { getServerClient } from '@/lib/supabase-server'
 import { getCragById } from '../lib/get-crag-by-id'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
-import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const revalidate = 60
 
@@ -50,12 +51,16 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
     continent_name: unRegionRow?.continent_name,
   }
 
-  const supabase = getUnauthenticatedClient()
+  const supabase = await getServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
   const initialRouteData = await loadInitialCragRouteData(supabase, id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
   })
   const communityPlace = await getCommunityPlaceById(id)
+  const initialIsSaved = user ? await isCragSavedByUser(supabase, user.id, id) : false
 
   return (
     <CragPageShell
@@ -69,6 +74,7 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
       initialRouteNavigationTargetByClimbId={initialRouteData.initialRouteNavigationTargetByClimbId}
       initialCragCenter={initialRouteData.initialCragCenter}
       communityPlace={communityPlace}
+      initialIsSaved={initialIsSaved}
     />
   )
 }
