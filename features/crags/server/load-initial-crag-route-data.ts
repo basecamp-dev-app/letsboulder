@@ -76,8 +76,38 @@ export async function loadInitialCragRouteData(
   let initialDefaultRouteTargetByImageId: InitialCragRouteData['initialDefaultRouteTargetByImageId'] = {}
   let initialRouteNavigationTargetByClimbId: InitialCragRouteData['initialRouteNavigationTargetByClimbId'] = {}
   let previewImagesHydrated = true
+  const initialImages = images.map((image) => ({
+    id: image.id,
+    url: image.url,
+    latitude: image.latitude,
+    longitude: image.longitude,
+    route_lines_count: 0,
+    is_verified: false,
+    verification_count: 0,
+    supplementary_faces_count: 0,
+  }))
+
+  for (const image of initialImages) {
+    imageById.set(image.id, image)
+  }
 
   if (initialRoutes.length > 0) {
+    if (initialImageIds.size > 0) {
+      const { data: initialRouteLineImageData } = await supabase
+        .from('route_lines')
+        .select('image_id')
+        .in('image_id', Array.from(initialImageIds))
+
+      for (const row of (initialRouteLineImageData || []) as RouteLineImageRow[]) {
+        if (!row.image_id) continue
+        routeLineCountByImageId.set(row.image_id, (routeLineCountByImageId.get(row.image_id) || 0) + 1)
+      }
+    }
+
+    for (const image of initialImages) {
+      image.route_lines_count = routeLineCountByImageId.get(image.id) || 0
+    }
+
     const previewSupabase = getAdminClientWithAudit('loadInitialCragRouteData preview seed')
     const targetMaps = await fetchCragRoutePreviewsBatched(previewSupabase, cragId, effectiveClimbIdByClimbId, {
       limit: SSR_ROUTE_PREVIEW_SEED_LIMIT,
@@ -85,33 +115,18 @@ export async function loadInitialCragRouteData(
 
     const previewImageIds = Array.from(new Set(Object.values(targetMaps.nextRoutePreviewByClimbId).map((preview) => preview.imageId)))
     const missingPreviewImageIds = previewImageIds.filter((imageId) => !imageById.has(imageId))
-    const relevantImageIds = Array.from(new Set([...initialImageIds, ...previewImageIds]))
+    const previewOnlyImageIds = previewImageIds.filter((imageId) => !initialImageIds.has(imageId))
 
-    if (relevantImageIds.length > 0) {
+    if (previewOnlyImageIds.length > 0) {
       const { data: routeLineImageData } = await previewSupabase
         .from('route_lines')
         .select('image_id')
-        .in('image_id', relevantImageIds)
+        .in('image_id', previewOnlyImageIds)
 
       for (const row of (routeLineImageData || []) as RouteLineImageRow[]) {
         if (!row.image_id) continue
         routeLineCountByImageId.set(row.image_id, (routeLineCountByImageId.get(row.image_id) || 0) + 1)
       }
-    }
-
-    const initialImages = images.map((image) => ({
-      id: image.id,
-      url: image.url,
-      latitude: image.latitude,
-      longitude: image.longitude,
-      route_lines_count: routeLineCountByImageId.get(image.id) || 0,
-      is_verified: false,
-      verification_count: 0,
-      supplementary_faces_count: 0,
-    }))
-
-    for (const image of initialImages) {
-      imageById.set(image.id, image)
     }
 
     // This flag only tracks whether the initial seed already contained all preview images.
@@ -184,17 +199,6 @@ export async function loadInitialCragRouteData(
       loadedAt: Date.now(),
     }
   }
-
-  const initialImages = images.map((image) => ({
-    id: image.id,
-    url: image.url,
-    latitude: image.latitude,
-    longitude: image.longitude,
-    route_lines_count: 0,
-    is_verified: false,
-    verification_count: 0,
-    supplementary_faces_count: 0,
-  }))
 
   const withCoords = images.filter(
     (image): image is ImageRow & { latitude: number; longitude: number } => typeof image.latitude === 'number' && typeof image.longitude === 'number'
