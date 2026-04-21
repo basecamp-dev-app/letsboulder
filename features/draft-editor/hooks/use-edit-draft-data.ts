@@ -277,7 +277,7 @@ export function useEditDraftData({
 
   useEffect(() => {
     void loadDraft()
-  }, [])
+  }, [loadDraft])
 
   useEffect(() => {
     if (!cragId) {
