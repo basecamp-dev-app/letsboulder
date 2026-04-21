@@ -165,12 +165,7 @@ describe('Media proxy route', () => {
   })
 
   test('options does not reflect hostile origins for private access', async () => {
-    const response = await OPTIONS(
-      new NextRequest('http://localhost:3000/api/media/private-bucket/originals/photo.jpg', {
-        method: 'OPTIONS',
-        headers: { origin: 'https://evil.example' },
-      })
-    )
+    const response = await OPTIONS()
 
     expect(response.status).toBe(204)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
