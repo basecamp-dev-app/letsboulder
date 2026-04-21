@@ -8,7 +8,7 @@ import { useGradeSystem } from '@/lib/grades/preferences'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { buildCragImageDestination } from '@/features/crags/lib/build-crag-image-destination'
 import { buildActiveRouteFilterChips, buildCragRouteSummaries, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, filterAndSortCragRoutes, getSearchModalResults, resolveCragRouteDestination, sortImagesByViewCenter } from '@/features/crags/lib/crag-page-domain'
-import type { ActiveRouteFilterChip, ResolvedRouteDestination } from '@/features/crags/lib/crag-page-domain'
+import type { ActiveRouteFilterChip, CragRouteStats, ResolvedRouteDestination } from '@/features/crags/lib/crag-page-domain'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview, SelectedPinImage } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 
@@ -160,7 +160,7 @@ export interface UseCragPageFiltersResult {
   routeTypeChips: string[]
   availableDirections: string[]
   filteredRoutes: CragRoute[]
-  routeStats: ReturnType<typeof buildCragRouteStats>
+  routeStats: CragRouteStats
   routeInsightsUnavailable: boolean
   routeLocationLabel: string
   searchModalResults: CragRoute[]
