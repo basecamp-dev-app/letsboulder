@@ -88,7 +88,6 @@ export default function HomeContributorHighlights({
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
         <Card className="border border-stone-200/80 bg-white/92 py-0 dark:border-white/10 dark:bg-slate-950/72">
           <CardHeader className="px-4 pt-4 pb-0 sm:px-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">Community</p>
             <CardTitle className="text-lg text-stone-950 dark:text-stone-50">Recent contributors</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
@@ -114,7 +113,6 @@ export default function HomeContributorHighlights({
 
         <Card className="border border-stone-200/80 bg-white/92 py-0 dark:border-white/10 dark:bg-slate-950/72">
           <CardHeader className="px-4 pt-4 pb-0 sm:px-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">Live logbook</p>
             <CardTitle className="text-lg text-stone-950 dark:text-stone-50">Recent climbs logged</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
