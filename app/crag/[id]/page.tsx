@@ -3,7 +3,7 @@ import CragPageShell from '@/features/crags/components/CragPageShell'
 import type { CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import { isCragSavedByUser } from '@/features/saved/lib/queries'
-import { getServerClient } from '@/lib/supabase-server'
+import { getServerClient, getUnauthenticatedClient } from '@/lib/supabase-server'
 import { getCragById } from '../lib/get-crag-by-id'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 
