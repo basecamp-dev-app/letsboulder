@@ -134,13 +134,13 @@ describe('sw-fetch-handlers', () => {
     expect(response).toBe(offlineLibraryResponse)
   })
 
-  test('handleRouteAssetFetch serves next static assets from shared build cache before network', async () => {
+  test('handleRouteAssetFetch serves shell assets from cache before network', async () => {
     const cachedResponse = new Response('cached build asset', { status: 200 })
     vi.mocked(matchRouteAssetRequest).mockResolvedValue(cachedResponse)
 
     await import('../../public/sw-fetch-handlers.js')
 
-    const response = await globalThis.handleRouteAssetFetch(new Request('https://letsboulder.com/_next/static/chunks/app.js'))
+    const response = await globalThis.handleRouteAssetFetch(new Request('https://letsboulder.com/theme-init.js'))
 
     expect(response).toBe(cachedResponse)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -156,5 +156,17 @@ describe('sw-fetch-handlers', () => {
 
     expect(buildAssetCachePut).toHaveBeenCalledTimes(1)
     expect(routeAssetCachePut).not.toHaveBeenCalled()
+  })
+
+  test('handleRouteAssetFetch writes fetched shell assets into the route asset cache', async () => {
+    vi.mocked(matchRouteAssetRequest).mockResolvedValue(undefined)
+    fetchMock.mockResolvedValue(new Response('network shell asset', { status: 200 }))
+
+    await import('../../public/sw-fetch-handlers.js')
+
+    await globalThis.handleRouteAssetFetch(new Request('https://letsboulder.com/theme-init.js'))
+
+    expect(routeAssetCachePut).toHaveBeenCalledTimes(1)
+    expect(buildAssetCachePut).not.toHaveBeenCalled()
   })
 })
