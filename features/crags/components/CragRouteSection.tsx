@@ -24,6 +24,7 @@ interface CragRouteSectionProps {
   routePreviewDisplayByClimbId: Record<string, RoutePreview>
   routeTargetsHydrating: boolean
   routeTargetsComplete: boolean
+  usingCachedFallback: boolean
   pinNumberByImageId: Map<string, number>
   gradeSystem: GradeSystem
   routeInsightsUnavailable: boolean
@@ -99,6 +100,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
   routePreviewDisplayByClimbId,
   routeTargetsHydrating,
   routeTargetsComplete,
+  usingCachedFallback,
   pinNumberByImageId,
   gradeSystem,
   routeInsightsUnavailable,
@@ -202,6 +204,11 @@ const CragRouteSection = React.memo(function CragRouteSection({
         />
 
         <div className="space-y-4">
+          {usingCachedFallback ? (
+            <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-100">
+              Showing locally cached crag content because the live route data could not be reached. Uncached map pins and route previews may be missing.
+            </div>
+          ) : null}
           {routeInsightsUnavailable ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
               Route intelligence is unavailable right now. Crag stats and sorting signals will appear again once the route metrics query is reachable.

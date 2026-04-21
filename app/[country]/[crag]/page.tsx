@@ -2,13 +2,10 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import CragPageShell from '@/features/crags/components/CragPageShell'
-import ShallowLocalCragPage from '@/features/offline/components/ShallowLocalCragPage'
-import RecentLocalRouteGate from '@/features/offline/components/RecentLocalRouteGate'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import CragStructuredData from '@/features/crags/components/CragStructuredData'
 import type { BreadcrumbItem, CragPageCrag } from '@/features/crags/lib/crag-page-types'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
-import NotFound from '@/app/not-found'
 
 export const revalidate = 60
 
@@ -186,14 +183,6 @@ export default async function CragSlugPage({
   }
 
   const canonicalPath = `/${country.toLowerCase()}/${cragSlug}`
-  const localView = (
-    <ShallowLocalCragPage
-      cragId={crag.id}
-      title={crag.name}
-      href={canonicalPath}
-      subtitle={'Recent shallow local crag view'}
-    />
-  )
 
   const breadcrumbs: BreadcrumbItem[] = [
     { label: 'Home', href: '/' },
@@ -208,7 +197,8 @@ export default async function CragSlugPage({
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
   })
-  const pageContent = initialRouteData ? (
+
+  return (
     <>
       <CragStructuredData crag={initialCrag} canonicalPath={canonicalPath} breadcrumbs={breadcrumbs} />
       <CragPageShell
@@ -227,13 +217,5 @@ export default async function CragSlugPage({
         initialSelectedImageId={image || null}
       />
     </>
-  ) : (
-    <NotFound />
-  )
-
-  return (
-    <RecentLocalRouteGate href={canonicalPath} localView={localView}>
-      {pageContent}
-    </RecentLocalRouteGate>
   )
 }
