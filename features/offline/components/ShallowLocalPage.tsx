@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
 interface ShallowLocalPageProps {
@@ -33,13 +34,13 @@ export default function ShallowLocalPage({ title, kind, href, subtitle, message 
 
           <div className="mt-8 flex flex-wrap gap-3">
             <Button asChild className="rounded-xl">
-              <a href={href}>Retry this route</a>
+              <Link href={href}>Retry this route</Link>
             </Button>
             <Button asChild variant="outline" className="rounded-xl">
-              <a href="/offline/library">Open available locally</a>
+              <Link href="/offline/library">Open available locally</Link>
             </Button>
             <Button asChild variant="outline" className="rounded-xl">
-              <a href="/">Open live map</a>
+              <Link href="/">Open live map</Link>
             </Button>
           </div>
         </div>
