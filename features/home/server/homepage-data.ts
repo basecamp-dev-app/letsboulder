@@ -34,6 +34,28 @@ interface HomeProfileRow {
   accepted_contribution_count: number | null
 }
 
+interface HomeRecentLogRow {
+  id: string
+  created_at: string
+  style: string
+  climbs: {
+    id: string
+    name: string
+    grade: string
+    slug: string | null
+    crag_id: string | null
+  } | null
+  profiles: {
+    id: string
+    username: string | null
+    display_name: string | null
+    first_name: string | null
+    last_name: string | null
+    avatar_url: string | null
+    is_public: boolean | null
+  } | null
+}
+
 export interface HomeRecentCragUpdate {
   cragId: string
   cragName: string
@@ -52,6 +74,21 @@ export interface HomeContributorHighlight {
   contributedAt?: string
   contributorScoreTotal?: number
   acceptedContributionCount?: number
+}
+
+export interface HomeRecentClimbLog {
+  logId: string
+  href: string
+  profileHref: string
+  userId: string
+  displayName: string
+  avatarUrl: string | null
+  username: string | null
+  loggedAt: string
+  style: string
+  climbName: string
+  grade: string
+  cragName: string
 }
 
 function getCragRecord(row: HomeRecentImageRow['crags']) {
@@ -218,4 +255,72 @@ export const fetchHomepageTopContributors = cache(async function fetchHomepageTo
     contributorScoreTotal: profile.contributor_score_total ?? 0,
     acceptedContributionCount: profile.accepted_contribution_count ?? 0,
   }))
+})
+
+export const fetchHomepageRecentClimbLogs = cache(async function fetchHomepageRecentClimbLogs(): Promise<HomeRecentClimbLog[]> {
+  const supabase = await getServerClient()
+
+  const { data, error } = await supabase
+    .from('user_climbs')
+    .select('id, created_at, style, climbs(id, name, grade, slug, crag_id), profiles!inner(id, username, display_name, first_name, last_name, avatar_url, is_public)')
+    .eq('profiles.is_public', true)
+    .order('created_at', { ascending: false })
+    .limit(6)
+
+  if (error || !data) {
+    return []
+  }
+
+  const rows = (data as unknown as HomeRecentLogRow[]).filter((row) => row.climbs && row.profiles)
+  const cragIds = [...new Set(rows.map((row) => row.climbs?.crag_id).filter((id): id is string => !!id))]
+  const cragMetaById = new Map<string, { country_code: string | null; slug: string | null; name: string }>()
+
+  if (cragIds.length > 0) {
+    const { data: cragRows } = await supabase
+      .from('crags')
+      .select('id, country_code, slug, name')
+      .in('id', cragIds)
+
+    for (const row of (cragRows || []) as Array<{ id: string; country_code: string | null; slug: string | null; name: string }>) {
+      cragMetaById.set(row.id, {
+        country_code: row.country_code,
+        slug: row.slug,
+        name: row.name,
+      })
+    }
+  }
+
+  return rows.flatMap((row) => {
+    if (!row.climbs || !row.profiles) {
+      return []
+    }
+
+    const cragMeta = row.climbs.crag_id ? cragMetaById.get(row.climbs.crag_id) : null
+    const href = cragMeta?.country_code && cragMeta.slug && row.climbs.slug
+      ? `/${cragMeta.country_code.toLowerCase()}/${cragMeta.slug}/${row.climbs.slug}`
+      : `/climb/${row.climbs.id}`
+
+    return [{
+      logId: row.id,
+      href,
+      profileHref: `/logbook/${row.profiles.id}`,
+      userId: row.profiles.id,
+      displayName: getDisplayName({
+        id: row.profiles.id,
+        username: row.profiles.username,
+        display_name: row.profiles.display_name,
+        first_name: row.profiles.first_name,
+        last_name: row.profiles.last_name,
+        avatar_url: row.profiles.avatar_url,
+        is_public: true,
+      }),
+      avatarUrl: row.profiles.avatar_url,
+      username: row.profiles.username,
+      loggedAt: row.created_at,
+      style: row.style,
+      climbName: row.climbs.name,
+      grade: row.climbs.grade,
+      cragName: cragMeta?.name || 'Unknown crag',
+    } satisfies HomeRecentClimbLog]
+  })
 })

@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { HomeContributorHighlight } from '@/features/home/server/homepage-data'
+import type { HomeContributorHighlight, HomeRecentClimbLog } from '@/features/home/server/homepage-data'
 
 function formatRelativeTime(dateString: string) {
   const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
@@ -39,6 +39,15 @@ function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null })
   )
 }
 
+function formatLogStyle(style: string) {
+  if (style === 'flash') return 'Flash'
+  if (style === 'top') return 'Top'
+  if (style === 'try') return 'Try'
+  if (style === 'onsight') return 'Onsight'
+
+  return style.charAt(0).toUpperCase() + style.slice(1)
+}
+
 function ContributorRow({
   contributor,
   trailing,
@@ -63,14 +72,14 @@ function ContributorRow({
 
 interface HomeContributorHighlightsProps {
   recentContributors: HomeContributorHighlight[]
-  topContributors: HomeContributorHighlight[]
+  recentClimbLogs: HomeRecentClimbLog[]
 }
 
 export default function HomeContributorHighlights({
   recentContributors,
-  topContributors,
+  recentClimbLogs,
 }: HomeContributorHighlightsProps) {
-  if (recentContributors.length === 0 && topContributors.length === 0) {
+  if (recentContributors.length === 0 && recentClimbLogs.length === 0) {
     return null
   }
 
@@ -102,22 +111,30 @@ export default function HomeContributorHighlights({
           </CardContent>
         </Card>
 
-        <Card className="border-white/60 bg-white/88 py-0 shadow-[0_18px_45px_-24px_rgba(15,23,42,0.45)] backdrop-blur dark:border-white/10 dark:bg-slate-950/72">
+          <Card className="border-white/60 bg-white/88 py-0 shadow-[0_18px_45px_-24px_rgba(15,23,42,0.45)] backdrop-blur dark:border-white/10 dark:bg-slate-950/72">
           <CardHeader className="px-4 pt-4 pb-0 sm:px-5">
-            <CardTitle className="text-lg text-stone-950 dark:text-stone-50">Top contributors</CardTitle>
+            <CardTitle className="text-lg text-stone-950 dark:text-stone-50">Recent climbs logged</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
-            {topContributors.map((contributor) => (
-              <ContributorRow
-                key={contributor.userId}
-                contributor={contributor}
-                trailing={(
-                  <>
-                    <p className="text-xs font-semibold text-stone-900 dark:text-stone-50">{contributor.contributorScoreTotal ?? 0} score</p>
-                    <p className="text-xs text-stone-500 dark:text-stone-300">{contributor.acceptedContributionCount ?? 0} accepted</p>
-                  </>
-                )}
-              />
+            {recentClimbLogs.map((log) => (
+              <div
+                key={log.logId}
+                className="flex items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/85 px-3 py-3 transition hover:border-stone-300 hover:bg-white dark:border-white/10 dark:bg-slate-950/50 dark:hover:border-white/20 dark:hover:bg-slate-950/70"
+              >
+                <Link href={log.profileHref} aria-label={`View ${log.displayName}'s logbook`} className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 dark:focus-visible:ring-stone-500 dark:focus-visible:ring-offset-slate-950">
+                  <Avatar name={log.displayName} avatarUrl={log.avatarUrl} />
+                </Link>
+                <Link href={log.href} className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-stone-950 dark:text-stone-50">{log.displayName} logged {log.climbName}</p>
+                    <p className="truncate text-xs text-stone-500 dark:text-stone-400">{log.grade} at {log.cragName}{log.username ? ` • @${log.username}` : ''}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs font-semibold text-stone-900 dark:text-stone-50">{formatLogStyle(log.style)}</p>
+                    <p className="text-xs text-stone-500 dark:text-stone-300">{formatRelativeTime(log.loggedAt)}</p>
+                  </div>
+                </Link>
+              </div>
             ))}
           </CardContent>
         </Card>
