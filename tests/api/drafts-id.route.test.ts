@@ -60,10 +60,6 @@ import { DELETE, GET, PATCH } from '@/app/api/submissions/drafts/[id]/route'
 
 type MiddlewareResult = Awaited<ReturnType<typeof withApiMiddleware>>
 
-const middlewareSupabaseStub = {} as MiddlewareResult extends { ok: true; supabase: infer TSupabase }
-  ? TSupabase
-  : never
-
 function makeThenableResult<T>(result: T) {
   return {
     then: (onFulfilled?: (value: T) => unknown, onRejected?: (reason: unknown) => unknown) =>

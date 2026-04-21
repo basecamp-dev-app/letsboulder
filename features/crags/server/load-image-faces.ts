@@ -137,7 +137,7 @@ async function fetchRoutesByImageIds(supabase: SupabaseClient, imageIds: string[
     .order('created_at', { ascending: true })
 
   if (error) {
-    console.warn('Faces fallback route query failed:', error)
+    reportError(error, { message: 'Faces fallback route query failed', level: 'warning' })
     return map
   }
 
@@ -302,7 +302,7 @@ async function resolveCanonicalFaceImageId(supabase: SupabaseClient, imageId: st
     .maybeSingle()
 
   if (error) {
-    console.warn('Faces canonical image lookup failed:', error)
+    reportError(error, { message: 'Faces canonical image lookup failed', level: 'warning' })
     return imageId
   }
 
@@ -371,10 +371,13 @@ export async function loadImageFaces(requestedImageId: string) {
       })
     }
 
-    console.warn('Faces complete summary RPC unavailable, using fallback path', {
-      imageId,
-      requestedImageId,
-      error: completeSummaryError,
+    reportError(completeSummaryError, {
+      message: 'Faces complete summary RPC unavailable, using fallback path',
+      level: 'warning',
+      extra: {
+        imageId,
+        requestedImageId,
+      },
     })
 
     const { data: primaryImage, error: primaryError } = await fetchPrimaryImage(supabase, imageId)

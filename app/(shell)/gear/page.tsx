@@ -36,9 +36,7 @@ export default function GearPage() {
           setProducts(gearData.products)
         }
       })
-      .catch((err) => {
-        console.warn('Failed to fetch gear data:', err)
-      })
+      .catch(() => {})
       .finally(() => {
         setLoading(false)
       })

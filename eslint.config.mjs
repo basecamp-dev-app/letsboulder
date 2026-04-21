@@ -25,6 +25,31 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    files: [
+      'tests/**/*.{ts,tsx,js,jsx,mjs,cjs}',
+      'global-setup.ts',
+      'playwright.config.ts',
+      'scripts/**/*.{ts,tsx,js,jsx,mjs,cjs}',
+      'workers/**/*.{ts,tsx,js,jsx,mjs,cjs}',
+      'apps/media-worker/**/*.{ts,tsx,js,jsx,mjs,cjs}',
+      'components/DevBrowserLogger.tsx',
+      'components/WebVitalsReporter.tsx',
+      'lib/media/upload-debug.ts',
+      'lib/performance/server-timing.ts',
+      'lib/supabase-admin.ts',
+    ],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
+    files: ['public/sw.js', 'public/sw-cache-utils.js'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-console': 'off',
+    },
+  },
+  {
     files: ['app/**/*.{ts,tsx,js,jsx}'],
     ignores: ['app/api/**'],
     plugins: {
@@ -99,6 +124,7 @@ const eslintConfig = defineConfig([
     '.next/**',
     'out/**',
     'build/**',
+    'coverage/**',
     'next-env.d.ts',
   ]),
 ])

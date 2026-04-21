@@ -20,7 +20,6 @@ interface UseDraftEditorActionsParams {
   manageImages: ManageImageTab[]
   locationModeByImageId: Record<string, string | null | undefined>
   conflict: { pendingChanges: unknown } | null
-  saveDraft: (options?: { overrideCragId?: string }) => Promise<boolean>
   persistMetadataImmediately: (mutator: () => void) => void
   markMetadataDirty: () => void
   focusDrawingArea: (behavior?: ScrollBehavior) => void
@@ -62,7 +61,6 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
     manageImages,
     locationModeByImageId,
     conflict,
-    saveDraft,
     persistMetadataImmediately,
     markMetadataDirty,
     focusDrawingArea,

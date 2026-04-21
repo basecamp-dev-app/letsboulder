@@ -4,7 +4,7 @@ import { LogbookSubmissionsSection } from '@/features/logbook/components/Logbook
 import type { Submission } from '@/types/submissions'
 
 vi.mock('next/link', () => ({
-  default: ({ children, href, prefetch: _prefetch, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; prefetch?: boolean }) => (
+  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; prefetch?: boolean }) => (
     <a href={href} {...props}>{children}</a>
   ),
 }))

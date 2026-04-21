@@ -34,7 +34,6 @@ interface UseEditDraftActionsParams {
   locationModeByImageId: Record<string, 'shared' | 'custom'>
   customGpsByImageId: Record<string, { latitude: number | null; longitude: number | null }>
   markerPosition: [number, number] | null
-  publishRequirementsRef: RefObject<HTMLDivElement | null>
   cragSectionRef: RefObject<HTMLDivElement | null>
   locationSectionRef: RefObject<HTMLDivElement | null>
   hasPendingUploads: (draftId: string) => boolean
@@ -73,7 +72,6 @@ export function useEditDraftActions({
   locationModeByImageId,
   customGpsByImageId,
   markerPosition,
-  publishRequirementsRef,
   cragSectionRef,
   locationSectionRef,
   hasPendingUploads,
