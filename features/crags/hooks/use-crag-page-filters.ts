@@ -33,6 +33,7 @@ interface CragImageClusterModel {
   imageById: Map<string, ClusteredImageData>
   clusteredPins: {
     clusterIdByImageId: Map<string, string>
+    clusterById: Map<string, { id: string; images: Array<{ id: string }> }>
     clusters: Array<{ id: string; images: Array<{ id: string }> }>
   }
   mapPins: LightweightCragMapPin[]
@@ -60,6 +61,7 @@ function buildCragImageClusterModel(orderedImages: ImageData[]): CragImageCluste
   const clusters: Array<{ id: string; images: Array<{ id: string }> }> = []
   const mapPins: LightweightCragMapPin[] = []
   const clusterIdByImageId = new Map<string, string>()
+  const clusterById = new Map<string, { id: string; images: Array<{ id: string }> }>()
   const pinNumberByImageId = new Map<string, number>()
   const clusterImageIdsByClusterId = new Map<string, string[]>()
   let pinNumber = 1
@@ -73,7 +75,9 @@ function buildCragImageClusterModel(orderedImages: ImageData[]): CragImageCluste
       return { id: image.id }
     })
 
-    clusters.push({ id: clusterId, images: clusterImages })
+    const cluster = { id: clusterId, images: clusterImages }
+    clusters.push(cluster)
+    clusterById.set(clusterId, cluster)
     clusterImageIdsByClusterId.set(clusterId, clusterImageIds)
 
     const primaryImage = groupedImages[0]
@@ -93,6 +97,7 @@ function buildCragImageClusterModel(orderedImages: ImageData[]): CragImageCluste
     imageById,
     clusteredPins: {
       clusterIdByImageId,
+      clusterById,
       clusters,
     },
     mapPins,
@@ -147,6 +152,7 @@ export interface UseCragPageFiltersResult {
   imageById: Map<string, ClusteredImageData>
   clusteredPins: {
     clusterIdByImageId: Map<string, string>
+    clusterById: Map<string, { id: string; images: Array<{ id: string }> }>
     clusters: Array<{ id: string; images: Array<{ id: string }> }>
   }
   mapPins: LightweightCragMapPin[]

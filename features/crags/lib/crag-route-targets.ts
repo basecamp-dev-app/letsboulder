@@ -79,6 +79,7 @@ export function getSelectedImageIds(
   selectedImageId: string | null,
   clusteredPins: {
     clusterIdByImageId: Map<string, string>
+    clusterById: Map<string, { id: string; images: Array<{ id: string }> }>
     clusters: Array<{ id: string; images: Array<{ id: string }> }>
   }
 ) {
@@ -87,7 +88,7 @@ export function getSelectedImageIds(
   const selectedClusterId = clusteredPins.clusterIdByImageId.get(selectedImageId)
   if (!selectedClusterId) return new Set([selectedImageId])
 
-  const selectedCluster = clusteredPins.clusters.find((cluster) => cluster.id === selectedClusterId)
+  const selectedCluster = clusteredPins.clusterById.get(selectedClusterId)
   if (!selectedCluster) return new Set([selectedImageId])
 
   return new Set(selectedCluster.images.map((image) => image.id))
@@ -225,16 +226,14 @@ export function buildRouteTargetMaps(
   selectableImageIdByImageId: Record<string, string> = {}
 ) {
   const nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
-  const nextRouteImageIdsByClimbId: Record<string, string[]> = {}
+  const routeImageIdsByClimbId = new Map<string, Set<string>>()
 
   for (const row of routeTargetsData) {
     const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
     const selectableImageId = selectableImageIdByImageId[row.image_id] || row.image_id
-    const climbImageIds = nextRouteImageIdsByClimbId[effectiveClimbId] || []
-    if (!climbImageIds.includes(selectableImageId)) {
-      climbImageIds.push(selectableImageId)
-      nextRouteImageIdsByClimbId[effectiveClimbId] = climbImageIds
-    }
+    const climbImageIds = routeImageIdsByClimbId.get(effectiveClimbId) || new Set<string>()
+    climbImageIds.add(selectableImageId)
+    routeImageIdsByClimbId.set(effectiveClimbId, climbImageIds)
     if (nextDefaultRouteTargetByImageId[selectableImageId]) continue
     const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
     nextDefaultRouteTargetByImageId[selectableImageId] = {
@@ -244,6 +243,10 @@ export function buildRouteTargetMaps(
       imageId: selectableImageId,
     }
   }
+
+  const nextRouteImageIdsByClimbId = Object.fromEntries(
+    Array.from(routeImageIdsByClimbId.entries(), ([climbId, imageIds]) => [climbId, Array.from(imageIds)])
+  )
 
   const mappedTargets = mapRouteTargetsByEffectiveClimbId(
     routeTargetsData,
