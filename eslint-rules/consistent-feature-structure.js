@@ -12,7 +12,7 @@ import path from 'node:path'
 
 const REQUIRED_DIRS = ['components', 'hooks', 'lib', 'server', 'types']
 
-export default {
+const consistentFeatureStructureRule = {
   meta: {
     type: 'problem',
     docs: {
@@ -67,3 +67,5 @@ export default {
     }
   },
 }
+
+export default consistentFeatureStructureRule

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
-import { RouteLineWithImageSchema, type RouteLineWithImage } from '@/lib/supabase-result-schemas'
+import { RouteLineWithImageSchema } from '@/lib/supabase-result-schemas'
 
 export const revalidate = 60
 
