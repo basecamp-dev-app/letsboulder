@@ -1,6 +1,8 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import ImageFirstClientLoader from '@/features/image-first/components/ImageFirstClientLoader'
+import ShallowLocalClimbPage from '@/features/offline/components/ShallowLocalClimbPage'
 import { buildImageFirstPayload } from '@/features/image-first/server/load-image-first-page'
+import { readMostRecentLocalEntry } from '@/lib/offline/recent-local'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +37,19 @@ export default async function ImagePage({
   }
 
   if (!result.payload) {
+    const fallbackHref = `/${country}/${crag}/i/${imageId}`
+    const recentLocalEntry = readMostRecentLocalEntry()
+    if (recentLocalEntry?.href === fallbackHref) {
+      return (
+        <ShallowLocalClimbPage
+          imageId={imageId}
+          climbId={climb || null}
+          href={fallbackHref}
+          subtitle={recentLocalEntry.subtitle}
+        />
+      )
+    }
+
     notFound()
   }
 

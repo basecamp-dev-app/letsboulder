@@ -55,7 +55,7 @@ describe('launch-state', () => {
     expect(resolveLaunchTarget({
       pathname: '/gb/font/i/image-1',
       search: '?route=test',
-      isOnline: true,
+      connectivityMode: 'healthy',
       now: 1001,
     })).toBe('/gb/font/i/image-1?route=test')
   })
@@ -65,7 +65,7 @@ describe('launch-state', () => {
     expect(resolveLaunchTarget({
       pathname: '/launch',
       search: '',
-      isOnline: true,
+      connectivityMode: 'healthy',
       now: 1000 + LAST_ROUTE_TTL_MS - 1,
     })).toBe('/logbook')
   })
@@ -74,7 +74,7 @@ describe('launch-state', () => {
     expect(resolveLaunchTarget({
       pathname: '/launch',
       search: '',
-      isOnline: false,
+      connectivityMode: 'offline',
       now: 1000,
     })).toBe('/offline/library?reason=offline')
   })
@@ -84,9 +84,27 @@ describe('launch-state', () => {
     expect(resolveLaunchTarget({
       pathname: '/launch',
       search: '',
-      isOnline: true,
+      connectivityMode: 'healthy',
       now: 1000 + LAST_ROUTE_TTL_MS + 1,
     })).toBe('/')
+  })
+
+  test('generic degraded launch prefers recent local route when present', () => {
+    window.localStorage.setItem('lb:recent-local-v1', JSON.stringify([
+      {
+        href: '/gb/font',
+        savedAt: 1000,
+        title: 'Font',
+        kind: 'crag',
+      },
+    ]))
+
+    expect(resolveLaunchTarget({
+      pathname: '/launch',
+      search: '',
+      connectivityMode: 'degraded',
+      now: 1001,
+    })).toBe('/gb/font')
   })
 
   test('generic launch path helper includes legacy offline path', () => {

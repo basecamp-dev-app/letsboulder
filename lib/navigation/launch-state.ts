@@ -1,5 +1,8 @@
 const LAST_ROUTE_STORAGE_KEY = 'lb:last-route'
 
+import { type ConnectivityMode } from '@/lib/offline/connectivity'
+import { readMostRecentLocalEntry } from '@/lib/offline/recent-local'
+
 export const LAST_ROUTE_TTL_MS = 72 * 60 * 60 * 1000
 
 interface StoredLastRoute {
@@ -75,7 +78,7 @@ export function writeLastRoute(href: string, savedAt = Date.now()) {
 export function resolveLaunchTarget(args: {
   pathname: string
   search: string
-  isOnline: boolean
+  connectivityMode: ConnectivityMode
   now?: number
 }) {
   const href = buildRelativeHref(args.pathname, args.search)
@@ -88,5 +91,14 @@ export function resolveLaunchTarget(args: {
     return stored.href
   }
 
-  return args.isOnline ? '/' : '/offline/library?reason=offline'
+  const recentLocal = readMostRecentLocalEntry()
+  if (recentLocal) {
+    return recentLocal.href
+  }
+
+  return args.connectivityMode === 'offline'
+    ? '/offline/library?reason=offline'
+    : args.connectivityMode === 'degraded'
+      ? '/offline/library?reason=weak-signal'
+      : '/'
 }

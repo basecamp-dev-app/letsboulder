@@ -28,11 +28,11 @@ export default function ClimbOfflineDialog({ open, isOfflineSaved, offlineAction
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border-gray-200 bg-white text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white">
         <DialogHeader>
-          <DialogTitle>{isOfflineSaved ? 'Offline pack saved' : 'Save climb offline'}</DialogTitle>
+          <DialogTitle>{isOfflineSaved ? 'Climb pinned for field use' : 'Pin climb for field use'}</DialogTitle>
           <DialogDescription className="text-gray-500 dark:text-gray-400">
             {isOfflineSaved
-              ? 'This climb pack stores topo photos and core climb data on this device.'
-              : 'This saves topo photos and core climb data for offline viewing.'}
+              ? 'This pinned climb stores topo photos and core climb data on this device.'
+              : 'This pins topo photos and core climb data for field use on this device.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -58,7 +58,7 @@ export default function ClimbOfflineDialog({ open, isOfflineSaved, offlineAction
 
           {offlineSaveWouldExceedBudget && !isOfflineSaved ? (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-              This pack exceeds your offline storage budget. Remove another saved climb first.
+              This pinned climb exceeds your pinned storage budget. Remove another pinned item first.
             </p>
           ) : null}
         </div>
@@ -70,7 +70,7 @@ export default function ClimbOfflineDialog({ open, isOfflineSaved, offlineAction
                 Close
               </Button>
               <Button variant="ghost" onClick={onRemove} disabled={offlineActionLoading} className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
-                {offlineActionLoading ? 'Removing...' : 'Remove offline pack'}
+                {offlineActionLoading ? 'Removing...' : 'Remove pinned climb'}
               </Button>
             </>
           ) : (
@@ -79,7 +79,7 @@ export default function ClimbOfflineDialog({ open, isOfflineSaved, offlineAction
                 Cancel
               </Button>
               <Button onClick={onConfirmSave} disabled={offlineActionLoading || !offlinePack || offlineSaveWouldExceedBudget}>
-                {offlineActionLoading ? 'Saving...' : 'Save offline'}
+                {offlineActionLoading ? 'Saving...' : 'Pin climb'}
               </Button>
             </>
           )}
