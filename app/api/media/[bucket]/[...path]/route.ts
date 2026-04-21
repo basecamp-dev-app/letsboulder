@@ -7,6 +7,14 @@ import { createR2Client } from '@/lib/media/r2'
 import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
 
+function reportMediaWarning(message: string, extra: Record<string, unknown>) {
+  reportError(new Error(message), {
+    message,
+    level: 'warning',
+    extra,
+  })
+}
+
 function buildCdnUrl(objectPath: string): string | null {
   const cdnBaseUrl = serverEnv.NEXT_PUBLIC_MEDIA_CDN_URL
   if (!cdnBaseUrl || !objectPath) return null
@@ -34,7 +42,7 @@ function buildResponseHeaders(
   }
 }
 
-export async function OPTIONS(_request: NextRequest) {
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: buildResponseHeaders('private', {
@@ -95,7 +103,7 @@ async function transformImage(
   contentType: string
 ): Promise<{ bytes: Buffer; contentType: string } | null> {
   if (bytes.byteLength > MAX_TRANSFORM_SIZE) {
-    console.warn(`[media] Skipping transform: object too large (${bytes.byteLength} bytes)`)
+    reportMediaWarning('Media transform skipped: object too large', { byteLength: bytes.byteLength })
     return null
   }
 
@@ -317,7 +325,11 @@ async function serveFromSupabaseStorage(
 
   const contentLength = fetched.headers.get('content-length')
   if (contentLength && Number(contentLength) > MAX_TRANSFORM_SIZE) {
-    console.warn(`[media] Skipping transform: Supabase object too large (${contentLength} bytes)`)
+    reportMediaWarning('Media transform skipped: Supabase object too large', {
+      contentLength: Number(contentLength),
+      bucket,
+      objectPath,
+    })
     return new NextResponse(fetched.body, {
       headers: buildResponseHeaders(access, {
         'Content-Type': contentType,
@@ -382,7 +394,11 @@ async function serveFromR2(
   }
 
   if (response.ContentLength && response.ContentLength > MAX_TRANSFORM_SIZE) {
-    console.warn(`[media] Skipping transform: R2 object too large (${response.ContentLength} bytes)`)
+    reportMediaWarning('Media transform skipped: R2 object too large', {
+      contentLength: response.ContentLength,
+      bucket,
+      objectPath,
+    })
     return new NextResponse(response.Body as ReadableStream, {
       headers: buildResponseHeaders(access, {
         'Content-Type': contentType,

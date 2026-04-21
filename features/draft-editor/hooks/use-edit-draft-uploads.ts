@@ -187,7 +187,7 @@ export function useEditDraftUploads({
       }))
 
     return [...manageImages, ...optimisticTabs, ...pendingTabs].sort((a, b) => a.index - b.index)
-  }, [draftId, manageImages, pendingDraftUploads])
+  }, [manageImages, pendingDraftUploads])
 
   const hasInFlightDraftUploads = useMemo(() => {
     return pendingDraftUploads.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createErrorResponse } from '@/lib/errors'
+import { createErrorResponse, reportError } from '@/lib/errors'
 import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
@@ -111,11 +111,14 @@ export async function loadCragImages(supabase: RequestSupabaseClient, cragId: st
           signedByKey.set(getSignedUrlBatchKey(bucket, path), signedUrl)
         }
       } catch (signedError) {
-        console.warn('Crag images batch signed URL generation failed:', {
-          cragId,
-          bucket,
-          pathCount: paths.length,
-          error: signedError,
+        reportError(signedError, {
+          message: 'Crag images batch signed URL generation failed',
+          level: 'warning',
+          extra: {
+            cragId,
+            bucket,
+            pathCount: paths.length,
+          },
         })
       }
     }
