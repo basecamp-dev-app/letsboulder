@@ -216,7 +216,7 @@ async function collectAssetRequestsFromPage(pageUrl, options = {}) {
 
 async function collectShellAssetRequests() {
   const requests = new Map()
-  const shellPages = [HOME_URL, OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL]
+  const shellPages = [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL]
 
   for (const pageUrl of shellPages) {
     try {

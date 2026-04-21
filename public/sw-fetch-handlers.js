@@ -1,5 +1,18 @@
 async function handleShellFetch(request) {
   const url = new URL(request.url)
+  const isHomeNavigation = request.mode === 'navigate' && url.pathname === HOME_URL
+
+  if (isHomeNavigation) {
+    try {
+      return await fetch(request)
+    } catch {
+      const offlineLibraryFallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LIBRARY_URL))
+      if (offlineLibraryFallback) return offlineLibraryFallback
+
+      return Response.error()
+    }
+  }
+
   const cached = await matchShellRequest(request)
 
   if (cached) {
@@ -36,9 +49,6 @@ async function handleShellFetch(request) {
     if (request.mode === 'navigate') {
       const offlineLibraryFallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LIBRARY_URL))
       if (offlineLibraryFallback) return offlineLibraryFallback
-
-      const homeFallback = await matchShellRequest(toSameOriginRequest(HOME_URL))
-      if (homeFallback) return homeFallback
     }
 
     return Response.error()

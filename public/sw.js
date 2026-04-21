@@ -25,7 +25,6 @@ self.addEventListener('install', (event) => {
     const cache = await caches.open(PACK_CACHE)
     await cache.add(toSameOriginRequest(OFFLINE_LAUNCH_URL))
     await cache.add(toSameOriginRequest(OFFLINE_LIBRARY_URL))
-    await cache.add(toSameOriginRequest(HOME_URL))
     await self.skipWaiting()
   })())
 })
