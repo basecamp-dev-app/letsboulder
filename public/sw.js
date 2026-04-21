@@ -69,7 +69,7 @@ self.addEventListener('fetch', (event) => {
   const isManifestRequest = url.pathname === MANIFEST_URL
   const isStaticBuildAsset = url.pathname.startsWith('/_next/static/')
   const isShellAsset = url.pathname === LOGO_URL || url.pathname === LOGO_LIGHT_URL || url.pathname === LOGO_DARK_URL || url.pathname === THEME_INIT_URL
-  const isRouteAsset = isStaticBuildAsset || isShellAsset
+  const isRouteAsset = isShellAsset
 
   if (isMediaRequest) {
     event.respondWith((async () => {
@@ -117,6 +117,8 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(handleRouteAssetFetch(request))
     return
   }
+
+  if (isStaticBuildAsset) return
 
   if (isOfflineLaunch || isOfflineLibrary || isPackRequest) {
     event.respondWith((async () => {
