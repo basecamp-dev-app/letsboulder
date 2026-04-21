@@ -5,7 +5,6 @@ test.describe('Map', () => {
     await page.goto('/')
 
     await expect(page.locator('.leaflet-container')).toBeVisible({ timeout: 20000 })
-    await expect(page.getByRole('button', { name: 'Save view' })).toBeVisible({ timeout: 20000 })
     await expect(page.locator('.leaflet-tile').first()).toBeVisible({ timeout: 20000 })
   })
 

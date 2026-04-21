@@ -4,9 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef, type RefObject, star
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Bookmark, Crosshair, Loader2 } from 'lucide-react'
-import type { User } from '@supabase/supabase-js'
-import { saveSettingsAction } from '@/features/settings/actions/save-settings'
+import { Loader2 } from 'lucide-react'
 import { useMapEvents } from 'react-leaflet'
 import { runWhenIdle } from '@/lib/run-when-idle'
 import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult, type PinFeature, type PlacePin } from '@/lib/map/place-pins'
@@ -170,19 +168,15 @@ export default function SatelliteClimbingMap({
   const mapRef = useRef<L.Map | null>(null)
   const [isClient, setIsClient] = useState(false)
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
-  const [hasUserInteracted, setHasUserInteracted] = useState(false)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
   const [mapLoaded, setMapLoaded] = useState(false)
-  const [user, setUser] = useState<User | null>(null)
   const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
   const [, setIsAtDefaultLocation] = useState(true)
   const [placePins, setPlacePins] = useState<PlacePin[]>(initialPlacePins)
   const [pinLoadState, setPinLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>(initialPlacePins.length > 0 ? 'ready' : 'idle')
   const [mapZoom, setMapZoom] = useState(WORLD_DEFAULT_ZOOM)
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-  const [saveLocationLoading, setSaveLocationLoading] = useState(false)
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [hasDefaultLocation, setHasDefaultLocation] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
@@ -191,10 +185,6 @@ export default function SatelliteClimbingMap({
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     setMapZoom(state.zoom)
     setMapBounds(state.bounds)
-  }, [])
-
-  const markMapInteracted = useCallback(() => {
-    setHasUserInteracted(true)
   }, [])
 
   const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
@@ -275,13 +265,6 @@ export default function SatelliteClimbingMap({
     })
   }, [])
 
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 2000)
-      return () => clearTimeout(timer)
-    }
-  }, [toast])
-
   const loadPlacePins = useCallback(async () => {
     if (!isClient || initialPlacePins.length > 0) {
       if (initialPlacePins.length > 0) {
@@ -318,7 +301,7 @@ export default function SatelliteClimbingMap({
   }, [isClient, loadPlacePins, mapLoaded])
 
   useEffect(() => {
-    if (!isClient || !mapLoaded || !hasUserInteracted) return
+    if (!isClient || !mapLoaded) return
 
     if (!navigator.geolocation) return
 
@@ -335,10 +318,10 @@ export default function SatelliteClimbingMap({
         { enableHighAccuracy: true, timeout: 15000 }
       )
     }, 400)
-  }, [hasUserInteracted, isClient, mapLoaded])
+  }, [isClient, mapLoaded])
 
   useEffect(() => {
-    if (!isClient || !mapLoaded || !hasUserInteracted) return
+    if (!isClient || !mapLoaded) return
 
     let ignore = false
 
@@ -346,7 +329,6 @@ export default function SatelliteClimbingMap({
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (ignore) return
-      setUser(user)
 
       if (user) {
         const { data: profile } = await supabase
@@ -390,64 +372,7 @@ export default function SatelliteClimbingMap({
       cancelIdle()
       window.removeEventListener('focus', handleFocus)
     }
-    }, [hasUserInteracted, isClient, mapLoaded])
-
-  const handleLocateMe = useCallback(() => {
-    setHasUserInteracted(true)
-
-    if (!navigator.geolocation) {
-      setLocationStatus('error')
-      return
-    }
-
-    setLocationStatus('requesting')
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords
-        const nextLocation: [number, number] = [latitude, longitude]
-        setUserLocation(nextLocation)
-        setLocationStatus('tracking')
-        if (mapRef.current) {
-          mapRef.current.setView(nextLocation, 10, {
-            animate: true,
-            duration: 0.5,
-          })
-        }
-      },
-      () => setLocationStatus('error'),
-      { enableHighAccuracy: true, timeout: 15000 }
-    )
-  }, [])
-
-  const handleSaveAsDefault = async () => {
-    if (!mapRef.current || !user) {
-      setToast('Please log in to save a default location')
-      return
-    }
-
-    const center = mapRef.current.getCenter()
-    const zoom = mapRef.current.getZoom()
-
-    setSaveLocationLoading(true)
-    try {
-      const result = await saveSettingsAction({
-        defaultLocationLat: center.lat,
-        defaultLocationLng: center.lng,
-        defaultLocationZoom: zoom,
-      })
-
-      if (result.success) {
-        setDefaultLocation({ lat: center.lat, lng: center.lng, zoom })
-        setToast('view saved')
-      } else {
-        setToast(result.error || 'Failed to save location')
-      }
-    } catch {
-      setToast('Failed to save location')
-    } finally {
-      setSaveLocationLoading(false)
-    }
-  }
+    }, [isClient, mapLoaded])
 
   useEffect(() => {
     if (!mapRef.current || !defaultLocation) return
@@ -513,7 +438,7 @@ export default function SatelliteClimbingMap({
       >
         <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />
         <MapStateWatcher onStateChange={handleMapStateChange} />
-        <MapInteractionWatcher onInteract={markMapInteracted} onClearSelection={() => setSelectedPinId(null)} />
+        <MapInteractionWatcher onInteract={() => {}} onClearSelection={() => setSelectedPinId(null)} />
         {!isPinsOnlyOfflineMode ? <TileLayer
           url={baseLayer.imageryUrl}
           attribution={baseLayer.imageryAttribution}
@@ -532,9 +457,11 @@ export default function SatelliteClimbingMap({
             position={userLocation}
             icon={leaflet.divIcon({
               className: 'user-location-dot',
-              iconSize: [12, 12],
-              iconAnchor: [6, 6]
+              html: '<div style="position:relative;width:18px;height:18px;pointer-events:none;"><div style="position:absolute;left:50%;top:0;width:18px;height:18px;background:#2563eb;border:2px solid white;border-radius:9999px;transform:translateX(-50%);box-shadow:0 6px 18px rgba(37,99,235,0.35);"></div><div style="position:absolute;left:50%;top:12px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:9px solid #2563eb;transform:translateX(-50%);filter:drop-shadow(0 3px 6px rgba(37,99,235,0.35));"></div></div>',
+              iconSize: [18, 27],
+              iconAnchor: [9, 27]
             })}
+            zIndexOffset={1400}
           />
         )}
 
@@ -606,23 +533,6 @@ export default function SatelliteClimbingMap({
           )
         })}
       </MapContainer>
-      <button
-        type="button"
-        onClick={handleLocateMe}
-        className="absolute left-4 top-4 z-[1200] inline-flex items-center gap-2 rounded-full border border-white/12 bg-slate-950/72 px-3 py-2 text-sm text-white shadow-lg backdrop-blur-md transition hover:bg-slate-950/82 md:left-6 md:top-6"
-      >
-        {locationStatus === 'requesting' ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
-        {locationStatus === 'requesting' ? 'Locating...' : 'Use my location'}
-      </button>
-      <button
-        onClick={handleSaveAsDefault}
-        disabled={saveLocationLoading}
-        className="absolute left-4 top-[60px] z-[1100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-xs shadow-md flex items-center gap-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 md:left-6 md:top-[72px]"
-      >
-        <Bookmark className="w-3.5 h-3.5" />
-        {saveLocationLoading ? 'Saving...' : 'Save view'}
-      </button>
-
       <div className="pointer-events-none absolute bottom-6 left-4 z-[1000] space-y-2 md:left-6">
         {!hasDefaultLocation && pinLoadState === 'ready' && (
           <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
@@ -647,11 +557,6 @@ export default function SatelliteClimbingMap({
         )}
       </div>
 
-      {toast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[1100] px-4 py-2 bg-green-600 text-white rounded-lg shadow-lg text-sm font-medium">
-          {toast}
-        </div>
-      )}
     </div>
   )
 }
