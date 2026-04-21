@@ -182,6 +182,12 @@ export interface CragRouteStats {
   ratedRoutesCount: number
 }
 
+export interface CragRouteSummaries {
+  routeTypeChips: string[]
+  availableDirections: string[]
+  routeStats: CragRouteStats
+}
+
 export function buildCragRouteStats(routes: CragRoute[]): CragRouteStats {
   const gradeCounts = new Map<string, number>()
   const sendsByGradeMap = new Map<string, number>()
@@ -236,6 +242,96 @@ export function buildCragRouteStats(routes: CragRoute[]): CragRouteStats {
     sendsByGrade,
     topoCoverageCount: routes.filter((route) => route.hasTopo).length,
     ratedRoutesCount: routes.filter((route) => route.ratingCount > 0).length,
+  }
+}
+
+export function buildCragRouteSummaries(routes: CragRoute[]): CragRouteSummaries {
+  const seenDirections = new Set<string>()
+  const uniqueTypes = new Set<string>()
+  const gradeCounts = new Map<string, number>()
+  const sendsByGradeMap = new Map<string, number>()
+  const routeTypeCounts = new Map<string, number>()
+  let totalSendsAcrossRoutes = 0
+  let ratingsWeightedTotal = 0
+  let ratingsCountTotal = 0
+  let topoCoverageCount = 0
+  let ratedRoutesCount = 0
+
+  for (const route of routes) {
+    gradeCounts.set(route.grade, (gradeCounts.get(route.grade) || 0) + 1)
+    sendsByGradeMap.set(route.grade, (sendsByGradeMap.get(route.grade) || 0) + route.sendCount)
+    totalSendsAcrossRoutes += route.sendCount
+
+    if (route.directions.length === 0) {
+      seenDirections.add('Unknown')
+    } else {
+      for (const direction of route.directions) {
+        seenDirections.add(direction)
+      }
+    }
+
+    if (route.routeType) {
+      const normalizedRouteType = normalizeRouteType(route.routeType)
+      uniqueTypes.add(normalizedRouteType)
+      routeTypeCounts.set(normalizedRouteType, (routeTypeCounts.get(normalizedRouteType) || 0) + 1)
+    }
+
+    if (route.ratingAvg !== null && route.ratingCount > 0) {
+      ratingsWeightedTotal += route.ratingAvg * route.ratingCount
+      ratingsCountTotal += route.ratingCount
+    }
+
+    if (route.hasTopo) topoCoverageCount += 1
+    if (route.ratingCount > 0) ratedRoutesCount += 1
+  }
+
+  const availableDirections = [...seenDirections].sort((a, b) => {
+    if (a === 'Unknown' && b !== 'Unknown') return 1
+    if (a !== 'Unknown' && b === 'Unknown') return -1
+    const aIndex = faceDirectionIndex.get(a as typeof FACE_DIRECTIONS[number])
+    const bIndex = faceDirectionIndex.get(b as typeof FACE_DIRECTIONS[number])
+    if (aIndex === undefined && bIndex === undefined) return a.localeCompare(b)
+    if (aIndex === undefined) return 1
+    if (bIndex === undefined) return -1
+    return aIndex - bIndex
+  })
+
+  const routeTypeChips = [...uniqueTypes].sort((a, b) => a.localeCompare(b))
+
+  const gradeDistribution = Array.from(gradeCounts.entries())
+    .map(([grade, count]) => ({ grade, count }))
+    .sort((a, b) => compareGrades(a.grade, b.grade))
+
+  const sendsByGrade = Array.from(sendsByGradeMap.entries())
+    .map(([grade, sends]) => ({ grade, sends }))
+    .sort((a, b) => compareGrades(a.grade, b.grade))
+
+  const sortedByGrade = [...routes].sort((a, b) => compareGrades(a.grade, b.grade))
+  const medianRoute = sortedByGrade.length > 0 ? sortedByGrade[Math.floor((sortedByGrade.length - 1) / 2)] : null
+  const mostCommonGrade = gradeDistribution.reduce<{ grade: string; count: number } | null>((best, current) => {
+    if (!best || current.count > best.count) return current
+    return best
+  }, null)
+
+  const routeTypeMix = Array.from(routeTypeCounts.entries())
+    .map(([routeType, count]) => ({ routeType, count }))
+    .sort((a, b) => b.count - a.count || a.routeType.localeCompare(b.routeType))
+
+  return {
+    routeTypeChips,
+    availableDirections,
+    routeStats: {
+      totalRoutes: routes.length,
+      totalSendsAcrossRoutes,
+      averageRating: ratingsCountTotal > 0 ? ratingsWeightedTotal / ratingsCountTotal : null,
+      mostCommonGrade,
+      medianGrade: medianRoute?.grade || null,
+      routeTypeMix,
+      gradeDistribution,
+      sendsByGrade,
+      topoCoverageCount,
+      ratedRoutesCount,
+    },
   }
 }
 

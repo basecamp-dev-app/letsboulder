@@ -9,6 +9,7 @@ export { getAverageCoordinates, sortImagesByViewCenter, sortPinClusters, sortDir
 export type { ActiveRouteFilterChip, CragRouteFilterState, CragRouteStats } from '@/features/crags/lib/crag-route-filters'
 export {
   buildActiveRouteFilterChips,
+  buildCragRouteSummaries,
   buildCragRouteStats,
   compareGrades,
   filterAndSortCragRoutes,

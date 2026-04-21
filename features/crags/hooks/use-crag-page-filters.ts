@@ -7,7 +7,7 @@ import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { useGradeSystem } from '@/lib/grades/preferences'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { buildCragImageDestination } from '@/features/crags/lib/build-crag-image-destination'
-import { buildActiveRouteFilterChips, buildCragRouteStats, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, filterAndSortCragRoutes, getAvailableDirections, getHighlightedRouteIds, getSearchModalResults, getSelectedImageIds, getRouteTypeChips, resolveCragRouteDestination, sortImagesByViewCenter } from '@/features/crags/lib/crag-page-domain'
+import { buildActiveRouteFilterChips, buildCragRouteSummaries, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, filterAndSortCragRoutes, getSearchModalResults, resolveCragRouteDestination, sortImagesByViewCenter } from '@/features/crags/lib/crag-page-domain'
 import type { ActiveRouteFilterChip, ResolvedRouteDestination } from '@/features/crags/lib/crag-page-domain'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview, SelectedPinImage } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
@@ -27,6 +27,78 @@ interface ClusteredImageData {
 interface LocatedClusteredImageData extends ClusteredImageData {
   latitude: number
   longitude: number
+}
+
+interface CragImageClusterModel {
+  imageById: Map<string, ClusteredImageData>
+  clusteredPins: {
+    clusterIdByImageId: Map<string, string>
+    clusters: Array<{ id: string; images: Array<{ id: string }> }>
+  }
+  mapPins: LightweightCragMapPin[]
+  pinNumberByImageId: Map<string, number>
+  clusterImageIdsByClusterId: Map<string, string[]>
+}
+
+function buildCragImageClusterModel(orderedImages: ImageData[]): CragImageClusterModel {
+  const imageById = new Map<string, ClusteredImageData>()
+  const locatedImagesByClusterId = new Map<string, LocatedClusteredImageData[]>()
+
+  for (const image of orderedImages) {
+    imageById.set(image.id, image as ClusteredImageData)
+
+    if (typeof image.latitude !== 'number' || typeof image.longitude !== 'number') continue
+    const clusterId = `${image.latitude.toFixed(6)}:${image.longitude.toFixed(6)}`
+    const existing = locatedImagesByClusterId.get(clusterId)
+    if (existing) {
+      existing.push(image as LocatedClusteredImageData)
+      continue
+    }
+    locatedImagesByClusterId.set(clusterId, [image as LocatedClusteredImageData])
+  }
+
+  const clusters: Array<{ id: string; images: Array<{ id: string }> }> = []
+  const mapPins: LightweightCragMapPin[] = []
+  const clusterIdByImageId = new Map<string, string>()
+  const pinNumberByImageId = new Map<string, number>()
+  const clusterImageIdsByClusterId = new Map<string, string[]>()
+  let pinNumber = 1
+
+  for (const [clusterId, groupedImages] of locatedImagesByClusterId.entries()) {
+    const clusterImageIds: string[] = []
+    const clusterImages = groupedImages.map((image) => {
+      clusterIdByImageId.set(image.id, clusterId)
+      pinNumberByImageId.set(image.id, pinNumber)
+      clusterImageIds.push(image.id)
+      return { id: image.id }
+    })
+
+    clusters.push({ id: clusterId, images: clusterImages })
+    clusterImageIdsByClusterId.set(clusterId, clusterImageIds)
+
+    const primaryImage = groupedImages[0]
+    mapPins.push({
+      id: clusterId,
+      latitude: primaryImage.latitude,
+      longitude: primaryImage.longitude,
+      label: String(groupedImages.length),
+      activeImageIds: clusterImageIds,
+      primaryImageId: primaryImage.id,
+    })
+
+    pinNumber += 1
+  }
+
+  return {
+    imageById,
+    clusteredPins: {
+      clusterIdByImageId,
+      clusters,
+    },
+    mapPins,
+    pinNumberByImageId,
+    clusterImageIdsByClusterId,
+  }
 }
 
 export interface UseCragPageFiltersParams {
@@ -134,87 +206,72 @@ export function useCragPageFilters({
   const viewCenter = cragCenter
 
   const orderedImages = useMemo(() => sortImagesByViewCenter(images, viewCenter), [images, viewCenter])
-
-  const imageById = useMemo(() => new Map(orderedImages.map((image) => [image.id, image as ClusteredImageData])), [orderedImages])
-
-  const locationGroups = useMemo(() => {
-    const groups = new Map<string, LocatedClusteredImageData[]>()
-
-    orderedImages.forEach((image) => {
-      if (typeof image.latitude !== 'number' || typeof image.longitude !== 'number') return
-      const key = `${image.latitude.toFixed(6)}:${image.longitude.toFixed(6)}`
-      const existing = groups.get(key)
-      if (existing) {
-        existing.push(image as LocatedClusteredImageData)
-        return
-      }
-      groups.set(key, [image as LocatedClusteredImageData])
-    })
-
-    return groups
-  }, [orderedImages])
-
-  const clusteredPins = useMemo(() => {
-    const clusters = Array.from(locationGroups.entries()).map(([id, images]) => ({
-      id,
-      images: images.map((image) => ({ id: image.id })),
-    }))
-    const clusterIdByImageId = new Map<string, string>()
-    clusters.forEach((cluster) => {
-      cluster.images.forEach((image) => {
-        clusterIdByImageId.set(image.id, cluster.id)
-      })
-    })
-    return { clusters, clusterIdByImageId }
-  }, [locationGroups])
-
-  const mapPins = useMemo(() => Array.from(locationGroups.entries()).map(([clusterId, groupedImages]) => {
-    const primaryImage = groupedImages[0]
-
-    return {
-      id: clusterId,
-      latitude: primaryImage.latitude,
-      longitude: primaryImage.longitude,
-      label: String(groupedImages.length),
-      activeImageIds: groupedImages.map((image) => image.id),
-      primaryImageId: primaryImage.id,
-    } satisfies LightweightCragMapPin
-  }), [locationGroups])
-
-  const pinNumberByImageId = useMemo(() => {
-    const mapping = new Map<string, number>()
-    let pinNumber = 1
-    locationGroups.forEach((images) => {
-      images.forEach((image) => {
-        mapping.set(image.id, pinNumber)
-      })
-      pinNumber += 1
-    })
-    return mapping
-  }, [locationGroups])
+  const imageClusterModel = useMemo(() => buildCragImageClusterModel(orderedImages), [orderedImages])
+  const { imageById, clusteredPins, mapPins, pinNumberByImageId, clusterImageIdsByClusterId } = imageClusterModel
 
   const routePreviewDisplayByClimbId = useMemo(() => buildRoutePreviewDisplayByClimbId(routePreviewByClimbId, imageById), [imageById, routePreviewByClimbId])
 
   const routeNavigationDisplayByClimbId = useMemo(() => buildRouteNavigationDisplayByClimbId(routeNavigationTargetByClimbId, imageById), [imageById, routeNavigationTargetByClimbId])
 
-  const selectedImageIds = useMemo(() => getSelectedImageIds(selectedImageId, clusteredPins), [clusteredPins, selectedImageId])
+  const selectedImageIds = useMemo(() => {
+    if (!selectedImageId) return new Set<string>()
 
-  const selectedPinRouteCountByImageId = useMemo(() => {
-    if (!selectedImageId) return new Map<string, number>()
+    const selectedClusterId = clusteredPins.clusterIdByImageId.get(selectedImageId)
+    if (!selectedClusterId) return new Set([selectedImageId])
 
-    const countByImageId = new Map<string, number>()
-    for (const route of routes) {
-      const routeTargetImageId = routeNavigationDisplayByClimbId[route.id]?.displayImageId
-        || routePreviewDisplayByClimbId[route.id]?.imageId
-        || routeImageIdsByClimbId[route.id]?.find((imageId) => selectedImageIds.has(imageId))
-        || null
+    const clusterImageIds = clusterImageIdsByClusterId.get(selectedClusterId)
+    if (!clusterImageIds) return new Set([selectedImageId])
 
-      if (!routeTargetImageId || !selectedImageIds.has(routeTargetImageId)) continue
-      countByImageId.set(routeTargetImageId, (countByImageId.get(routeTargetImageId) || 0) + 1)
+    return new Set(clusterImageIds)
+  }, [clusterImageIdsByClusterId, clusteredPins.clusterIdByImageId, selectedImageId])
+
+  const routeSelectionModel = useMemo(() => {
+    const highlightedRouteIds = new Set<string>()
+    const selectedPinRouteCountByImageId = new Map<string, number>()
+
+    if (!selectedImageId) {
+      return {
+        highlightedRouteIds,
+        selectedRouteCount: 0,
+        selectedPinRouteCountByImageId,
+      }
     }
 
-    return countByImageId
+    let selectedRouteCount = 0
+
+    for (const route of routes) {
+      const navigationImageId = routeNavigationDisplayByClimbId[route.id]?.displayImageId
+      const previewImageId = routePreviewDisplayByClimbId[route.id]?.imageId
+
+      let selectedRouteImageId: string | null = null
+      if (navigationImageId && selectedImageIds.has(navigationImageId)) {
+        selectedRouteImageId = navigationImageId
+      } else if (previewImageId && selectedImageIds.has(previewImageId)) {
+        selectedRouteImageId = previewImageId
+      } else {
+        const routeImageIds = routeImageIdsByClimbId[route.id] || []
+        for (const imageId of routeImageIds) {
+          if (!selectedImageIds.has(imageId)) continue
+          selectedRouteImageId = imageId
+          break
+        }
+      }
+
+      if (!selectedRouteImageId) continue
+
+      highlightedRouteIds.add(route.id)
+      selectedRouteCount += 1
+      selectedPinRouteCountByImageId.set(selectedRouteImageId, (selectedPinRouteCountByImageId.get(selectedRouteImageId) || 0) + 1)
+    }
+
+    return {
+      highlightedRouteIds,
+      selectedRouteCount,
+      selectedPinRouteCountByImageId,
+    }
   }, [routeImageIdsByClimbId, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId, routes, selectedImageId, selectedImageIds])
+
+  const { highlightedRouteIds, selectedRouteCount, selectedPinRouteCountByImageId } = routeSelectionModel
 
   const selectedPinImages = useMemo(() => {
     if (!selectedImageId) return []
@@ -242,21 +299,8 @@ export function useCragPageFilters({
       })
   }, [defaultRouteTargetByImageId, orderedImages, routeHrefBase, selectedImageId, selectedImageIds, selectedPinRouteCountByImageId])
 
-  const highlightedRouteIds = useMemo(() => getHighlightedRouteIds(
-    routes,
-    selectedImageId,
-    selectedImageIds,
-    routeImageIdsByClimbId,
-    routePreviewDisplayByClimbId,
-    routeNavigationDisplayByClimbId
-  ), [routeImageIdsByClimbId, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId, routes, selectedImageIds, selectedImageId])
-
-  const selectedRouteCount = useMemo(() => {
-    if (!selectedImageId) return 0
-    return routes.reduce((count, route) => count + (highlightedRouteIds.has(route.id) ? 1 : 0), 0)
-  }, [highlightedRouteIds, routes, selectedImageId])
-
-  const routeTypeChips = useMemo(() => getRouteTypeChips(routes), [routes])
+  const routeSummaries = useMemo(() => buildCragRouteSummaries(routes), [routes])
+  const { routeTypeChips, availableDirections, routeStats } = routeSummaries
 
   const clearAllRouteFilters = useCallback(() => {
     setSelectedImageId(null)
@@ -274,8 +318,6 @@ export function useCragPageFilters({
     selectedImageId || minGrade || maxGrade || minRating || minSends || searchQuery.trim() || selectedDirections.length > 0 || selectedRouteTypes.length > 0 || topoOnly
   ), [maxGrade, minGrade, minRating, minSends, searchQuery, selectedDirections.length, selectedRouteTypes.length, selectedImageId, topoOnly])
 
-  const availableDirections = useMemo(() => getAvailableDirections(routes), [routes])
-
   const filteredRoutes = useMemo(() => filterAndSortCragRoutes(routes, highlightedRouteIds, routeSort, {
     selectedImageId,
     minGrade,
@@ -287,8 +329,6 @@ export function useCragPageFilters({
     selectedRouteTypes,
     topoOnly,
   }), [highlightedRouteIds, maxGrade, minGrade, minRating, minSends, routeSort, routes, searchQuery, selectedDirections, selectedImageId, selectedRouteTypes, topoOnly])
-
-  const routeStats = useMemo(() => buildCragRouteStats(routes), [routes])
 
   const routeInsightsUnavailable = routesLoadState === 'error'
   const routeLocationLabel = crag?.sub_area || crag?.region_name || crag?.climbing_areas?.name || 'Area details pending'
