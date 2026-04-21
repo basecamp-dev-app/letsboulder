@@ -3,6 +3,13 @@
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 
+export interface CragRouteTargetsState {
+  routeImageIdsByClimbId: Record<string, string[]>
+  routePreviewByClimbId: Record<string, RoutePreview>
+  routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
+  defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
+}
+
 export interface UseCragDataParams {
   id: string
   initialCrag?: CragPageCrag | null

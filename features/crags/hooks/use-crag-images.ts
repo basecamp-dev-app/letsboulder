@@ -2,6 +2,7 @@
 
 import { useEffect, type Dispatch, type SetStateAction } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import type { CragRouteTargetsState } from '@/features/crags/hooks/use-crag-data-types'
 import { cragKeys, fetchCragImages } from '@/features/crags/lib/crag-queries'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
@@ -36,10 +37,7 @@ export interface UseCragImagesParams {
   initialPayloadLoadedAt: number | undefined
   setCrag: Dispatch<SetStateAction<CragPageCrag | null>>
   setImages: Dispatch<SetStateAction<ImageData[]>>
-  setRouteImageIdsByClimbId: Dispatch<SetStateAction<Record<string, string[]>>>
-  setRoutePreviewByClimbId: Dispatch<SetStateAction<Record<string, RoutePreview>>>
-  setRouteNavigationTargetByClimbId: Dispatch<SetStateAction<Record<string, RouteNavigationTarget>>>
-  setDefaultRouteTargetByImageId: Dispatch<SetStateAction<Record<string, ImageRouteTarget>>>
+  setRouteTargets: Dispatch<SetStateAction<CragRouteTargetsState>>
   setCragCenter: Dispatch<SetStateAction<[number, number] | null>>
   setLoading: Dispatch<SetStateAction<boolean>>
   setRoutesLoadState: Dispatch<SetStateAction<RoutesLoadState>>
@@ -61,10 +59,7 @@ export function useCragImages({
   initialPayloadLoadedAt,
   setCrag,
   setImages,
-  setRouteImageIdsByClimbId,
-  setRoutePreviewByClimbId,
-  setRouteNavigationTargetByClimbId,
-  setDefaultRouteTargetByImageId,
+  setRouteTargets,
   setCragCenter,
   setLoading,
   setRoutesLoadState,
@@ -135,10 +130,12 @@ export function useCragImages({
     setCrag(data.crag)
     setImages(data.images)
     setCragCenter(data.cragCenter)
-    setDefaultRouteTargetByImageId(() => data.defaultRouteTargetByImageId)
-    setRouteImageIdsByClimbId(() => data.routeImageIdsByClimbId)
-    setRoutePreviewByClimbId(() => data.routePreviewByClimbId)
-    setRouteNavigationTargetByClimbId(() => data.routeNavigationTargetByClimbId)
+    setRouteTargets(() => ({
+      defaultRouteTargetByImageId: data.defaultRouteTargetByImageId,
+      routeImageIdsByClimbId: data.routeImageIdsByClimbId,
+      routePreviewByClimbId: data.routePreviewByClimbId,
+      routeNavigationTargetByClimbId: data.routeNavigationTargetByClimbId,
+    }))
     setLoading(false)
     setUsingCachedFallback(false)
 
@@ -153,7 +150,7 @@ export function useCragImages({
       routeNavigationTargetByClimbId: data.routeNavigationTargetByClimbId,
       cachedAt: Date.now(),
     })
-  }, [data, id, setCrag, setImages, setCragCenter, setDefaultRouteTargetByImageId, setRouteImageIdsByClimbId, setRoutePreviewByClimbId, setRouteNavigationTargetByClimbId, setLoading, setUsingCachedFallback])
+  }, [data, id, setCrag, setImages, setCragCenter, setRouteTargets, setLoading, setUsingCachedFallback])
 
   // Loading state management
   useEffect(() => {

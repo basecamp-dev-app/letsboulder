@@ -1,11 +1,12 @@
 'use client'
 
+import type { Dispatch, SetStateAction } from 'react'
 import { useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { cragKeys, fetchCragRoutes } from '@/features/crags/lib/crag-queries'
+import type { CragRouteTargetsState } from '@/features/crags/hooks/use-crag-data-types'
 import { remapRouteNavigationTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
-import type { CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
-import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
+import type { CragRoute, ImageData } from '@/features/crags/lib/crag-page-types'
 import type { CachedCragLocalFallback } from '@/features/crags/lib/crag-local-fallback'
 
 export type RoutesLoadState = 'idle' | 'loading' | 'loaded' | 'error'
@@ -16,12 +17,9 @@ export interface UseCragRoutesParams {
   routesLoadState: RoutesLoadState
   setRoutes: (routes: CragRoute[]) => void
   setRoutesLoadState: (state: RoutesLoadState) => void
-  setRoutePreviewByClimbId: (updater: (prev: Record<string, RoutePreview>) => Record<string, RoutePreview>) => void
-  setRouteNavigationTargetByClimbId: (updater: (prev: Record<string, RouteNavigationTarget>) => Record<string, RouteNavigationTarget>) => void
   setImages: (images: ImageData[]) => void
   setCragCenter: (center: [number, number] | null) => void
-  setDefaultRouteTargetByImageId: (updater: (prev: Record<string, ImageRouteTarget>) => Record<string, ImageRouteTarget>) => void
-  setRouteImageIdsByClimbId: (updater: (prev: Record<string, string[]>) => Record<string, string[]>) => void
+  setRouteTargets: Dispatch<SetStateAction<CragRouteTargetsState>>
   setUsingCachedFallback: (value: boolean) => void
   readCachedFallback: () => Promise<CachedCragLocalFallback | null>
 }
@@ -32,12 +30,9 @@ export function useCragRoutes({
   routesLoadState,
   setRoutes,
   setRoutesLoadState,
-  setRoutePreviewByClimbId,
-  setRouteNavigationTargetByClimbId,
   setImages,
   setCragCenter,
-  setDefaultRouteTargetByImageId,
-  setRouteImageIdsByClimbId,
+  setRouteTargets,
   setUsingCachedFallback,
   readCachedFallback,
 }: UseCragRoutesParams) {
@@ -73,10 +68,13 @@ export function useCragRoutes({
     const effectiveClimbIdByClimbId = data.effectiveClimbIdByClimbId
     setRoutes(data.routes)
     setUsingCachedFallback(false)
-    setRoutePreviewByClimbId((prev) => remapRoutePreviewsByEffectiveClimbId(prev, effectiveClimbIdByClimbId))
-    setRouteNavigationTargetByClimbId((prev) => remapRouteNavigationTargetsByEffectiveClimbId(prev, effectiveClimbIdByClimbId))
+    setRouteTargets((prev) => ({
+      ...prev,
+      routePreviewByClimbId: remapRoutePreviewsByEffectiveClimbId(prev.routePreviewByClimbId, effectiveClimbIdByClimbId),
+      routeNavigationTargetByClimbId: remapRouteNavigationTargetsByEffectiveClimbId(prev.routeNavigationTargetByClimbId, effectiveClimbIdByClimbId),
+    }))
 
-  }, [data, hasInitialRouteData, setRouteNavigationTargetByClimbId, setRoutePreviewByClimbId, setRoutes, setUsingCachedFallback])
+  }, [data, hasInitialRouteData, setRouteTargets, setRoutes, setUsingCachedFallback])
 
   useEffect(() => {
     if (hasInitialRouteData || !isError) return
@@ -92,10 +90,12 @@ export function useCragRoutes({
       setRoutes(fallback.routes)
       setImages(fallback.images)
       setCragCenter(fallback.cragCenter)
-      setDefaultRouteTargetByImageId(() => fallback.defaultRouteTargetByImageId)
-      setRouteImageIdsByClimbId(() => fallback.routeImageIdsByClimbId)
-      setRoutePreviewByClimbId(() => fallback.routePreviewByClimbId)
-      setRouteNavigationTargetByClimbId(() => fallback.routeNavigationTargetByClimbId)
+      setRouteTargets(() => ({
+        defaultRouteTargetByImageId: fallback.defaultRouteTargetByImageId,
+        routeImageIdsByClimbId: fallback.routeImageIdsByClimbId,
+        routePreviewByClimbId: fallback.routePreviewByClimbId,
+        routeNavigationTargetByClimbId: fallback.routeNavigationTargetByClimbId,
+      }))
       setRoutesLoadState('loaded')
       setUsingCachedFallback(true)
     }
@@ -110,11 +110,8 @@ export function useCragRoutes({
     isError,
     readCachedFallback,
     setCragCenter,
-    setDefaultRouteTargetByImageId,
     setImages,
-    setRouteImageIdsByClimbId,
-    setRouteNavigationTargetByClimbId,
-    setRoutePreviewByClimbId,
+    setRouteTargets,
     setRoutes,
     setRoutesLoadState,
     setUsingCachedFallback,

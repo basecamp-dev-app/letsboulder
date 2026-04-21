@@ -1,8 +1,10 @@
 'use client'
 
+import type { Dispatch, SetStateAction } from 'react'
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { cragKeys } from '@/features/crags/lib/crag-queries'
+import type { CragRouteTargetsState } from '@/features/crags/hooks/use-crag-data-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import type { CragRoute, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 
@@ -50,10 +52,7 @@ export interface UseCragRouteTargetsParams {
   cragId: string
   routes: CragRoute[]
   initialRouteTargetsComplete: boolean
-  setDefaultRouteTargetByImageId: (updater: (prev: Record<string, ImageRouteTarget>) => Record<string, ImageRouteTarget>) => void
-  setRouteImageIdsByClimbId: (updater: (prev: Record<string, string[]>) => Record<string, string[]>) => void
-  setRoutePreviewByClimbId: (updater: (prev: Record<string, RoutePreview>) => Record<string, RoutePreview>) => void
-  setRouteNavigationTargetByClimbId: (updater: (prev: Record<string, RouteNavigationTarget>) => Record<string, RouteNavigationTarget>) => void
+  setRouteTargets: Dispatch<SetStateAction<CragRouteTargetsState>>
 }
 
 export interface UseCragRouteTargetsResult {
@@ -65,10 +64,7 @@ export function useCragRouteTargets({
   cragId,
   routes,
   initialRouteTargetsComplete,
-  setDefaultRouteTargetByImageId,
-  setRouteImageIdsByClimbId,
-  setRoutePreviewByClimbId,
-  setRouteNavigationTargetByClimbId,
+  setRouteTargets,
 }: UseCragRouteTargetsParams): UseCragRouteTargetsResult {
   const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
   const shouldLoad = routes.length > 0 && !initialRouteTargetsComplete && !isOffline
@@ -85,16 +81,15 @@ export function useCragRouteTargets({
     if (!routeTargetsQuery.data) return
 
     const data = routeTargetsQuery.data
-    setDefaultRouteTargetByImageId(() => data.nextDefaultRouteTargetByImageId)
-    setRouteImageIdsByClimbId(() => data.nextRouteImageIdsByClimbId)
-    setRoutePreviewByClimbId(() => data.nextRoutePreviewByClimbId)
-    setRouteNavigationTargetByClimbId(() => data.nextRouteNavigationTargetByClimbId)
+    setRouteTargets(() => ({
+      defaultRouteTargetByImageId: data.nextDefaultRouteTargetByImageId,
+      routeImageIdsByClimbId: data.nextRouteImageIdsByClimbId,
+      routePreviewByClimbId: data.nextRoutePreviewByClimbId,
+      routeNavigationTargetByClimbId: data.nextRouteNavigationTargetByClimbId,
+    }))
   }, [
     routeTargetsQuery.data,
-    setDefaultRouteTargetByImageId,
-    setRouteImageIdsByClimbId,
-    setRouteNavigationTargetByClimbId,
-    setRoutePreviewByClimbId,
+    setRouteTargets,
   ])
 
   return {
