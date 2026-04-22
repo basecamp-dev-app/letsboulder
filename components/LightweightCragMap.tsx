@@ -217,7 +217,7 @@ export default function LightweightCragMap({
   className,
   tileUrl,
   attribution,
-  heightClassName = 'min-h-[260px] md:min-h-[320px]',
+  heightClassName = 'h-[260px] md:h-[320px]',
 }: LightweightCragMapProps) {
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const [mapReady, setMapReady] = useState(false)
@@ -486,7 +486,7 @@ export default function LightweightCragMap({
           background: rgba(245, 245, 244, 0.98);
         }
       `}</style>
-      <div className={`lightweight-crag-map h-[260px] overflow-hidden rounded-[28px] border border-stone-200 bg-stone-100 shadow-sm md:h-[320px] dark:border-gray-800 dark:bg-gray-900 ${heightClassName}`}>
+      <div className={`lightweight-crag-map overflow-hidden rounded-[28px] border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-800 dark:bg-gray-900 ${heightClassName}`}>
         {leafletLib ? (
           <MapContainer
             ref={mapRef as never}
