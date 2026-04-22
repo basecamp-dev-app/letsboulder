@@ -466,12 +466,14 @@ export default function LightweightCragMap({
     return null
   }
 
-  const heightClasses = heightMode === 'fill'
+  const isFillHeight = heightMode === 'fill'
+  const outerWrapperClasses = isFillHeight ? 'h-full min-h-0' : ''
+  const heightClasses = isFillHeight
     ? `h-full min-h-0 ${heightClassName || ''}`.trim()
     : `${heightClassName || 'h-[260px] md:h-[320px]'}`.trim()
 
   return (
-    <div className={className}>
+    <div className={[className, outerWrapperClasses].filter(Boolean).join(' ')}>
       <style jsx>{`
         :global(.lightweight-crag-map .leaflet-control-zoom) {
           margin-top: 10px;

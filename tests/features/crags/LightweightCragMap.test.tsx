@@ -1,15 +1,30 @@
 import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
 import LightweightCragMap from '@/components/LightweightCragMap'
 
+vi.mock('leaflet', () => ({
+  latLngBounds: vi.fn(() => ({
+    pad: vi.fn(() => 'mock-bounds'),
+  })),
+  divIcon: vi.fn((options: unknown) => options),
+}))
+
 vi.mock('next/dynamic', () => ({
-  default: () => function MockDynamicComponent() {
-    return <div data-testid="mock-map-node" />
+  default: (loader: () => Promise<unknown>) => {
+    void loader
+    return function MockDynamicComponent(props: Record<string, unknown>) {
+      return <div data-testid="dynamic-node" {...props} />
+    }
   },
 }))
 
-vi.mock('react-leaflet', () => ({
-  useMapEvents: () => ({
+vi.mock('react-leaflet', async () => {
+  const Marker = ({ children }: { children?: unknown }) => <div data-testid="mock-marker">{children as string | number | boolean | null | undefined}</div>
+  const TileLayer = () => <div data-testid="mock-tile-layer" />
+  const ZoomControl = () => <div data-testid="mock-zoom-control" />
+  const MapContainer = () => <div data-testid="mock-map-container" />
+  const useMapEvents = () => ({
     getBounds: () => ({
       getNorth: () => 0,
       getSouth: () => 0,
@@ -17,8 +32,10 @@ vi.mock('react-leaflet', () => ({
       getWest: () => 0,
     }),
     getZoom: () => 15,
-  }),
-}))
+  })
+
+  return { MapContainer, Marker, TileLayer, ZoomControl, useMapEvents }
+})
 
 vi.mock('@/lib/map/base-layer', () => ({
   getMapBaseLayerConfig: () => ({
@@ -26,15 +43,19 @@ vi.mock('@/lib/map/base-layer', () => ({
     imageryAttribution: 'Example',
     labelsUrl: null,
     labelsAttribution: null,
+    mode: 'satellite',
   }),
 }))
 
 vi.mock('@/lib/map/place-pins', () => ({
-  buildPinFeatures: () => [],
+  buildPinFeatures: (pins: Array<{ id: string; latitude: number; longitude: number; name: string }>) => pins.map((pin) => ({
+    geometry: { coordinates: [pin.longitude, pin.latitude] },
+    properties: { cluster: false, id: pin.id, name: pin.name },
+  })),
   isClusterFeature: () => false,
 }))
 
-describe('LightweightCragMap height modes', () => {
+describe('LightweightCragMap', () => {
   const pins = [
     {
       id: 'pin-1',
@@ -56,17 +77,19 @@ describe('LightweightCragMap height modes', () => {
     expect(wrapper?.className).toContain('md:h-[320px]')
   })
 
-  it('uses fill height mode when requested', () => {
+  it('propagates fill height through the outer wrapper', () => {
     const { container } = render(
       <div className="h-[66vh]">
         <LightweightCragMap pins={pins} initialCenter={[48.85, 2.35]} heightMode="fill" />
       </div>
     )
 
-    const wrapper = container.querySelector('.lightweight-crag-map')
-    expect(wrapper).not.toBeNull()
-    expect(wrapper?.className).toContain('h-full')
-    expect(wrapper?.className).toContain('min-h-0')
+    const outerWrapper = container.firstElementChild?.firstElementChild
+    const mapWrapper = container.querySelector('.lightweight-crag-map')
+    expect(outerWrapper?.className).toContain('h-full')
+    expect(outerWrapper?.className).toContain('min-h-0')
+    expect(mapWrapper?.className).toContain('h-full')
+    expect(mapWrapper?.className).toContain('min-h-0')
   })
 
   it('keeps additive height classes in fill mode', () => {
@@ -77,8 +100,17 @@ describe('LightweightCragMap height modes', () => {
     )
 
     const wrapper = container.querySelector('.lightweight-crag-map')
-    expect(wrapper).not.toBeNull()
     expect(wrapper?.className).toContain('h-full')
     expect(wrapper?.className).toContain('ring-1')
+  })
+
+  it('shows the loading spinner before leaflet finishes loading', () => {
+    const { container, queryAllByTestId } = render(
+      <LightweightCragMap pins={pins} initialCenter={[48.85, 2.35]} />
+    )
+
+    expect(container.querySelector('.animate-spin')).not.toBeNull()
+    expect(container.querySelector('.lightweight-crag-map')).not.toBeNull()
+    expect(queryAllByTestId('mock-marker')).toHaveLength(0)
   })
 })
