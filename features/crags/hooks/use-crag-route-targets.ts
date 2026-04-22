@@ -78,9 +78,47 @@ export function useCragRouteTargets({
   })
 
   useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('CRAG_DEBUG', {
+      stage: 'use_crag_route_targets:query',
+      cragId,
+      shouldLoad,
+      isOffline,
+      routesCount: routes.length,
+      initialRouteTargetsComplete,
+      queryStatus: routeTargetsQuery.status,
+      isLoading: routeTargetsQuery.isLoading,
+      isFetching: routeTargetsQuery.isFetching,
+      hasData: Boolean(routeTargetsQuery.data),
+      hasError: Boolean(routeTargetsQuery.error),
+    })
+  }, [
+    cragId,
+    initialRouteTargetsComplete,
+    isOffline,
+    routeTargetsQuery.data,
+    routeTargetsQuery.error,
+    routeTargetsQuery.isFetching,
+    routeTargetsQuery.isLoading,
+    routeTargetsQuery.status,
+    routes.length,
+    shouldLoad,
+  ])
+
+  useEffect(() => {
     if (!routeTargetsQuery.data) return
 
     const data = routeTargetsQuery.data
+    // eslint-disable-next-line no-console
+    console.log('CRAG_DEBUG', {
+      stage: 'use_crag_route_targets:apply_data',
+      cragId,
+      routeImageIdsCount: Object.keys(data.nextRouteImageIdsByClimbId).length,
+      routePreviewCount: Object.keys(data.nextRoutePreviewByClimbId).length,
+      routeNavigationTargetCount: Object.keys(data.nextRouteNavigationTargetByClimbId).length,
+      defaultRouteTargetCount: Object.keys(data.nextDefaultRouteTargetByImageId).length,
+      hasMore: data.hasMore,
+    })
     setRouteTargets(() => ({
       defaultRouteTargetByImageId: data.nextDefaultRouteTargetByImageId,
       routeImageIdsByClimbId: data.nextRouteImageIdsByClimbId,
@@ -88,6 +126,7 @@ export function useCragRouteTargets({
       routeNavigationTargetByClimbId: data.nextRouteNavigationTargetByClimbId,
     }))
   }, [
+    cragId,
     routeTargetsQuery.data,
     setRouteTargets,
   ])

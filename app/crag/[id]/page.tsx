@@ -29,6 +29,13 @@ async function getCommunityPlaceById(id: string): Promise<CommunityPlaceInfo | n
 
 export default async function CragIdPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const requestId = `crag-id:${id}`
+  // eslint-disable-next-line no-console
+  console.log('CRAG_DEBUG', {
+    stage: 'crag_id_page:start',
+    requestId,
+    cragId: id,
+  })
   const crag = await getCragById(id)
 
   if (!crag) notFound()
@@ -58,9 +65,21 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
   const initialRouteData = await loadInitialCragRouteData(supabase, id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
-  })
+  }, requestId)
   const communityPlace = await getCommunityPlaceById(id)
   const initialIsSaved = user ? await isCragSavedByUser(supabase, user.id, id) : false
+
+  // eslint-disable-next-line no-console
+  console.log('CRAG_DEBUG', {
+    stage: 'crag_id_page:return',
+    requestId,
+    cragId: id,
+    hasUser: Boolean(user),
+    initialRoutesCount: initialRouteData.initialRoutes.length,
+    initialImagesCount: initialRouteData.initialImages.length,
+    initialRouteTargetsComplete: initialRouteData.initialRouteTargetsComplete,
+    initialImagesComplete: initialRouteData.initialImagesComplete,
+  })
 
   return (
     <CragPageShell
