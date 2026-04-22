@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { AlertCircle, ChevronRight, RefreshCw } from 'lucide-react'
 import Image from 'next/image'
 import { formatGradeForDisplay } from '@/lib/grade-display'
@@ -21,6 +21,34 @@ interface CragRouteListProps {
   onClearRouteFilters: () => void
   onRetryRoutes: () => void
   getRouteDestination: (route: CragRoute) => { href: string; ready: boolean }
+}
+
+function useNearViewport(rootMargin = '300px 0px 500px 0px') {
+  const elementRef = useRef<HTMLDivElement | null>(null)
+  const [isNearViewport, setIsNearViewport] = useState(() => typeof IntersectionObserver === 'undefined')
+
+  useEffect(() => {
+    const element = elementRef.current
+    if (!element || typeof IntersectionObserver === 'undefined') return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return
+        if (!entry.isIntersecting && entry.intersectionRatio <= 0) return
+        setIsNearViewport(true)
+        observer.disconnect()
+      },
+      { rootMargin, threshold: 0.01 }
+    )
+
+    observer.observe(element)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [rootMargin])
+
+  return { elementRef, isNearViewport }
 }
 
 function LoadingRows() {
@@ -112,7 +140,7 @@ const CragRouteList = React.memo(function CragRouteList({
         </div>
       ) : (
         <div role="list" aria-label="Crag routes" className="divide-y divide-stone-100 dark:divide-gray-800">
-          {filteredRoutes.map((route) => {
+          {filteredRoutes.map((route, index) => {
             const destination = getRouteDestination(route)
             const className = `flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50 ${highlightedRouteIds.has(route.id) ? 'bg-teal-50/80 ring-1 ring-inset ring-teal-200 dark:bg-teal-950/20 dark:ring-teal-900' : ''}`
             const preview = routePreviewDisplayByClimbId[route.id]
@@ -125,6 +153,7 @@ const CragRouteList = React.memo(function CragRouteList({
                     preview={preview}
                     routeName={route.name}
                     pinNumber={pinNumberByImageId.get(preview.imageId) ?? null}
+                    prioritize={index < 6}
                   />
                 ) : showPreviewSkeleton ? (
                   <div className="size-16 shrink-0 animate-pulse rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800" aria-hidden="true" />
@@ -162,19 +191,23 @@ function RoutePreviewImage({
   preview,
   routeName,
   pinNumber,
+  prioritize,
 }: {
   preview: RoutePreview
   routeName: string
   pinNumber: number | null
+  prioritize: boolean
 }) {
   const [loaded, setLoaded] = useState(false)
+  const { elementRef, isNearViewport } = useNearViewport()
   const previewUrl = buildThumbnailUrl(preview.imageUrl, 160, 68, {
     storageUrl: preview.storageUrl,
     source: 'api-media',
   })
+  const shouldPrioritize = prioritize || isNearViewport
 
   return (
-    <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+    <div ref={elementRef} className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
       <div className={`absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.14),rgba(255,255,255,0.03),rgba(255,255,255,0.14))] transition-opacity duration-300 dark:bg-[linear-gradient(110deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02),rgba(255,255,255,0.08))] ${loaded ? 'opacity-0' : 'animate-pulse opacity-100'}`} />
       <Image
         src={previewUrl}
@@ -182,7 +215,8 @@ function RoutePreviewImage({
         fill
         className={`object-cover transition duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
         sizes="64px"
-        loading="lazy"
+        loading={shouldPrioritize ? 'eager' : 'lazy'}
+        fetchPriority={shouldPrioritize ? 'high' : 'auto'}
         onLoad={() => setLoaded(true)}
       />
       {pinNumber ? (
