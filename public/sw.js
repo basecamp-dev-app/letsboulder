@@ -4,13 +4,6 @@ importScripts('/sw-matchers.js')
 importScripts('/sw-fetch-handlers.js')
 importScripts('/sw-message-handlers.js')
 
-function broadcastProgress(payload) {
-  if (typeof BroadcastChannel === 'undefined') return
-  const channel = new BroadcastChannel(OFFLINE_JOB_CHANNEL)
-  channel.postMessage(payload)
-  channel.close()
-}
-
 function buildOfflineFallbackRequest(request) {
   const url = new URL(request.url)
   const fallbackUrl = new URL(OFFLINE_LIBRARY_URL, self.location.origin)
@@ -40,8 +33,6 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('message', handleMessageEvent)
-
-const AUTH_CACHE_CLEAR_CHANNEL = 'auth-cache-clear'
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'CLEAR_AUTH_CACHES') {
@@ -131,7 +122,7 @@ self.addEventListener('fetch', (event) => {
           await cache.put(request, response.clone())
         }
         return response
-      } catch (error) {
+      } catch {
         const fallbackCached = await matchCachedRequest(cache, request)
         if (fallbackCached) return fallbackCached
 
@@ -170,7 +161,7 @@ self.addEventListener('fetch', (event) => {
           await cache.put(request, response.clone())
         }
         return response
-      } catch (error) {
+      } catch {
         const fallbackCached = await matchCachedRequest(cache, request)
         if (fallbackCached) return fallbackCached
 

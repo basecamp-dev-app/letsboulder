@@ -3,6 +3,7 @@ import { MEDIA_VARIANT_WIDTHS, type MediaVariantKey } from '@/apps/media-worker/
 import { clientEnv } from '@/lib/env-client'
 
 const API_MEDIA_PREFIX = '/api/media/'
+const LB_MEDIA_MARKER = 'lb-media'
 
 const VARIANT_ORDER: MediaVariantKey[] = ['thumb', 'card', 'detail', 'topo', 'full']
 
@@ -29,6 +30,11 @@ function isMediaWorkerUrl(url: URL): boolean {
 
 function isLocalApiMediaUrl(url: URL): boolean {
   return url.pathname.startsWith(API_MEDIA_PREFIX)
+}
+
+function isAppRoutedMediaUrl(url: URL): boolean {
+  const marker = url.searchParams.get(LB_MEDIA_MARKER)
+  return marker === 'app'
 }
 
 function extractObjectKey(pathname: string): string | null {
@@ -80,6 +86,11 @@ export default function cloudflareLoader({ src, width, quality }: ImageLoaderPro
   if (isLocalApiMediaUrl(parsed)) {
     const apiPath = parsed.pathname
     const pathParts = apiPath.split('/').filter(Boolean)
+
+    if (isAppRoutedMediaUrl(parsed)) {
+      parsed.searchParams.set('w', String(width))
+      return `${parsed.pathname}${parsed.search}`
+    }
 
     const isCatchAllMedia =
       pathParts[0] === 'api' &&

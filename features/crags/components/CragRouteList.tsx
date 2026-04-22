@@ -168,7 +168,10 @@ function RoutePreviewImage({
   pinNumber: number | null
 }) {
   const [loaded, setLoaded] = useState(false)
-  const previewUrl = buildThumbnailUrl(preview.imageUrl, 160, 68)
+  const previewUrl = buildThumbnailUrl(preview.imageUrl, 160, 68, {
+    storageUrl: preview.storageUrl,
+    source: 'api-media',
+  })
 
   return (
     <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">

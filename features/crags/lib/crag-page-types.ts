@@ -33,6 +33,7 @@ export interface CragPageCrag {
 export interface ImageData {
   id: string
   url: string
+  storageUrl?: string
   latitude: number | null
   longitude: number | null
   created_at?: string | null
@@ -45,6 +46,7 @@ export interface ImageData {
 export interface SelectedPinImage {
   id: string
   url: string
+  storageUrl?: string
   routeLinesCount: number
   href: string
   isSelected: boolean
@@ -70,6 +72,7 @@ export interface CragRoute {
 export interface RoutePreview {
   imageId: string
   imageUrl: string
+  storageUrl?: string
 }
 
 export interface RouteNavigationTarget {
@@ -79,6 +82,7 @@ export interface RouteNavigationTarget {
   imageId: string
   displayImageId: string
   displayImageUrl: string
+  storageUrl?: string
 }
 
 export interface InitialCragRouteData {

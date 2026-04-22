@@ -193,6 +193,7 @@ export async function fetchCragImages(
     return {
       id: img.id,
       url: resolveRouteImageUrl(img.url),
+      storageUrl: img.url,
       latitude: img.latitude,
       longitude: img.longitude,
       created_at: img.created_at ?? null,
