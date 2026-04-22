@@ -202,6 +202,61 @@ interface LightweightCragMapProps {
   heightClassName?: string
 }
 
+function StaticMapPreview({
+  pins,
+  activePinId,
+}: {
+  pins: LightweightCragMapPin[]
+  activePinId: string | null
+}) {
+  const boundedPins = useMemo(() => {
+    if (pins.length === 0) return []
+
+    const latitudes = pins.map((pin) => pin.latitude)
+    const longitudes = pins.map((pin) => pin.longitude)
+    const minLatitude = Math.min(...latitudes)
+    const maxLatitude = Math.max(...latitudes)
+    const minLongitude = Math.min(...longitudes)
+    const maxLongitude = Math.max(...longitudes)
+    const latitudeSpan = Math.max(maxLatitude - minLatitude, 0.01)
+    const longitudeSpan = Math.max(maxLongitude - minLongitude, 0.01)
+
+    return pins.map((pin) => ({
+      ...pin,
+      top: 18 + ((maxLatitude - pin.latitude) / latitudeSpan) * 64,
+      left: 12 + ((pin.longitude - minLongitude) / longitudeSpan) * 76,
+    }))
+  }, [pins])
+
+  return (
+    <div className="absolute inset-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.18),_transparent_34%),linear-gradient(180deg,_rgba(120,113,108,0.16),_rgba(41,37,36,0.22))] dark:bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_34%),linear-gradient(180deg,_rgba(31,41,55,0.36),_rgba(15,23,42,0.46))]" data-testid="static-map-preview">
+      <div className="absolute inset-0 opacity-60 [background-image:linear-gradient(rgba(255,255,255,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.16)_1px,transparent_1px)] [background-size:40px_40px] dark:opacity-35" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(255,255,255,0.2),transparent_24%),radial-gradient(circle_at_82%_68%,rgba(255,255,255,0.16),transparent_22%)]" />
+      {boundedPins.map((pin, index) => {
+        const active = isPinActive(pin, activePinId)
+
+        return (
+          <div
+            key={`${pin.id}-${index}`}
+            className="absolute -translate-x-1/2 -translate-y-1/2 transition-transform duration-300"
+            style={{ top: `${pin.top}%`, left: `${pin.left}%` }}
+          >
+            <div
+              className={`flex size-6 items-center justify-center rounded-full border-2 border-white text-[11px] font-bold text-white shadow-[0_6px_18px_rgba(15,23,42,0.28)] ${active ? 'bg-amber-500 scale-110' : 'bg-red-500'}`}
+            >
+              {pin.label || String(index + 1)}
+            </div>
+          </div>
+        )
+      })}
+      <div className="absolute inset-x-4 bottom-4 flex items-center justify-between gap-3 rounded-2xl border border-white/40 bg-black/20 px-4 py-3 text-xs text-white/90 backdrop-blur-sm dark:border-white/10 dark:bg-black/30">
+        <span>{pins.length} map pin{pins.length === 1 ? '' : 's'} ready</span>
+        <span>Loading interactive map</span>
+      </div>
+    </div>
+  )
+}
+
 export default function LightweightCragMap({
   pins = [],
   draftPins,
@@ -229,6 +284,7 @@ export default function LightweightCragMap({
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [isOffline, setIsOffline] = useState(false)
+  const [interactiveMapVisible, setInteractiveMapVisible] = useState(false)
   const lastMapStateRef = useRef<{ zoom: number; bounds: MapBounds } | null>(null)
   const lastFittedPinsSignatureRef = useRef<string | null>(null)
 
@@ -385,10 +441,22 @@ export default function LightweightCragMap({
   useEffect(() => {
     if (typeof window === 'undefined') return
 
+    const timeoutId = window.setTimeout(() => {
+      setInteractiveMapVisible(true)
+    }, 180)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!interactiveMapVisible) return
+
     void import('leaflet').then((leaflet) => {
       setLeafletLib(leaflet as typeof import('leaflet'))
     })
-  }, [])
+  }, [interactiveMapVisible])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -405,7 +473,7 @@ export default function LightweightCragMap({
   }, [])
 
   useEffect(() => {
-    if (!interactiveViewport || usesStaticPreview || disableClustering) return
+    if (!interactiveMapVisible || !interactiveViewport || usesStaticPreview || disableClustering) return
     let cancelled = false
 
     if (pinFeatures.length === 0) {
@@ -433,7 +501,7 @@ export default function LightweightCragMap({
     return () => {
       cancelled = true
     }
-  }, [disableClustering, interactiveViewport, pinFeatures, usesStaticPreview])
+  }, [disableClustering, interactiveMapVisible, interactiveViewport, pinFeatures, usesStaticPreview])
 
   useEffect(() => {
     if (!interactiveViewport || usesStaticPreview || disableAutoFit) return
@@ -495,7 +563,9 @@ export default function LightweightCragMap({
         }
       `}</style>
       <div className={`lightweight-crag-map overflow-hidden rounded-[28px] border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-800 dark:bg-gray-900 ${heightClasses}`}>
-        {leafletLib ? (
+        {!interactiveMapVisible ? (
+          <StaticMapPreview pins={resolvedPins} activePinId={activePinId} />
+        ) : leafletLib ? (
           <MapContainer
             ref={mapRef as never}
             center={center}
@@ -539,9 +609,12 @@ export default function LightweightCragMap({
             )) : null}
           </MapContainer>
         ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <div className="animate-spin h-8 w-8 border-4 border-stone-400 border-t-transparent rounded-full" />
-          </div>
+          <>
+            <StaticMapPreview pins={resolvedPins} activePinId={activePinId} />
+            <div className="absolute inset-0 flex h-full w-full items-center justify-center bg-stone-950/8 backdrop-blur-[1px]">
+              <div className="animate-spin h-8 w-8 border-4 border-stone-400 border-t-transparent rounded-full" />
+            </div>
+          </>
         )}
       </div>
     </div>
