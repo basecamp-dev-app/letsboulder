@@ -97,30 +97,6 @@ const CragRouteList = React.memo(function CragRouteList({
     return filteredRoutes.reduce((count, route) => count + (routePreviewDisplayByClimbId[route.id] ? 1 : 0), 0)
   }, [filteredRoutes, routePreviewDisplayByClimbId])
 
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('CRAG_DEBUG', {
-      stage: 'crag_route_list:render',
-      routesLoadState,
-      filteredRoutesCount: filteredRoutes.length,
-      routesCount,
-      previewCount,
-      highlightedRouteCount: highlightedRouteIds.size,
-      routeTargetsHydrating,
-      routeTargetsComplete,
-      hasActiveRouteFilters,
-    })
-  }, [
-    filteredRoutes.length,
-    hasActiveRouteFilters,
-    highlightedRouteIds.size,
-    previewCount,
-    routeTargetsComplete,
-    routeTargetsHydrating,
-    routesCount,
-    routesLoadState,
-  ])
-
   return (
     <div className="overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
       <div className="border-b border-stone-100 px-4 py-3 dark:border-gray-800">
@@ -233,19 +209,6 @@ function RoutePreviewImage({
   })
   const shouldPrioritize = prioritize || isNearViewport
 
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('CRAG_DEBUG', {
-      stage: 'crag_route_list:preview_state',
-      routeName,
-      previewImageId: preview.imageId,
-      prioritize,
-      isNearViewport,
-      shouldPrioritize,
-      loaded,
-    })
-  }, [isNearViewport, loaded, preview.imageId, prioritize, routeName, shouldPrioritize])
-
   return (
     <div ref={elementRef} className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
       <div className={`absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.14),rgba(255,255,255,0.03),rgba(255,255,255,0.14))] transition-opacity duration-300 dark:bg-[linear-gradient(110deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02),rgba(255,255,255,0.08))] ${loaded ? 'opacity-0' : 'animate-pulse opacity-100'}`} />
@@ -257,17 +220,7 @@ function RoutePreviewImage({
         sizes="64px"
         loading={shouldPrioritize ? 'eager' : 'lazy'}
         fetchPriority={shouldPrioritize ? 'high' : 'auto'}
-        onLoad={() => {
-          // eslint-disable-next-line no-console
-          console.log('CRAG_DEBUG', {
-            stage: 'crag_route_list:preview_loaded',
-            routeName,
-            previewImageId: preview.imageId,
-            loadingMode: shouldPrioritize ? 'eager' : 'lazy',
-            fetchPriority: shouldPrioritize ? 'high' : 'auto',
-          })
-          setLoaded(true)
-        }}
+        onLoad={() => setLoaded(true)}
       />
       {pinNumber ? (
         <div className="absolute left-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-white/95 text-[10px] font-semibold text-stone-900 shadow-sm dark:bg-gray-900/95 dark:text-gray-100">

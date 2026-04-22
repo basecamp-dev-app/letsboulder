@@ -94,7 +94,7 @@ export interface InitialCragRouteData {
   initialImages: ImageData[]
   initialCragCenter: [number, number] | null
   initialRouteTargetsComplete: boolean
-  initialImagesComplete: boolean
+  initialCriticalImagesComplete: boolean
   loadedAt: number
 }
 

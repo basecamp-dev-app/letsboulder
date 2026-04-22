@@ -22,6 +22,19 @@ interface CachedCragImageData {
   cachedAt: number
 }
 
+function mergeAuthoritativeImageRouteTargets(
+  prev: CragRouteTargetsState,
+  next: Pick<CragRouteTargetsState, 'defaultRouteTargetByImageId' | 'routeImageIdsByClimbId' | 'routePreviewByClimbId' | 'routeNavigationTargetByClimbId'>
+): CragRouteTargetsState {
+  return {
+    ...prev,
+    defaultRouteTargetByImageId: next.defaultRouteTargetByImageId,
+    routeImageIdsByClimbId: next.routeImageIdsByClimbId,
+    routePreviewByClimbId: next.routePreviewByClimbId,
+    routeNavigationTargetByClimbId: next.routeNavigationTargetByClimbId,
+  }
+}
+
 export interface UseCragImagesParams {
   id: string
   initialCrag: CragPageCrag | null
@@ -33,7 +46,7 @@ export interface UseCragImagesParams {
   initialRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
   initialCragCenter: [number, number] | null
   initialRouteTargetsComplete: boolean
-  initialImagesComplete: boolean
+  initialCriticalImagesComplete: boolean
   initialPayloadLoadedAt: number | undefined
   setCrag: Dispatch<SetStateAction<CragPageCrag | null>>
   setImages: Dispatch<SetStateAction<ImageData[]>>
@@ -55,7 +68,7 @@ export function useCragImages({
   initialRouteNavigationTargetByClimbId,
   initialCragCenter,
   initialRouteTargetsComplete,
-  initialImagesComplete,
+  initialCriticalImagesComplete,
   initialPayloadLoadedAt,
   setCrag,
   setImages,
@@ -66,7 +79,7 @@ export function useCragImages({
   setUsingCachedFallback,
 }: UseCragImagesParams) {
   const hasInitialRouteData = initialRoutes !== null
-  const hasCompleteInitialImages = Boolean(initialCrag) && initialImagesComplete
+  const hasCompleteInitialImages = Boolean(initialCrag) && initialCriticalImagesComplete
 
   // Seed in-memory cache from SSR payload when images are authoritative.
   useEffect(() => {
@@ -88,7 +101,7 @@ export function useCragImages({
     initialCrag,
     initialCragCenter,
     initialDefaultRouteTargetByImageId,
-    initialImagesComplete,
+    initialCriticalImagesComplete,
     initialImages,
     initialPayloadLoadedAt,
     initialRouteImageIdsByClimbId,
@@ -130,7 +143,7 @@ export function useCragImages({
     setCrag(data.crag)
     setImages(data.images)
     setCragCenter(data.cragCenter)
-    setRouteTargets(() => ({
+    setRouteTargets((prev) => mergeAuthoritativeImageRouteTargets(prev, {
       defaultRouteTargetByImageId: data.defaultRouteTargetByImageId,
       routeImageIdsByClimbId: data.routeImageIdsByClimbId,
       routePreviewByClimbId: data.routePreviewByClimbId,

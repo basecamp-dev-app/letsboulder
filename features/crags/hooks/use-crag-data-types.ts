@@ -21,7 +21,7 @@ export interface UseCragDataParams {
   initialRouteNavigationTargetByClimbId?: Record<string, RouteNavigationTarget>
   initialCragCenter?: [number, number] | null
   initialRouteTargetsComplete?: boolean
-  initialImagesComplete?: boolean
+  initialCriticalImagesComplete?: boolean
   initialPayloadLoadedAt?: number
 }
 
