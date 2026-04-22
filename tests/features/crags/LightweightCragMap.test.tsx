@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import LightweightCragMap from '@/components/LightweightCragMap'
 
@@ -56,6 +56,14 @@ vi.mock('@/lib/map/place-pins', () => ({
 }))
 
 describe('LightweightCragMap', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   const pins = [
     {
       id: 'pin-1',
@@ -104,13 +112,25 @@ describe('LightweightCragMap', () => {
     expect(wrapper?.className).toContain('ring-1')
   })
 
-  it('shows the loading spinner before leaflet finishes loading', () => {
+  it('shows a static preview before the interactive map is mounted', () => {
     const { container, queryAllByTestId } = render(
       <LightweightCragMap pins={pins} initialCenter={[48.85, 2.35]} />
     )
 
-    expect(container.querySelector('.animate-spin')).not.toBeNull()
+    expect(container.querySelector('[data-testid="static-map-preview"]')).not.toBeNull()
+    expect(container.textContent).toContain('Loading interactive map')
     expect(container.querySelector('.lightweight-crag-map')).not.toBeNull()
+    expect(queryAllByTestId('mock-marker')).toHaveLength(0)
+  })
+
+  it('keeps the static preview visible through the preview delay', () => {
+    const { container, queryAllByTestId } = render(
+      <LightweightCragMap pins={pins} initialCenter={[48.85, 2.35]} />
+    )
+
+    vi.advanceTimersByTime(200)
+
+    expect(container.querySelector('[data-testid="static-map-preview"]')).not.toBeNull()
     expect(queryAllByTestId('mock-marker')).toHaveLength(0)
   })
 })
