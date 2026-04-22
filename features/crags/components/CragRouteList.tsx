@@ -1,10 +1,11 @@
-import React, { type MouseEvent } from 'react'
+import React, { useState, type MouseEvent } from 'react'
 import { AlertCircle, ChevronRight, RefreshCw } from 'lucide-react'
 import Image from 'next/image'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeSystem } from '@/lib/grades'
 import { formatRatingValue, formatRouteTypeLabel } from '@/features/crags/lib/crag-page-domain'
 import type { CragRoute, RoutePreview } from '@/features/crags/lib/crag-page-types'
+import { buildThumbnailUrl } from '@/lib/media/thumbnail-url'
 
 interface CragRouteListProps {
   filteredRoutes: CragRoute[]
@@ -122,14 +123,11 @@ const CragRouteList = React.memo(function CragRouteList({
             const content = (
               <>
                 {preview ? (
-                  <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                    <Image src={preview.imageUrl} alt={`${route.name} topo preview`} fill className="object-cover" sizes="64px" loading="lazy" />
-                    {pinNumberByImageId.get(preview.imageId) ? (
-                      <div className="absolute left-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-white/95 text-[10px] font-semibold text-stone-900 shadow-sm dark:bg-gray-900/95 dark:text-gray-100">
-                        {pinNumberByImageId.get(preview.imageId)}
-                      </div>
-                    ) : null}
-                  </div>
+                  <RoutePreviewImage
+                    preview={preview}
+                    routeName={route.name}
+                    pinNumber={pinNumberByImageId.get(preview.imageId) ?? null}
+                  />
                 ) : showPreviewSkeleton ? (
                   <div className="size-16 shrink-0 animate-pulse rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800" aria-hidden="true" />
                 ) : (
@@ -169,5 +167,38 @@ const CragRouteList = React.memo(function CragRouteList({
     </div>
   )
 })
+
+function RoutePreviewImage({
+  preview,
+  routeName,
+  pinNumber,
+}: {
+  preview: RoutePreview
+  routeName: string
+  pinNumber: number | null
+}) {
+  const [loaded, setLoaded] = useState(false)
+  const previewUrl = buildThumbnailUrl(preview.imageUrl, 160, 68)
+
+  return (
+    <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className={`absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.14),rgba(255,255,255,0.03),rgba(255,255,255,0.14))] transition-opacity duration-300 dark:bg-[linear-gradient(110deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02),rgba(255,255,255,0.08))] ${loaded ? 'opacity-0' : 'animate-pulse opacity-100'}`} />
+      <Image
+        src={previewUrl}
+        alt={`${routeName} topo preview`}
+        fill
+        className={`object-cover transition duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        sizes="64px"
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+      />
+      {pinNumber ? (
+        <div className="absolute left-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-white/95 text-[10px] font-semibold text-stone-900 shadow-sm dark:bg-gray-900/95 dark:text-gray-100">
+          {pinNumber}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 export default CragRouteList
