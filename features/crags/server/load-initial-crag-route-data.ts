@@ -106,7 +106,6 @@ export async function loadInitialCragRouteData(
   }
 
   const seededImages = (imageData || []) as ImageRow[]
-  const initialImageIds = new Set(seededImages.map((image) => image.id))
   const routeLineCountByImageId = new Map<string, number>()
   const initialRoutes = dedupeCragRoutes(baseRoutes, effectiveClimbIdByClimbId)
   const imageById = new Map<string, HydratedImage>()
@@ -115,37 +114,20 @@ export async function loadInitialCragRouteData(
   const initialRouteImageIdsByClimbId: InitialCragRouteData['initialRouteImageIdsByClimbId'] = {}
   let initialDefaultRouteTargetByImageId: InitialCragRouteData['initialDefaultRouteTargetByImageId'] = {}
   let initialRouteNavigationTargetByClimbId: InitialCragRouteData['initialRouteNavigationTargetByClimbId'] = {}
-  const initialImages = seededImages.map((image) => buildInitialImage(image))
-
-  for (const image of initialImages) {
-    imageById.set(image.id, image)
-  }
+  const initialImages: HydratedImage[] = []
 
   if (initialRoutes.length > 0) {
-    if (initialImageIds.size > 0) {
-      const { data: initialRouteLineImageData } = await supabase
-        .from('route_lines')
-        .select('image_id')
-        .in('image_id', Array.from(initialImageIds))
-
-      for (const row of (initialRouteLineImageData || []) as RouteLineImageRow[]) {
-        if (!row.image_id) continue
-        routeLineCountByImageId.set(row.image_id, (routeLineCountByImageId.get(row.image_id) || 0) + 1)
-      }
-    }
-
-    for (const image of initialImages) {
-      image.route_lines_count = routeLineCountByImageId.get(image.id) || 0
-    }
-
     const previewSupabase = getAdminClientWithAudit('loadInitialCragRouteData preview seed')
     const targetMaps = await fetchCragRoutePreviewsBatched(previewSupabase, cragId, effectiveClimbIdByClimbId, {
       limit: undefined,
     })
 
     const previewImageIds = Array.from(new Set(Object.values(targetMaps.nextRoutePreviewByClimbId).map((preview) => preview.imageId)))
+    const routeTargetImageIds = Array.from(new Set(Object.values(targetMaps.nextRouteImageIdsByClimbId).flat()))
+    const criticalImageIds = Array.from(new Set([...previewImageIds, ...routeTargetImageIds]))
+    const criticalSeededImageIds = new Set(seededImages.map((image) => image.id).filter((imageId) => criticalImageIds.includes(imageId)))
     const missingPreviewImageIds = previewImageIds.filter((imageId) => !imageById.has(imageId))
-    const previewOnlyImageIds = previewImageIds.filter((imageId) => !initialImageIds.has(imageId))
+    const missingCriticalImageIds = criticalImageIds.filter((imageId) => !imageById.has(imageId))
     // eslint-disable-next-line no-console
     console.log('CRAG_DEBUG', {
       stage: 'load_initial_crag_route_data:preview_seed',
@@ -153,16 +135,18 @@ export async function loadInitialCragRouteData(
       cragId,
       dedupedRoutesCount: initialRoutes.length,
       previewCount: previewImageIds.length,
-      previewOnlyImageCount: previewOnlyImageIds.length,
+      criticalImageCount: criticalImageIds.length,
+      seededCriticalImageCount: criticalSeededImageIds.size,
       missingPreviewImageCount: missingPreviewImageIds.length,
+      missingCriticalImageCount: missingCriticalImageIds.length,
       durationMs: Date.now() - startedAt,
     })
 
-    if (previewOnlyImageIds.length > 0) {
+    if (criticalImageIds.length > 0) {
       const { data: routeLineImageData } = await previewSupabase
         .from('route_lines')
         .select('image_id')
-        .in('image_id', previewOnlyImageIds)
+        .in('image_id', criticalImageIds)
 
       for (const row of (routeLineImageData || []) as RouteLineImageRow[]) {
         if (!row.image_id) continue
@@ -170,11 +154,18 @@ export async function loadInitialCragRouteData(
       }
     }
 
-    if (missingPreviewImageIds.length > 0) {
+    for (const image of seededImages) {
+      if (!criticalSeededImageIds.has(image.id)) continue
+      const hydratedImage = buildInitialImage(image, routeLineCountByImageId.get(image.id) || 0)
+      imageById.set(hydratedImage.id, hydratedImage)
+      initialImages.push(hydratedImage)
+    }
+
+    if (missingCriticalImageIds.length > 0) {
       const { data: previewImageData } = await previewSupabase
         .from('images')
         .select('id, url, latitude, longitude')
-        .in('id', missingPreviewImageIds)
+        .in('id', missingCriticalImageIds)
 
       for (const image of (previewImageData || []) as ImageRow[]) {
         const hydratedImage = buildInitialImage(image, routeLineCountByImageId.get(image.id) || 0)
@@ -250,8 +241,14 @@ export async function loadInitialCragRouteData(
     }
   }
 
+  for (const image of seededImages) {
+    const hydratedImage = buildInitialImage(image, routeLineCountByImageId.get(image.id) || 0)
+    imageById.set(hydratedImage.id, hydratedImage)
+    initialImages.push(hydratedImage)
+  }
+
   const withCoords: { latitude: number; longitude: number }[] = []
-  for (const image of images) {
+  for (const image of initialImages) {
     if (typeof image.latitude === 'number' && typeof image.longitude === 'number') {
       withCoords.push({ latitude: image.latitude, longitude: image.longitude })
     }
