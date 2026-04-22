@@ -12,6 +12,25 @@ import path from 'node:path'
 
 const REQUIRED_DIRS = ['components', 'hooks', 'lib', 'server', 'types']
 
+function collectDirectoryNames(root) {
+  const discovered = new Set()
+  const stack = [root]
+
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (!current) continue
+
+    const entries = fs.readdirSync(current, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      discovered.add(entry.name)
+      stack.push(path.join(current, entry.name))
+    }
+  }
+
+  return discovered
+}
+
 const consistentFeatureStructureRule = {
   meta: {
     type: 'problem',
@@ -24,7 +43,7 @@ const consistentFeatureStructureRule = {
     messages: {
       missingDirs:
         'Feature "{{feature}}" is missing required directories: {{missing}}. ' +
-        'Create them (with an index.ts barrel export if empty). See docs/feature-structure.md.',
+        'These directories must exist somewhere in the feature tree. See docs/feature-structure.md.',
     },
   },
   create(context) {
@@ -48,8 +67,10 @@ const consistentFeatureStructureRule = {
         const featureRoot = path.join(process.cwd(), 'features', featureName)
         if (!fs.existsSync(featureRoot)) return
 
+        const discoveredDirNames = collectDirectoryNames(featureRoot)
+
         const missing = REQUIRED_DIRS.filter(
-          (dir) => !fs.existsSync(path.join(featureRoot, dir)),
+          (dir) => !fs.existsSync(path.join(featureRoot, dir)) && !discoveredDirNames.has(dir),
         )
 
         if (missing.length > 0) {
