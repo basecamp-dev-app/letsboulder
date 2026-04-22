@@ -45,10 +45,7 @@ export default function SelectedPinImageTray({ images }: SelectedPinImageTrayPro
 
 function TrayImageCard({ image }: { image: SelectedPinImage }) {
   const [loaded, setLoaded] = useState(false)
-  const thumbnailUrl = buildThumbnailUrl(image.url, 480, 70, {
-    storageUrl: image.storageUrl,
-    source: 'api-media',
-  })
+  const thumbnailUrl = buildThumbnailUrl(image.url, 480, 70)
 
   return (
     <Link

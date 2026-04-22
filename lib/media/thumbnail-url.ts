@@ -1,45 +1,89 @@
+import { MEDIA_VARIANT_WIDTHS, type MediaVariantKey } from '@/apps/media-worker/src/config'
+import { clientEnv } from '@/lib/env-client'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
-
-const PRIVATE_URL_PREFIX = 'private://'
-const LB_MEDIA_MARKER = 'lb-media'
 
 export interface BuildThumbnailOptions {
   storageUrl?: string | null
   source?: 'default' | 'api-media'
 }
 
-function parseStorageUrl(url: string): { bucket: string; path: string } | null {
-  if (!url) return null
+const API_MEDIA_PREFIX = '/api/media/'
+const VARIANT_ORDER: MediaVariantKey[] = ['thumb', 'card', 'detail', 'topo', 'full']
 
-  if (url.startsWith(PRIVATE_URL_PREFIX)) {
-    const withoutPrefix = url.slice(PRIVATE_URL_PREFIX.length)
-    const slashIndex = withoutPrefix.indexOf('/')
-    if (slashIndex <= 0) return null
-
-    const bucket = withoutPrefix.slice(0, slashIndex)
-    const path = withoutPrefix.slice(slashIndex + 1)
-    if (!path) return null
-
-    return { bucket, path }
+function snapWidthToVariant(width: number): MediaVariantKey {
+  for (const variant of VARIANT_ORDER) {
+    if (width <= MEDIA_VARIANT_WIDTHS[variant]) return variant
   }
 
-  return null
+  return 'full'
 }
 
-function buildApiMediaUrl(bucket: string, objectPath: string, width: number, quality: number): string {
-  const encodedBucket = encodeURIComponent(bucket)
-  const encodedPath = objectPath
+function getMediaHost(): string | null {
+  return clientEnv.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '') || null
+}
+
+function buildWorkerVariantUrl(objectKey: string, variant: MediaVariantKey, format: string): string {
+  const mediaHost = getMediaHost()
+  if (!mediaHost) return ''
+
+  const encodedKey = objectKey
     .split('/')
     .filter(Boolean)
     .map((segment) => encodeURIComponent(segment))
     .join('/')
 
-  const searchParams = new URLSearchParams()
-  searchParams.set('w', String(width))
-  searchParams.set('q', String(quality))
-  searchParams.set(LB_MEDIA_MARKER, 'app')
+  return `${mediaHost}/${encodedKey}?variant=${variant}&format=${format}`
+}
 
-  return `/api/media/${encodedBucket}/${encodedPath}?${searchParams.toString()}`
+function convertApiMediaUrlToWorkerUrl(url: string, width: number): string {
+  const mediaHost = getMediaHost()
+  if (!mediaHost) return url
+
+  let parsed: URL
+  try {
+    parsed = new URL(url, 'http://localhost')
+  } catch {
+    return url
+  }
+
+  if (!parsed.pathname.startsWith(API_MEDIA_PREFIX)) return url
+
+  const pathParts = parsed.pathname.split('/').filter(Boolean)
+  if (pathParts.length < 4) return url
+
+  const bucket = decodeURIComponent(pathParts[2] || '')
+  const objectPath = pathParts.slice(3).map(decodeURIComponent).join('/')
+  if (!bucket || !objectPath) return url
+
+  return buildWorkerVariantUrl(`${bucket}/${objectPath}`, snapWidthToVariant(width), 'auto')
+}
+
+function updateWorkerUrl(url: string, width: number): string {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return url
+  }
+
+  const mediaHost = getMediaHost()
+  if (!mediaHost) return url
+
+  let mediaHostOrigin: string
+  try {
+    mediaHostOrigin = new URL(mediaHost).origin
+  } catch {
+    return url
+  }
+
+  if (parsed.origin !== mediaHostOrigin) return url
+
+  parsed.searchParams.set('variant', snapWidthToVariant(width))
+  parsed.searchParams.set('format', 'auto')
+  parsed.searchParams.delete('w')
+  parsed.searchParams.delete('q')
+
+  return parsed.toString()
 }
 
 export function buildThumbnailUrl(
@@ -48,31 +92,20 @@ export function buildThumbnailUrl(
   quality = 72,
   options?: BuildThumbnailOptions
 ): string {
-  const source = options?.source ?? 'default'
-  const storageUrl = options?.storageUrl ?? null
-
-  if (source === 'api-media') {
-    const parsed = storageUrl ? parseStorageUrl(storageUrl) : null
-    if (!parsed) {
-      return ''
-    }
-
-    return buildApiMediaUrl(parsed.bucket, parsed.path, width, quality)
-  }
-
   const resolvedUrl = resolveRouteImageUrl(url)
   if (!resolvedUrl) return ''
 
-  if (!resolvedUrl.startsWith('/api/media/')) {
-    return resolvedUrl
+  if (resolvedUrl.startsWith(API_MEDIA_PREFIX)) {
+    return convertApiMediaUrlToWorkerUrl(resolvedUrl, width)
   }
 
-  const [basePath, existingQuery = ''] = resolvedUrl.split('?')
-  const searchParams = new URLSearchParams(existingQuery)
-  searchParams.set('w', String(width))
-  if (!searchParams.has('q')) {
-    searchParams.set('q', String(quality))
+  if (resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://')) {
+    return updateWorkerUrl(resolvedUrl, width)
   }
 
-  return `${basePath}?${searchParams.toString()}`
+  const normalizedQuality = quality
+  void normalizedQuality
+  void options
+
+  return resolvedUrl
 }
