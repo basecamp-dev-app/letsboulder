@@ -54,7 +54,7 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
   }
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       <Tabs.Root
         value={activeTab}
         onValueChange={(value) => {
@@ -62,29 +62,29 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
           setActiveTab(nextTab)
           setExpandedTab(null)
         }}
-        className="mt-4"
+        className="mt-0"
       >
-        <Tabs.List className="flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800">
+        <Tabs.List className="flex rounded-2xl bg-stone-100/90 p-1 dark:bg-gray-800/90">
           <Tabs.Trigger
             value="recent"
-            className="rounded-md px-3 py-1 text-xs font-medium text-gray-600 transition data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100"
+            className="rounded-xl px-3 py-1.5 text-xs font-medium text-gray-600 transition data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100"
           >
             Recent
           </Tabs.Trigger>
           <Tabs.Trigger
             value="rankings"
-            className="rounded-md px-3 py-1 text-xs font-medium text-gray-600 transition data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100"
+            className="rounded-xl px-3 py-1.5 text-xs font-medium text-gray-600 transition data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100"
           >
             Rankings
           </Tabs.Trigger>
           <Tabs.Trigger
             value="contributors"
-            className="rounded-md px-3 py-1 text-xs font-medium text-gray-600 transition data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100"
+            className="rounded-xl px-3 py-1.5 text-xs font-medium text-gray-600 transition data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:text-gray-400 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100"
           >
             Contributors
           </Tabs.Trigger>
         </Tabs.List>
-        <Tabs.Content value="recent" className="mt-4">
+        <Tabs.Content value="recent" className="mt-3">
           <TopThisPlacePanel
             slug={resolvedCommunityPlace.slug}
             placeType={resolvedCommunityPlace.type}
@@ -94,7 +94,7 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
             onToggleExpanded={() => setExpandedTab((current) => current === 'recent' ? null : 'recent')}
           />
         </Tabs.Content>
-        <Tabs.Content value="rankings" className="mt-4">
+        <Tabs.Content value="rankings" className="mt-3">
           <PlaceRankingsPanel
             slug={resolvedCommunityPlace.slug}
             cragId={cragId}
@@ -105,7 +105,7 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
             onToggleExpanded={() => setExpandedTab((current) => current === 'rankings' ? null : 'rankings')}
           />
         </Tabs.Content>
-        <Tabs.Content value="contributors" className="mt-4">
+        <Tabs.Content value="contributors" className="mt-3">
           <PlaceContributorsPanel
             slug={resolvedCommunityPlace.slug}
             cragId={cragId}

@@ -169,41 +169,43 @@ const CragRouteSection = React.memo(function CragRouteSection({
   const placeLabel = communityPlace?.type === 'gym' ? 'Gym' : 'Crag'
 
   return (
-    <div className="relative mx-auto max-w-7xl px-4 py-4 space-y-6">
-      <section className="rounded-2xl border border-stone-200 bg-white px-4 py-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div className="border-b border-stone-100 pb-3 dark:border-gray-800">
-          <h2 className="text-sm font-semibold text-stone-900 dark:text-gray-100">{placeLabel} community</h2>
+    <div className="relative mx-auto max-w-[90rem] space-y-5 px-4 py-4 lg:space-y-6 lg:py-5">
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,0.56fr)_minmax(0,1fr)] lg:items-start lg:gap-5">
+        <div className="rounded-[28px] border border-stone-200/90 bg-white px-4 py-4 shadow-sm shadow-stone-950/5 dark:border-gray-800 dark:bg-gray-900 lg:px-5 lg:py-5">
+          <div className="border-b border-stone-100 pb-3 dark:border-gray-800">
+            <h2 className="text-sm font-semibold text-stone-900 dark:text-gray-100">{placeLabel} community</h2>
+          </div>
+          <div className="pt-3">
+            <CragCommunitySidebar cragId={cragId} communityPlace={communityPlace} />
+          </div>
         </div>
-        <CragCommunitySidebar cragId={cragId} communityPlace={communityPlace} />
-      </section>
 
-      <section className="space-y-3">
-        <CragPageToolbar
-          crag={crag}
-          cragSwitcherOpen={cragSwitcherOpen}
-          cragSwitcherQuery={cragSwitcherQuery}
-          cragSwitcherOptions={cragSwitcherOptions}
-          canDownloadCrag={canDownloadCrag}
-          offlineDialogLoading={offlineDialogLoading}
-          offlinePreviewLoading={offlinePreviewLoading}
-          saveLoading={saveLoading}
-          isSaved={isSaved}
-          hasActiveRouteFilters={hasActiveRouteFilters}
-          selectedImageId={selectedImageId}
-          selectedRouteCount={selectedRouteCount}
-          routesCount={routesCount}
-          onToggleCragSwitcher={onToggleCragSwitcher}
-          onCragSwitcherQueryChange={onCragSwitcherQueryChange}
-          onCloseCragSwitcher={onCloseCragSwitcher}
-          onOpenOfflineDialog={onOpenOfflineDialog}
-          onToggleSaveCrag={onToggleSaveCrag}
-          onOpenSearchModal={onOpenSearchModal}
-          onOpenFilterModal={onOpenFilterModal}
-          onOpenSortModal={onOpenSortModal}
-          onClearRouteFilters={onClearRouteFilters}
-        />
+        <div className="space-y-3 rounded-[28px] border border-stone-200/90 bg-white px-4 py-4 shadow-sm shadow-stone-950/5 dark:border-gray-800 dark:bg-gray-900 lg:px-5 lg:py-5">
+          <CragPageToolbar
+            crag={crag}
+            cragSwitcherOpen={cragSwitcherOpen}
+            cragSwitcherQuery={cragSwitcherQuery}
+            cragSwitcherOptions={cragSwitcherOptions}
+            canDownloadCrag={canDownloadCrag}
+            offlineDialogLoading={offlineDialogLoading}
+            offlinePreviewLoading={offlinePreviewLoading}
+            saveLoading={saveLoading}
+            isSaved={isSaved}
+            hasActiveRouteFilters={hasActiveRouteFilters}
+            selectedImageId={selectedImageId}
+            selectedRouteCount={selectedRouteCount}
+            routesCount={routesCount}
+            onToggleCragSwitcher={onToggleCragSwitcher}
+            onCragSwitcherQueryChange={onCragSwitcherQueryChange}
+            onCloseCragSwitcher={onCloseCragSwitcher}
+            onOpenOfflineDialog={onOpenOfflineDialog}
+            onToggleSaveCrag={onToggleSaveCrag}
+            onOpenSearchModal={onOpenSearchModal}
+            onOpenFilterModal={onOpenFilterModal}
+            onOpenSortModal={onOpenSortModal}
+            onClearRouteFilters={onClearRouteFilters}
+          />
 
-        <div className="space-y-4">
           {usingCachedFallback ? (
             <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-100">
               Showing locally cached crag content because the live route data could not be reached. Uncached map pins and route previews may be missing.
@@ -215,24 +217,26 @@ const CragRouteSection = React.memo(function CragRouteSection({
             </div>
           ) : null}
           <CragActiveFilterChips chips={activeRouteFilterChips} onRemoveChip={onRemoveActiveRouteFilterChip} />
-
-          <CragRouteList
-            filteredRoutes={filteredRoutes}
-            routesLoadState={routesLoadState}
-            highlightedRouteIds={highlightedRouteIds}
-            routePreviewDisplayByClimbId={routePreviewDisplayByClimbId}
-            routeTargetsHydrating={routeTargetsHydrating}
-            routeTargetsComplete={routeTargetsComplete}
-            pinNumberByImageId={pinNumberByImageId}
-            gradeSystem={gradeSystem}
-            routesCount={routesCount}
-            hasActiveRouteFilters={hasActiveRouteFilters}
-            onClearRouteFilters={onClearRouteFilters}
-            onRetryRoutes={onRetryRoutes}
-            onPendingRouteNavigation={onPendingRouteNavigation}
-            getRouteDestination={getRouteDestination}
-          />
         </div>
+      </section>
+
+      <section>
+        <CragRouteList
+          filteredRoutes={filteredRoutes}
+          routesLoadState={routesLoadState}
+          highlightedRouteIds={highlightedRouteIds}
+          routePreviewDisplayByClimbId={routePreviewDisplayByClimbId}
+          routeTargetsHydrating={routeTargetsHydrating}
+          routeTargetsComplete={routeTargetsComplete}
+          pinNumberByImageId={pinNumberByImageId}
+          gradeSystem={gradeSystem}
+          routesCount={routesCount}
+          hasActiveRouteFilters={hasActiveRouteFilters}
+          onClearRouteFilters={onClearRouteFilters}
+          onRetryRoutes={onRetryRoutes}
+          onPendingRouteNavigation={onPendingRouteNavigation}
+          getRouteDestination={getRouteDestination}
+        />
       </section>
 
       <CragSearchDialog
