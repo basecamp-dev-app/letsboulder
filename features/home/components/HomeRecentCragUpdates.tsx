@@ -57,13 +57,14 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
                   Updated {formatRelativeTime(update.latestContributionAt)}
                 </div>
               </div>
-              <div className="flex flex-col items-center px-4 pt-2.5 pb-3 text-center sm:px-5 sm:pt-3 sm:pb-3.5">
-                <div className="min-w-0">
+              <div className="flex items-center justify-between gap-2 px-4 py-4 sm:px-5 sm:py-4.5">
+                <div className="min-w-0 flex-1 text-left">
                   <CardTitle className="text-xl leading-tight text-stone-950 dark:text-stone-50">{update.cragName}</CardTitle>
                   <p className="text-sm leading-snug text-stone-600 dark:text-stone-300">
                     {update.recentContributionCount} new {update.recentContributionCount === 1 ? 'topo' : 'topos'}.
                   </p>
                 </div>
+                <span className="shrink-0 rounded-full border border-stone-200/80 bg-stone-50/80 px-2.5 py-0.5 text-[11px] font-medium text-stone-700 transition group-hover:border-stone-300 group-hover:bg-stone-100 dark:border-white/10 dark:bg-slate-900/80 dark:text-stone-200 dark:group-hover:bg-slate-800">Explore</span>
               </div>
             </Card>
           </Link>
