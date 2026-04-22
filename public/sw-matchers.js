@@ -26,10 +26,6 @@ async function matchShellRequest(request) {
 }
 
 async function matchRouteAssetRequest(request) {
-  const buildAssetCache = await caches.open(await getBuildAssetCacheName())
-  const sharedBuildMatch = await buildAssetCache.match(request)
-  if (sharedBuildMatch) return sharedBuildMatch
-
   const routeAssetCache = await caches.open(ROUTE_ASSET_CACHE)
   const directMatch = await routeAssetCache.match(request)
   if (directMatch) return directMatch

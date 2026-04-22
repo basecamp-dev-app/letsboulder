@@ -61,11 +61,10 @@ async function handleRouteAssetFetch(request) {
 
   try {
     const response = await fetch(request)
-    if (response.ok) {
-      const targetCacheName = request.url.includes('/_next/static/') ? await getBuildAssetCacheName() : ROUTE_ASSET_CACHE
-      const routeAssetCache = await caches.open(targetCacheName)
-      await routeAssetCache.put(request, response.clone())
-    }
+    if (!response.ok) return response
+
+    const routeAssetCache = await caches.open(ROUTE_ASSET_CACHE)
+    await routeAssetCache.put(request, response.clone())
     return response
   } catch {
     const fallback = await matchRouteAssetRequest(request)

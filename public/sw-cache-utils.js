@@ -249,15 +249,12 @@ async function collectPageAssetRequests(pageUrls) {
 }
 
 async function installShell() {
-  const buildAssetCacheName = await getBuildAssetCacheName()
   const shellRequests = SHELL_ROUTES.map((url) => toSameOriginRequest(url))
-  const [shellAssetRequests, buildManifestAssetRequests, sharedBuildAssetRequests] = await Promise.all([
+  const [shellAssetRequests, buildManifestAssetRequests] = await Promise.all([
     collectShellAssetRequests(),
     collectBuildManifestAssetRequests(),
-    collectSharedBuildAssetRequests(),
   ])
   await cacheRequests(SHELL_CACHE, [...shellRequests, ...shellAssetRequests, ...buildManifestAssetRequests])
-  await cacheRequests(buildAssetCacheName, sharedBuildAssetRequests)
 }
 
 async function ensureSharedBuildAssetsCached() {
