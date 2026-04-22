@@ -29,7 +29,7 @@ export default async function ImagePage({
     imageId,
     selectedImageId: image || null,
     routeId: route || null,
-    routeSlug: route || null,
+    routeSlug: null,
     climbId: climb || null,
   })
 

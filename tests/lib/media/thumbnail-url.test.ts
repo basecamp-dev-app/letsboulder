@@ -26,7 +26,7 @@ describe('buildThumbnailUrl', () => {
     )).toBe('/api/media/private-bucket/images/originals/test/original.jpg?w=480&q=70&lb-media=app')
   })
 
-  test('falls back safely when api-media source has no storage-backed url', () => {
+  test('fails when api-media source has no storage-backed url', () => {
     expect(buildThumbnailUrl(
       'https://static.letsboulder.com/images/originals/test/original.jpg?variant=detail&format=webp',
       480,
@@ -35,6 +35,6 @@ describe('buildThumbnailUrl', () => {
         storageUrl: '/images/originals/test/original.jpg',
         source: 'api-media',
       }
-    )).toBe('https://static.letsboulder.com/images/originals/test/original.jpg?variant=detail&format=webp')
+    )).toBe('')
   })
 })
