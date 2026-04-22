@@ -197,6 +197,122 @@ describe('crag route target mapping', () => {
     })
   })
 
+  test('prefers the image navigation target when it is available', () => {
+    const destination = resolveCragRouteDestination(
+      {
+        id: 'shared-climb-nav',
+        name: 'Route Nav',
+        grade: '7A',
+        slug: 'route-nav',
+        routeType: null,
+        directions: [],
+        hasTopo: true,
+        topoImageCount: 1,
+        ratingAvg: null,
+        ratingCount: 0,
+        weightedRating: null,
+        sendCount: 0,
+        recentSendCount60d: 0,
+      },
+      {
+        'shared-climb-nav': {
+          climbId: 'shared-climb-nav',
+          routeId: 'route-line-nav',
+          climbSlug: 'route-nav',
+          imageId: 'image-nav',
+          displayImageId: 'image-nav',
+          displayImageUrl: 'https://example.com/image-nav.jpg',
+        },
+      },
+      {},
+      {},
+      '/fr/example-crag',
+      false,
+    )
+
+    expect(destination).toEqual({
+      href: '/fr/example-crag/i/image-nav?image=image-nav&route=route-line-nav&climb=shared-climb-nav',
+      ready: true,
+    })
+  })
+
+  test('uses preview plus default target when no navigation target exists', () => {
+    const destination = resolveCragRouteDestination(
+      {
+        id: 'shared-climb-preview',
+        name: 'Route Preview',
+        grade: '6C',
+        slug: 'route-preview',
+        routeType: null,
+        directions: [],
+        hasTopo: true,
+        topoImageCount: 1,
+        ratingAvg: null,
+        ratingCount: 0,
+        weightedRating: null,
+        sendCount: 0,
+        recentSendCount60d: 0,
+      },
+      {},
+      {
+        'shared-climb-preview': {
+          imageId: 'image-preview',
+          imageUrl: 'https://example.com/image-preview.jpg',
+        },
+      },
+      {
+        'image-preview': {
+          climbId: 'shared-climb-preview',
+          routeId: 'route-line-preview',
+          climbSlug: 'route-preview',
+          imageId: 'image-preview',
+        },
+      },
+      '/fr/example-crag',
+      false,
+    )
+
+    expect(destination).toEqual({
+      href: '/fr/example-crag/i/image-preview?image=image-preview&route=route-line-preview&climb=shared-climb-preview',
+      ready: true,
+    })
+  })
+
+  test('uses a safe climb destination when offline', () => {
+    const destination = resolveCragRouteDestination(
+      {
+        id: 'shared-climb-offline',
+        name: 'Route Offline',
+        grade: '6B',
+        slug: 'route-offline',
+        routeType: null,
+        directions: [],
+        hasTopo: true,
+        topoImageCount: 1,
+        ratingAvg: null,
+        ratingCount: 0,
+        weightedRating: null,
+        sendCount: 0,
+        recentSendCount60d: 0,
+      },
+      {},
+      {
+        'shared-climb-offline': {
+          imageId: 'image-offline',
+          imageUrl: 'https://example.com/image-offline.jpg',
+        },
+      },
+      {},
+      '/fr/example-crag',
+      true,
+    )
+
+    expect(destination).toEqual({
+      href: '/climb/shared-climb-offline',
+      ready: true,
+    })
+  })
+
   test('falls back to climb page when no route target data is available', () => {
     const destination = resolveCragRouteDestination(
       {

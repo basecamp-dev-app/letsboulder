@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import CragMapView from '@/features/crags/components/CragMapView'
 import SelectedPinImageTray from '@/features/crags/components/SelectedPinImageTray'
 import CragRouteSection from '@/features/crags/components/CragRouteSection'
@@ -26,7 +26,7 @@ interface CragPageClientProps {
   initialRouteNavigationTargetByClimbId?: Record<string, RouteNavigationTarget>
   initialCragCenter?: [number, number] | null
   initialRouteTargetsComplete?: boolean
-  initialImagesComplete?: boolean
+  initialCriticalImagesComplete?: boolean
   initialPayloadLoadedAt?: number
   communityPlace?: CommunityPlaceInfo | null
   initialSelectedImageId?: string | null
@@ -44,7 +44,7 @@ export default function CragPageClient({
   initialRouteNavigationTargetByClimbId = {},
   initialCragCenter = null,
   initialRouteTargetsComplete = false,
-  initialImagesComplete = false,
+  initialCriticalImagesComplete = false,
   initialPayloadLoadedAt,
   communityPlace,
   initialSelectedImageId = null,
@@ -76,7 +76,7 @@ export default function CragPageClient({
     initialRouteNavigationTargetByClimbId,
     initialCragCenter,
     initialRouteTargetsComplete,
-    initialImagesComplete,
+    initialCriticalImagesComplete,
     initialPayloadLoadedAt,
   })
 
@@ -107,42 +107,6 @@ export default function CragPageClient({
   })
   const [isSaved, setIsSaved] = useState(initialIsSaved)
   const [saveLoading, setSaveLoading] = useState(false)
-
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('CRAG_DEBUG', {
-      stage: 'crag_page_client:render_state',
-      cragId: id,
-      cragSlug: crag?.slug || null,
-      routesLoadState,
-      routeTargetsHydrating,
-      routeTargetsComplete,
-      usingCachedFallback,
-      imagesCount: images.length,
-      routesCount: routes.length,
-      filteredRoutesCount: filters.filteredRoutes.length,
-      mapPinsCount: filters.mapPins.length,
-      selectedPinImagesCount: filters.selectedPinImages.length,
-      selectedImageId: filters.selectedImageId,
-      hasCragCenter: Boolean(cragCenter),
-      hasCrag: Boolean(crag),
-    })
-  }, [
-    crag?.slug,
-    crag,
-    cragCenter,
-    filters.filteredRoutes.length,
-    filters.mapPins.length,
-    filters.selectedImageId,
-    filters.selectedPinImages.length,
-    id,
-    images.length,
-    routeTargetsComplete,
-    routeTargetsHydrating,
-    routes.length,
-    routesLoadState,
-    usingCachedFallback,
-  ])
 
   const handleToggleSaveCrag = async () => {
     const supabase = createClient()

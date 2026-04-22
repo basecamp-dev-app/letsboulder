@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import { useCragImages } from '@/features/crags/hooks/use-crag-images'
 import { useCragRoutes } from '@/features/crags/hooks/use-crag-routes'
-import { useCragRouteTargets } from '@/features/crags/hooks/use-crag-route-targets'
 import { readCachedCragLocalFallback } from '@/features/crags/lib/crag-local-fallback'
 import type { CragRouteTargetsState, UseCragDataParams, UseCragDataResult } from '@/features/crags/hooks/use-crag-data-types'
 
@@ -20,7 +19,7 @@ export function useCragData({
   initialRouteNavigationTargetByClimbId = {},
   initialCragCenter = null,
   initialRouteTargetsComplete = false,
-  initialImagesComplete = false,
+  initialCriticalImagesComplete = false,
   initialPayloadLoadedAt,
 }: UseCragDataParams): UseCragDataResult {
   const [crag, setCrag] = useState(initialCrag)
@@ -50,7 +49,7 @@ export function useCragData({
     initialRouteNavigationTargetByClimbId,
     initialCragCenter,
     initialRouteTargetsComplete,
-    initialImagesComplete,
+    initialCriticalImagesComplete,
     initialPayloadLoadedAt,
     setCrag,
     setImages,
@@ -74,46 +73,8 @@ export function useCragData({
     readCachedFallback: () => readCachedCragLocalFallback(id),
   })
 
-  const { routeTargetsHydrating, routeTargetsComplete } = useCragRouteTargets({
-    cragId: id,
-    routes,
-    initialRouteTargetsComplete,
-    setRouteTargets: setCragRouteTargets,
-  })
-
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('CRAG_DEBUG', {
-      stage: 'use_crag_data:state',
-      cragId: id,
-      hasCrag: Boolean(crag),
-      imagesCount: images.length,
-      routesCount: routes.length,
-      routePreviewCount: Object.keys(routeTargets.routePreviewByClimbId).length,
-      routeNavigationTargetCount: Object.keys(routeTargets.routeNavigationTargetByClimbId).length,
-      defaultRouteTargetCount: Object.keys(routeTargets.defaultRouteTargetByImageId).length,
-      routesLoadState,
-      loading,
-      routeTargetsHydrating,
-      routeTargetsComplete,
-      usingCachedFallback,
-      hasCragCenter: Boolean(cragCenter),
-    })
-  }, [
-    crag,
-    cragCenter,
-    id,
-    images.length,
-    loading,
-    routeTargets.defaultRouteTargetByImageId,
-    routeTargets.routeNavigationTargetByClimbId,
-    routeTargets.routePreviewByClimbId,
-    routeTargetsComplete,
-    routeTargetsHydrating,
-    routes.length,
-    routesLoadState,
-    usingCachedFallback,
-  ])
+  const routeTargetsHydrating = false
+  const routeTargetsComplete = initialRouteTargetsComplete || routes.length === 0
 
   return {
     crag,
