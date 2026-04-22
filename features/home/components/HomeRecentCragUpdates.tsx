@@ -57,7 +57,7 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
                   Updated {formatRelativeTime(update.latestContributionAt)}
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-2 px-4 py-4 sm:px-5 sm:py-4.5">
+              <div className="flex items-center justify-between gap-2 px-4 pt-0 pb-4 sm:px-5 sm:pt-0 sm:pb-4.5">
                 <div className="min-w-0 flex-1 text-left">
                   <CardTitle className="text-xl leading-tight text-stone-950 dark:text-stone-50">{update.cragName}</CardTitle>
                   <p className="text-sm leading-snug text-stone-600 dark:text-stone-300">
