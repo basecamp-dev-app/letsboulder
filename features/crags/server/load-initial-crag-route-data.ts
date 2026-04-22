@@ -21,6 +21,7 @@ interface RouteLineImageRow {
 interface HydratedImage {
   id: string
   url: string
+  storageUrl?: string
   latitude: number | null
   longitude: number | null
   route_lines_count: number
@@ -65,6 +66,7 @@ export async function loadInitialCragRouteData(
   const images = ((imageData || []) as ImageRow[]).map((image) => ({
     ...image,
     url: resolveRouteImageUrl(image.url),
+    storageUrl: image.url,
   }))
   const initialImageIds = new Set(images.map((image) => image.id))
   const routeLineCountByImageId = new Map<string, number>()
@@ -79,6 +81,7 @@ export async function loadInitialCragRouteData(
   const initialImages = images.map((image) => ({
     id: image.id,
     url: image.url,
+    storageUrl: image.storageUrl,
     latitude: image.latitude,
     longitude: image.longitude,
     route_lines_count: 0,
@@ -139,6 +142,7 @@ export async function loadInitialCragRouteData(
         const hydratedImage = {
           id: image.id,
           url: resolveRouteImageUrl(image.url),
+          storageUrl: image.url,
           latitude: image.latitude,
           longitude: image.longitude,
           route_lines_count: routeLineCountByImageId.get(image.id) || 0,
@@ -161,25 +165,26 @@ export async function loadInitialCragRouteData(
     Object.assign(initialRoutePreviewByClimbId, Object.fromEntries(
       Object.entries(targetMaps.nextRoutePreviewByClimbId).map(([routeId, preview]) => {
         const hydratedPreview = imageById.get(preview.imageId)
-        return [routeId, hydratedPreview ? { imageId: hydratedPreview.id, imageUrl: hydratedPreview.url } : preview]
+        return [routeId, hydratedPreview ? { imageId: hydratedPreview.id, imageUrl: hydratedPreview.url, storageUrl: hydratedPreview.storageUrl } : preview]
       })
     ))
     initialDefaultRouteTargetByImageId = targetMaps.nextDefaultRouteTargetByImageId
     initialRouteNavigationTargetByClimbId = Object.fromEntries(
       Object.entries(targetMaps.nextRouteNavigationTargetByClimbId).map(([routeId, target]) => {
         const hydratedImage = imageById.get(target.displayImageId)
-        return [routeId, hydratedImage ? { ...target, displayImageUrl: hydratedImage.url } : target]
+        return [routeId, hydratedImage ? { ...target, displayImageUrl: hydratedImage.url, storageUrl: hydratedImage.storageUrl } : target]
       })
     )
 
-    const withCoords = initialImages.filter(
-      (image): image is HydratedImage & { latitude: number; longitude: number } => (
-        typeof image.latitude === 'number' && typeof image.longitude === 'number'
-      )
-    )
-    const initialCragCenter = typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number'
-      ? [cragCoords.latitude, cragCoords.longitude] as [number, number]
-      : withCoords.length > 0 ? getAverageCoordinates(withCoords) : null
+    const withCoords: { latitude: number; longitude: number }[] = []
+  for (const image of initialImages) {
+    if (typeof image.latitude === 'number' && typeof image.longitude === 'number') {
+      withCoords.push({ latitude: image.latitude, longitude: image.longitude })
+    }
+  }
+  const initialCragCenter = typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number'
+    ? [cragCoords.latitude, cragCoords.longitude] as [number, number]
+    : withCoords.length > 0 ? getAverageCoordinates(withCoords) : null
 
     return {
       initialRoutes,
@@ -200,9 +205,12 @@ export async function loadInitialCragRouteData(
     }
   }
 
-  const withCoords = images.filter(
-    (image): image is ImageRow & { latitude: number; longitude: number } => typeof image.latitude === 'number' && typeof image.longitude === 'number'
-  )
+  const withCoords: { latitude: number; longitude: number }[] = []
+  for (const image of images) {
+    if (typeof image.latitude === 'number' && typeof image.longitude === 'number') {
+      withCoords.push({ latitude: image.latitude, longitude: image.longitude })
+    }
+  }
   const initialCragCenter = typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number'
     ? [cragCoords.latitude, cragCoords.longitude] as [number, number]
     : withCoords.length > 0 ? getAverageCoordinates(withCoords) : null

@@ -358,7 +358,11 @@ async function removeUrls(cacheName, urls) {
 if (typeof globalThis !== 'undefined') {
   globalThis.collectAssetRequestsFromPage = collectAssetRequestsFromPage
   globalThis.collectShellAssetRequests = collectShellAssetRequests
+  globalThis.installShell = installShell
+  globalThis.cachePageAssets = cachePageAssets
   globalThis.cacheRequiredPageAssets = cacheRequiredPageAssets
+  globalThis.cacheUrls = cacheUrls
+  globalThis.removeUrls = removeUrls
   globalThis.collectSharedBuildAssetRequests = collectSharedBuildAssetRequests
   globalThis.ensureSharedBuildAssetsCached = ensureSharedBuildAssetsCached
   globalThis.getBuildAssetCacheName = getBuildAssetCacheName
