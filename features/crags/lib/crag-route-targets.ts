@@ -190,12 +190,10 @@ export function resolveCragRouteDestination(
 
   if (!offlineOnly && fallbackImageId) {
     return {
-      href: buildCragImageDestination({
-        imageId: fallbackImageId,
-        routeHrefBase,
-        offlineOnly: false,
-      }),
-      ready: false,
+      href: route.slug && routeHrefBase
+        ? `${routeHrefBase}/${route.slug}`
+        : `/climb/${route.id}`,
+      ready: true,
     }
   }
 
@@ -209,13 +207,13 @@ export function resolveCragRouteDestination(
   if (route.slug && routeHrefBase) {
     return {
       href: `${routeHrefBase}/${route.slug}`,
-      ready: false,
+      ready: true,
     }
   }
 
   return {
     href: `/climb/${route.id}`,
-    ready: false,
+    ready: true,
   }
 }
 

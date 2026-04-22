@@ -224,7 +224,6 @@ export default function CragPageClient({
         onClearRouteFilters={filters.clearAllRouteFilters}
         onRouteSortChange={filters.handleRouteSortChange}
         onRemoveActiveRouteFilterChip={filters.handleRemoveActiveRouteFilterChip}
-        onPendingRouteNavigation={filters.handlePendingRouteNavigation}
         getRouteDestination={filters.getRouteDestination}
         onSearchQueryChange={filters.setSearchQuery}
         onMinGradeChange={filters.setMinGrade}

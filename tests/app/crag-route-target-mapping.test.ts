@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { hasCompleteRouteTargets } from '@/features/crags/lib/crag-route-targets'
+import { hasCompleteRouteTargets, resolveCragRouteDestination } from '@/features/crags/lib/crag-route-targets'
 
 type RouteLineTargetRow = {
   id: string
@@ -160,5 +160,70 @@ describe('crag route target mapping', () => {
         },
       }
     )).toBe(true)
+  })
+
+  test('falls back to canonical route page when preview exists but route target is unresolved', () => {
+    const destination = resolveCragRouteDestination(
+      {
+        id: 'shared-climb-3',
+        name: 'Route Three',
+        grade: '7A',
+        slug: 'route-three',
+        routeType: null,
+        directions: [],
+        hasTopo: true,
+        topoImageCount: 1,
+        ratingAvg: null,
+        ratingCount: 0,
+        weightedRating: null,
+        sendCount: 0,
+        recentSendCount60d: 0,
+      },
+      {},
+      {
+        'shared-climb-3': {
+          imageId: 'image-3',
+          imageUrl: 'https://example.com/image-3.jpg',
+        },
+      },
+      {},
+      '/france/example-crag',
+      false,
+    )
+
+    expect(destination).toEqual({
+      href: '/france/example-crag/route-three',
+      ready: true,
+    })
+  })
+
+  test('falls back to climb page when no route target data is available', () => {
+    const destination = resolveCragRouteDestination(
+      {
+        id: 'shared-climb-4',
+        name: 'Route Four',
+        grade: '6C',
+        slug: null,
+        routeType: null,
+        directions: [],
+        hasTopo: false,
+        topoImageCount: 0,
+        ratingAvg: null,
+        ratingCount: 0,
+        weightedRating: null,
+        sendCount: 0,
+        recentSendCount60d: 0,
+      },
+      {},
+      {},
+      {},
+      null,
+      false,
+    )
+
+    expect(destination).toEqual({
+      href: '/climb/shared-climb-4',
+      ready: true,
+    })
   })
 })

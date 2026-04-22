@@ -18,7 +18,6 @@ interface CragSearchDialogProps {
   routeLocationLabel: string
   gradeSystem: GradeSystem
   getRouteDestination: (route: CragRoute) => { href: string; ready: boolean }
-  onPendingRouteNavigation: (event: React.MouseEvent<HTMLButtonElement>, route: CragRoute) => void
 }
 
 const CragSearchDialog = React.memo(function CragSearchDialog({
@@ -30,7 +29,6 @@ const CragSearchDialog = React.memo(function CragSearchDialog({
   routeLocationLabel,
   gradeSystem,
   getRouteDestination,
-  onPendingRouteNavigation,
 }: CragSearchDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -59,14 +57,6 @@ const CragSearchDialog = React.memo(function CragSearchDialog({
                       <ChevronRight className="size-4 text-stone-400" />
                     </>
                   )
-
-                  if (!destination.ready) {
-                    return (
-                      <Button key={route.id} type="button" variant="outline" onClick={(event) => onPendingRouteNavigation(event, route)} className="h-auto w-full justify-between rounded-xl border-stone-200 px-3 py-2 text-left text-sm font-normal text-inherit shadow-none hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">
-                        {content}
-                      </Button>
-                    )
-                  }
 
                   return (
                     <a key={route.id} href={destination.href} className="flex items-center justify-between rounded-xl border border-stone-200 px-3 py-2 text-sm hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">
