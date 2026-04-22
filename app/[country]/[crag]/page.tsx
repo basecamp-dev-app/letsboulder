@@ -161,6 +161,15 @@ export default async function CragSlugPage({
 }) {
   const { country, crag: cragSlug } = await params
   const { image } = await searchParams
+  const requestId = `crag-slug:${country}:${cragSlug}`
+  // eslint-disable-next-line no-console
+  console.log('CRAG_DEBUG', {
+    stage: 'crag_slug_page:start',
+    requestId,
+    country,
+    cragSlug,
+    selectedImageId: image || null,
+  })
   if (!country || country.length !== 2) notFound()
 
   const countryCode = country.toUpperCase()
@@ -200,8 +209,23 @@ export default async function CragSlugPage({
   const initialRouteData = await loadInitialCragRouteData(supabase, crag.id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
-  })
+  }, requestId)
   const initialIsSaved = user ? await isCragSavedByUser(supabase, user.id, crag.id) : false
+
+  // eslint-disable-next-line no-console
+  console.log('CRAG_DEBUG', {
+    stage: 'crag_slug_page:return',
+    requestId,
+    cragId: crag.id,
+    country,
+    cragSlug,
+    hasUser: Boolean(user),
+    selectedImageId: image || null,
+    initialRoutesCount: initialRouteData.initialRoutes.length,
+    initialImagesCount: initialRouteData.initialImages.length,
+    initialRouteTargetsComplete: initialRouteData.initialRouteTargetsComplete,
+    initialImagesComplete: initialRouteData.initialImagesComplete,
+  })
 
   return (
     <>

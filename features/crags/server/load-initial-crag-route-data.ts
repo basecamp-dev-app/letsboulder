@@ -36,8 +36,18 @@ const SSR_ROUTE_PREVIEW_SEED_LIMIT = 100
 export async function loadInitialCragRouteData(
   supabase: SupabaseClient<Database>,
   cragId: string,
-  cragCoords?: { latitude: number | null; longitude: number | null }
+  cragCoords?: { latitude: number | null; longitude: number | null },
+  requestId?: string
 ): Promise<InitialCragRouteData> {
+  const startedAt = Date.now()
+  // eslint-disable-next-line no-console
+  console.log('CRAG_DEBUG', {
+    stage: 'load_initial_crag_route_data:start',
+    requestId: requestId || null,
+    cragId,
+    hasCragCoords: typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number',
+  })
+
   const [{ data: routeData }, { data: imageData }] = await Promise.all([
     supabase.rpc('get_crag_route_intelligence', { p_crag_id: cragId }),
     supabase
@@ -48,6 +58,16 @@ export async function loadInitialCragRouteData(
       .limit(INITIAL_CRAG_IMAGE_LIMIT),
   ])
   const baseRoutes = formatCragRoutes(routeData || [])
+  // eslint-disable-next-line no-console
+  console.log('CRAG_DEBUG', {
+    stage: 'load_initial_crag_route_data:seed_base',
+    requestId: requestId || null,
+    cragId,
+    routeRpcCount: routeData?.length || 0,
+    baseRoutesCount: baseRoutes.length,
+    initialSeedImageCount: imageData?.length || 0,
+    durationMs: Date.now() - startedAt,
+  })
 
   const climbIds = baseRoutes.map((route) => route.id)
   let effectiveClimbIdByClimbId: Record<string, string> = {}
@@ -61,6 +81,15 @@ export async function loadInitialCragRouteData(
 
     const effectiveClimbLookup = buildEffectiveClimbLookup((data || []) as ClimbIdentityRow[])
     effectiveClimbIdByClimbId = effectiveClimbLookup.effectiveClimbIdByClimbId
+    // eslint-disable-next-line no-console
+    console.log('CRAG_DEBUG', {
+      stage: 'load_initial_crag_route_data:effective_climbs',
+      requestId: requestId || null,
+      cragId,
+      climbIdsCount: climbIds.length,
+      effectiveClimbIdsCount: Object.keys(effectiveClimbIdByClimbId).length,
+      durationMs: Date.now() - startedAt,
+    })
   }
 
   const images = ((imageData || []) as ImageRow[]).map((image) => ({
@@ -119,6 +148,17 @@ export async function loadInitialCragRouteData(
     const previewImageIds = Array.from(new Set(Object.values(targetMaps.nextRoutePreviewByClimbId).map((preview) => preview.imageId)))
     const missingPreviewImageIds = previewImageIds.filter((imageId) => !imageById.has(imageId))
     const previewOnlyImageIds = previewImageIds.filter((imageId) => !initialImageIds.has(imageId))
+    // eslint-disable-next-line no-console
+    console.log('CRAG_DEBUG', {
+      stage: 'load_initial_crag_route_data:preview_seed',
+      requestId: requestId || null,
+      cragId,
+      dedupedRoutesCount: initialRoutes.length,
+      previewCount: previewImageIds.length,
+      previewOnlyImageCount: previewOnlyImageIds.length,
+      missingPreviewImageCount: missingPreviewImageIds.length,
+      durationMs: Date.now() - startedAt,
+    })
 
     if (previewOnlyImageIds.length > 0) {
       const { data: routeLineImageData } = await previewSupabase
@@ -182,9 +222,32 @@ export async function loadInitialCragRouteData(
       withCoords.push({ latitude: image.latitude, longitude: image.longitude })
     }
   }
-  const initialCragCenter = typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number'
-    ? [cragCoords.latitude, cragCoords.longitude] as [number, number]
-    : withCoords.length > 0 ? getAverageCoordinates(withCoords) : null
+    const initialCragCenter = typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number'
+      ? [cragCoords.latitude, cragCoords.longitude] as [number, number]
+      : withCoords.length > 0 ? getAverageCoordinates(withCoords) : null
+
+    const initialRouteTargetsComplete = hasCompleteRouteTargets(
+      initialRoutes,
+      initialRouteImageIdsByClimbId,
+      initialRoutePreviewByClimbId,
+      initialRouteNavigationTargetByClimbId
+    )
+
+    // eslint-disable-next-line no-console
+    console.log('CRAG_DEBUG', {
+      stage: 'load_initial_crag_route_data:return',
+      requestId: requestId || null,
+      cragId,
+      initialRoutesCount: initialRoutes.length,
+      initialImagesCount: initialImages.length,
+      previewImagesHydrated,
+      initialRouteTargetsComplete,
+      initialImagesComplete: previewImagesHydrated,
+      initialCragCenterSource: typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number'
+        ? 'crag_coords'
+        : withCoords.length > 0 ? 'average_image_coords' : 'none',
+      durationMs: Date.now() - startedAt,
+    })
 
     return {
       initialRoutes,
@@ -194,12 +257,7 @@ export async function loadInitialCragRouteData(
       initialRouteNavigationTargetByClimbId,
       initialImages,
       initialCragCenter,
-      initialRouteTargetsComplete: hasCompleteRouteTargets(
-        initialRoutes,
-        initialRouteImageIdsByClimbId,
-        initialRoutePreviewByClimbId,
-        initialRouteNavigationTargetByClimbId
-      ),
+      initialRouteTargetsComplete,
       initialImagesComplete: previewImagesHydrated,
       loadedAt: Date.now(),
     }
@@ -215,6 +273,29 @@ export async function loadInitialCragRouteData(
     ? [cragCoords.latitude, cragCoords.longitude] as [number, number]
     : withCoords.length > 0 ? getAverageCoordinates(withCoords) : null
 
+  const initialRouteTargetsComplete = hasCompleteRouteTargets(
+    initialRoutes,
+    initialRouteImageIdsByClimbId,
+    initialRoutePreviewByClimbId,
+    initialRouteNavigationTargetByClimbId
+  )
+
+  // eslint-disable-next-line no-console
+  console.log('CRAG_DEBUG', {
+    stage: 'load_initial_crag_route_data:return_no_routes',
+    requestId: requestId || null,
+    cragId,
+    initialRoutesCount: initialRoutes.length,
+    initialImagesCount: initialImages.length,
+    previewImagesHydrated,
+    initialRouteTargetsComplete,
+    initialImagesComplete: previewImagesHydrated,
+    initialCragCenterSource: typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number'
+      ? 'crag_coords'
+      : withCoords.length > 0 ? 'average_image_coords' : 'none',
+    durationMs: Date.now() - startedAt,
+  })
+
   return {
     initialRoutes,
     initialRouteImageIdsByClimbId,
@@ -223,12 +304,7 @@ export async function loadInitialCragRouteData(
     initialRouteNavigationTargetByClimbId,
     initialImages,
     initialCragCenter,
-    initialRouteTargetsComplete: hasCompleteRouteTargets(
-      initialRoutes,
-      initialRouteImageIdsByClimbId,
-      initialRoutePreviewByClimbId,
-      initialRouteNavigationTargetByClimbId
-    ),
+    initialRouteTargetsComplete,
     initialImagesComplete: previewImagesHydrated,
     loadedAt: Date.now(),
   }
