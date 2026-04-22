@@ -66,7 +66,7 @@ export function useCragImages({
   setUsingCachedFallback,
 }: UseCragImagesParams) {
   const hasInitialRouteData = initialRoutes !== null
-  const hasCompleteInitialImages = Boolean(initialCrag) && initialImagesComplete && initialImages.length > 0
+  const hasCompleteInitialImages = Boolean(initialCrag) && initialImagesComplete
 
   // Seed in-memory cache from SSR payload when images are authoritative.
   useEffect(() => {

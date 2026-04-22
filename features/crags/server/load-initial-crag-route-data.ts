@@ -31,7 +31,20 @@ interface HydratedImage {
 }
 
 const INITIAL_CRAG_IMAGE_LIMIT = 24
-const SSR_ROUTE_PREVIEW_SEED_LIMIT = 100
+
+function buildInitialImage(image: ImageRow, routeLinesCount = 0): HydratedImage {
+  return {
+    id: image.id,
+    url: resolveRouteImageUrl(image.url),
+    storageUrl: image.url,
+    latitude: image.latitude,
+    longitude: image.longitude,
+    route_lines_count: routeLinesCount,
+    is_verified: false,
+    verification_count: 0,
+    supplementary_faces_count: 0,
+  }
+}
 
 export async function loadInitialCragRouteData(
   supabase: SupabaseClient<Database>,
@@ -92,12 +105,8 @@ export async function loadInitialCragRouteData(
     })
   }
 
-  const images = ((imageData || []) as ImageRow[]).map((image) => ({
-    ...image,
-    url: resolveRouteImageUrl(image.url),
-    storageUrl: image.url,
-  }))
-  const initialImageIds = new Set(images.map((image) => image.id))
+  const seededImages = (imageData || []) as ImageRow[]
+  const initialImageIds = new Set(seededImages.map((image) => image.id))
   const routeLineCountByImageId = new Map<string, number>()
   const initialRoutes = dedupeCragRoutes(baseRoutes, effectiveClimbIdByClimbId)
   const imageById = new Map<string, HydratedImage>()
@@ -106,18 +115,7 @@ export async function loadInitialCragRouteData(
   const initialRouteImageIdsByClimbId: InitialCragRouteData['initialRouteImageIdsByClimbId'] = {}
   let initialDefaultRouteTargetByImageId: InitialCragRouteData['initialDefaultRouteTargetByImageId'] = {}
   let initialRouteNavigationTargetByClimbId: InitialCragRouteData['initialRouteNavigationTargetByClimbId'] = {}
-  let previewImagesHydrated = true
-  const initialImages = images.map((image) => ({
-    id: image.id,
-    url: image.url,
-    storageUrl: image.storageUrl,
-    latitude: image.latitude,
-    longitude: image.longitude,
-    route_lines_count: 0,
-    is_verified: false,
-    verification_count: 0,
-    supplementary_faces_count: 0,
-  }))
+  const initialImages = seededImages.map((image) => buildInitialImage(image))
 
   for (const image of initialImages) {
     imageById.set(image.id, image)
@@ -142,7 +140,7 @@ export async function loadInitialCragRouteData(
 
     const previewSupabase = getAdminClientWithAudit('loadInitialCragRouteData preview seed')
     const targetMaps = await fetchCragRoutePreviewsBatched(previewSupabase, cragId, effectiveClimbIdByClimbId, {
-      limit: SSR_ROUTE_PREVIEW_SEED_LIMIT,
+      limit: undefined,
     })
 
     const previewImageIds = Array.from(new Set(Object.values(targetMaps.nextRoutePreviewByClimbId).map((preview) => preview.imageId)))
@@ -179,17 +177,7 @@ export async function loadInitialCragRouteData(
         .in('id', missingPreviewImageIds)
 
       for (const image of (previewImageData || []) as ImageRow[]) {
-        const hydratedImage = {
-          id: image.id,
-          url: resolveRouteImageUrl(image.url),
-          storageUrl: image.url,
-          latitude: image.latitude,
-          longitude: image.longitude,
-          route_lines_count: routeLineCountByImageId.get(image.id) || 0,
-          is_verified: false,
-          verification_count: 0,
-          supplementary_faces_count: 0,
-        }
+        const hydratedImage = buildInitialImage(image, routeLineCountByImageId.get(image.id) || 0)
 
         if (!imageById.has(hydratedImage.id)) {
           imageById.set(hydratedImage.id, hydratedImage)
@@ -198,8 +186,7 @@ export async function loadInitialCragRouteData(
       }
     }
 
-    // The SSR payload is complete once every seeded preview image has been hydrated into initialImages.
-    previewImagesHydrated = previewImageIds.every((imageId) => imageById.has(imageId))
+    const previewImagesHydrated = previewImageIds.every((imageId) => imageById.has(imageId))
 
     Object.assign(initialRouteImageIdsByClimbId, targetMaps.nextRouteImageIdsByClimbId)
     Object.assign(initialRoutePreviewByClimbId, Object.fromEntries(
@@ -242,7 +229,7 @@ export async function loadInitialCragRouteData(
       initialImagesCount: initialImages.length,
       previewImagesHydrated,
       initialRouteTargetsComplete,
-      initialImagesComplete: previewImagesHydrated,
+      initialImagesComplete: true,
       initialCragCenterSource: typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number'
         ? 'crag_coords'
         : withCoords.length > 0 ? 'average_image_coords' : 'none',
@@ -258,7 +245,7 @@ export async function loadInitialCragRouteData(
       initialImages,
       initialCragCenter,
       initialRouteTargetsComplete,
-      initialImagesComplete: previewImagesHydrated,
+      initialImagesComplete: true,
       loadedAt: Date.now(),
     }
   }
@@ -287,9 +274,9 @@ export async function loadInitialCragRouteData(
     cragId,
     initialRoutesCount: initialRoutes.length,
     initialImagesCount: initialImages.length,
-    previewImagesHydrated,
+    previewImagesHydrated: true,
     initialRouteTargetsComplete,
-    initialImagesComplete: previewImagesHydrated,
+    initialImagesComplete: true,
     initialCragCenterSource: typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number'
       ? 'crag_coords'
       : withCoords.length > 0 ? 'average_image_coords' : 'none',
@@ -305,7 +292,7 @@ export async function loadInitialCragRouteData(
     initialImages,
     initialCragCenter,
     initialRouteTargetsComplete,
-    initialImagesComplete: previewImagesHydrated,
+    initialImagesComplete: true,
     loadedAt: Date.now(),
   }
 }

@@ -9,7 +9,7 @@ interface CragSortDialogProps {
   open: boolean
   routeSort: 'sends' | 'rating' | 'grade' | 'name'
   onOpenChange: (open: boolean) => void
-  onRouteSortChange: (sort: 'sends' | 'grade') => void
+  onRouteSortChange: (sort: 'sends' | 'rating' | 'grade' | 'name') => void
 }
 
 const CragSortDialog = React.memo(function CragSortDialog({
@@ -35,8 +35,16 @@ const CragSortDialog = React.memo(function CragSortDialog({
             <span>Ascents</span>
             <ChevronRight className="size-4" />
           </Button>
+          <Button type="button" variant={routeSort === 'rating' ? 'default' : 'outline'} onClick={() => onRouteSortChange('rating')} className={`h-auto w-full justify-between rounded-xl px-3 py-3 text-sm ${routeSort === 'rating' ? 'border-stone-900 bg-stone-900 text-white hover:bg-stone-800' : 'border-stone-200 bg-white text-stone-700 shadow-none hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
+            <span>Rating</span>
+            <ChevronRight className="size-4" />
+          </Button>
           <Button type="button" variant={routeSort === 'grade' ? 'default' : 'outline'} onClick={() => onRouteSortChange('grade')} className={`h-auto w-full justify-between rounded-xl px-3 py-3 text-sm ${routeSort === 'grade' ? 'border-stone-900 bg-stone-900 text-white hover:bg-stone-800' : 'border-stone-200 bg-white text-stone-700 shadow-none hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
             <span>Grade</span>
+            <ChevronRight className="size-4" />
+          </Button>
+          <Button type="button" variant={routeSort === 'name' ? 'default' : 'outline'} onClick={() => onRouteSortChange('name')} className={`h-auto w-full justify-between rounded-xl px-3 py-3 text-sm ${routeSort === 'name' ? 'border-stone-900 bg-stone-900 text-white hover:bg-stone-800' : 'border-stone-200 bg-white text-stone-700 shadow-none hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
+            <span>Name</span>
             <ChevronRight className="size-4" />
           </Button>
         </div>

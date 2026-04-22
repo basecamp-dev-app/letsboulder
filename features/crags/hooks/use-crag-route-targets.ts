@@ -66,13 +66,12 @@ export function useCragRouteTargets({
   initialRouteTargetsComplete,
   setRouteTargets,
 }: UseCragRouteTargetsParams): UseCragRouteTargetsResult {
-  const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
-  const shouldLoad = routes.length > 0 && !initialRouteTargetsComplete && !isOffline
+  const shouldLoad = false
 
   const routeTargetsQuery = useQuery({
     queryKey: cragKeys.routeTargets(cragId),
     queryFn: () => fetchAllRouteTargets(cragId),
-    enabled: !!cragId && shouldLoad,
+    enabled: false,
     staleTime: 5 * 60 * 1000,
     meta: { persist: true },
   })
@@ -83,7 +82,6 @@ export function useCragRouteTargets({
       stage: 'use_crag_route_targets:query',
       cragId,
       shouldLoad,
-      isOffline,
       routesCount: routes.length,
       initialRouteTargetsComplete,
       queryStatus: routeTargetsQuery.status,
@@ -95,7 +93,6 @@ export function useCragRouteTargets({
   }, [
     cragId,
     initialRouteTargetsComplete,
-    isOffline,
     routeTargetsQuery.data,
     routeTargetsQuery.error,
     routeTargetsQuery.isFetching,
@@ -132,7 +129,7 @@ export function useCragRouteTargets({
   ])
 
   return {
-    routeTargetsHydrating: shouldLoad && (routeTargetsQuery.isLoading || routeTargetsQuery.isFetching),
-    routeTargetsComplete: initialRouteTargetsComplete || Boolean(routeTargetsQuery.data),
+    routeTargetsHydrating: false,
+    routeTargetsComplete: initialRouteTargetsComplete || routes.length === 0 || Boolean(routeTargetsQuery.data),
   }
 }
