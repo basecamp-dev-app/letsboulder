@@ -1,6 +1,6 @@
 'use client'
 
-import React, { type MouseEvent } from 'react'
+import React from 'react'
 import CragPageToolbar, { type CragSwitcherOption } from '@/features/crags/components/CragPageToolbar'
 import CragCommunitySidebar, { type CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
 import CragRouteList from '@/features/crags/components/CragRouteList'
@@ -73,7 +73,6 @@ interface CragRouteSectionProps {
   onClearRouteFilters: () => void
   onRouteSortChange: (sort: 'sends' | 'grade') => void
   onRemoveActiveRouteFilterChip: (chip: ActiveRouteFilterChip) => void
-  onPendingRouteNavigation: (event: MouseEvent<HTMLButtonElement>, route: CragRoute) => void
   getRouteDestination: (route: CragRoute) => ResolvedRouteDestination
   onSearchQueryChange: (query: string) => void
   onMinGradeChange: (grade: string) => void
@@ -149,7 +148,6 @@ const CragRouteSection = React.memo(function CragRouteSection({
   onClearRouteFilters,
   onRouteSortChange,
   onRemoveActiveRouteFilterChip,
-  onPendingRouteNavigation,
   getRouteDestination,
   onSearchQueryChange,
   onMinGradeChange,
@@ -230,13 +228,12 @@ const CragRouteSection = React.memo(function CragRouteSection({
           routeTargetsComplete={routeTargetsComplete}
           pinNumberByImageId={pinNumberByImageId}
           gradeSystem={gradeSystem}
-          routesCount={routesCount}
-          hasActiveRouteFilters={hasActiveRouteFilters}
-          onClearRouteFilters={onClearRouteFilters}
-          onRetryRoutes={onRetryRoutes}
-          onPendingRouteNavigation={onPendingRouteNavigation}
-          getRouteDestination={getRouteDestination}
-        />
+            routesCount={routesCount}
+            hasActiveRouteFilters={hasActiveRouteFilters}
+            onClearRouteFilters={onClearRouteFilters}
+            onRetryRoutes={onRetryRoutes}
+            getRouteDestination={getRouteDestination}
+          />
       </section>
 
       <CragSearchDialog
@@ -248,7 +245,6 @@ const CragRouteSection = React.memo(function CragRouteSection({
         routeLocationLabel={routeLocationLabel}
         gradeSystem={gradeSystem}
         getRouteDestination={getRouteDestination}
-        onPendingRouteNavigation={onPendingRouteNavigation}
       />
 
       <CragFilterDialog

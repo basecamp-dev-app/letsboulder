@@ -1,4 +1,4 @@
-import React, { useState, type MouseEvent } from 'react'
+import React, { useState } from 'react'
 import { AlertCircle, ChevronRight, RefreshCw } from 'lucide-react'
 import Image from 'next/image'
 import { formatGradeForDisplay } from '@/lib/grade-display'
@@ -20,7 +20,6 @@ interface CragRouteListProps {
   hasActiveRouteFilters: boolean
   onClearRouteFilters: () => void
   onRetryRoutes: () => void
-  onPendingRouteNavigation: (event: MouseEvent<HTMLButtonElement>, route: CragRoute) => void
   getRouteDestination: (route: CragRoute) => { href: string; ready: boolean }
 }
 
@@ -61,7 +60,6 @@ const CragRouteList = React.memo(function CragRouteList({
   hasActiveRouteFilters,
   onClearRouteFilters,
   onRetryRoutes,
-  onPendingRouteNavigation,
   getRouteDestination,
 }: CragRouteListProps) {
   const resultSummary = filteredRoutes.length === routesCount || !hasActiveRouteFilters
@@ -147,14 +145,6 @@ const CragRouteList = React.memo(function CragRouteList({
                 <ChevronRight className="size-4 shrink-0 text-stone-400" />
               </>
             )
-
-            if (!destination.ready) {
-              return (
-                <button key={route.id} type="button" aria-label={`Open route ${route.name}`} onClick={(event) => onPendingRouteNavigation(event, route)} className={`${className} w-full text-left`}>
-                  {content}
-                </button>
-              )
-            }
 
             return (
               <a key={route.id} aria-label={`Open route ${route.name}`} aria-current={highlightedRouteIds.has(route.id) ? 'page' : undefined} href={destination.href} className={className}>
