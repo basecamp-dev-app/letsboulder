@@ -124,7 +124,7 @@ export interface UseCragPageFiltersResult {
   selectedImageId: string | null
   setSelectedImageId: (id: string | null) => void
   routeSort: 'sends' | 'rating' | 'grade' | 'name'
-  handleRouteSortChange: (sort: 'sends' | 'grade') => void
+  handleRouteSortChange: (sort: 'sends' | 'rating' | 'grade' | 'name') => void
   sortModalOpen: boolean
   setSortModalOpen: (open: boolean) => void
   searchQuery: string
@@ -371,7 +371,7 @@ export function useCragPageFilters({
     }
   }, [])
 
-  const handleRouteSortChange = useCallback((sort: 'sends' | 'grade') => {
+  const handleRouteSortChange = useCallback((sort: 'sends' | 'rating' | 'grade' | 'name') => {
     setRouteSort(sort)
     setSortModalOpen(false)
   }, [])

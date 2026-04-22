@@ -135,7 +135,7 @@ describe('loadInitialCragRouteData', () => {
     expect(result.initialImagesComplete).toBe(true)
   })
 
-  it('marks initial images incomplete when a seeded preview image cannot be hydrated', async () => {
+  it('keeps initial images complete even when a seeded preview image cannot be hydrated', async () => {
     const imagesSelect = createSelectBuilder({
       data: [
         { id: 'image-1', url: 'https://example.com/1.jpg', latitude: 51.0, longitude: 0.1 },
@@ -222,7 +222,7 @@ describe('loadInitialCragRouteData', () => {
       expect.objectContaining({ id: 'image-1', route_lines_count: 1 }),
     ]))
     expect(result.initialImages).toHaveLength(1)
-    expect(result.initialImagesComplete).toBe(false)
+    expect(result.initialImagesComplete).toBe(true)
   })
 
   it('marks initial images complete when seeded previews already use the initial image set', async () => {

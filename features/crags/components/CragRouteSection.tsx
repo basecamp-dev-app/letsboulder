@@ -71,7 +71,7 @@ interface CragRouteSectionProps {
   onOpenFilterModal: () => void
   onOpenSortModal: () => void
   onClearRouteFilters: () => void
-  onRouteSortChange: (sort: 'sends' | 'grade') => void
+  onRouteSortChange: (sort: 'sends' | 'rating' | 'grade' | 'name') => void
   onRemoveActiveRouteFilterChip: (chip: ActiveRouteFilterChip) => void
   getRouteDestination: (route: CragRoute) => ResolvedRouteDestination
   onSearchQueryChange: (query: string) => void
