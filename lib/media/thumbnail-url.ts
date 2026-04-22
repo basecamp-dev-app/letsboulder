@@ -51,11 +51,13 @@ export function buildThumbnailUrl(
   const source = options?.source ?? 'default'
   const storageUrl = options?.storageUrl ?? null
 
-  if (source === 'api-media' && storageUrl) {
-    const parsed = parseStorageUrl(storageUrl)
-    if (parsed) {
-      return buildApiMediaUrl(parsed.bucket, parsed.path, width, quality)
+  if (source === 'api-media') {
+    const parsed = storageUrl ? parseStorageUrl(storageUrl) : null
+    if (!parsed) {
+      return ''
     }
+
+    return buildApiMediaUrl(parsed.bucket, parsed.path, width, quality)
   }
 
   const resolvedUrl = resolveRouteImageUrl(url)

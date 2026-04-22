@@ -51,6 +51,19 @@ interface ClimbRow {
   longitude: number | null
 }
 
+interface RouteLineRow {
+  id: string
+  image_id: string | null
+  sequence_order: number | null
+  images: {
+    id: string
+    url: string | null
+    is_verified: boolean | null
+    verification_count: number | null
+    created_at: string | null
+  } | null
+}
+
 
 
 function getSupabase() {
@@ -96,7 +109,7 @@ async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug
       .eq('climb_id', effectiveClimbId),
   ])
 
-  const lines = RouteLineWithImageSchema.parse(routeLines || [])
+  const lines = RouteLineWithImageSchema.parse(routeLines || []) as RouteLineRow[]
   const bestImage = [...lines]
     .filter((line) => !!line.images?.url)
     .sort((a, b) => {
@@ -116,6 +129,8 @@ async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug
     crag: crag as CragRow,
     climb: climb as ClimbRow,
     bestImage,
+    bestRouteLineId: bestImage?.id || lines[0]?.id || null,
+    effectiveClimbId,
     logCount: logCount || 0,
   }
 }
@@ -126,7 +141,7 @@ export async function generateMetadata({ params }: { params: Promise<RouteParams
 
   const countryCode = country.toUpperCase()
 
-  const { crag, climb, bestImage } = await getRoutePageData(countryCode, cragSlug, routeSlug)
+  const { crag, climb, bestImage, bestRouteLineId, effectiveClimbId } = await getRoutePageData(countryCode, cragSlug, routeSlug)
 
   if (!crag) return { title: 'Route Not Found' }
 
@@ -140,7 +155,7 @@ export async function generateMetadata({ params }: { params: Promise<RouteParams
     ? climb.description
     : `Topo, beta, and ascents for ${routeName} (${grade}) at ${crag.name}.`
   const canonicalPath = canonicalImageId
-    ? `/${country.toLowerCase()}/${cragSlug}/i/${canonicalImageId}?route=${encodeURIComponent(routeSlug)}`
+    ? `/${country.toLowerCase()}/${cragSlug}/i/${canonicalImageId}?route=${encodeURIComponent(bestRouteLineId || '')}&climb=${encodeURIComponent(effectiveClimbId || '')}`
     : `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`
   const imageUrl = bestImage?.images?.url ? resolveRouteImageUrl(bestImage.images.url) : '/og.png'
 
@@ -182,12 +197,13 @@ export default async function RoutePage({ params }: { params: Promise<RouteParam
 
   const countryCode = country.toUpperCase()
 
-  const { crag, climb, bestImage: best } = await getRoutePageData(countryCode, cragSlug, routeSlug)
+  const { crag, climb, bestImage: best, bestRouteLineId, effectiveClimbId } = await getRoutePageData(countryCode, cragSlug, routeSlug)
 
   if (!crag) notFound()
 
   if (!climb) notFound()
   if (!best?.image_id) notFound()
+  if (!bestRouteLineId || !effectiveClimbId) notFound()
 
-  permanentRedirect(`/${country.toLowerCase()}/${cragSlug}/i/${best.image_id}?route=${encodeURIComponent(routeSlug)}`)
+  permanentRedirect(`/${country.toLowerCase()}/${cragSlug}/i/${best.image_id}?route=${encodeURIComponent(bestRouteLineId)}&climb=${encodeURIComponent(effectiveClimbId)}`)
 }

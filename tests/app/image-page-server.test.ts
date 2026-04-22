@@ -180,6 +180,24 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.attribution.communityEditorsCount).toBe(2)
   }, 15000)
 
+  test('resolves redirected params using route id without slug ambiguity', async () => {
+    const { buildImageFirstPayload } = await import('../../features/image-first/server/load-image-first-page')
+
+    const result = await buildImageFirstPayload({
+      country: 'gg',
+      crag: 'point-de-la-moye-east',
+      imageId: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
+      routeId: 'fd88f866-1eac-47a9-97c2-462574a95f55',
+      routeSlug: null,
+      climbId: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
+    })
+
+    expect(result.redirectTo).toBeNull()
+    expect(result.payload?.initialRouteId).toBe('fd88f866-1eac-47a9-97c2-462574a95f55')
+    expect(result.payload?.initialRouteSlug).toBe('test-route')
+    expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
+  })
+
   test('uses Private Contributor for non-public uploader profiles', async () => {
     state.rawImage = {
       ...state.rawImage,
