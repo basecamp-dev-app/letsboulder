@@ -94,16 +94,17 @@ A `types.ts` file at the feature root is acceptable alongside a `types/` directo
 
 ## Rules
 
-1. **The standard directories should exist where the feature needs them** — the compliance script checks the current repository rules
+1. **The standard directories should exist where the feature needs them** — directories at the feature root are preferred for feature-wide code, but nested sub-features also count toward compliance
 2. **Server code MUST stay in `server/`** — never import Supabase client directly in components
 3. **Use `@/features/<name>/...`** imports — never relative imports across features
-4. **Barrel exports** — each directory should have an `index.ts` that re-exports its contents
+4. **Barrel exports** — each non-empty directory should have an `index.ts` that re-exports its contents when that directory exposes a public surface
 5. **No dead duplicates** — `app/` should not contain copies of files that live in `features/`; use re-exports instead
 
 ## Compliance
 
 Run `npx tsx scripts/check-feature-compliance.ts` to check all features and print a compliance table.
-The script exits with code 1 if any feature is missing the five standard directories.
+The script exits with code 1 if any feature is missing the five standard directories across its full subtree.
+It also prints advisory notes when a requirement is satisfied only via nested sub-features rather than the feature root.
 
 CI enforces structural compliance via `npm run check:features`.
 `npm run lint:features` remains a local lint helper for the feature tree, but it is not the authoritative compliance gate.
