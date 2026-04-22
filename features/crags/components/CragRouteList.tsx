@@ -203,10 +203,7 @@ function RoutePreviewImage({
 }) {
   const [loaded, setLoaded] = useState(false)
   const { elementRef, isNearViewport } = useNearViewport()
-  const previewUrl = buildThumbnailUrl(preview.imageUrl, 160, 68, {
-    storageUrl: preview.storageUrl,
-    source: 'api-media',
-  })
+  const previewUrl = buildThumbnailUrl(preview.imageUrl, 160, 68)
   const shouldPrioritize = prioritize || isNearViewport
 
   return (
