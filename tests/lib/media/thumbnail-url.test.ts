@@ -44,6 +44,26 @@ describe('buildThumbnailUrl', () => {
     )).toBe('https://static.letsboulder.com/images/originals/test/original.jpg?variant=thumb&format=auto')
   })
 
+  test('preserves legacy static CDN variant paths for published public images', async () => {
+    const { buildThumbnailUrl } = await import('@/lib/media/thumbnail-url')
+
+    expect(buildThumbnailUrl(
+      'https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg',
+      160,
+      68
+    )).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/thumb.webp')
+  })
+
+  test('preserves legacy static CDN card variant paths for medium thumbnails', async () => {
+    const { buildThumbnailUrl } = await import('@/lib/media/thumbnail-url')
+
+    expect(buildThumbnailUrl(
+      'https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg',
+      480,
+      70
+    )).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/card.webp')
+  })
+
   test('never emits app-routed media marker for thumbnail surfaces', async () => {
     const { buildThumbnailUrl } = await import('@/lib/media/thumbnail-url')
 
