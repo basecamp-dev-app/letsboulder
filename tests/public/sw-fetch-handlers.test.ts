@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 const fetchMock = vi.fn()
 
 vi.stubGlobal('fetch', fetchMock)
-vi.stubGlobal('BUILD_ASSET_CACHE_PREFIX', 'offline-build-assets')
 vi.stubGlobal('ROUTE_ASSET_CACHE', 'offline-route-assets-v2')
 vi.stubGlobal('HOME_URL', '/')
 vi.stubGlobal('OFFLINE_LAUNCH_URL', '/offline')
@@ -13,17 +12,11 @@ vi.stubGlobal('getBuildAssetCacheName', vi.fn(async () => 'offline-build-assets-
 vi.stubGlobal('matchShellRequest', vi.fn())
 vi.stubGlobal('matchRouteAssetRequest', vi.fn())
 
-const buildAssetCacheMatch = vi.fn()
-const buildAssetCachePut = vi.fn()
 const routeAssetCacheMatch = vi.fn()
 const routeAssetCachePut = vi.fn()
 
 vi.stubGlobal('caches', {
   open: vi.fn(async (cacheName: string) => {
-    if (cacheName === 'offline-build-assets-current') {
-      return { match: buildAssetCacheMatch, put: buildAssetCachePut }
-    }
-
     if (cacheName === 'offline-route-assets-v2') {
       return { match: routeAssetCacheMatch, put: routeAssetCachePut }
     }
@@ -44,8 +37,6 @@ vi.stubGlobal('Response', Response)
 
 beforeEach(() => {
   fetchMock.mockReset()
-  buildAssetCacheMatch.mockReset()
-  buildAssetCachePut.mockReset()
   routeAssetCacheMatch.mockReset()
   routeAssetCachePut.mockReset()
   vi.resetModules()
@@ -146,7 +137,7 @@ describe('sw-fetch-handlers', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  test('handleRouteAssetFetch writes fetched next static assets into shared build cache', async () => {
+  test('handleRouteAssetFetch writes fetched next static assets into the route asset cache', async () => {
     vi.mocked(matchRouteAssetRequest).mockResolvedValue(undefined)
     fetchMock.mockResolvedValue(new Response('network build asset', { status: 200 }))
 
@@ -154,8 +145,7 @@ describe('sw-fetch-handlers', () => {
 
     await globalThis.handleRouteAssetFetch(new Request('https://letsboulder.com/_next/static/chunks/app.js'))
 
-    expect(buildAssetCachePut).toHaveBeenCalledTimes(1)
-    expect(routeAssetCachePut).not.toHaveBeenCalled()
+    expect(routeAssetCachePut).toHaveBeenCalledTimes(1)
   })
 
   test('handleRouteAssetFetch writes fetched shell assets into the route asset cache', async () => {
@@ -167,6 +157,5 @@ describe('sw-fetch-handlers', () => {
     await globalThis.handleRouteAssetFetch(new Request('https://letsboulder.com/theme-init.js'))
 
     expect(routeAssetCachePut).toHaveBeenCalledTimes(1)
-    expect(buildAssetCachePut).not.toHaveBeenCalled()
   })
 })

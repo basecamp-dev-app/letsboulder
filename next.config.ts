@@ -67,6 +67,15 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/sw-build-assets.json',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
+      {
         source: '/(.*)',
         headers: [
           { key: 'Referrer-Policy', value: 'no-referrer' },
