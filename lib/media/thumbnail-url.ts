@@ -35,6 +35,37 @@ function buildWorkerVariantUrl(objectKey: string, variant: MediaVariantKey, form
   return `${mediaHost}/${encodedKey}?variant=${variant}&format=${format}`
 }
 
+function transformStaticVariantPath(url: string, width: number): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+
+  const mediaHost = getMediaHost()
+  if (!mediaHost) return null
+
+  let mediaHostOrigin: string
+  try {
+    mediaHostOrigin = new URL(mediaHost).origin
+  } catch {
+    return null
+  }
+
+  if (parsed.origin !== mediaHostOrigin) return null
+
+  const variantPattern = /^(.*\/v1\/)([a-z0-9_-]+)\.([a-z0-9]+)$/i
+  const match = parsed.pathname.match(variantPattern)
+  if (!match) return null
+
+  const [, prefix] = match
+  const variant = snapWidthToVariant(width)
+  const staticVariant = variant === 'full' ? 'detail' : variant
+
+  return `${parsed.origin}${prefix}${staticVariant}.webp`
+}
+
 function convertApiMediaUrlToWorkerUrl(url: string, width: number): string {
   const mediaHost = getMediaHost()
   if (!mediaHost) return url
@@ -100,6 +131,9 @@ export function buildThumbnailUrl(
   }
 
   if (resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://')) {
+    const staticVariantUrl = transformStaticVariantPath(resolvedUrl, width)
+    if (staticVariantUrl) return staticVariantUrl
+
     return updateWorkerUrl(resolvedUrl, width)
   }
 
