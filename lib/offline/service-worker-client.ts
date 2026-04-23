@@ -1,4 +1,4 @@
-const DISABLED_SERVICE_WORKER_HOSTNAMES = new Set(['dev.letsboulder.com'])
+const DISABLED_SERVICE_WORKER_HOSTNAMES = new Set<string>()
 const CHUNK_RELOAD_STORAGE_KEY = 'lb:chunk-reload-at'
 const CHUNK_RELOAD_TTL_MS = 60_000
 

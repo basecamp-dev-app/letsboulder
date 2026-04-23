@@ -198,7 +198,7 @@ jobs:
 
           # Validate URL matches expected environment
           case "$base_url" in
-            *dev.letsboulder.com*|*vercel.app*)
+            *dev.letsboulder.com*|*vercel.app*|*localhost*)
               echo "URL domain validation passed: $base_url"
               ;;
             *letsboulder.com*)
@@ -206,7 +206,7 @@ jobs:
               exit 1
               ;;
             *)
-              echo "::error::Unexpected URL domain '$base_url'. Expected dev.letsboulder.com or vercel.app preview."
+              echo "::error::Unexpected URL domain '$base_url'. Expected dev.letsboulder.com, vercel.app preview, or localhost."
               exit 1
               ;;
           esac

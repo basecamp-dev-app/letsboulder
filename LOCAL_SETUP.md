@@ -301,27 +301,22 @@ A warning is logged on startup when Upstash is not configured. The first time th
 
 ### Media Pipeline (R2 + Cloudflare Worker)
 
-For local development, the media pipeline uses the staging Cloudflare Worker. Add these to `.env.local`:
+For local development, run the Cloudflare Worker locally:
 
-```bash
-# Cloudflare R2 (use staging credentials)
-R2_S3_ENDPOINT=https://<staging-account-id>.r2.cloudflarestorage.com
-R2_PRIVATE_BUCKET=lb-dev-media-private
-R2_PUBLIC_BUCKET=lb-dev-media-public
-R2_ACCESS_KEY_ID=<staging-r2-access-key>
-R2_SECRET_ACCESS_KEY=<staging-r2-secret-key>
-
-# CDN URL (points to staging worker)
-NEXT_PUBLIC_MEDIA_CDN_URL=https://static.dev.letsboulder.com
-```
-
-For testing the Worker locally:
+1. Start the local worker:
 
 ```bash
 cd apps/media-worker
 npx wrangler dev --env staging
 ```
 
-The Worker handles image processing (variant generation) and CDN delivery. In local dev, images uploaded to the app are processed by the staging Worker at `static.dev.letsboulder.com`.
+2. Add to `.env.local`:
+
+```bash
+# CDN URL (points to local worker)
+NEXT_PUBLIC_MEDIA_CDN_URL=http://localhost:8787
+```
+
+The Worker handles image processing (variant generation) and CDN delivery. In local dev, images uploaded to the app are processed by the local Worker at `http://localhost:8787`.
 
 See [docs/media-pipeline.md](docs/media-pipeline.md) for the full flow.
