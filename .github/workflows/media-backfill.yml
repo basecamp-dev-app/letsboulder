@@ -41,7 +41,7 @@ concurrency:
 jobs:
   enqueue-backfill:
     name: Enqueue media backfill jobs
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     environment: Production
     env:
       DRY_RUN: ${{ inputs.dry_run }}
