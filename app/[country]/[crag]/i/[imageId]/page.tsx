@@ -1,7 +1,5 @@
 import { permanentRedirect } from 'next/navigation'
 import ImageFirstClientLoader from '@/features/image-first/components/ImageFirstClientLoader'
-import ShallowLocalClimbPage from '@/features/offline/components/ShallowLocalClimbPage'
-import RecentLocalRouteGate from '@/features/offline/components/RecentLocalRouteGate'
 import { buildImageFirstPayload } from '@/features/image-first/server/load-image-first-page'
 import NotFound from '@/app/not-found'
 
@@ -37,22 +35,5 @@ export default async function ImagePage({
     permanentRedirect(result.redirectTo)
   }
 
-  const fallbackHref = `/${country}/${crag}/i/${imageId}`
-  const pageContent = result.payload ? <ImageFirstClientLoader payload={result.payload} /> : <NotFound />
-
-  return (
-    <RecentLocalRouteGate
-      href={fallbackHref}
-      localView={
-        <ShallowLocalClimbPage
-          imageId={imageId}
-          climbId={climb || null}
-          href={fallbackHref}
-          subtitle={'Recent shallow local climb view'}
-        />
-      }
-    >
-      {pageContent}
-    </RecentLocalRouteGate>
-  )
+  return result.payload ? <ImageFirstClientLoader payload={result.payload} /> : <NotFound />
 }

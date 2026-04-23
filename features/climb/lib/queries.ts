@@ -178,31 +178,3 @@ export interface ClimbPackResponse {
   route_attribution?: ClimbPackRouteAttribution
   offline_pack: ClimbOfflinePackManifest
 }
-
-export const climbOfflinePackQueryKey = (climbId: string) => ['climb', climbId, 'offline-pack'] as const
-
-export async function fetchClimbOfflinePack(climbId: string): Promise<ClimbPackResponse> {
-  const response = await fetch(`/api/offline-packs/climbs/${climbId}`, {
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({} as { error?: string }))
-    throw new Error(payload.error || 'Failed to load climb')
-  }
-
-  return response.json() as Promise<ClimbPackResponse>
-}
-
-export async function fetchCragOfflinePack(cragId: string): Promise<CragOfflinePackManifest> {
-  const response = await fetch(`/api/offline-packs/crags/${cragId}`, {
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({} as { error?: string }))
-    throw new Error(payload.error || 'Failed to load crag offline pack')
-  }
-
-  return response.json() as Promise<CragOfflinePackManifest>
-}

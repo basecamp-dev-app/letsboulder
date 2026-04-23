@@ -64,7 +64,6 @@ export default function CragPageClient({
     cragCenter,
     routeTargetsHydrating,
     routeTargetsComplete,
-    usingCachedFallback,
   } = useCragData({
     id,
     initialCrag,
@@ -142,8 +141,6 @@ export default function CragPageClient({
     )
   }
 
-  const canDownloadCrag = !actions.offlineDialogLoading
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {actions.toast && (
@@ -161,7 +158,6 @@ export default function CragPageClient({
         isFlagging={actions.isFlagging}
         onPinSelect={filters.setSelectedImageId}
         onFlagCrag={actions.handleFlagCrag}
-        usingCachedFallback={usingCachedFallback}
       />
 
       <SelectedPinImageTray images={filters.selectedPinImages} />
@@ -175,7 +171,6 @@ export default function CragPageClient({
         routePreviewDisplayByClimbId={filters.routePreviewDisplayByClimbId}
         routeTargetsHydrating={routeTargetsHydrating}
         routeTargetsComplete={routeTargetsComplete}
-        usingCachedFallback={usingCachedFallback}
         pinNumberByImageId={filters.pinNumberByImageId}
         gradeSystem={filters.gradeSystem}
         routeInsightsUnavailable={filters.routeInsightsUnavailable}
@@ -195,17 +190,8 @@ export default function CragPageClient({
         cragSwitcherOpen={actions.cragSwitcherOpen}
         cragSwitcherQuery={actions.cragSwitcherQuery}
         cragSwitcherOptions={actions.cragSwitcherOptions}
-        canDownloadCrag={canDownloadCrag}
-        offlineDialogLoading={actions.offlineDialogLoading}
-        offlinePreviewLoading={actions.offlinePreviewLoading}
         saveLoading={saveLoading}
         isSaved={isSaved}
-        offlineDialogOpen={actions.offlineDialogOpen}
-        offlinePreview={actions.offlinePreview}
-        offlineProgress={actions.offlineProgress}
-        offlineError={actions.offlineError}
-        overOfflineBudget={actions.overOfflineBudget}
-        canSaveCragOffline={actions.canSaveCragOffline}
         availableDirections={filters.availableDirections}
         routeTypeChips={filters.routeTypeChips}
         searchModalResults={filters.searchModalResults}
@@ -216,7 +202,6 @@ export default function CragPageClient({
         onToggleCragSwitcher={() => actions.setCragSwitcherOpen(!actions.cragSwitcherOpen)}
         onCragSwitcherQueryChange={actions.setCragSwitcherQuery}
         onCloseCragSwitcher={() => actions.setCragSwitcherOpen(false)}
-        onOpenOfflineDialog={actions.handleOpenOfflineDialog}
         onToggleSaveCrag={() => void handleToggleSaveCrag()}
         onOpenSearchModal={() => filters.setSearchModalOpen(true)}
         onOpenFilterModal={() => filters.setFilterModalOpen(true)}
@@ -236,14 +221,9 @@ export default function CragPageClient({
           const current = filters.selectedRouteTypes
           filters.setSelectedRouteTypes(current.includes(routeType) ? current.filter((item) => item !== routeType) : [...current, routeType])
         }}
-        onOfflineDialogClose={() => actions.setOfflineDialogOpen(false)}
-        onOfflineDialogRetry={() => void actions.refreshCragOfflinePreview()}
-        onOfflineDialogRemove={() => void actions.handleRemoveCragOffline()}
-        onOfflineDialogSave={() => void actions.handleSaveCragOffline()}
         onSearchModalOpenChange={filters.setSearchModalOpen}
         onFilterModalOpenChange={filters.setFilterModalOpen}
         onSortModalOpenChange={filters.setSortModalOpen}
-        onOfflineDialogOpenChange={actions.setOfflineDialogOpen}
         communityPlace={communityPlace}
       />
     </div>

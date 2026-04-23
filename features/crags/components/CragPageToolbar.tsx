@@ -1,4 +1,4 @@
-import { ArrowUpDown, ChevronDown, Download, Filter, Loader2, Search } from 'lucide-react'
+import { ArrowUpDown, ChevronDown, Filter, Search } from 'lucide-react'
 import { useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,9 +18,6 @@ interface CragPageToolbarProps {
   cragSwitcherOpen: boolean
   cragSwitcherQuery: string
   cragSwitcherOptions: CragSwitcherOption[]
-  canDownloadCrag: boolean
-  offlineDialogLoading: boolean
-  offlinePreviewLoading: boolean
   saveLoading: boolean
   isSaved: boolean
   hasActiveRouteFilters: boolean
@@ -30,7 +27,6 @@ interface CragPageToolbarProps {
   onToggleCragSwitcher: () => void
   onCragSwitcherQueryChange: (value: string) => void
   onCloseCragSwitcher: () => void
-  onOpenOfflineDialog: () => void
   onToggleSaveCrag: () => void
   onOpenSearchModal: () => void
   onOpenFilterModal: () => void
@@ -49,9 +45,6 @@ export default function CragPageToolbar({
   cragSwitcherOpen,
   cragSwitcherQuery,
   cragSwitcherOptions,
-  canDownloadCrag,
-  offlineDialogLoading,
-  offlinePreviewLoading,
   saveLoading,
   isSaved,
   hasActiveRouteFilters,
@@ -61,7 +54,6 @@ export default function CragPageToolbar({
   onToggleCragSwitcher,
   onCragSwitcherQueryChange,
   onCloseCragSwitcher,
-  onOpenOfflineDialog,
   onToggleSaveCrag,
   onOpenSearchModal,
   onOpenFilterModal,
@@ -116,10 +108,6 @@ export default function CragPageToolbar({
             </div>
           ) : null}
         </div>
-        <Button type="button" variant="outline" onClick={onOpenOfflineDialog} disabled={!canDownloadCrag} aria-label="Download offline" title="Download offline" className={`${actionButtonClassName} bg-white dark:bg-gray-900`}>
-          {offlineDialogLoading || offlinePreviewLoading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-          <span>Offline</span>
-        </Button>
         <Button type="button" variant="outline" onClick={onToggleSaveCrag} disabled={saveLoading} aria-label="Save crag" title="Save crag" className={isSaved ? 'h-9 rounded-full border-amber-200 bg-amber-50 px-3 text-amber-900 shadow-none hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50' : actionButtonClassName}>
           <span>{saveLoading ? 'Saving...' : isSaved ? 'Saved crag' : 'Save crag'}</span>
         </Button>

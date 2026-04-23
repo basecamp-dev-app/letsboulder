@@ -11,7 +11,6 @@ interface CragMapViewProps {
   cragCenter: [number, number] | null
   isAdmin: boolean
   isFlagging: boolean
-  usingCachedFallback: boolean
   onPinSelect: (imageId: string) => void
   onFlagCrag: (cragId: string) => void
 }
@@ -23,7 +22,6 @@ export default function CragMapView({
   cragCenter,
   isAdmin,
   isFlagging,
-  usingCachedFallback,
   onPinSelect,
   onFlagCrag,
 }: CragMapViewProps) {
@@ -35,9 +33,7 @@ export default function CragMapView({
           {crag.name}
         </div>
         <div className="absolute inset-x-4 bottom-4 z-[1000] max-w-md rounded-2xl border border-white/60 bg-white/90 px-4 py-3 text-sm text-gray-700 shadow-lg backdrop-blur dark:border-white/10 dark:bg-gray-900/85 dark:text-gray-200">
-          {usingCachedFallback
-            ? 'Map data is not cached on this device yet. Cached routes below are still available.'
-            : 'Map data is unavailable right now. Route content below is still available.'}
+          Map data is unavailable right now. Route content below is still available.
         </div>
       </div>
     )

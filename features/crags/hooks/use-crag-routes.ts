@@ -6,8 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { cragKeys, fetchCragRoutes } from '@/features/crags/lib/crag-queries'
 import type { CragRouteTargetsState } from '@/features/crags/hooks/use-crag-data-types'
 import { remapRouteNavigationTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
-import type { CragRoute, ImageData } from '@/features/crags/lib/crag-page-types'
-import type { CachedCragLocalFallback } from '@/features/crags/lib/crag-local-fallback'
+import type { CragRoute } from '@/features/crags/lib/crag-page-types'
 
 export type RoutesLoadState = 'idle' | 'loading' | 'loaded' | 'error'
 
@@ -17,11 +16,7 @@ export interface UseCragRoutesParams {
   routesLoadState: RoutesLoadState
   setRoutes: (routes: CragRoute[]) => void
   setRoutesLoadState: (state: RoutesLoadState) => void
-  setImages: (images: ImageData[]) => void
-  setCragCenter: (center: [number, number] | null) => void
   setRouteTargets: Dispatch<SetStateAction<CragRouteTargetsState>>
-  setUsingCachedFallback: (value: boolean) => void
-  readCachedFallback: () => Promise<CachedCragLocalFallback | null>
 }
 
 export function useCragRoutes({
@@ -30,11 +25,7 @@ export function useCragRoutes({
   routesLoadState,
   setRoutes,
   setRoutesLoadState,
-  setImages,
-  setCragCenter,
   setRouteTargets,
-  setUsingCachedFallback,
-  readCachedFallback,
 }: UseCragRoutesParams) {
   const hasInitialRouteData = initialRoutes !== null
 
@@ -67,55 +58,13 @@ export function useCragRoutes({
 
     const effectiveClimbIdByClimbId = data.effectiveClimbIdByClimbId
     setRoutes(data.routes)
-    setUsingCachedFallback(false)
     setRouteTargets((prev) => ({
       ...prev,
       routePreviewByClimbId: remapRoutePreviewsByEffectiveClimbId(prev.routePreviewByClimbId, effectiveClimbIdByClimbId),
       routeNavigationTargetByClimbId: remapRouteNavigationTargetsByEffectiveClimbId(prev.routeNavigationTargetByClimbId, effectiveClimbIdByClimbId),
     }))
 
-  }, [data, hasInitialRouteData, setRouteTargets, setRoutes, setUsingCachedFallback])
-
-  useEffect(() => {
-    if (hasInitialRouteData || !isError) return
-
-    let cancelled = false
-
-    async function hydrateFromCache() {
-      const fallback = await readCachedFallback()
-      if (!fallback || cancelled) {
-        return
-      }
-
-      setRoutes(fallback.routes)
-      setImages(fallback.images)
-      setCragCenter(fallback.cragCenter)
-      setRouteTargets(() => ({
-        defaultRouteTargetByImageId: fallback.defaultRouteTargetByImageId,
-        routeImageIdsByClimbId: fallback.routeImageIdsByClimbId,
-        routePreviewByClimbId: fallback.routePreviewByClimbId,
-        routeNavigationTargetByClimbId: fallback.routeNavigationTargetByClimbId,
-      }))
-      setRoutesLoadState('loaded')
-      setUsingCachedFallback(true)
-    }
-
-    void hydrateFromCache()
-
-    return () => {
-      cancelled = true
-    }
-  }, [
-    hasInitialRouteData,
-    isError,
-    readCachedFallback,
-    setCragCenter,
-    setImages,
-    setRouteTargets,
-    setRoutes,
-    setRoutesLoadState,
-    setUsingCachedFallback,
-  ])
+  }, [data, hasInitialRouteData, setRouteTargets, setRoutes])
 
   useEffect(() => {
     if (!nextLoadState) return

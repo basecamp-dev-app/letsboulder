@@ -6,9 +6,8 @@ async function handleShellFetch(request) {
     try {
       return await fetch(request)
     } catch {
-      const offlineLibraryFallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LIBRARY_URL))
-      if (offlineLibraryFallback) return offlineLibraryFallback
-
+      const cachedHome = await matchShellRequest(request)
+      if (cachedHome) return cachedHome
       return Response.error()
     }
   }
@@ -41,16 +40,6 @@ async function handleShellFetch(request) {
   } catch {
     const cached = await matchShellRequest(request)
     if (cached) return cached
-    if (request.mode === 'navigate' && url.pathname === OFFLINE_LAUNCH_URL) {
-      const fallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LAUNCH_URL))
-      if (fallback) return fallback
-    }
-
-    if (request.mode === 'navigate') {
-      const offlineLibraryFallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LIBRARY_URL))
-      if (offlineLibraryFallback) return offlineLibraryFallback
-    }
-
     return Response.error()
   }
 }

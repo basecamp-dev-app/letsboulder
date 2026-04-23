@@ -22,7 +22,6 @@ import {
   deleteSubmissionDraftAction,
   publishSubmissionDraftAction,
 } from '@/features/submissions/public'
-import { syncPriorityOfflineCandidates } from '@/lib/offline/priority-prewarm'
 
 interface LogbookClientProps {
   user: User
@@ -80,10 +79,6 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
     'pending-review': submissions.filter((submission) => submission.status === 'pending_review').length,
     published: submissions.filter((submission) => submission.status === 'published').length,
   }
-
-  useEffect(() => {
-    syncPriorityOfflineCandidates(savedClimbs, savedCrags)
-  }, [savedClimbs, savedCrags])
 
   const updateOwnLogbookData = (updater: (current: OwnLogbookData) => OwnLogbookData) => {
     queryClient.setQueryData<OwnLogbookData>(ownLogbookSummaryQueryKey, (current) => {

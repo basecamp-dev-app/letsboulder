@@ -8,12 +8,9 @@ import CragSearchDialog from '@/features/crags/components/CragSearchDialog'
 import CragFilterDialog from '@/features/crags/components/CragFilterDialog'
 import CragActiveFilterChips from '@/features/crags/components/CragActiveFilterChips'
 import CragSortDialog from '@/features/crags/components/CragSortDialog'
-import CragOfflineDialog from '@/features/crags/components/CragOfflineDialog'
 import type { ActiveRouteFilterChip, ResolvedRouteDestination } from '@/features/crags/lib/crag-page-domain'
 import type { CragPageCrag, CragRoute, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { GradeSystem } from '@/lib/grades'
-import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
-import type { getCragOfflinePreview } from '@/lib/offline/packs'
 
 interface CragRouteSectionProps {
   cragId: string
@@ -24,7 +21,6 @@ interface CragRouteSectionProps {
   routePreviewDisplayByClimbId: Record<string, RoutePreview>
   routeTargetsHydrating: boolean
   routeTargetsComplete: boolean
-  usingCachedFallback: boolean
   pinNumberByImageId: Map<string, number>
   gradeSystem: GradeSystem
   routeInsightsUnavailable: boolean
@@ -44,17 +40,8 @@ interface CragRouteSectionProps {
   cragSwitcherOpen: boolean
   cragSwitcherQuery: string
   cragSwitcherOptions: CragSwitcherOption[]
-  canDownloadCrag: boolean
-  offlineDialogLoading: boolean
-  offlinePreviewLoading: boolean
   saveLoading: boolean
   isSaved: boolean
-  offlineDialogOpen: boolean
-  offlinePreview: Awaited<ReturnType<typeof getCragOfflinePreview>> | null
-  offlineProgress: OfflineJobProgressEvent | null
-  offlineError: string | null
-  overOfflineBudget: boolean
-  canSaveCragOffline: boolean
   availableDirections: string[]
   routeTypeChips: string[]
   searchModalResults: CragRoute[]
@@ -65,7 +52,6 @@ interface CragRouteSectionProps {
   onToggleCragSwitcher: () => void
   onCragSwitcherQueryChange: (value: string) => void
   onCloseCragSwitcher: () => void
-  onOpenOfflineDialog: () => void
   onToggleSaveCrag: () => void
   onOpenSearchModal: () => void
   onOpenFilterModal: () => void
@@ -79,14 +65,9 @@ interface CragRouteSectionProps {
   onMaxGradeChange: (grade: string) => void
   onToggleDirection: (direction: string) => void
   onToggleRouteType: (routeType: string) => void
-  onOfflineDialogClose: () => void
-  onOfflineDialogRetry: () => void
-  onOfflineDialogRemove: () => void
-  onOfflineDialogSave: () => void
   onSearchModalOpenChange: (open: boolean) => void
   onFilterModalOpenChange: (open: boolean) => void
   onSortModalOpenChange: (open: boolean) => void
-  onOfflineDialogOpenChange: (open: boolean) => void
   communityPlace: CommunityPlaceInfo | null | undefined
 }
 
@@ -99,7 +80,6 @@ const CragRouteSection = React.memo(function CragRouteSection({
   routePreviewDisplayByClimbId,
   routeTargetsHydrating,
   routeTargetsComplete,
-  usingCachedFallback,
   pinNumberByImageId,
   gradeSystem,
   routeInsightsUnavailable,
@@ -119,17 +99,8 @@ const CragRouteSection = React.memo(function CragRouteSection({
   cragSwitcherOpen,
   cragSwitcherQuery,
   cragSwitcherOptions,
-  canDownloadCrag,
-  offlineDialogLoading,
-  offlinePreviewLoading,
   saveLoading,
   isSaved,
-  offlineDialogOpen,
-  offlinePreview,
-  offlineProgress,
-  offlineError,
-  overOfflineBudget,
-  canSaveCragOffline,
   availableDirections,
   routeTypeChips,
   searchModalResults,
@@ -140,7 +111,6 @@ const CragRouteSection = React.memo(function CragRouteSection({
   onToggleCragSwitcher,
   onCragSwitcherQueryChange,
   onCloseCragSwitcher,
-  onOpenOfflineDialog,
   onToggleSaveCrag,
   onOpenSearchModal,
   onOpenFilterModal,
@@ -154,14 +124,9 @@ const CragRouteSection = React.memo(function CragRouteSection({
   onMaxGradeChange,
   onToggleDirection,
   onToggleRouteType,
-  onOfflineDialogClose,
-  onOfflineDialogRetry,
-  onOfflineDialogRemove,
-  onOfflineDialogSave,
   onSearchModalOpenChange,
   onFilterModalOpenChange,
   onSortModalOpenChange,
-  onOfflineDialogOpenChange,
   communityPlace,
 }: CragRouteSectionProps) {
   const placeLabel = communityPlace?.type === 'gym' ? 'Gym' : 'Crag'
@@ -184,9 +149,6 @@ const CragRouteSection = React.memo(function CragRouteSection({
             cragSwitcherOpen={cragSwitcherOpen}
             cragSwitcherQuery={cragSwitcherQuery}
             cragSwitcherOptions={cragSwitcherOptions}
-            canDownloadCrag={canDownloadCrag}
-            offlineDialogLoading={offlineDialogLoading}
-            offlinePreviewLoading={offlinePreviewLoading}
             saveLoading={saveLoading}
             isSaved={isSaved}
             hasActiveRouteFilters={hasActiveRouteFilters}
@@ -196,19 +158,12 @@ const CragRouteSection = React.memo(function CragRouteSection({
             onToggleCragSwitcher={onToggleCragSwitcher}
             onCragSwitcherQueryChange={onCragSwitcherQueryChange}
             onCloseCragSwitcher={onCloseCragSwitcher}
-            onOpenOfflineDialog={onOpenOfflineDialog}
             onToggleSaveCrag={onToggleSaveCrag}
             onOpenSearchModal={onOpenSearchModal}
             onOpenFilterModal={onOpenFilterModal}
             onOpenSortModal={onOpenSortModal}
             onClearRouteFilters={onClearRouteFilters}
           />
-
-          {usingCachedFallback ? (
-            <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-100">
-              Showing locally cached crag content because the live route data could not be reached. Uncached map pins and route previews may be missing.
-            </div>
-          ) : null}
           {routeInsightsUnavailable ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
               Route intelligence is unavailable right now. Crag stats and sorting signals will appear again once the route metrics query is reachable.
@@ -269,22 +224,6 @@ const CragRouteSection = React.memo(function CragRouteSection({
         onOpenChange={onSortModalOpenChange}
         routeSort={routeSort}
         onRouteSortChange={onRouteSortChange}
-      />
-
-      <CragOfflineDialog
-        open={offlineDialogOpen}
-        onOpenChange={onOfflineDialogOpenChange}
-        offlineDialogLoading={offlineDialogLoading}
-        offlinePreviewLoading={offlinePreviewLoading}
-        offlinePreview={offlinePreview}
-        offlineProgress={offlineProgress}
-        offlineError={offlineError}
-        overOfflineBudget={overOfflineBudget}
-        canSaveCragOffline={canSaveCragOffline}
-        onClose={onOfflineDialogClose}
-        onRetry={onOfflineDialogRetry}
-        onRemove={onOfflineDialogRemove}
-        onSave={onOfflineDialogSave}
       />
     </div>
   )

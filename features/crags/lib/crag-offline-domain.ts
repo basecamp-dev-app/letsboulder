@@ -39,23 +39,6 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function getOfflineCragState(
-  offlinePreview: Awaited<ReturnType<typeof import('@/lib/offline/packs').getCragOfflinePreview>> | null,
-  offlineDialogLoading: boolean,
-  offlinePreviewLoading: boolean
-): OfflineCragState {
-  const projectedUsage = offlinePreview
-    ? offlinePreview.usageBytes - (offlinePreview.existingPack?.estimatedBytes || 0) + (offlinePreview.deltaBytes || 0)
-    : 0
-  const overOfflineBudget = !!offlinePreview && projectedUsage > offlinePreview.budgetBytes
-
-  return {
-    projectedUsage,
-    overOfflineBudget,
-    canSaveCragOffline: !offlineDialogLoading && !offlinePreviewLoading && !overOfflineBudget && !offlinePreview?.isUpToDate,
-  }
-}
-
 export async function getStoredCragClimbPayloadsSafely(cragId: string): Promise<ClimbPackResponse[]> {
   try {
     return await Promise.race([

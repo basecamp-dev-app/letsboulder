@@ -119,7 +119,7 @@ function normalizePageUrlToRoutePath(pageUrl) {
   if (!pageUrl || pageUrl.startsWith('/api/')) return null
 
   const pathname = pageUrl.split('?')[0] || pageUrl
-  if (pathname === HOME_URL || pathname === OFFLINE_LAUNCH_URL || pathname === OFFLINE_LIBRARY_URL) {
+  if (pathname === HOME_URL) {
     return pathname
   }
 
@@ -137,10 +137,6 @@ function getReactLoadableManifestUrlForRoute(routePath) {
   switch (routePath) {
     case '/':
       return '/_next/server/app/(shell)/page/react-loadable-manifest.json'
-    case '/offline':
-      return '/_next/server/app/offline/page/react-loadable-manifest.json'
-    case '/offline/library':
-      return '/_next/server/app/offline/library/page/react-loadable-manifest.json'
     case '/climb/[id]':
       return '/_next/server/app/climb/[id]/page/react-loadable-manifest.json'
     case '/[country]/[crag]':
@@ -216,7 +212,7 @@ async function collectAssetRequestsFromPage(pageUrl, options = {}) {
 
 async function collectShellAssetRequests() {
   const requests = new Map()
-  const shellPages = [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL]
+  const shellPages = [HOME_URL]
 
   for (const pageUrl of shellPages) {
     try {
