@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { hasCompleteRouteTargets, resolveCragRouteDestination } from '@/features/crags/lib/crag-route-targets'
+import { buildRouteTargetMapsFromPageRows, hasCompleteRouteTargets, resolveCragRouteDestination } from '@/features/crags/lib/crag-route-targets'
 
 type RouteLineTargetRow = {
   id: string
@@ -123,6 +123,35 @@ describe('crag route target mapping', () => {
       imageId: 'image-2',
       displayImageId: 'image-2',
       displayImageUrl: 'https://example.com/image-2.jpg',
+    })
+  })
+
+  test('normalizes route target page rows to canonical static image urls', () => {
+    const result = buildRouteTargetMapsFromPageRows([
+      {
+        effective_climb_id: 'climb-1',
+        climb_slug: 'giant-panda',
+        preview_image_id: 'image-1',
+        preview_image_url: '/images/originals/image-1/original.jpg?variant=detail&format=jpeg',
+        navigation_route_id: 'route-line-1',
+        navigation_image_id: 'image-1',
+        navigation_image_url: '/images/originals/image-1/original.jpg?variant=detail&format=jpeg',
+        route_image_ids: ['image-1'],
+      },
+    ])
+
+    expect(result.nextRoutePreviewByClimbId['climb-1']).toEqual({
+      imageId: 'image-1',
+      imageUrl: '/images/image-1/v1/detail.jpg',
+    })
+
+    expect(result.nextRouteNavigationTargetByClimbId['climb-1']).toEqual({
+      climbId: 'climb-1',
+      routeId: 'route-line-1',
+      climbSlug: 'giant-panda',
+      imageId: 'image-1',
+      displayImageId: 'image-1',
+      displayImageUrl: '/images/image-1/v1/detail.jpg',
     })
   })
 

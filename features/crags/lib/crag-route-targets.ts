@@ -39,6 +39,22 @@ export interface CragRouteTargetPageRow {
   route_image_ids: string[] | null
 }
 
+function buildCanonicalStaticImageUrl(imageId: string, fallbackUrl: string | null): string {
+  if (!imageId) return fallbackUrl || ''
+
+  const resolvedFallbackUrl = fallbackUrl ? resolveRouteImageUrl(fallbackUrl) : ''
+  if (resolvedFallbackUrl.startsWith('https://') || resolvedFallbackUrl.startsWith('http://')) {
+    try {
+      const parsed = new URL(resolvedFallbackUrl)
+      return `${parsed.origin}/images/${imageId}/v1/detail.jpg`
+    } catch {
+      return resolvedFallbackUrl
+    }
+  }
+
+  return `/images/${imageId}/v1/detail.jpg`
+}
+
 export function buildRoutePreviewDisplayByClimbId(
   routePreviewByClimbId: Record<string, RoutePreview>,
   imageById: Map<string, ImageData>
@@ -414,7 +430,7 @@ export function buildRouteTargetMapsFromPageRows(pageRows: CragRouteTargetPageRo
     if (row.preview_image_id && row.preview_image_url) {
       nextRoutePreviewByClimbId[climbId] = {
         imageId: row.preview_image_id,
-        imageUrl: row.preview_image_url,
+        imageUrl: buildCanonicalStaticImageUrl(row.preview_image_id, row.preview_image_url),
       }
     }
 
@@ -425,7 +441,7 @@ export function buildRouteTargetMapsFromPageRows(pageRows: CragRouteTargetPageRo
         climbSlug: row.climb_slug,
         imageId: row.navigation_image_id,
         displayImageId: row.navigation_image_id,
-        displayImageUrl: row.navigation_image_url,
+        displayImageUrl: buildCanonicalStaticImageUrl(row.navigation_image_id, row.navigation_image_url),
       }
 
       if (!nextDefaultRouteTargetByImageId[row.navigation_image_id]) {
