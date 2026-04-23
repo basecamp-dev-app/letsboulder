@@ -48,6 +48,7 @@ export interface ImageFirstPayload {
   initialRouteSlug: string | null
   cragId: string
   cragSlug: string
+  cragName: string
   countryCode: string
   mapPins: Array<{
     imageId: string
@@ -58,5 +59,4 @@ export interface ImageFirstPayload {
     routeSlug: string | null
   }>
   attribution: ImageFirstAttribution
-  isAdmin: boolean
 }

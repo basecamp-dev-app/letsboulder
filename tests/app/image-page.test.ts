@@ -39,4 +39,77 @@ describe('app/[country]/[crag]/i/[imageId]/page', () => {
       climbId: 'climb-1',
     })
   })
+
+  test('builds metadata from the public image-first payload', async () => {
+    buildImageFirstPayloadMock.mockResolvedValue({
+      redirectTo: null,
+      payload: {
+        heroImage: {
+          displayImageId: 'image-1',
+          src: 'https://static.letsboulder.com/image.webp',
+          width: 1600,
+          height: 1200,
+          latitude: null,
+          longitude: null,
+          priority: true,
+        },
+        initialRoutes: [{
+          routeId: 'route-line-1',
+          climbId: 'climb-1',
+          imageId: 'image-1',
+          climbSlug: 'test-route',
+          climbName: 'Test Route',
+          climbGrade: '6A',
+          climbDescription: 'A good line.',
+          climbRouteType: 'boulder',
+          pathData: null,
+          color: '#ef4444',
+          isPrimary: true,
+        }],
+        navigationContext: {
+          orderedImageIds: ['image-1'],
+          startIndex: 0,
+          imageMap: { 'image-1': { src: 'https://static.letsboulder.com/image.webp', width: 1600, height: 1200 } },
+          linkedImageIdByDisplayId: { 'image-1': 'image-1' },
+          stacks: [],
+          sectorMarkers: {},
+        },
+        initialClimbId: 'climb-1',
+        initialRouteId: 'route-line-1',
+        initialRouteSlug: 'test-route',
+        cragId: 'crag-1',
+        cragSlug: 'test-crag',
+        cragName: 'Test Crag',
+        countryCode: 'gb',
+        mapPins: [],
+        attribution: {
+          ownerRoleLabel: 'Photo',
+          ownerDisplayLabel: 'Contributor',
+          ownerProfileId: null,
+          formattedContributionHandle: null,
+          contributionCreditUrl: null,
+          communityEditorsRoleLabel: 'Community editors',
+          communityEditorsCount: 0,
+        },
+      },
+    })
+    const { generateMetadata } = await import('@/app/[country]/[crag]/i/[imageId]/page')
+
+    const metadata = await generateMetadata({
+      params: Promise.resolve({ country: 'gb', crag: 'test-crag', imageId: 'image-1' }),
+      searchParams: Promise.resolve({ route: 'route-line-1', climb: 'climb-1' }),
+    })
+
+    expect(metadata.title).toBe('Test Route (6A) | Test Crag topo')
+    expect(metadata.description).toBe('A good line.')
+    expect(metadata.alternates?.canonical).toBe('/gb/test-crag/i/image-1?route=test-route&climb=climb-1')
+    expect(metadata.openGraph?.images).toEqual([
+      {
+        url: 'https://static.letsboulder.com/image.webp',
+        width: 1200,
+        height: 630,
+        alt: 'Test Route (6A) | Test Crag topo',
+      },
+    ])
+  })
 })

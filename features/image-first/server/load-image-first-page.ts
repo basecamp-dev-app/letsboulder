@@ -2,10 +2,8 @@ import { cache } from 'react'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { getDisplayImageId } from '@/lib/image-identity'
 import { buildThumbnailUrl } from '@/lib/media/thumbnail-url'
-import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
-import { getServerClient } from '@/lib/supabase-server'
 import type { RoutePoint } from '@/types/domain'
 import { buildRouteAttribution } from '@/features/image-first/lib/route-attribution'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
@@ -134,29 +132,6 @@ interface RouteLineRow {
 
 async function getSupabase() {
   return getUnauthenticatedClient()
-}
-
-async function getIsCurrentUserAdmin(): Promise<boolean> {
-  try {
-    const supabase = await getServerClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) return false
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (profileError) return false
-    return profile?.is_admin === true
-  } catch {
-    return false
-  }
 }
 
 async function resolveCragImageRow(displayImageId: string): Promise<ResolvedImageRow | null> {
@@ -321,7 +296,7 @@ export async function buildImageFirstPayload(args: {
     }
   }
 
-  const [initialRouteRows, cragImages, cragImageRows, isAdmin, attributionData] = await Promise.all([
+  const [initialRouteRows, cragImages, cragImageRows, attributionData] = await Promise.all([
     timeServerStep('buildImageFirstPayload', 'initial-routes', () => getRoutesByImage(image.canonicalId)),
     (async () => {
       return timeServerStep('buildImageFirstPayload', 'crag-images', async () => {
@@ -359,7 +334,6 @@ export async function buildImageFirstPayload(args: {
         }>
       })
     })(),
-    getIsCurrentUserAdmin(),
     getImageAttribution(image.canonicalId),
   ])
 
@@ -486,6 +460,7 @@ export async function buildImageFirstPayload(args: {
       initialRouteSlug: args.routeSlug || resolvedRoute?.climbSlug || null,
       cragId: image.cragId,
       cragSlug: image.cragSlug,
+      cragName: image.cragName,
       countryCode: image.countryCode,
       mapPins,
       attribution: buildRouteAttribution({
@@ -493,7 +468,6 @@ export async function buildImageFirstPayload(args: {
         uploaderProfile: attributionData.uploaderProfile,
         communityEditorsCount: attributionData.communityEditorsCount,
       }),
-      isAdmin,
     },
   }
 

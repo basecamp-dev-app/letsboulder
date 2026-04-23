@@ -31,6 +31,13 @@ type ExportMode = 'image' | 'selected-route' | 'all-routes'
 
 type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']
 
+function isAdminProfile(value: unknown): value is { is_admin: boolean | null } {
+  return typeof value === 'object'
+    && value !== null
+    && 'is_admin' in value
+    && (typeof value.is_admin === 'boolean' || value.is_admin === null)
+}
+
 function toLoggedClimbInfo(row: UserClimbRow | null): { gradeOpinion: 'soft' | 'agree' | 'hard' | null; starRating: number | null; notes: string | null } | null {
   if (!row) return null
   return {
@@ -54,7 +61,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     countryCode,
     cragId,
     cragSlug,
-    isAdmin,
   } = payload
   console.log('[MapDebug] ImageFirstClient:heroImage', { displayImageId: heroImage.displayImageId, latitude: heroImage.latitude, longitude: heroImage.longitude })
   const { linkedImageIdByDisplayId } = navigationContext
@@ -82,6 +88,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [notesDialogOpen, setNotesDialogOpen] = useState(false)
   const [isWantToTrySaved, setIsWantToTrySaved] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
     const primaryId = linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId
     return { [primaryId]: initialRoutes }
@@ -112,6 +119,26 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   useEffect(() => {
     const supabase = createClient()
 
+    const syncAdminStatus = async (hasUser: boolean) => {
+      if (!hasUser) {
+        setIsAdmin(false)
+        return
+      }
+
+      try {
+        const response = await fetch('/api/profile')
+        if (!response.ok) {
+          setIsAdmin(false)
+          return
+        }
+
+        const profile: unknown = await response.json()
+        setIsAdmin(isAdminProfile(profile) && profile.is_admin === true)
+      } catch {
+        setIsAdmin(false)
+      }
+    }
+
     const syncUser = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
@@ -119,6 +146,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
           setUserPresent(true)
           setHasHydratedAuth(true)
         })
+        void syncAdminStatus(true)
         return
       }
 
@@ -130,6 +158,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         setUserPresent(!!user)
         setHasHydratedAuth(true)
       })
+      void syncAdminStatus(!!user)
     }
 
     void syncUser()
@@ -140,6 +169,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         setUserPresent(!!session?.user)
         setHasHydratedAuth(true)
       })
+      void syncAdminStatus(!!session?.user)
     })
 
     return () => subscription.unsubscribe()
