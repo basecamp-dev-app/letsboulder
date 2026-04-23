@@ -64,126 +64,58 @@ export interface PlacePin {
   route_count: number | null
 }
 
-interface CragPinRow {
+interface PlacePinRow {
   id: string
   name: string
-  latitude: number
-  longitude: number
-  image_count: number
-}
-
-interface CragMetaRow {
-  id: string
-  slug: string | null
-  country_code: string | null
-  route_count: number | null
-}
-
-interface GymPinRow {
-  id: string
-  name: string
+  type: 'crag' | 'gym'
   latitude: number | null
   longitude: number | null
   slug: string | null
   country_code: string | null
+  image_count: number | null
+  route_count: number | null
+}
+
+type ServerSupabaseClient = Awaited<ReturnType<typeof getServerClient>>
+
+export async function fetchMapPinsWithClient(
+  supabase: ServerSupabaseClient,
+  includePending: boolean
+): Promise<PlacePin[]> {
+  try {
+    const { data, error } = await supabase.rpc('get_place_pins', {
+      include_pending: includePending,
+    })
+
+    if (error) {
+      reportError(error, { message: 'Error fetching map pins' })
+      return []
+    }
+
+    return ((data || []) as PlacePinRow[])
+      .filter((row) => row.latitude !== null && row.longitude !== null)
+      .map((row) => ({
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+        slug: row.slug,
+        country_code: row.country_code,
+        image_count: row.image_count === null ? null : Number(row.image_count),
+        route_count: row.route_count,
+      }))
+  } catch (error) {
+    reportError(error, { message: 'Unexpected error fetching map pins' })
+    return []
+  }
 }
 
 export const fetchMapPins = cache(async (): Promise<PlacePin[]> => {
   const includePending = env.NEXT_PUBLIC_ALLOW_PENDING_IMAGES
   const supabase = await getServerClient()
 
-  try {
-    let cragPinRows: unknown[] | null = null
-
-    const { data: withArgRows, error: withArgError } = await supabase.rpc('get_crag_pins', {
-      include_pending: includePending,
-    })
-
-    if (withArgError) {
-      const isMissingFunctionSignature = withArgError.code === 'PGRST202'
-      if (!isMissingFunctionSignature) {
-        reportError(withArgError, { message: 'Error fetching crag pins' })
-        return []
-      }
-
-      const { data: fallbackRows, error: fallbackError } = await supabase.rpc('get_crag_pins')
-      if (fallbackError) {
-        reportError(fallbackError, { message: 'Error fetching crag pins' })
-        return []
-      }
-
-      cragPinRows = fallbackRows as unknown[]
-    } else {
-      cragPinRows = withArgRows as unknown[]
-    }
-
-    const typedCragPinRows = (cragPinRows || []) as CragPinRow[]
-    const cragIds = typedCragPinRows.map((row) => row.id)
-
-    const cragMetaById = new Map<string, CragMetaRow>()
-    if (cragIds.length > 0) {
-      const { data: cragMetaRows, error: cragMetaError } = await supabase
-        .from('crags')
-        .select('id, slug, country_code, route_count')
-        .in('id', cragIds)
-
-      if (cragMetaError) {
-        reportError(cragMetaError, { message: 'Error fetching crag pin metadata' })
-        return []
-      }
-
-      for (const row of (cragMetaRows || []) as CragMetaRow[]) {
-        cragMetaById.set(row.id, row)
-      }
-    }
-
-    const { data: gymPinRows, error: gymError } = await supabase
-      .from('places')
-      .select('id, name, latitude, longitude, slug, country_code')
-      .eq('type', 'gym')
-      .not('latitude', 'is', null)
-      .not('longitude', 'is', null)
-      .not('slug', 'is', null)
-
-    if (gymError) {
-      reportError(gymError, { message: 'Error fetching gym pins' })
-      return []
-    }
-
-    const cragPins: PlacePin[] = typedCragPinRows.map((row) => {
-      const meta = cragMetaById.get(row.id)
-      return {
-        id: row.id,
-        name: row.name,
-        type: 'crag',
-        latitude: Number(row.latitude),
-        longitude: Number(row.longitude),
-        slug: meta?.slug || null,
-        country_code: meta?.country_code || null,
-        image_count: Number(row.image_count) || 0,
-        route_count: meta?.route_count ?? null,
-      }
-    })
-
-    const gymPins: PlacePin[] = ((gymPinRows || []) as GymPinRow[])
-      .filter((row) => row.latitude !== null && row.longitude !== null)
-      .map((row) => ({
-        id: row.id,
-        name: row.name,
-        type: 'gym',
-        latitude: Number(row.latitude),
-        longitude: Number(row.longitude),
-        slug: row.slug,
-        country_code: row.country_code,
-        image_count: null,
-        route_count: null,
-      }))
-
-    return [...cragPins, ...gymPins]
-  } catch (error) {
-    reportError(error, { message: 'Unexpected error fetching crag pins' })
-    return []
-  }
+  return fetchMapPinsWithClient(supabase, includePending)
 })
 
 export const getCommunityPhotosCount = cache(async (): Promise<number> => {
