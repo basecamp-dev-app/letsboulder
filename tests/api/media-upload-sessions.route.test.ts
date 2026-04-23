@@ -177,7 +177,7 @@ describe('Media upload session routes', () => {
       storage_path: 'originals/image-123.jpg',
       visibility: 'public',
       moderation_status: 'approved',
-      processing_status: 'ready',
+      processing_status: 'pending',
     }))
     expect(createPrivateUploadUrl).toHaveBeenCalledWith('originals/image-123.jpg', 'image/jpeg')
     expect(json).toEqual({
@@ -285,7 +285,7 @@ describe('Media upload session routes', () => {
     expect(json).toEqual({ success: true })
   })
 
-  test('complete auto-approves when moderation is disabled', async () => {
+  test('complete queues ingest when moderation is disabled', async () => {
     vi.mocked(getMediaModerationConfig).mockReturnValue({ enabled: false, provider: 'disabled', failOpen: false })
     const updateQuery = { eq: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })) }
     const supabase = {
@@ -329,7 +329,11 @@ describe('Media upload session routes', () => {
 
     expect(response.status).toBe(200)
     expect(ensurePrivateObjectExists).toHaveBeenCalledWith('originals/image-123.jpg')
-    expect(json).toEqual({ success: true, imageId: 'image-123', status: 'approved' })
+    expect(json).toEqual({ success: true, imageId: 'image-123', status: 'queued' })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://worker.example/enqueue',
+      expect.objectContaining({ method: 'POST' })
+    )
   })
 
   test('complete queues ingest when moderation requires review', async () => {

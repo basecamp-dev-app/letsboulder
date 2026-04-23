@@ -93,33 +93,13 @@ export async function POST(
     const moderation = getMediaModerationConfig()
     const autoApprove = !moderation.enabled || moderation.provider === 'disabled'
 
-    if (autoApprove) {
-      const { error: approveError } = await supabase
-        .from('images')
-        .update({
-          visibility: 'public',
-          moderation_status: 'approved',
-          processing_status: 'ready',
-          status: 'approved',
-        })
-        .eq('id', image.id)
-        .eq('created_by', user.id)
-
-      if (approveError) {
-        return createErrorResponse(approveError, 'Failed to auto-approve upload')
-      }
-
-      return NextResponse.json({
-        success: true,
-        imageId: image.id,
-        status: 'approved',
-      })
-    }
-
     const { error: updateError } = await supabase
       .from('images')
       .update({
+        visibility: autoApprove ? 'public' : 'private',
+        moderation_status: autoApprove ? 'approved' : 'pending',
         processing_status: 'queued',
+        status: autoApprove ? 'approved' : 'pending',
       })
       .eq('id', image.id)
       .eq('created_by', user.id)

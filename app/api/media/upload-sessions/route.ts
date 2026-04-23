@@ -77,7 +77,8 @@ export async function POST(request: NextRequest) {
       original_height: payload.height,
       visibility: autoApprove ? 'public' : 'private',
       moderation_status: autoApprove ? 'approved' : 'pending',
-      processing_status: autoApprove ? 'ready' : 'pending',
+      // Public-by-default uploads still need worker finalization for variants and static URLs.
+      processing_status: 'pending',
       status: autoApprove ? 'approved' : 'pending',
     }
 
