@@ -25,6 +25,11 @@ on:
         required: false
         default: '25'
         type: string
+      verify_wait_seconds:
+        description: 'Seconds to wait before checking post-enqueue DB state'
+        required: false
+        default: '20'
+        type: string
 
 permissions:
   contents: read
@@ -43,6 +48,7 @@ jobs:
       SAMPLE_IMAGE_ID: ${{ inputs.sample_image_id }}
       BATCH_SIZE: ${{ inputs.batch_size }}
       MAX_ROWS: ${{ inputs.max_rows }}
+      VERIFY_WAIT_SECONDS: ${{ inputs.verify_wait_seconds }}
       PSQL_SSLMODE: require
       PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       CF_MEDIA_WORKER_URL: ${{ secrets.CF_MEDIA_WORKER_URL }}
@@ -82,6 +88,11 @@ jobs:
 
           if [ -n "$SAMPLE_IMAGE_ID" ] && ! [[ "$SAMPLE_IMAGE_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
             echo "::error::sample_image_id must be a UUID"
+            exit 1
+          fi
+
+          if ! [[ "$VERIFY_WAIT_SECONDS" =~ ^[0-9]+$ ]] || [ "$VERIFY_WAIT_SECONDS" -lt 0 ]; then
+            echo "::error::verify_wait_seconds must be a non-negative integer"
             exit 1
           fi
 
@@ -198,6 +209,53 @@ jobs:
           printf 'Enqueue summary: success=%s failure=%s\n' "$success" "$failure"
           if [ "$failure" -gt 0 ]; then
             printf 'Failed image IDs: %s\n' "${failed_ids[*]}"
+            exit 1
+          fi
+
+      - name: Verify post-enqueue DB state
+        if: ${{ inputs.dry_run == 'false' }}
+        shell: bash
+        run: |
+          if [ "$VERIFY_WAIT_SECONDS" -gt 0 ]; then
+            echo "Waiting $VERIFY_WAIT_SECONDS seconds for worker finalization"
+            sleep "$VERIFY_WAIT_SECONDS"
+          fi
+
+          ids_sql=$(jq -r '.[].id | "\x27" + . + "\x27"' selected-images.json | paste -sd, -)
+          if [ -z "$ids_sql" ]; then
+            echo '::warning::No selected rows to verify'
+            exit 0
+          fi
+
+          verify_query=$(cat <<SQL
+          SELECT json_agg(row_to_json(verified_rows))::text
+          FROM (
+            SELECT
+              id,
+              url,
+              visibility,
+              processing_status,
+              processed_at,
+              variants
+            FROM public.images
+            WHERE id::text IN (${ids_sql})
+            ORDER BY id ASC
+          ) AS verified_rows;
+          SQL
+          )
+
+          verified=$(psql \
+            "host=$SUPABASE_DB_HOST port=$SUPABASE_DB_PORT user=$SUPABASE_DB_USER dbname=$SUPABASE_DB_NAME sslmode=$PSQL_SSLMODE" \
+            --no-align --tuples-only --quiet \
+            -c "$verify_query")
+
+          verified=$(printf '%s' "$verified" | tr -d '\n')
+          echo "$verified" > verified-images.json
+          jq '.' verified-images.json
+
+          unresolved_count=$(jq '[.[] | select(.processing_status != "ready" or .processed_at == null or (.url | startswith("private://")) or .variants == {})] | length' verified-images.json)
+          if [ "$unresolved_count" -gt 0 ]; then
+            echo "::warning::Some images are still unresolved after enqueue"
             exit 1
           fi
 
