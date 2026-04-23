@@ -1,7 +1,9 @@
 import { cache } from 'react'
 import { getDisplayName } from '@/lib/profile-helpers'
-import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
+import { buildThumbnailUrl } from '@/lib/media/thumbnail-url'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
+
+const HOME_CRAG_CARD_IMAGE_WIDTH = 828
 
 interface HomeRecentImageRow {
   id: string
@@ -137,7 +139,7 @@ export const fetchHomepageRecentCragUpdates = cache(async function fetchHomepage
       cragId: row.crag_id,
       cragName: crag.name,
       href: buildCragHref(crag),
-      coverImageUrl: resolveRouteImageUrl(row.url),
+      coverImageUrl: buildThumbnailUrl(row.url, HOME_CRAG_CARD_IMAGE_WIDTH),
       latestContributionAt: row.created_at,
       recentContributionCount: 1,
     })
