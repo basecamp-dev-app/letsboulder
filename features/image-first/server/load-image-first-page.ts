@@ -455,6 +455,8 @@ export async function buildImageFirstPayload(args: {
         src: image.staticUrl,
         width: image.width,
         height: image.height,
+        latitude: image.latitude,
+        longitude: image.longitude,
         priority: true as const,
       },
       initialRoutes,
