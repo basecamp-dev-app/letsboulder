@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound, permanentRedirect } from 'next/navigation'
-import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
+import { buildThumbnailUrl } from '@/lib/media/thumbnail-url'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { RouteLineWithImageSchema } from '@/lib/supabase-result-schemas'
 
@@ -157,7 +157,7 @@ export async function generateMetadata({ params }: { params: Promise<RouteParams
   const canonicalPath = canonicalImageId
     ? `/${country.toLowerCase()}/${cragSlug}/i/${canonicalImageId}?route=${encodeURIComponent(bestRouteLineId || '')}&climb=${encodeURIComponent(effectiveClimbId || '')}`
     : `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`
-  const imageUrl = bestImage?.images?.url ? resolveRouteImageUrl(bestImage.images.url) : '/og.png'
+  const imageUrl = bestImage?.images?.url ? buildThumbnailUrl(bestImage.images.url, 1200) : '/og.png'
 
   return {
     title,

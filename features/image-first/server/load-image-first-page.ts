@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { getDisplayImageId } from '@/lib/image-identity'
+import { buildThumbnailUrl } from '@/lib/media/thumbnail-url'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
@@ -95,6 +96,8 @@ type ResolvedImageRecord = {
   cragName: string
   fromCragImages: boolean
 }
+
+const ROUTE_PAGE_IMAGE_WIDTH = 1200
 
 interface RouteLineRow {
   id: string
@@ -210,7 +213,7 @@ export const getImageByDisplayId = cache(async (displayImageId: string) => {
       asset = (imageData as ImageAssetRow | null) || null
     }
 
-    const src = resolveRouteImageUrl(asset?.url || resolved.url)
+    const src = buildThumbnailUrl(asset?.url || resolved.url, ROUTE_PAGE_IMAGE_WIDTH)
     return {
       canonicalId,
       redirectRequired: canonicalId !== displayImageId,
@@ -241,7 +244,7 @@ export const getImageByDisplayId = cache(async (displayImageId: string) => {
   return {
     canonicalId: rawImage.id,
     redirectRequired: false,
-    staticUrl: resolveRouteImageUrl(rawImage.url),
+    staticUrl: buildThumbnailUrl(rawImage.url, ROUTE_PAGE_IMAGE_WIDTH),
     width: rawImage.width ?? 1600,
     height: rawImage.height ?? 1200,
     cragSlug: crag.slug,
@@ -293,7 +296,7 @@ function buildOfflineImageFirstPayload(
   }) || payload.faces[0] || null
 
   const heroDisplayImageId = heroFace?.display_image_id || heroFace?.image_id || payload.primary_image?.display_image_id || payload.primary_image?.id || null
-  const heroSrc = resolveRouteImageUrl(heroFace?.url || payload.primary_image?.url)
+  const heroSrc = buildThumbnailUrl(heroFace?.url || payload.primary_image?.url, ROUTE_PAGE_IMAGE_WIDTH)
 
   if (!heroDisplayImageId || !heroSrc) {
     return { redirectTo: null, payload: null }
@@ -327,7 +330,7 @@ function buildOfflineImageFirstPayload(
     const linkedImageId = face.image_id || displayImageId
     if (!imageMap[displayImageId]) {
       imageMap[displayImageId] = {
-        src: resolveRouteImageUrl(face.url),
+        src: buildThumbnailUrl(face.url, ROUTE_PAGE_IMAGE_WIDTH),
         width: face.metadata?.width ?? payload.primary_image?.width ?? 1600,
         height: face.metadata?.height ?? payload.primary_image?.height ?? 1200,
       }
@@ -551,7 +554,7 @@ export async function buildImageFirstPayload(args: {
   for (const row of cragImages) {
     if (imageMap[row.id]) continue
     imageMap[row.id] = {
-      src: resolveRouteImageUrl(row.url),
+      src: buildThumbnailUrl(row.url, ROUTE_PAGE_IMAGE_WIDTH),
       width: row.width ?? 1600,
       height: row.height ?? 1200,
     }

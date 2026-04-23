@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
+const { clientEnv } = vi.hoisted(() => ({
+  clientEnv: {
+    NEXT_PUBLIC_MEDIA_CDN_URL: 'https://static.letsboulder.com',
+    NEXT_PUBLIC_APP_URL: 'https://letsboulder.com',
+  },
+}))
+
 const cacheMock = <T extends (...args: unknown[]) => unknown>(fn: T) => fn
 
 const state = {
@@ -13,6 +20,8 @@ const state = {
 }
 
 vi.mock('react', () => ({ cache: cacheMock }))
+
+vi.mock('@/lib/env-client', () => ({ clientEnv }))
 
 const getStoredClimbManifestMock = vi.fn(async () => null)
 const getStoredClimbManifestByImageIdMock = vi.fn(async () => null)
@@ -101,7 +110,7 @@ describe('image-page-server raw image fallback', () => {
     state.rawImage = {
       id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
       crag_id: 'crag-1',
-      url: 'https://static.example.com/raw.jpg',
+      url: 'https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg',
       width: 1200,
       height: 900,
       created_at: '2026-03-01T00:00:00Z',
@@ -174,6 +183,8 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.initialRouteId).toBe('fd88f866-1eac-47a9-97c2-462574a95f55')
     expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
     expect(result.payload?.heroImage.displayImageId).toBe('215b8180-4727-404d-8fbf-6cb9bd8f5f9a')
+    expect(result.payload?.heroImage.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
+    expect(result.payload?.navigationContext.imageMap['215b8180-4727-404d-8fbf-6cb9bd8f5f9a']?.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
     expect(result.payload?.attribution.ownerDisplayLabel).toBe('Maya Stone')
     expect(result.payload?.attribution.ownerProfileId).toBe('user-1')
     expect(result.payload?.attribution.formattedContributionHandle).toBe('@maya_beta')
@@ -262,7 +273,7 @@ describe('image-page-server raw image fallback', () => {
         primary_image: {
           id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
           display_image_id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
-          url: 'https://static.example.com/raw.jpg',
+          url: 'https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg',
           crag_id: 'crag-1',
           latitude: 49.18,
           longitude: -2.24,
@@ -299,7 +310,7 @@ describe('image-page-server raw image fallback', () => {
           image_id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
           display_image_id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
           is_primary: true,
-          url: 'https://static.example.com/raw.jpg',
+          url: 'https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg',
           has_routes: true,
           linked_image_id: null,
           crag_image_id: null,
@@ -344,7 +355,7 @@ describe('image-page-server raw image fallback', () => {
           pageUrl: '/gg/point-de-la-moye-east/test-route',
           canonicalPath: '/gg/point-de-la-moye-east/test-route',
           offlineLaunchUrl: '/gg/point-de-la-moye-east/test-route',
-          mediaUrls: ['https://static.example.com/raw.jpg'],
+          mediaUrls: ['https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg'],
           mediaCount: 1,
           estimatedBytes: 100,
         },
@@ -366,6 +377,7 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.initialRouteId).toBe('fd88f866-1eac-47a9-97c2-462574a95f55')
     expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
     expect(result.payload?.navigationContext.orderedImageIds).toEqual(['215b8180-4727-404d-8fbf-6cb9bd8f5f9a'])
+    expect(result.payload?.heroImage.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
     expect(result.payload?.attribution.ownerDisplayLabel).toBe('Anonymous Contributor')
     expect(result.payload?.attribution.communityEditorsCount).toBe(4)
 
@@ -405,7 +417,7 @@ describe('image-page-server raw image fallback', () => {
         primary_image: {
           id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
           display_image_id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
-          url: 'https://static.example.com/raw.jpg',
+          url: 'https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg',
           crag_id: 'crag-1',
           latitude: 49.18,
           longitude: -2.24,
@@ -442,7 +454,7 @@ describe('image-page-server raw image fallback', () => {
           image_id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
           display_image_id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
           is_primary: true,
-          url: 'https://static.example.com/raw.jpg',
+          url: 'https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg',
           has_routes: true,
           linked_image_id: null,
           crag_image_id: null,
@@ -487,7 +499,7 @@ describe('image-page-server raw image fallback', () => {
           pageUrl: '/gg/point-de-la-moye-east/test-route',
           canonicalPath: '/gg/point-de-la-moye-east/test-route',
           offlineLaunchUrl: '/gg/point-de-la-moye-east/test-route',
-          mediaUrls: ['https://static.example.com/raw.jpg'],
+          mediaUrls: ['https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg'],
           mediaCount: 1,
           estimatedBytes: 100,
         },
@@ -506,6 +518,7 @@ describe('image-page-server raw image fallback', () => {
     expect(result.redirectTo).toBeNull()
     expect(result.payload?.heroImage.displayImageId).toBe('215b8180-4727-404d-8fbf-6cb9bd8f5f9a')
     expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
+    expect(result.payload?.heroImage.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
     expect(result.payload?.attribution.ownerDisplayLabel).toBe('Anonymous Contributor')
     expect(result.payload?.attribution.communityEditorsCount).toBe(3)
 
