@@ -1,0 +1,207 @@
+name: Media Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview selected rows without enqueueing worker jobs'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      sample_image_id:
+        description: 'Optional single images.id to target for a sample run'
+        required: false
+        type: string
+      batch_size:
+        description: 'Maximum rows to enqueue per run'
+        required: true
+        default: '25'
+        type: string
+      max_rows:
+        description: 'Optional hard cap on selected rows'
+        required: false
+        default: '25'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-backfill-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  enqueue-backfill:
+    name: Enqueue media backfill jobs
+    runs-on: [self-hosted, linux]
+    environment: Production
+    env:
+      DRY_RUN: ${{ inputs.dry_run }}
+      SAMPLE_IMAGE_ID: ${{ inputs.sample_image_id }}
+      BATCH_SIZE: ${{ inputs.batch_size }}
+      MAX_ROWS: ${{ inputs.max_rows }}
+      PSQL_SSLMODE: require
+      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      CF_MEDIA_WORKER_URL: ${{ secrets.CF_MEDIA_WORKER_URL }}
+      CF_MEDIA_WORKER_SECRET: ${{ secrets.CF_MEDIA_WORKER_SECRET }}
+      SUPABASE_DB_HOST: db.${{ vars.SUPABASE_PROJECT_REF }}.supabase.co
+      SUPABASE_DB_USER: postgres
+      SUPABASE_DB_NAME: postgres
+      SUPABASE_DB_PORT: '5432'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tooling
+        run: |
+          if ! command -v jq >/dev/null 2>&1 || ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq postgresql-client
+          fi
+
+      - name: Validate required configuration
+        run: |
+          required_vars=(CF_MEDIA_WORKER_URL CF_MEDIA_WORKER_SECRET SUPABASE_DB_HOST SUPABASE_DB_USER SUPABASE_DB_NAME SUPABASE_DB_PORT PGPASSWORD)
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required configuration: $var"
+              exit 1
+            fi
+          done
+
+          if ! [[ "$BATCH_SIZE" =~ ^[0-9]+$ ]] || [ "$BATCH_SIZE" -le 0 ]; then
+            echo "::error::batch_size must be a positive integer"
+            exit 1
+          fi
+
+          if [ -n "$MAX_ROWS" ] && { ! [[ "$MAX_ROWS" =~ ^[0-9]+$ ]] || [ "$MAX_ROWS" -le 0 ]; }; then
+            echo "::error::max_rows must be empty or a positive integer"
+            exit 1
+          fi
+
+          if [ -n "$SAMPLE_IMAGE_ID" ] && ! [[ "$SAMPLE_IMAGE_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo "::error::sample_image_id must be a UUID"
+            exit 1
+          fi
+
+      - name: Select affected rows and infer purpose
+        shell: bash
+        run: |
+          limit="$BATCH_SIZE"
+          if [ -n "$MAX_ROWS" ] && [ "$MAX_ROWS" -lt "$limit" ]; then
+            limit="$MAX_ROWS"
+          fi
+
+          sample_filter=""
+          if [ -n "$SAMPLE_IMAGE_ID" ]; then
+            sample_filter="AND i.id = '$SAMPLE_IMAGE_ID'::uuid"
+          fi
+
+          query=$(cat <<SQL
+          WITH candidate_images AS (
+            SELECT
+              i.id,
+              i.original_bucket,
+              i.original_key,
+              i.created_by,
+              CASE
+                WHEN EXISTS (
+                  SELECT 1
+                  FROM public.submission_draft_images sdi
+                  WHERE sdi.original_bucket = i.original_bucket
+                    AND sdi.original_key = i.original_key
+                ) THEN 'draft_image'
+                WHEN EXISTS (
+                  SELECT 1
+                  FROM public.crag_images ci
+                  WHERE ci.linked_image_id = i.id
+                     OR ci.source_image_id = i.id
+                ) THEN 'crag_image'
+                ELSE 'submission_image'
+              END AS inferred_purpose
+            FROM public.images i
+            WHERE i.original_bucket = 'lb-prod-media-private'
+              AND i.original_key LIKE 'images/originals/%/original.%'
+              AND i.url LIKE 'private://lb-prod-media-private/images/originals/%'
+              AND i.visibility = 'public'
+              AND i.processing_status = 'queued'
+              AND i.processed_at IS NULL
+              AND i.variants = '{}'::jsonb
+              $sample_filter
+            ORDER BY i.created_at ASC
+            LIMIT $limit
+          )
+          SELECT COALESCE(json_agg(row_to_json(candidate_images)), '[]'::json)::text
+          FROM candidate_images;
+          SQL
+          )
+
+          selected=$(psql \
+            "host=$SUPABASE_DB_HOST port=$SUPABASE_DB_PORT user=$SUPABASE_DB_USER dbname=$SUPABASE_DB_NAME sslmode=$PSQL_SSLMODE" \
+            --no-align --tuples-only --quiet \
+            -c "$query")
+
+          selected=$(printf '%s' "$selected" | tr -d '\n')
+          echo "$selected" > selected-images.json
+
+          count=$(jq 'length' selected-images.json)
+          echo "Selected $count candidate rows"
+          jq '.' selected-images.json
+
+          if [ "$count" -eq 0 ]; then
+            echo "::warning::No matching rows found"
+          fi
+
+      - name: Enqueue worker jobs
+        if: ${{ inputs.dry_run == 'false' }}
+        shell: bash
+        run: |
+          success=0
+          failure=0
+          failed_ids=()
+
+          while IFS= read -r row; do
+            image_id=$(printf '%s' "$row" | jq -r '.id')
+            original_bucket=$(printf '%s' "$row" | jq -r '.original_bucket')
+            original_key=$(printf '%s' "$row" | jq -r '.original_key')
+            created_by=$(printf '%s' "$row" | jq -r '.created_by')
+            purpose=$(printf '%s' "$row" | jq -r '.inferred_purpose')
+
+            payload=$(jq -n \
+              --arg imageId "$image_id" \
+              --arg originalBucket "$original_bucket" \
+              --arg originalKey "$original_key" \
+              --arg purpose "$purpose" \
+              --arg triggeredByUserId "$created_by" \
+              '{imageId: $imageId, originalBucket: $originalBucket, originalKey: $originalKey, storageProvider: "r2", purpose: $purpose, triggeredByUserId: $triggeredByUserId, trigger: "backfill"}')
+
+            response_file=$(mktemp)
+            status_code=$(curl -sS -o "$response_file" -w '%{http_code}' \
+              -X POST "${CF_MEDIA_WORKER_URL%/}/enqueue" \
+              -H "Authorization: Bearer $CF_MEDIA_WORKER_SECRET" \
+              -H 'Content-Type: application/json' \
+              --data "$payload")
+
+            if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
+              success=$((success + 1))
+              printf 'Enqueued %s (%s)\n' "$image_id" "$purpose"
+            else
+              failure=$((failure + 1))
+              failed_ids+=("$image_id")
+              printf '::error::Failed to enqueue %s (HTTP %s): %s\n' "$image_id" "$status_code" "$(cat "$response_file")"
+            fi
+
+            rm -f "$response_file"
+          done < <(jq -c '.[]' selected-images.json)
+
+          printf 'Enqueue summary: success=%s failure=%s\n' "$success" "$failure"
+          if [ "$failure" -gt 0 ]; then
+            printf 'Failed image IDs: %s\n' "${failed_ids[*]}"
+            exit 1
+          fi
+
+      - name: Dry run summary
+        if: ${{ inputs.dry_run == 'true' }}
+        run: |
+          echo 'Dry run only. No worker jobs were enqueued.'
