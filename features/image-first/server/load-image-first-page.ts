@@ -67,6 +67,8 @@ interface ImageAssetRow {
   url: string | null
   width: number | null
   height: number | null
+  latitude: number | null
+  longitude: number | null
   created_at: string | null
   crags: CragRow | CragRow[] | null
 }
@@ -77,6 +79,8 @@ type ResolvedImageRow = {
   url: string
   width: number | null
   height: number | null
+  latitude: number | null
+  longitude: number | null
   created_at: string | null
   crag_id: string
   crags: CragRow | CragRow[] | null
@@ -88,6 +92,8 @@ type ResolvedImageRecord = {
   staticUrl: string
   width: number
   height: number
+  latitude: number | null
+  longitude: number | null
   cragSlug: string
   countryCode: string
   cragId: string
@@ -155,7 +161,7 @@ async function getIsCurrentUserAdmin(): Promise<boolean> {
 
 async function resolveCragImageRow(displayImageId: string): Promise<ResolvedImageRow | null> {
   const supabase = await getSupabase()
-  const baseSelect = 'id, linked_image_id, url, width, height, created_at, crag_id, crags(id, slug, country_code, name)'
+  const baseSelect = 'id, linked_image_id, url, width, height, latitude, longitude, created_at, crag_id, crags(id, slug, country_code, name)'
 
   const { data, error } = await supabase
     .from('crag_images')
@@ -205,7 +211,7 @@ export const getImageByDisplayId = cache(async (displayImageId: string) => {
     if (resolved.linked_image_id) {
       const { data: imageData } = await supabase
         .from('images')
-        .select('id, crag_id, url, width, height, created_at, crags(id, slug, country_code, name)')
+        .select('id, crag_id, url, width, height, created_at, latitude, longitude, crags(id, slug, country_code, name)')
         .eq('id', resolved.linked_image_id)
         .maybeSingle()
       asset = (imageData as ImageAssetRow | null) || null
@@ -218,6 +224,8 @@ export const getImageByDisplayId = cache(async (displayImageId: string) => {
       staticUrl: src,
       width: asset?.width ?? resolved.width ?? 1600,
       height: asset?.height ?? resolved.height ?? 1200,
+      latitude: asset?.latitude ?? resolved.latitude ?? null,
+      longitude: asset?.longitude ?? resolved.longitude ?? null,
       cragSlug: crag.slug,
       countryCode: crag.country_code.toLowerCase(),
       cragId: crag.id,
@@ -228,7 +236,7 @@ export const getImageByDisplayId = cache(async (displayImageId: string) => {
 
   const { data: rawImageData, error: rawImageError } = await supabase
     .from('images')
-    .select('id, crag_id, url, width, height, created_at, crags(id, slug, country_code, name)')
+    .select('id, crag_id, url, width, height, created_at, latitude, longitude, crags(id, slug, country_code, name)')
     .eq('id', displayImageId)
     .maybeSingle()
 
@@ -245,6 +253,8 @@ export const getImageByDisplayId = cache(async (displayImageId: string) => {
     staticUrl: buildThumbnailUrl(rawImage.url, ROUTE_PAGE_IMAGE_WIDTH),
     width: rawImage.width ?? 1600,
     height: rawImage.height ?? 1200,
+    latitude: rawImage.latitude ?? null,
+    longitude: rawImage.longitude ?? null,
     cragSlug: crag.slug,
     countryCode: crag.country_code.toLowerCase(),
     cragId: crag.id,
