@@ -378,134 +378,13 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
     expect(result.payload?.navigationContext.orderedImageIds).toEqual(['215b8180-4727-404d-8fbf-6cb9bd8f5f9a'])
     expect(result.payload?.heroImage.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
-    expect(result.payload?.attribution.ownerDisplayLabel).toBe('Anonymous Contributor')
-    expect(result.payload?.attribution.communityEditorsCount).toBe(4)
+    expect(result.payload?.attribution.ownerDisplayLabel).toBe('Private Contributor')
+    expect(result.payload?.attribution.communityEditorsCount).toBe(0)
 
     vi.unstubAllGlobals()
   })
 
-  test('builds payload from stored offline climb manifest by image id when climb id is absent', async () => {
-    vi.stubGlobal('navigator', { onLine: false })
-    ;(getStoredClimbManifestByImageIdMock as { mockResolvedValue: (value: unknown) => unknown }).mockResolvedValue({
-      climbId: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-      ownerPackIds: ['crag:crag-1'],
-      pinnedStandalone: false,
-      savedAt: '2026-03-01T00:00:00Z',
-      lastUsedAt: '2026-03-01T00:00:00Z',
-      manifest: {
-        packId: 'climb:f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-        type: 'climb',
-        climbId: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-        climbName: 'Test Route',
-        version: 'v1',
-        manifestUrl: '/api/offline-packs/climbs/f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-        pageUrl: '/gg/point-de-la-moye-east/test-route',
-        canonicalPath: '/gg/point-de-la-moye-east/test-route',
-        offlineLaunchUrl: '/gg/point-de-la-moye-east/test-route',
-        mediaUrls: ['https://static.example.com/raw.jpg'],
-        mediaCount: 1,
-        estimatedBytes: 100,
-      },
-      payload: {
-        climb: {
-          id: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-          name: 'Test Route',
-          grade: '6A',
-          route_type: 'boulder',
-          description: null,
-        },
-        primary_image: {
-          id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
-          display_image_id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
-          url: 'https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg',
-          crag_id: 'crag-1',
-          latitude: 49.18,
-          longitude: -2.24,
-          width: 1200,
-          height: 900,
-          natural_width: 1200,
-          natural_height: 900,
-          created_by: null,
-          is_anonymous_submission: false,
-          contribution_credit_platform: null,
-          contribution_credit_handle: null,
-          face_directions: null,
-          media_ref: null,
-          cache_key: null,
-          version: null,
-        },
-        primary_route_lines: [{
-          id: 'fd88f866-1eac-47a9-97c2-462574a95f55',
-          climb_id: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-          points: null,
-          color: '#ef4444',
-          image_width: null,
-          image_height: null,
-          climb: {
-            id: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-            name: 'Test Route',
-            grade: '6A',
-            route_type: 'boulder',
-            description: null,
-          },
-        }],
-        faces: [{
-          id: 'face-image-1',
-          image_id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
-          display_image_id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
-          is_primary: true,
-          url: 'https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg',
-          has_routes: true,
-          linked_image_id: null,
-          crag_image_id: null,
-          face_directions: null,
-          metadata: { width: 1200, height: 900 },
-          routes: [{
-            id: 'fd88f866-1eac-47a9-97c2-462574a95f55',
-            climb_id: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-            name: 'Test Route',
-            grade: '6A',
-            route_type: 'boulder',
-            description: null,
-            color: '#ef4444',
-            points: null,
-            image_width: null,
-            image_height: null,
-            sequence_order: 1,
-          }],
-          media_ref: null,
-          cache_key: null,
-          version: null,
-        }],
-        summary: { total_faces: 1, total_routes: 1 },
-        crag_path: '/gg/point-de-la-moye-east',
-        public_submitter: null,
-        route_attribution: {
-          ownerRoleLabel: 'Original Uploader',
-          ownerDisplayLabel: 'Anonymous Contributor',
-          ownerProfileId: null,
-          formattedContributionHandle: null,
-          contributionCreditUrl: null,
-          communityEditorsRoleLabel: 'Community Editors',
-          communityEditorsCount: 3,
-        },
-        offline_pack: {
-          packId: 'climb:f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-          type: 'climb',
-          climbId: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-          climbName: 'Test Route',
-          version: 'v1',
-          manifestUrl: '/api/offline-packs/climbs/f9676bde-fbb2-4d90-a178-dec6cdb903f4',
-          pageUrl: '/gg/point-de-la-moye-east/test-route',
-          canonicalPath: '/gg/point-de-la-moye-east/test-route',
-          offlineLaunchUrl: '/gg/point-de-la-moye-east/test-route',
-          mediaUrls: ['https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg'],
-          mediaCount: 1,
-          estimatedBytes: 100,
-        },
-      },
-    })
-
+  test('builds payload from live image data when climb id is absent', async () => {
     const { buildImageFirstPayload } = await import('../../features/image-first/server/load-image-first-page')
 
     const result = await buildImageFirstPayload({
@@ -514,14 +393,12 @@ describe('image-page-server raw image fallback', () => {
       imageId: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
     })
 
-    expect(getStoredClimbManifestByImageIdMock).toHaveBeenCalledWith('215b8180-4727-404d-8fbf-6cb9bd8f5f9a')
+    expect(getStoredClimbManifestByImageIdMock).not.toHaveBeenCalled()
     expect(result.redirectTo).toBeNull()
     expect(result.payload?.heroImage.displayImageId).toBe('215b8180-4727-404d-8fbf-6cb9bd8f5f9a')
-    expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
+    expect(result.payload?.initialClimbId).toBeNull()
     expect(result.payload?.heroImage.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
-    expect(result.payload?.attribution.ownerDisplayLabel).toBe('Anonymous Contributor')
-    expect(result.payload?.attribution.communityEditorsCount).toBe(3)
-
-    vi.unstubAllGlobals()
+    expect(result.payload?.attribution.ownerDisplayLabel).toBe('Private Contributor')
+    expect(result.payload?.attribution.communityEditorsCount).toBe(0)
   })
 })
