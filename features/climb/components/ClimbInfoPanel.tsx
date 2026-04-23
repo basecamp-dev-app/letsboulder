@@ -240,9 +240,11 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                 View crag
               </a>
             ) : null}
-            <button onClick={onOpenOffline} disabled={!offlinePackAvailable} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              {isOfflineSaved ? 'Saved offline' : 'Save offline'}
-            </button>
+            {offlinePackAvailable ? (
+              <button onClick={onOpenOffline} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
+                {isOfflineSaved ? 'Saved offline' : 'Save offline'}
+              </button>
+            ) : null}
             <button
               onClick={userPresent ? onToggleWantToTry : onGoToAuth}
               disabled={!selectedClimb || savingWantToTry}

@@ -23,7 +23,8 @@ import type { GradeOpinion } from '@/lib/grade-feedback'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 import { ToastContainer } from '@/components/ui/toast'
 import { useToast } from '@/hooks/use-toast'
-import RoutePageMinimap from '@/features/image-first/components/RoutePageMinimap'
+import LightweightCragMap from '@/components/LightweightCragMap'
+import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 type ExportMode = 'image' | 'selected-route' | 'all-routes'
@@ -548,15 +549,48 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   )
   const activeCanvasImageUrl = activeImageMeta.src || heroImage.src
 
-  const mapPins = useMemo(() => {
-    return payload.mapPins.map((pin) => ({
+  const [allMapPins, setAllMapPins] = useState<LightweightCragMapPin[]>(() =>
+    payload.mapPins.map((pin) => ({
       id: pin.imageId,
       latitude: pin.latitude,
       longitude: pin.longitude,
       label: String(pin.activeImageIds.length),
       activeImageIds: pin.activeImageIds,
+      primaryImageId: pin.primaryImageId,
     }))
-  }, [payload.mapPins])
+  )
+
+  useEffect(() => {
+    if (!cragId || payload.mapPins.length === 0) return
+    if (payload.mapPins.length > 1) return
+
+    const controller = new AbortController()
+    const signal = controller.signal
+
+    fetch(
+      `/api/image-first/pins?cragId=${cragId}&north=90&south=-90&east=180&west=-180`,
+      { signal }
+    )
+      .then((res) => res.json())
+      .then((data: { pins?: Array<{ imageId: string; latitude: number; longitude: number; activeImageIds: string[]; primaryImageId: string }> }) => {
+        const pins = (data.pins || []).map((p) => ({
+          id: p.imageId,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          label: String(p.activeImageIds.length),
+          activeImageIds: p.activeImageIds,
+          primaryImageId: p.primaryImageId,
+        }))
+        if (pins.length > 0 && signal.aborted === false) {
+          setAllMapPins(pins)
+        }
+      })
+      .catch(() => {})
+
+    return () => controller.abort()
+  }, [cragId, payload.mapPins.length])
+
+  const mapPins = allMapPins
 
   const visibleRoutes = useMemo(() => {
     const filteredRoutes = activeRoutes.filter(route => route.imageId === activePrimaryImageId)
@@ -969,18 +1003,21 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
       />
 
-      {mapPins.length > 0 ? (
+      {mapPins.length > 0 && mapPins[0]?.latitude ? (
         <div className="px-4 pb-4">
           <div className="mx-auto w-full max-w-6xl">
-            <RoutePageMinimap
-              cragId={cragId}
-              currentPin={mapPins[0] || null}
-              activeImageId={activeImageId}
-              orderedImageIds={navigationContext.orderedImageIds}
+            <LightweightCragMap
+              pins={mapPins}
+              activePinId={activeImageId}
+              initialCenter={[mapPins[0].latitude, mapPins[0].longitude]}
+              initialZoom={18}
               onPinSelect={(imageId) => {
                 const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
                 if (nextIndex >= 0) setActiveImageIndex(nextIndex)
               }}
+              disableClustering={true}
+              disableAutoFit={true}
+              heightClassName="min-h-[240px] md:min-h-[280px]"
             />
           </div>
         </div>
