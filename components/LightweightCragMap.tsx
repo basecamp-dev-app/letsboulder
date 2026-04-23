@@ -221,6 +221,7 @@ export default function LightweightCragMap({
   heightMode = 'intrinsic',
   heightClassName,
 }: LightweightCragMapProps) {
+  console.log('[MapDebug] LightweightCragMap:props', { pinsCount: pins?.length, activePinId, initialCenter, initialZoom, disableClustering, disableAutoFit })
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const [leafletLib, setLeafletLib] = useState<typeof import('leaflet') | null>(null)
@@ -460,6 +461,8 @@ export default function LightweightCragMap({
     }
   }, [disableAutoFit, interactiveViewport, leafletLib, mapReady, pinsSignature, resolvedPins, usesStaticPreview])
 
+  console.log('[MapDebug] LightweightCragMap:emptyPinsCheck', { resolvedPinsLength: resolvedPins.length, pinsSample: resolvedPins.slice(0, 2) })
+
   if (resolvedPins.length === 0) {
     return null
   }
@@ -511,6 +514,7 @@ export default function LightweightCragMap({
             keyboard={!usesStaticPreview}
             zoomControl={false}
             whenReady={() => {
+              console.log('[MapDebug] LightweightCragMap:mapReady')
               const map = mapRef.current
               if (usesStaticPreview && map) {
                 map.dragging.disable()
@@ -541,6 +545,7 @@ export default function LightweightCragMap({
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-stone-400 border-t-transparent" />
           </div>
         )}
+        {console.log('[MapDebug] LightweightCragMap:renderState', { leafletLibReady: !!leafletLib, mapReady, renderedPinsCount: renderedPins.length }) || true}
       </div>
     </div>
   )
