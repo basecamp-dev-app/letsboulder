@@ -56,6 +56,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     cragSlug,
     isAdmin,
   } = payload
+  console.log('[MapDebug] ImageFirstClient:heroImage', { displayImageId: heroImage.displayImageId, latitude: heroImage.latitude, longitude: heroImage.longitude })
   const { linkedImageIdByDisplayId } = navigationContext
   const router = useRouter()
   const pathname = usePathname()
@@ -559,7 +560,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       primaryImageId: pin.primaryImageId,
     }))
 
-    if (initialPins.length === 0 && typeof heroImage.latitude === 'number' && typeof heroImage.longitude === 'number') {
+    const useFallback = initialPins.length === 0 && typeof heroImage.latitude === 'number' && typeof heroImage.longitude === 'number'
+    console.log('[MapDebug] ImageFirstClient:allMapPinsInit', { payloadMapPinsLength: payload.mapPins.length, heroImageLat: heroImage.latitude, heroImageLng: heroImage.longitude, useFallback, createdPinCount: initialPins.length + (useFallback ? 1 : 0) })
+
+    if (useFallback) {
       return [{
         id: heroImage.displayImageId,
         latitude: heroImage.latitude,
@@ -594,6 +598,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
           primaryImageId: p.primaryImageId,
         }))
         if (pins.length > 0 && signal.aborted === false) {
+          console.log('[MapDebug] ImageFirstClient:fetchComplete', { fetchedPinsCount: pins.length, firstPin: pins[0] })
           setAllMapPins(pins)
         }
       })
@@ -1015,7 +1020,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
       />
 
-      {mapPins.length > 0 && mapPins[0]?.latitude ? (
+      {console.log('[MapDebug] ImageFirstClient:mapRender', { mapPinsLength: mapPins.length, firstPinLat: mapPins[0]?.latitude, firstPinLng: mapPins[0]?.longitude, shouldRender: mapPins.length > 0 && mapPins[0]?.latitude }) || mapPins.length > 0 && mapPins[0]?.latitude ? (
         <div className="px-4 pb-4">
           <div className="mx-auto w-full max-w-6xl">
             <LightweightCragMap
