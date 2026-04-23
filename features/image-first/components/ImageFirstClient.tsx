@@ -566,8 +566,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     if (useFallback) {
       return [{
         id: heroImage.displayImageId,
-        latitude: heroImage.latitude,
-        longitude: heroImage.longitude,
+        latitude: heroImage.latitude as number,
+        longitude: heroImage.longitude as number,
         label: '1',
         activeImageIds: [heroImage.displayImageId],
         primaryImageId: heroImage.displayImageId,
@@ -1020,25 +1020,29 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
       />
 
-      {console.log('[MapDebug] ImageFirstClient:mapRender', { mapPinsLength: mapPins.length, firstPinLat: mapPins[0]?.latitude, firstPinLng: mapPins[0]?.longitude, shouldRender: mapPins.length > 0 && mapPins[0]?.latitude }) || mapPins.length > 0 && mapPins[0]?.latitude ? (
-        <div className="px-4 pb-4">
-          <div className="mx-auto w-full max-w-6xl">
-            <LightweightCragMap
-              pins={mapPins}
-              activePinId={activeImageId}
-              initialCenter={[mapPins[0].latitude, mapPins[0].longitude]}
-              initialZoom={18}
-              onPinSelect={(imageId) => {
-                const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
-                if (nextIndex >= 0) setActiveImageIndex(nextIndex)
-              }}
-              disableClustering={true}
-              disableAutoFit={true}
-              heightClassName="min-h-[240px] md:min-h-[280px]"
-            />
+      {(() => {
+        const shouldRender = mapPins.length > 0 && mapPins[0]?.latitude
+        console.log('[MapDebug] ImageFirstClient:mapRender', { mapPinsLength: mapPins.length, firstPinLat: mapPins[0]?.latitude, firstPinLng: mapPins[0]?.longitude, shouldRender })
+        return shouldRender ? (
+          <div className="px-4 pb-4">
+            <div className="mx-auto w-full max-w-6xl">
+              <LightweightCragMap
+                pins={mapPins}
+                activePinId={activeImageId}
+                initialCenter={[mapPins[0].latitude, mapPins[0].longitude]}
+                initialZoom={18}
+                onPinSelect={(imageId) => {
+                  const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
+                  if (nextIndex >= 0) setActiveImageIndex(nextIndex)
+                }}
+                disableClustering={true}
+                disableAutoFit={true}
+                heightClassName="min-h-[240px] md:min-h-[280px]"
+              />
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null
+      })()}
 
       <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
         <DialogContent className="border-white/10 bg-zinc-950 text-white sm:max-w-md">

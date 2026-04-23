@@ -182,6 +182,11 @@ const ClusterMarker = memo(function ClusterMarker({ cluster, leafletLib, onSelec
   )
 })
 
+function DebugLog({ leafletLib, mapReady, renderedPinsCount }: { leafletLib: unknown; mapReady: boolean; renderedPinsCount: number }) {
+  console.log('[MapDebug] LightweightCragMap:renderState', { leafletLibReady: !!leafletLib, mapReady, renderedPinsCount })
+  return null
+}
+
 interface LightweightCragMapProps {
   pins?: LightweightCragMapPin[]
   draftPins?: LightweightCragMapPin[]
@@ -545,7 +550,7 @@ export default function LightweightCragMap({
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-stone-400 border-t-transparent" />
           </div>
         )}
-        {console.log('[MapDebug] LightweightCragMap:renderState', { leafletLibReady: !!leafletLib, mapReady, renderedPinsCount: renderedPins.length }) || true}
+        <DebugLog leafletLib={leafletLib} mapReady={mapReady} renderedPinsCount={renderedPins.length} />
       </div>
     </div>
   )
