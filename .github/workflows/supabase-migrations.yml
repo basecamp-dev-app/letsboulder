@@ -18,7 +18,7 @@ concurrency:
 jobs:
   migrate-prod:
     name: Dry run Supabase migrations (Production)
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     environment: Production
     steps:
       - uses: actions/checkout@v4
