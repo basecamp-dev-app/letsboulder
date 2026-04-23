@@ -25,7 +25,6 @@
 | media | Media serving, upload sessions, private media proxy | Optional | Yes |
 | moderation | Content moderation queue | Yes | Yes |
 | notifications | User notifications | Yes | Yes |
-| offline-packs | Offline pack manifests (climbs, crags) | Optional | No |
 | offline-tiles | Offline map tile serving | No | No |
 | places | Place management, nearby search, search | Optional | Yes |
 | profile | User profile operations | Yes | Yes |
@@ -125,13 +124,6 @@ Content moderation queue. Requires authentication with moderator privileges. Use
 ### notifications
 
 User notifications. Requires authentication. Uses CSRF protection.
-
-### offline-packs
-
-Offline pack manifests for climbs and crags. Read operations are public; pack generation may require authentication. No CSRF protection.
-
-- `offline-packs/climbs/[id]` — build climb offline manifest, including `offlineLaunchUrl`, `imageFirstUrl`, media URLs, and tile manifest
-- `offline-packs/crags/[id]` — build crag offline manifest, including preferred crag launch URL plus child climb summaries
 
 ### offline-tiles
 

@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase'
 import { reportError } from '@/lib/errors'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
-import { getAverageCoordinates, getStoredCragClimbPayloadsSafely, hydrateOfflineCragData } from '@/features/crags/lib/crag-page-domain'
+import { getAverageCoordinates } from '@/features/crags/lib/crag-page-domain'
 import type { CragRouteIntelligenceRow, RawImageRow } from '@/features/crags/lib/crag-page-domain'
 import type { CragPageCrag, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 
@@ -13,10 +13,6 @@ export const cragKeys = {
   routes: (id: string) => [...cragKeys.byId(id), 'routes'] as const,
   routeTargets: (climbIdsFingerprint: string) =>
     [...cragKeys.all, 'route-targets', climbIdsFingerprint] as const,
-}
-
-function isOffline() {
-  return typeof navigator !== 'undefined' && navigator.onLine === false
 }
 
 export interface CragImagesResult {
@@ -58,23 +54,6 @@ export async function fetchCragImages(
   initialCrag: CragPageCrag | null,
   initialFallback?: InitialCragImagesFallback
 ): Promise<CragImagesResult> {
-  const offlinePayloads = await getStoredCragClimbPayloadsSafely(id)
-  const offlineHydrated = offlinePayloads.length > 0 ? hydrateOfflineCragData(offlinePayloads) : null
-
-  if (isOffline()) {
-    if (!offlineHydrated) throw new Error('No offline data available')
-    if (!initialCrag) throw new Error('Crag metadata not available offline')
-    return {
-      crag: initialCrag,
-      images: offlineHydrated.images,
-      cragCenter: offlineHydrated.cragCenter,
-      defaultRouteTargetByImageId: offlineHydrated.defaultRouteTargetByImageId,
-      routeImageIdsByClimbId: offlineHydrated.routeImageIdsByClimbId,
-      routePreviewByClimbId: offlineHydrated.routePreviewByClimbId,
-      routeNavigationTargetByClimbId: offlineHydrated.routeNavigationTargetByClimbId,
-    }
-  }
-
   const supabase = createClient()
 
   const imagesPromise = supabase
@@ -107,17 +86,6 @@ export async function fetchCragImages(
   ] = await Promise.all([cragPromise, imagesPromise, supplementaryImageIdsPromise])
 
   if (cragError || !cragData) {
-    if (offlineHydrated && initialCrag) {
-      return {
-        crag: initialCrag,
-        images: offlineHydrated.images,
-        cragCenter: offlineHydrated.cragCenter,
-        defaultRouteTargetByImageId: offlineHydrated.defaultRouteTargetByImageId,
-        routeImageIdsByClimbId: offlineHydrated.routeImageIdsByClimbId,
-        routePreviewByClimbId: offlineHydrated.routePreviewByClimbId,
-        routeNavigationTargetByClimbId: offlineHydrated.routeNavigationTargetByClimbId,
-      }
-    }
     throw new Error(`Crag not found: ${cragError?.message}`)
   }
 
@@ -169,21 +137,11 @@ export async function fetchCragImages(
   )
 
   if (imagesError || supplementaryImageIdsError || primaryImagesData.length === 0) {
-    if (offlineHydrated && initialCrag) {
-      return {
-        crag: initialCrag,
-        images: offlineHydrated.images,
-        cragCenter: offlineHydrated.cragCenter,
-        defaultRouteTargetByImageId: offlineHydrated.defaultRouteTargetByImageId,
-        routeImageIdsByClimbId: offlineHydrated.routeImageIdsByClimbId,
-        routePreviewByClimbId: offlineHydrated.routePreviewByClimbId,
-        routeNavigationTargetByClimbId: offlineHydrated.routeNavigationTargetByClimbId,
-      }
-    }
-
     if (initialCrag && initialFallback) {
       return buildInitialCragImagesFallback(initialCrag, initialFallback)
     }
+
+    throw new Error('Failed to fetch crag images')
   }
 
   const formatImageRow = (img: RawImageRow): ImageData => {
@@ -235,15 +193,7 @@ export interface CragRoutesResult {
 
 export async function fetchCragRoutes(id: string): Promise<CragRoutesResult> {
   const { createClient: createClientFn } = await import('@/lib/supabase')
-  const { dedupeCragRoutes, formatCragRoutes, getStoredCragClimbPayloadsSafely: getStoredFn, hydrateOfflineCragData: hydrateFn } = await import('@/features/crags/lib/crag-page-domain')
-
-  const offlinePayloads = await getStoredFn(id)
-  const offlineHydrated = offlinePayloads.length > 0 ? hydrateFn(offlinePayloads) : null
-
-  if (isOffline()) {
-    if (!offlineHydrated) throw new Error('No offline route data available')
-    return { routes: offlineHydrated.routes, effectiveClimbIdByClimbId: {} }
-  }
+  const { dedupeCragRoutes, formatCragRoutes } = await import('@/features/crags/lib/crag-page-domain')
 
   const supabase = createClientFn()
 
@@ -252,16 +202,10 @@ export async function fetchCragRoutes(id: string): Promise<CragRoutesResult> {
   const routeMetricsError = response.error
 
   if (routeMetricsError) {
-    if (offlineHydrated) {
-      return { routes: offlineHydrated.routes, effectiveClimbIdByClimbId: {} }
-    }
     throw new Error(`Route intelligence error: ${routeMetricsError.message}`)
   }
 
   if (!routeMetricsData || routeMetricsData.length === 0) {
-    if (offlineHydrated) {
-      return { routes: offlineHydrated.routes, effectiveClimbIdByClimbId: {} }
-    }
     return { routes: [], effectiveClimbIdByClimbId: {} }
   }
 

@@ -5,7 +5,6 @@ import { buildThumbnailUrl } from '@/lib/media/thumbnail-url'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
-import { getStoredClimbManifest, getStoredClimbManifestByImageId } from '@/lib/offline/storage'
 import { getServerClient } from '@/lib/supabase-server'
 import type { RoutePoint } from '@/types/domain'
 import { buildRouteAttribution, buildRouteAttributionFromClimbPack } from '@/features/image-first/lib/route-attribution'
@@ -447,15 +446,6 @@ export async function buildImageFirstPayload(args: {
   routeSlug?: string | null
   climbId?: string | null
 }): Promise<{ redirectTo: string | null; payload: ImageFirstPayload | null }> {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    const stored = args.climbId
-      ? await getStoredClimbManifest(args.climbId)
-      : await getStoredClimbManifestByImageId(args.imageId)
-    if (stored?.payload) {
-      return buildOfflineImageFirstPayload(stored.payload, args)
-    }
-  }
-
   const timing = startServerTiming('buildImageFirstPayload')
   const image = await timeServerStep('buildImageFirstPayload', 'resolve-image', () => getImageByDisplayId(args.imageId))
   if (!image) return { redirectTo: null, payload: null }

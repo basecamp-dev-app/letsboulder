@@ -70,13 +70,13 @@ describe('launch-state', () => {
     })).toBe('/logbook')
   })
 
-  test('generic offline launch falls back to offline library', () => {
+  test('generic offline launch falls back to home when no recent route exists', () => {
     expect(resolveLaunchTarget({
       pathname: '/launch',
       search: '',
       connectivityMode: 'offline',
       now: 1000,
-    })).toBe('/offline/library?reason=offline')
+    })).toBe('/')
   })
 
   test('generic online launch falls back to home when stored route is stale', () => {
@@ -89,22 +89,13 @@ describe('launch-state', () => {
     })).toBe('/')
   })
 
-  test('generic degraded launch prefers recent local route when present', () => {
-    window.localStorage.setItem('lb:recent-local-v1', JSON.stringify([
-      {
-        href: '/gb/font',
-        savedAt: 1000,
-        title: 'Font',
-        kind: 'crag',
-      },
-    ]))
-
+  test('generic degraded launch falls back to home without recent route', () => {
     expect(resolveLaunchTarget({
       pathname: '/launch',
       search: '',
       connectivityMode: 'degraded',
       now: 1001,
-    })).toBe('/gb/font')
+    })).toBe('/')
   })
 
   test('generic launch path helper includes legacy offline path', () => {

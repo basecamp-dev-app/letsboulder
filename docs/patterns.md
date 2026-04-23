@@ -266,54 +266,23 @@ if (!moderation.enabled) {
 
 ---
 
-## 7. Offline / PWA
-
-See [offline-pwa.md](../offline-pwa.md) for the full architecture.
+## 7. Service Worker / Degraded Maps
 
 ### Pattern
-```typescript
-// lib/offline/packs.ts
-import { saveCragOffline, removeCragOffline } from '@/lib/offline/packs'
-
-// Save a crag for offline use
-const { preview, completed, warning } = await saveCragOffline(cragId, (event) => {
-  console.log(`Progress: ${event.completedClimbs}/${event.totalClimbs}`)
-})
-await completed
-
-// Remove a crag from offline storage
-await removeCragOffline(cragId)
-```
+- Keep the service worker focused on shell/static asset resilience.
+- Prefer degraded map coverage via app-owned tile routes instead of assuming upstream imagery is always reachable.
 
 ### Key Files
-- `lib/offline/packs.ts` — pack management (save, remove, preview, budget)
-- `lib/offline/storage.ts` — IndexedDB storage for pack records and manifests
-- `lib/offline/tiles.ts` — layered tile manifest building for saved map coverage
-- `lib/map/base-layer.ts` — shared resolver for online satellite vs offline degraded basemap
-- `lib/offline/sw-messages.ts` — service worker communication via BroadcastChannel
-- `public/sw.js` — service worker with 6 cache layers
+- `public/sw.js` — service worker for shell/static asset resilience
+- `lib/offline/tiles.ts` — layered tile URL helpers for degraded map coverage
+- `lib/map/base-layer.ts` — shared resolver for online satellite vs degraded basemap
 - `lib/query-persistence.ts` — React Query IndexedDB persistence (12h max age)
-- `app/offline/page.tsx` — offline launcher
-- `app/offline/library/page.tsx` — downloads and offline recovery surface
-
-### Service Worker Messages
-- `SAVE_CLIMB_PACK` — cache climb page, media, and tiles
-- `REMOVE_CLIMB_PACK` — remove climb from caches
-- `SAVE_CRAG_PACK` — cache crag + all child climbs with required route assets (with progress broadcast)
-- `REMOVE_CRAG_PACK` — remove crag + orphaned climbs
 
 ### Known Edge Cases
-- **Storage quota:** Warn user before download; estimate saved page/media footprint before caching.
-- **Update detection:** Check last_modified to prompt for re-download
-- **Cache invalidation:** Use versioned cache names plus pack manifest versions so route assets and saved pages can be refreshed without leaving stale offline entries behind.
-- **Media URL consistency:** Persist and render saved media with the same proxied `/api/media/...` URLs. If the UI renders proxied media but the pack cached raw Supabase URLs, offline thumbnails will 504.
-- **Network-first vs Cache-first:** Routes and unsaved pages stay network-first; saved media is cache-first; optional map tiles remain best-effort outside the crag pack contract.
-- **Offline scope:** Keep offline support limited to saved `crag -> climb` flows. Use full document navigations for offline entry/open/back actions instead of relying on App Router client transitions.
-- **Offline launcher:** Keep `/offline` as a dispatcher, use `/offline/library` for downloads management and recovery, and fall back to `/offline/library?reason=offline-miss` for uncached offline navigations.
-- **Critical vs optional cache:** Saved crag/climb documents, required route assets, face images, and route-line payloads are required for a successful pack. Media can warn on partial failure. Crag map tiles are out of scope for the pack contract.
-- **Storage failures:** Handle `QuotaExceededError` and partial media failures with a clear warning so the saved pack remains usable for core image/route navigation.
-- **Degraded basemap:** Offline/degraded maps should keep the same UI but swap the base layer to app-owned offline tile routes (`imagery` + `labels`) instead of assuming satellite imagery is always available.
-- **OSM Compliance:** Browser fetch cannot reliably override `User-Agent`; handle provider compliance server-side and consider a self-hosted tile server or packaged basemap for production scale
+- **Cache invalidation:** Use versioned cache names so shell/build assets rotate cleanly across deploys.
+- **Network-first routes:** App navigations should stay network-first; cached shell/assets are fallback infrastructure, not primary content.
+- **Degraded basemap:** Keep the same map UI while swapping the base layer to app-owned tile routes (`imagery` + `labels`) when network quality drops.
+- **OSM compliance:** Browser fetch cannot reliably override `User-Agent`; handle provider compliance server-side and consider a self-hosted tile server or packaged basemap for production scale.
 
 ---
 

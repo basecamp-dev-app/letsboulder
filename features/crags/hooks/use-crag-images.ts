@@ -54,7 +54,6 @@ export interface UseCragImagesParams {
   setCragCenter: Dispatch<SetStateAction<[number, number] | null>>
   setLoading: Dispatch<SetStateAction<boolean>>
   setRoutesLoadState: Dispatch<SetStateAction<RoutesLoadState>>
-  setUsingCachedFallback: Dispatch<SetStateAction<boolean>>
 }
 
 export function useCragImages({
@@ -76,7 +75,6 @@ export function useCragImages({
   setCragCenter,
   setLoading,
   setRoutesLoadState,
-  setUsingCachedFallback,
 }: UseCragImagesParams) {
   const hasInitialRouteData = initialRoutes !== null
   const hasCompleteInitialImages = Boolean(initialCrag) && initialCriticalImagesComplete
@@ -150,7 +148,6 @@ export function useCragImages({
       routeNavigationTargetByClimbId: data.routeNavigationTargetByClimbId,
     }))
     setLoading(false)
-    setUsingCachedFallback(false)
 
     // Cache in memory for fast subsequent navigations
     cragImageCache.set(id, {
@@ -163,7 +160,7 @@ export function useCragImages({
       routeNavigationTargetByClimbId: data.routeNavigationTargetByClimbId,
       cachedAt: Date.now(),
     })
-  }, [data, id, setCrag, setImages, setCragCenter, setRouteTargets, setLoading, setUsingCachedFallback])
+  }, [data, id, setCrag, setImages, setCragCenter, setRouteTargets, setLoading])
 
   // Loading state management
   useEffect(() => {

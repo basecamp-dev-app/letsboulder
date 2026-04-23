@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Search } from 'lucide-react'
-import { listOfflinePacksForLaunch } from '@/lib/offline/packs'
 import { Input } from '@/components/ui/input'
 
 interface SearchResult {
   id: string
   name: string
   href: string
-  source: 'downloaded' | 'live'
+  source: 'live'
   detail: string | null
 }
 
@@ -31,50 +30,9 @@ function buildCragHref(input: { id: string; slug: string | null; countryCode: st
 
 export default function WeakSignalSearchSheet() {
   const [query, setQuery] = useState('')
-  const [localResults, setLocalResults] = useState<SearchResult[]>([])
   const [remoteResults, setRemoteResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadLocal() {
-      try {
-        const launch = await listOfflinePacksForLaunch()
-        if (cancelled) return
-
-        const cragResults: SearchResult[] = launch.crags.map((crag) => ({
-          id: `crag:${crag.cragId}`,
-          name: crag.manifest.cragName,
-          href: crag.manifest.offlineLaunchUrl || crag.manifest.canonicalPath || `/crag/${crag.cragId}`,
-          source: 'downloaded',
-          detail: `${crag.manifest.climbCount} saved climb${crag.manifest.climbCount === 1 ? '' : 's'}`,
-        }))
-
-        const climbResults: SearchResult[] = launch.climbs
-          .filter((entry) => entry.pinnedStandalone)
-          .map((climb) => ({
-            id: `climb:${climb.climbId}`,
-            name: climb.manifest.climbName,
-            href: climb.manifest.offlineLaunchUrl || climb.manifest.canonicalPath || climb.manifest.pageUrl || `/climb/${climb.climbId}`,
-            source: 'downloaded',
-            detail: 'Saved directly on this device',
-          }))
-
-        setLocalResults([...cragResults, ...climbResults])
-      } catch {
-        if (!cancelled) {
-          setLocalResults([])
-        }
-      }
-    }
-
-    void loadLocal()
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     const trimmed = query.trim()
@@ -121,17 +79,7 @@ export default function WeakSignalSearchSheet() {
     }
   }, [query])
 
-  const filteredLocalResults = useMemo(() => {
-    const trimmed = query.trim().toLowerCase()
-    if (trimmed.length < 2) return localResults.slice(0, 6)
-    return localResults.filter((result) => result.name.toLowerCase().includes(trimmed)).slice(0, 6)
-  }, [localResults, query])
-
-  const mergedResults = useMemo(() => {
-    const seen = new Set(filteredLocalResults.map((result) => result.name.toLowerCase()))
-    const liveOnly = remoteResults.filter((result) => !seen.has(result.name.toLowerCase()))
-    return [...filteredLocalResults, ...liveOnly].slice(0, 8)
-  }, [filteredLocalResults, remoteResults])
+  const mergedResults = useMemo(() => remoteResults.slice(0, 8), [remoteResults])
 
   return (
     <div className="rounded-3xl border border-white/12 bg-black/35 p-5 shadow-2xl shadow-black/25 backdrop-blur-md">
@@ -141,7 +89,7 @@ export default function WeakSignalSearchSheet() {
         </div>
         <div>
           <p className="text-sm font-semibold">Search for a crag</p>
-          <p className="text-xs text-white/70">Downloaded results appear first, then live results when reachable.</p>
+          <p className="text-xs text-white/70">Search live crags when the network is reachable.</p>
         </div>
       </div>
 
@@ -149,7 +97,7 @@ export default function WeakSignalSearchSheet() {
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search crags or saved climbs"
+          placeholder="Search crags"
           className="border-white/15 bg-white/10 text-white placeholder:text-white/50"
         />
       </div>
@@ -166,8 +114,8 @@ export default function WeakSignalSearchSheet() {
               <p className="text-sm font-medium text-white">{result.name}</p>
               {result.detail ? <p className="text-xs text-white/65">{result.detail}</p> : null}
             </div>
-            <span className={`rounded-full px-2 py-1 text-[11px] font-semibold uppercase tracking-wide ${result.source === 'downloaded' ? 'bg-emerald-500/20 text-emerald-200' : 'bg-cyan-500/20 text-cyan-200'}`}>
-              {result.source === 'downloaded' ? 'Downloaded' : 'Live'}
+            <span className="rounded-full bg-cyan-500/20 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-200">
+              Live
             </span>
           </button>
         ))}
@@ -187,7 +135,7 @@ export default function WeakSignalSearchSheet() {
 
         {!isSearching && mergedResults.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/65">
-            {query.trim().length >= 2 ? 'No matching crags yet.' : 'Start typing to search downloaded and live crags.'}
+            {query.trim().length >= 2 ? 'No matching crags yet.' : 'Start typing to search live crags.'}
           </div>
         ) : null}
       </div>

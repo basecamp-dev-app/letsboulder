@@ -9,10 +9,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isSubmitPage = pathname === '/submit'
   const isImmersiveMobilePage = /^\/logbook\/(drafts|submissions)\/[^/]+\/edit$/.test(pathname)
-  const isOfflineLaunchPage = pathname === '/offline' || pathname === '/offline/library'
   const [isOffline, setIsOffline] = useState(false)
   const isOfflineFieldPage = isOffline && (/^\/climb\//.test(pathname) || /^\/crag\//.test(pathname) || /^\/[a-z]{2}\//.test(pathname))
-  const hideFooter = isSubmitPage || isImmersiveMobilePage || isOfflineLaunchPage || isOfflineFieldPage
+  const hideFooter = isSubmitPage || isImmersiveMobilePage || isOfflineFieldPage
 
   useEffect(() => {
     if (typeof window === 'undefined') return

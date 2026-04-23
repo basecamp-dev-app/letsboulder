@@ -18,7 +18,6 @@ function shouldSkipMiddleware(pathname: string, method: string): boolean {
     '/api/rankings',
     '/api/places/search',
     '/api/places/nearby',
-    '/api/offline-packs',
     '/api/locations/search',
     '/api/locations/reverse',
     '/api/logbook/contributions',

@@ -4,7 +4,7 @@ import type { CragRoute } from '@/features/crags/lib/crag-page-types'
 import { sortDirections } from '@/features/crags/lib/crag-geo'
 
 export type { CachedCragImageData, OfflineCragState, OfflineHydratedCragData } from '@/features/crags/lib/crag-offline-domain'
-export { formatBytes, getOfflineCragState, getStoredCragClimbPayloadsSafely, hydrateOfflineCragData } from '@/features/crags/lib/crag-offline-domain'
+export { formatBytes, getStoredCragClimbPayloadsSafely, hydrateOfflineCragData } from '@/features/crags/lib/crag-offline-domain'
 export { getAverageCoordinates, sortImagesByViewCenter, sortPinClusters, sortDirections } from '@/features/crags/lib/crag-geo'
 export type { ActiveRouteFilterChip, CragRouteFilterState, CragRouteStats } from '@/features/crags/lib/crag-route-filters'
 export {

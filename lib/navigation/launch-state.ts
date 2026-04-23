@@ -1,7 +1,6 @@
 const LAST_ROUTE_STORAGE_KEY = 'lb:last-route'
 
 import { type ConnectivityMode } from '@/lib/offline/connectivity'
-import { readMostRecentLocalEntry } from '@/lib/offline/recent-local'
 
 export const LAST_ROUTE_TTL_MS = 72 * 60 * 60 * 1000
 
@@ -91,14 +90,5 @@ export function resolveLaunchTarget(args: {
     return stored.href
   }
 
-  const recentLocal = readMostRecentLocalEntry()
-  if (recentLocal) {
-    return recentLocal.href
-  }
-
-  return args.connectivityMode === 'offline'
-    ? '/offline/library?reason=offline'
-    : args.connectivityMode === 'degraded'
-      ? '/offline/library?reason=weak-signal'
-      : '/'
+  return '/'
 }
