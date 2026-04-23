@@ -1037,7 +1037,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                 }}
                 disableClustering={true}
                 disableAutoFit={true}
-                heightClassName="min-h-[240px] md:min-h-[280px]"
+                heightClassName="h-[240px] md:h-[280px]"
               />
             </div>
           </div>
