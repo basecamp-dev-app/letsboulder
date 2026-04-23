@@ -549,8 +549,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   )
   const activeCanvasImageUrl = activeImageMeta.src || heroImage.src
 
-  const [allMapPins, setAllMapPins] = useState<LightweightCragMapPin[]>(() =>
-    payload.mapPins.map((pin) => ({
+  const [allMapPins, setAllMapPins] = useState<LightweightCragMapPin[]>(() => {
+    const initialPins = payload.mapPins.map((pin) => ({
       id: pin.imageId,
       latitude: pin.latitude,
       longitude: pin.longitude,
@@ -558,7 +558,20 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       activeImageIds: pin.activeImageIds,
       primaryImageId: pin.primaryImageId,
     }))
-  )
+
+    if (initialPins.length === 0 && typeof heroImage.latitude === 'number' && typeof heroImage.longitude === 'number') {
+      return [{
+        id: heroImage.displayImageId,
+        latitude: heroImage.latitude,
+        longitude: heroImage.longitude,
+        label: '1',
+        activeImageIds: [heroImage.displayImageId],
+        primaryImageId: heroImage.displayImageId,
+      }]
+    }
+
+    return initialPins
+  })
 
   useEffect(() => {
     if (!cragId) return

@@ -30,6 +30,8 @@ export interface ImageFirstPayload {
     src: string
     width: number
     height: number
+    latitude: number | null
+    longitude: number | null
     priority: true
   }
   initialRoutes: ImageFirstRouteLine[]
