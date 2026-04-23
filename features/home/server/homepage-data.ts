@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { getDisplayName } from '@/lib/profile-helpers'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
-import { getServerClient } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 interface HomeRecentImageRow {
   id: string
@@ -100,7 +100,7 @@ function buildCragHref(crag: { country_code: string | null; slug: string | null;
 }
 
 export const fetchHomepageRecentCragUpdates = cache(async function fetchHomepageRecentCragUpdates(): Promise<HomeRecentCragUpdate[]> {
-  const supabase = await getServerClient()
+  const supabase = getUnauthenticatedClient()
 
   const { data, error } = await supabase
     .from('images')
@@ -147,7 +147,7 @@ export const fetchHomepageRecentCragUpdates = cache(async function fetchHomepage
 })
 
 export const fetchHomepageRecentContributors = cache(async function fetchHomepageRecentContributors(): Promise<HomeContributorHighlight[]> {
-  const supabase = await getServerClient()
+  const supabase = getUnauthenticatedClient()
 
   const { data, error } = await supabase
     .from('images')
@@ -215,7 +215,7 @@ export const fetchHomepageRecentContributors = cache(async function fetchHomepag
 })
 
 export const fetchHomepageTopContributors = cache(async function fetchHomepageTopContributors(): Promise<HomeContributorHighlight[]> {
-  const supabase = await getServerClient()
+  const supabase = getUnauthenticatedClient()
 
   const { data, error } = await supabase
     .from('profiles')
@@ -250,7 +250,7 @@ export const fetchHomepageTopContributors = cache(async function fetchHomepageTo
 })
 
 export const fetchHomepageRecentClimbLogs = cache(async function fetchHomepageRecentClimbLogs(): Promise<HomeRecentClimbLog[]> {
-  const supabase = await getServerClient()
+  const supabase = getUnauthenticatedClient()
 
   const { data, error } = await supabase
     .from('user_climbs')

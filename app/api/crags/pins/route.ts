@@ -39,6 +39,8 @@ interface PlacePin {
   route_count: number | null
 }
 
+export const revalidate = 60
+
 export async function GET() {
   const includePending = serverEnv.NEXT_PUBLIC_ALLOW_PENDING_IMAGES
 
