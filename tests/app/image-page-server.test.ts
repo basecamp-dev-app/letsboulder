@@ -184,6 +184,7 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
     expect(result.payload?.heroImage.displayImageId).toBe('215b8180-4727-404d-8fbf-6cb9bd8f5f9a')
     expect(result.payload?.heroImage.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
+    expect(result.payload?.mapPins).toEqual([])
     expect(result.payload?.navigationContext.imageMap['215b8180-4727-404d-8fbf-6cb9bd8f5f9a']?.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
     expect(result.payload?.attribution.ownerDisplayLabel).toBe('Maya Stone')
     expect(result.payload?.attribution.ownerProfileId).toBe('user-1')
@@ -378,6 +379,7 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
     expect(result.payload?.navigationContext.orderedImageIds).toEqual(['215b8180-4727-404d-8fbf-6cb9bd8f5f9a'])
     expect(result.payload?.heroImage.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
+    expect(result.payload?.mapPins).toEqual([])
     expect(result.payload?.attribution.ownerDisplayLabel).toBe('Private Contributor')
     expect(result.payload?.attribution.communityEditorsCount).toBe(0)
 
@@ -400,5 +402,45 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.heroImage.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
     expect(result.payload?.attribution.ownerDisplayLabel).toBe('Private Contributor')
     expect(result.payload?.attribution.communityEditorsCount).toBe(0)
+  })
+
+  test('includes primary image ids for route-page map pins when coordinates exist', async () => {
+    state.rawImage = {
+      ...state.rawImage,
+      latitude: 49.18,
+      longitude: -2.24,
+    }
+    state.cragImagesForCrag = [
+      {
+        id: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
+        url: 'https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.jpg',
+        width: 1200,
+        height: 900,
+        created_at: '2026-03-01T00:00:00Z',
+        latitude: 49.18,
+        longitude: -2.24,
+      },
+    ]
+
+    const { buildImageFirstPayload } = await import('../../features/image-first/server/load-image-first-page')
+
+    const result = await buildImageFirstPayload({
+      country: 'gg',
+      crag: 'point-de-la-moye-east',
+      imageId: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
+      routeId: 'fd88f866-1eac-47a9-97c2-462574a95f55',
+      climbId: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
+    })
+
+    expect(result.payload?.mapPins).toEqual([
+      {
+        imageId: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
+        latitude: 49.18,
+        longitude: -2.24,
+        activeImageIds: ['215b8180-4727-404d-8fbf-6cb9bd8f5f9a'],
+        primaryImageId: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
+        routeSlug: 'test-route',
+      },
+    ])
   })
 })

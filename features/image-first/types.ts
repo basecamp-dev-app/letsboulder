@@ -52,6 +52,7 @@ export interface ImageFirstPayload {
     latitude: number
     longitude: number
     activeImageIds: string[]
+    primaryImageId: string
     routeSlug: string | null
   }>
   attribution: ImageFirstAttribution

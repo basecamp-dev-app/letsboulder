@@ -100,6 +100,23 @@ describe('ClimbInfoPanel', () => {
     expect(screen.getByRole('button', { name: 'Sign in to Log This Climb' })).toBeTruthy()
   })
 
+  it('hides the offline CTA when offline packs are unavailable', () => {
+    renderPanel({
+      offlinePackAvailable: false,
+    })
+
+    expect(screen.queryByRole('button', { name: 'Save offline' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Saved offline' })).toBeNull()
+  })
+
+  it('shows the offline CTA when offline packs are available', () => {
+    renderPanel({
+      offlinePackAvailable: true,
+    })
+
+    expect(screen.getByRole('button', { name: 'Save offline' })).toBeTruthy()
+  })
+
   it('renders named uploader and contributor count when present', () => {
     renderPanel({
       attribution: {

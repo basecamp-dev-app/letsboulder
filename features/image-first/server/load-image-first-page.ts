@@ -442,6 +442,7 @@ export async function buildImageFirstPayload(args: {
           latitude: mapPinSource.latitude,
           longitude: mapPinSource.longitude,
           activeImageIds: [mapPinSource.displayImageId],
+          primaryImageId: mapPinSource.displayImageId,
           routeSlug: resolvedRoute?.climbSlug || null,
         }]
       : []

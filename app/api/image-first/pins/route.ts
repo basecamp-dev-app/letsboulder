@@ -46,6 +46,7 @@ export async function GET(request: Request) {
       latitude: row.latitude as number,
       longitude: row.longitude as number,
       activeImageIds: [row.id],
+      primaryImageId: row.id,
     }))
 
   return NextResponse.json({ pins })
