@@ -27,7 +27,6 @@ function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null })
         height={40}
         sizes="40px"
         className="h-10 w-10 rounded-full object-cover"
-        unoptimized
       />
     )
   }

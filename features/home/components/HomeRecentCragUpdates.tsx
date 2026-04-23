@@ -50,7 +50,6 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
                   fill
                   sizes="(min-width: 1024px) 33vw, 100vw"
                   className="object-cover transition duration-300 group-hover:scale-[1.03]"
-                  unoptimized
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
                 <div className="absolute bottom-3 left-3 rounded-full border border-white/20 bg-slate-950/75 px-3 py-1 text-xs font-medium text-white backdrop-blur">

@@ -362,7 +362,6 @@ export default function Header() {
               alt="letsboulder"
               fill
               sizes="80px"
-              unoptimized
               className="object-contain dark:hidden"
             />
             <Image
@@ -370,7 +369,6 @@ export default function Header() {
               alt="letsboulder"
               fill
               sizes="80px"
-              unoptimized
               className="object-contain hidden dark:block"
             />
           </div>
