@@ -221,7 +221,7 @@ jobs:
             sleep "$VERIFY_WAIT_SECONDS"
           fi
 
-          ids_sql=$(jq -r '.[].id | "\x27" + . + "\x27"' selected-images.json | paste -sd, -)
+          ids_sql=$(jq -r ".[].id | \"'\(.)'\"" selected-images.json | paste -sd, -)
           if [ -z "$ids_sql" ]; then
             echo '::warning::No selected rows to verify'
             exit 0
