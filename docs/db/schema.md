@@ -324,6 +324,7 @@ Both `crags` and `places` have a `synced_at TIMESTAMPTZ` column. When a sync ope
 ### Map & Discovery
 | Function | Purpose |
 |----------|---------|
+| `get_place_pins(include_pending)` | Map pins for crags and gyms with route/image metadata in one query |
 | `get_crag_route_intelligence(p_crag_id)` | Per-route metrics: directions, topo coverage, weighted rating, unique sender counts |
 | `get_upload_context(lat, lng)` | Country/region context from coordinates |
 | `find_region_by_location(lat, lng)` | Find region by GPS coordinates |

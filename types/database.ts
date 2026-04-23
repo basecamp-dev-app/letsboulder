@@ -3012,6 +3012,20 @@ export type Database = {
           total_routes_combined: number
         }[]
       }
+      get_place_pins: {
+        Args: { include_pending?: boolean }
+        Returns: {
+          country_code: string
+          id: string
+          image_count: number
+          latitude: number
+          longitude: number
+          name: string
+          route_count: number
+          slug: string
+          type: string
+        }[]
+      }
       get_place_rankings_leaderboard: {
         Args: {
           p_limit?: number
