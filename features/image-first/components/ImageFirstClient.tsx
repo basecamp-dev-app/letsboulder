@@ -561,8 +561,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   )
 
   useEffect(() => {
-    if (!cragId || payload.mapPins.length === 0) return
-    if (payload.mapPins.length > 1) return
+    if (!cragId) return
 
     const controller = new AbortController()
     const signal = controller.signal
@@ -588,7 +587,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       .catch(() => {})
 
     return () => controller.abort()
-  }, [cragId, payload.mapPins.length])
+  }, [cragId])
 
   const mapPins = allMapPins
 
