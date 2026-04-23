@@ -66,7 +66,7 @@ describe('sw-cache-utils', () => {
 
     await loadSwCacheUtils()
 
-    await globalThis.cacheRequiredPageAssets(['/offline'])
+    await globalThis.cacheRequiredPageAssets(['/ch/murgtal-2'])
 
     expect(fetchMock).toHaveBeenCalledTimes(7)
     expect(fetchMock.mock.calls[4]?.[0]).toBeInstanceOf(Request)

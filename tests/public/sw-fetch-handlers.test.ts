@@ -110,19 +110,15 @@ describe('sw-fetch-handlers', () => {
     expect(response).toBe(cachedResponse)
   })
 
-  test('handleShellFetch falls back to Downloads recovery when an offline navigation is uncached', async () => {
-    const offlineLibraryResponse = new Response('downloads recovery', { status: 200 })
-    vi.mocked(matchShellRequest).mockImplementation(async (request: Request) => {
-      const pathname = new URL(request.url).pathname
-      return pathname === '/offline/library' ? offlineLibraryResponse : undefined
-    })
+  test('handleShellFetch returns an error when an offline navigation is uncached', async () => {
+    vi.mocked(matchShellRequest).mockResolvedValue(undefined)
     fetchMock.mockRejectedValue(new Error('offline'))
 
     await import('../../public/sw-fetch-handlers.js')
 
     const response = await globalThis.handleShellFetch(createNavigateRequest('https://letsboulder.com/usa/joe/missing-problem'))
 
-    expect(response).toBe(offlineLibraryResponse)
+    expect(response.type).toBe('error')
   })
 
   test('handleRouteAssetFetch serves shell assets from cache before network', async () => {
