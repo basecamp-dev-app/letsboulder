@@ -60,7 +60,7 @@ export default function CragPageToolbar({
   onOpenSortModal,
   onClearRouteFilters,
 }: CragPageToolbarProps) {
-  const actionButtonClassName = 'h-9 rounded-full border-stone-200 bg-stone-50 px-3 text-stone-700 shadow-none hover:bg-stone-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+  const actionButtonClassName = 'min-h-11 rounded-full border-stone-200 bg-stone-50 px-3 text-stone-700 shadow-none hover:bg-stone-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
   const switcherListboxId = useId()
   const switcherSearchInputRef = useRef<HTMLInputElement>(null)
 
@@ -82,7 +82,7 @@ export default function CragPageToolbar({
     <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 max-w-sm">
-          <Button type="button" variant="outline" onClick={onToggleCragSwitcher} onKeyDown={handleSwitcherKeyDown} aria-expanded={cragSwitcherOpen} aria-controls={cragSwitcherOpen ? switcherListboxId : undefined} aria-haspopup="listbox" className="h-10 w-full justify-between rounded-xl border-stone-200 bg-stone-50 px-3 text-left text-sm font-medium text-stone-700 shadow-none hover:bg-stone-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+          <Button type="button" variant="outline" onClick={onToggleCragSwitcher} onKeyDown={handleSwitcherKeyDown} aria-expanded={cragSwitcherOpen} aria-controls={cragSwitcherOpen ? switcherListboxId : undefined} aria-haspopup="listbox" className="min-h-11 w-full justify-between rounded-xl border-stone-200 bg-stone-50 px-3 text-left text-sm font-medium text-stone-700 shadow-none hover:bg-stone-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
             <span className="truncate font-medium">{crag.name}</span>
             <ChevronDown className="size-4 shrink-0" />
           </Button>
@@ -108,7 +108,7 @@ export default function CragPageToolbar({
             </div>
           ) : null}
         </div>
-        <Button type="button" variant="outline" onClick={onToggleSaveCrag} disabled={saveLoading} aria-label="Save crag" title="Save crag" className={isSaved ? 'h-9 rounded-full border-amber-200 bg-amber-50 px-3 text-amber-900 shadow-none hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50' : actionButtonClassName}>
+        <Button type="button" variant="outline" onClick={onToggleSaveCrag} disabled={saveLoading} aria-label="Save crag" title="Save crag" className={isSaved ? 'min-h-11 rounded-full border-amber-200 bg-amber-50 px-3 text-amber-900 shadow-none hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50' : actionButtonClassName}>
           <span>{saveLoading ? 'Saving...' : isSaved ? 'Saved crag' : 'Save crag'}</span>
         </Button>
         <Button type="button" variant="outline" onClick={onOpenSearchModal} aria-label="Search routes" title="Search routes" className={actionButtonClassName}>
@@ -124,7 +124,7 @@ export default function CragPageToolbar({
           <span>Sort</span>
         </Button>
         {hasActiveRouteFilters ? (
-          <Button type="button" variant="outline" onClick={onClearRouteFilters} className="h-9 rounded-full border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700 shadow-none hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
+          <Button type="button" variant="outline" onClick={onClearRouteFilters} className="min-h-11 rounded-full border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700 shadow-none hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
             Clear filters
           </Button>
         ) : null}
