@@ -64,9 +64,10 @@ export default function MapLibreLocationPicker({
       zoom: value ? selectedZoom : defaultZoom,
       minZoom: 1,
       maxZoom: 19,
-      attributionControl: { compact: true },
+      attributionControl: false,
     })
     mapRef.current = map
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
 
     map.on('click', (event) => {

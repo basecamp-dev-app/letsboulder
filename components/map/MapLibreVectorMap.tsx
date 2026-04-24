@@ -108,9 +108,10 @@ export default function MapLibreVectorMap({
       zoom,
       minZoom,
       maxZoom,
-      attributionControl: { compact: true },
+      attributionControl: false,
     })
     mapRef.current = map
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
 
     if (!staticPreview) {
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
