@@ -5,6 +5,7 @@ const fetchMock = vi.fn()
 vi.stubGlobal('fetch', fetchMock)
 vi.stubGlobal('ROUTE_ASSET_CACHE', 'offline-route-assets-v2')
 vi.stubGlobal('HOME_URL', '/')
+vi.stubGlobal('OFFLINE_URL', '/offline')
 vi.stubGlobal('OFFLINE_LAUNCH_URL', '/offline')
 vi.stubGlobal('OFFLINE_LIBRARY_URL', '/offline/library')
 vi.stubGlobal('toSameOriginRequest', (url: string) => new Request(url.startsWith('/') ? `https://letsboulder.com${url}` : url))
@@ -110,7 +111,37 @@ describe('sw-fetch-handlers', () => {
     expect(response).toBe(cachedResponse)
   })
 
-  test('handleShellFetch returns an error when an offline navigation is uncached', async () => {
+  test('handleShellFetch serves the offline page when an offline navigation is uncached', async () => {
+    const offlineResponse = new Response('offline page', { status: 200 })
+    vi.mocked(matchShellRequest).mockImplementation(async (request: Request) => {
+      const pathname = new URL(request.url).pathname
+      return pathname === '/offline' ? offlineResponse : undefined
+    })
+    fetchMock.mockRejectedValue(new Error('offline'))
+
+    await import('../../public/sw-fetch-handlers.js')
+
+    const response = await globalThis.handleShellFetch(createNavigateRequest('https://letsboulder.com/usa/joe/missing-problem'))
+
+    expect(response).toBe(offlineResponse)
+  })
+
+  test('handleShellFetch serves the offline page when home is uncached offline', async () => {
+    const offlineResponse = new Response('offline page', { status: 200 })
+    vi.mocked(matchShellRequest).mockImplementation(async (request: Request) => {
+      const pathname = new URL(request.url).pathname
+      return pathname === '/offline' ? offlineResponse : undefined
+    })
+    fetchMock.mockRejectedValue(new Error('offline'))
+
+    await import('../../public/sw-fetch-handlers.js')
+
+    const response = await globalThis.handleShellFetch(createNavigateRequest('https://letsboulder.com/'))
+
+    expect(response).toBe(offlineResponse)
+  })
+
+  test('handleShellFetch returns html fallback when offline page is uncached', async () => {
     vi.mocked(matchShellRequest).mockResolvedValue(undefined)
     fetchMock.mockRejectedValue(new Error('offline'))
 
@@ -118,7 +149,8 @@ describe('sw-fetch-handlers', () => {
 
     const response = await globalThis.handleShellFetch(createNavigateRequest('https://letsboulder.com/usa/joe/missing-problem'))
 
-    expect(response.type).toBe('error')
+    expect(response.status).toBe(503)
+    expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
   })
 
   test('handleRouteAssetFetch serves shell assets from cache before network', async () => {
