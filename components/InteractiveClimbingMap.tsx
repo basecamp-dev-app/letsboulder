@@ -2,7 +2,7 @@
 
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Search, X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 
 import MapLibreVectorMap, { type MapBounds, type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
 import { reportError } from '@/lib/errors'
@@ -57,7 +57,6 @@ export default function InteractiveClimbingMap({
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [isOffline, setIsOffline] = useState(false)
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
-  const [placeSearchQuery, setPlaceSearchQuery] = useState('')
 
   const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
   const offlineFitBounds = useMemo(() => isOffline ? buildFitBounds(pinFeatures) : null, [isOffline, pinFeatures])
@@ -164,16 +163,6 @@ export default function InteractiveClimbingMap({
 
   const placesById = useMemo(() => new Map(placePins.map((place) => [place.id, place])), [placePins])
   const selectedPlace = selectedPlaceId ? placesById.get(selectedPlaceId) || null : null
-  const visiblePlaces = useMemo(() => {
-    const normalizedQuery = placeSearchQuery.trim().toLowerCase()
-    const places = normalizedQuery.length === 0
-      ? placePins
-      : placePins.filter((place) => [place.name, place.country_code || '', place.type]
-        .some((value) => value.toLowerCase().includes(normalizedQuery)))
-
-    return places.slice(0, 8)
-  }, [placePins, placeSearchQuery])
-
   const pinsGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
     type: 'FeatureCollection',
     features: clusteredPlaces.flatMap((feature) => {
@@ -232,48 +221,6 @@ export default function InteractiveClimbingMap({
           if (placesById.has(id)) setSelectedPlaceId(id)
         }}
       />
-      <section className="absolute inset-x-4 top-4 z-[1001] max-h-[42vh] overflow-hidden rounded-3xl border border-white/70 bg-white/95 text-stone-950 shadow-2xl shadow-slate-950/15 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/92 dark:text-white md:inset-x-auto md:right-6 md:top-6 md:w-[24rem]" aria-label="Places on this map">
-        <div className="border-b border-stone-200/80 px-4 py-3 dark:border-white/10">
-          <h2 className="text-sm font-black tracking-tight">Places on this map</h2>
-          <label className="mt-3 flex min-h-11 items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-sm text-stone-700 focus-within:border-amber-500 focus-within:bg-white dark:border-white/10 dark:bg-white/10 dark:text-white/75 dark:focus-within:border-amber-300">
-            <Search className="size-4 shrink-0" aria-hidden="true" />
-            <span className="sr-only">Search places on this map</span>
-            <input
-              type="search"
-              value={placeSearchQuery}
-              onChange={(event) => setPlaceSearchQuery(event.target.value)}
-              placeholder="Search crags and gyms"
-              className="min-w-0 flex-1 bg-transparent text-sm text-stone-950 outline-none placeholder:text-stone-500 dark:text-white dark:placeholder:text-white/45"
-            />
-          </label>
-        </div>
-        <div className="max-h-[28vh] space-y-2 overflow-y-auto px-3 py-3">
-          {visiblePlaces.length > 0 ? visiblePlaces.map((place) => {
-            const isSelected = place.id === selectedPlaceId
-            return (
-              <button
-                key={place.id}
-                type="button"
-                onClick={() => setSelectedPlaceId(place.id)}
-                aria-current={isSelected ? 'true' : undefined}
-                className={`w-full rounded-2xl border px-3 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ${isSelected ? 'border-amber-400 bg-amber-50 text-stone-950 dark:border-amber-300 dark:bg-amber-300/15 dark:text-white' : 'border-stone-200 bg-white text-stone-900 hover:bg-stone-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10'}`}
-              >
-                <span className="block text-xs font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
-                  {place.type === 'gym' ? 'Gym' : 'Crag'}{place.country_code ? ` · ${place.country_code.toUpperCase()}` : ''}
-                </span>
-                <span className="mt-1 block truncate text-sm font-black">{place.name}</span>
-                <span className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-stone-600 dark:text-white/65">
-                  {[formatCount(place.route_count, 'route', 'routes'), formatCount(place.image_count, 'image', 'images')]
-                    .filter((label): label is string => Boolean(label))
-                    .map((label) => <span key={label} className="rounded-full bg-stone-100 px-2 py-0.5 dark:bg-white/10">{label}</span>)}
-                </span>
-              </button>
-            )
-          }) : (
-            <p className="rounded-2xl border border-dashed border-stone-200 px-3 py-4 text-sm text-stone-600 dark:border-white/10 dark:text-white/65">No matching places.</p>
-          )}
-        </div>
-      </section>
       {selectedPlace ? (
         <div className="absolute inset-x-4 bottom-[calc(var(--app-mobile-footer-offset,0px)+1rem)] z-[1001] md:inset-x-auto md:bottom-6 md:left-6 md:w-[22rem]">
           <div className="overflow-hidden rounded-3xl border border-white/70 bg-white/95 text-stone-950 shadow-2xl shadow-slate-950/20 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/92 dark:text-white">
