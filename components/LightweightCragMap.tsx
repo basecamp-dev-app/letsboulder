@@ -194,6 +194,8 @@ export default function LightweightCragMap({
     }),
   }), [clusterIndex, clusteredResults])
 
+  const interactivePins = useMemo(() => resolvedPins.filter((pin) => pin.interactive !== false), [resolvedPins])
+
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     const previousState = lastMapStateRef.current
     if (previousState && previousState.zoom === state.zoom && mapBoundsEqual(previousState.bounds, state.bounds)) return
@@ -281,6 +283,32 @@ export default function LightweightCragMap({
           </div>
         ) : null}
       </div>
+      {onPinSelect && interactivePins.length > 0 ? (
+        <section className="mt-3 rounded-[24px] border border-stone-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900" aria-label="Map markers">
+          <h2 className="sr-only">Map markers</h2>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {interactivePins.map((pin, index) => {
+              const selectId = pin.primaryImageId || pin.id
+              const active = isPinActive(pin, activePinId) || selectId === activePinId
+              const label = pin.label || String(index + 1)
+              return (
+                <button
+                  key={`${pin.id}-${selectId}`}
+                  type="button"
+                  onClick={() => onPinSelect(selectId)}
+                  aria-pressed={active}
+                  className={`min-h-11 rounded-2xl border px-3 py-2 text-left text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ${active ? 'border-amber-400 bg-amber-50 text-stone-950 dark:border-amber-300 dark:bg-amber-300/15 dark:text-white' : 'border-stone-200 bg-stone-50 text-stone-800 hover:bg-stone-100 dark:border-white/10 dark:bg-white/5 dark:text-gray-100 dark:hover:bg-white/10'}`}
+                >
+                  <span className="block font-semibold">Select marker {label}</span>
+                  <span className="mt-0.5 block text-xs text-stone-600 dark:text-gray-400">
+                    {pin.tone === 'published' ? 'Published route image' : 'Route image'}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }
