@@ -30,6 +30,7 @@ yarn-error.log*
 .pnpm-debug.log*
 *.log
 browser-debug.log
+/public/console-export-*.txt
 
 # local test artifacts
 /dev.log
