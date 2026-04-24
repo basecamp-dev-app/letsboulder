@@ -22,6 +22,9 @@ This is a maintainer reference for system shape, deployment flow, and module own
 │  (media-worker)  │     │  private bucket   │     │  .com        │
 │                  │     │  public bucket    │     │              │
 └──────────────────┘     └──────────────────┘     └──────────────┘
+       ▲                         │
+       │                         │  PMTiles vector basemap
+       └─────────────────────────┴── static.*.com/maps/v*/planet.pmtiles
 ```
 
 ## Components
@@ -51,6 +54,14 @@ This is a maintainer reference for system shape, deployment flow, and module own
 - **CDN**: `static.letsboulder.com` (prod) / `static.dev.letsboulder.com` (staging)
 - **Flow**: Client → presigned upload URL → R2 private → Worker queue → R2 public → CDN
 - **Config**: `wrangler.toml` with staging and production environments
+
+### Vector Maps (MapLibre + PMTiles)
+
+- **Renderer**: MapLibre GL in shared live map, picker, and static location components
+- **Archive**: Versioned PMTiles object at `static.letsboulder.com/maps/v*/planet.pmtiles`
+- **Storage/CDN**: Cloudflare R2 behind `static.letsboulder.com` and `static.dev.letsboulder.com`
+- **Config**: `NEXT_PUBLIC_PMTILES_URL`, defaulting to `https://static.letsboulder.com/maps/v1/planet.pmtiles`
+- **Fallback**: Pins-only degraded map mode while offline unless PMTiles chunks or regional extracts are explicitly cached
 
 ### Service Worker (PWA / Offline)
 

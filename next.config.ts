@@ -82,7 +82,7 @@ const nextConfig: NextConfig = {
           {
             key: 'Content-Security-Policy',
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://sentry.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co https://*.cloudflarestorage.com https://media-letsboulder.pages.dev https://server.arcgisonline.com https://static.letsboulder.com https://lh3.googleusercontent.com; connect-src 'self' http://127.0.0.1:54321 http://localhost:54321 https://*.supabase.co https://*.cloudflarestorage.com wss://*.supabase.co; font-src 'self'; frame-ancestors 'none';",
+              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://sentry.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co https://*.cloudflarestorage.com https://media-letsboulder.pages.dev https://server.arcgisonline.com https://static.letsboulder.com https://static.dev.letsboulder.com https://lh3.googleusercontent.com; connect-src 'self' http://127.0.0.1:54321 http://localhost:54321 https://*.supabase.co https://*.cloudflarestorage.com https://static.letsboulder.com https://static.dev.letsboulder.com https://demotiles.maplibre.org wss://*.supabase.co; font-src 'self' https://demotiles.maplibre.org; frame-ancestors 'none';",
           },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
@@ -129,7 +129,6 @@ const nextConfig: NextConfig = {
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
   },
-  transpilePackages: ['react-leaflet', '@react-leaflet/core'],
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', 'date-fns', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
   },

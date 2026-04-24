@@ -26,7 +26,6 @@ export function useEditDraftHydration({
   clearCanvasState,
 }: UseEditDraftHydrationParams) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const hasShownCollabToastRef = useRef(false)
   const previousActiveImageIdRef = useRef<string | null>(null)
 
@@ -35,10 +34,6 @@ export function useEditDraftHydration({
     void supabase.auth.getUser().then(({ data }: UserResponse) => {
       setCurrentUserId(data.user?.id || null)
     })
-  }, [])
-
-  useEffect(() => {
-    import('leaflet').then((lib) => setLeaflet(lib))
   }, [])
 
   useEffect(() => {
@@ -71,6 +66,5 @@ export function useEditDraftHydration({
 
   return {
     currentUserId,
-    leaflet,
   }
 }

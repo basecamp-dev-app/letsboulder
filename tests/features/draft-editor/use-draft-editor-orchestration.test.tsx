@@ -208,7 +208,7 @@ describe('useDraftEditorOrchestration', () => {
       handleRevokeInvite: vi.fn(),
       handleRemoveCollaborator: vi.fn(),
     })
-    mockUseEditDraftHydration.mockReturnValue({ currentUserId: 'user-1', leaflet: null })
+    mockUseEditDraftHydration.mockReturnValue({ currentUserId: 'user-1' })
     mockUseDraftEditorData.mockReturnValue({ imagesPayload: [], imagesPayloadSignature: 'sig' })
     mockUseEditDraftUploads.mockReturnValue({
       pendingDraftUploads: [],

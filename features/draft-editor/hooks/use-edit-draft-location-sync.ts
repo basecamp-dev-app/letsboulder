@@ -319,34 +319,18 @@ export function useEditDraftLocationSync({
     return () => window.clearTimeout(timer)
   }, [appliedNearbyCragIdRef, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, syncLocationNow, uploadAutoAssignToken])
 
-  const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
+  const handleMapPositionChange = useCallback((position: { latitude: number; longitude: number }) => {
     if (activeDraftImageId && activeImageLocationMode === 'custom') {
       setCustomGpsByImageId((prev) => ({
         ...prev,
         [activeDraftImageId]: {
-          latitude: event.latlng.lat,
-          longitude: event.latlng.lng,
+          latitude: position.latitude,
+          longitude: position.longitude,
         },
       }))
       return
     }
-    updateDraftLocation(event.latlng.lat, event.latlng.lng)
-  }, [activeDraftImageId, activeImageLocationMode, updateDraftLocation, setCustomGpsByImageId])
-
-  const handleMarkerDragEnd = useCallback((event: L.LeafletEvent) => {
-    const marker = event.target as L.Marker
-    const position = marker.getLatLng()
-    if (activeDraftImageId && activeImageLocationMode === 'custom') {
-      setCustomGpsByImageId((prev) => ({
-        ...prev,
-        [activeDraftImageId]: {
-          latitude: position.lat,
-          longitude: position.lng,
-        },
-      }))
-      return
-    }
-    updateDraftLocation(position.lat, position.lng)
+    updateDraftLocation(position.latitude, position.longitude)
   }, [activeDraftImageId, activeImageLocationMode, updateDraftLocation, setCustomGpsByImageId])
 
   const handleSearchLocation = useCallback(async () => {
@@ -381,8 +365,7 @@ export function useEditDraftLocationSync({
 
   return {
     activeImageCustomPosition,
-    handleMapClick,
-    handleMarkerDragEnd,
+    handleMapPositionChange,
     handleSearchLocation,
     flushLocationSync: syncLocationNow,
   }

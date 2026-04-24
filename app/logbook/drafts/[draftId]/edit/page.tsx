@@ -215,7 +215,6 @@ export default function EditDraftPage() {
           customGpsByImageId={draft.customGpsByImageId}
           effectiveMarkerPosition={location.effectiveMarkerPosition}
           mapOpen={location.mapOpen}
-          leaflet={draft.leaflet}
           searchQuery={location.searchQuery}
           searchingLocation={location.searchingLocation}
           locationSearchError={location.locationSearchError}
@@ -228,8 +227,7 @@ export default function EditDraftPage() {
           onLatitudeChange={actions.onLatitudeChange}
           onLongitudeChange={actions.onLongitudeChange}
           onCustomGpsChange={actions.onCustomGpsChange}
-          onMapClick={location.handleMapClick}
-          onMarkerDragEnd={location.handleMarkerDragEnd}
+          onMapPositionChange={location.handleMapPositionChange}
           onMapOpenChange={actions.onMapOpenChange}
           onSearchQueryChange={actions.onSearchQueryChange}
           onSearchLocation={location.handleSearchLocation}
