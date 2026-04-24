@@ -163,7 +163,7 @@ export default function ClimbFaceViewer({
                 type="button"
                 onClick={onScrollPrev}
                 aria-label={canScrollPrev ? 'Previous face' : 'Previous climb'}
-                className="absolute left-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
+                className="absolute left-2 top-1/2 z-20 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/60 md:bg-white/20 md:opacity-0 md:hover:bg-white/40 md:group-hover:opacity-100"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -174,7 +174,7 @@ export default function ClimbFaceViewer({
                 type="button"
                 onClick={onScrollNext}
                 aria-label={canScrollNext ? 'Next face' : 'Next climb'}
-                className="absolute right-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
+                className="absolute right-2 top-1/2 z-20 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/60 md:bg-white/20 md:opacity-0 md:hover:bg-white/40 md:group-hover:opacity-100"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
