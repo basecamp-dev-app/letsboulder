@@ -1,6 +1,7 @@
 'use client'
 
 import { useReportWebVitals } from 'next/web-vitals'
+import { track } from '@vercel/analytics/react'
 
 type MetricName = 'CLS' | 'INP' | 'LCP' | 'TTFB'
 
@@ -17,13 +18,12 @@ export default function WebVitalsReporter() {
       return
     }
 
-    console.log('[perf]', {
+    track('Web Vital', {
       source: 'web-vitals',
       metric: metric.name,
       pathname: window.location.pathname,
       value: metric.value,
       rating: getRating(metric.name, metric.value),
-      attribution: 'attribution' in metric ? metric.attribution : undefined,
     })
   })
 
