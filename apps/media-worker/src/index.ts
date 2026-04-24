@@ -32,6 +32,43 @@ function buildMediaPath(originalKey: string, variant: MediaVariantKey, format: M
   return `${originPath}?variant=${variant}&format=${format}`
 }
 
+function buildMapHeaders(init?: HeadersInit) {
+  const headers = new Headers(init)
+  headers.set('Access-Control-Allow-Origin', '*')
+  headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+  headers.set('Access-Control-Allow-Headers', 'Range')
+  headers.set('Access-Control-Expose-Headers', 'Accept-Ranges, Content-Length, Content-Range')
+  headers.set('Accept-Ranges', 'bytes')
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  headers.set('Content-Type', headers.get('Content-Type') || 'application/octet-stream')
+  return headers
+}
+
+function parseRangeHeader(rangeHeader: string | null, size: number) {
+  if (!rangeHeader) return null
+  const match = rangeHeader.match(/^bytes=(\d*)-(\d*)$/)
+  if (!match) return 'invalid' as const
+
+  const [, startValue, endValue] = match
+  if (!startValue && !endValue) return 'invalid' as const
+
+  if (!startValue) {
+    const suffixLength = Number(endValue)
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return 'invalid' as const
+    const offset = Math.max(size - suffixLength, 0)
+    return { offset, end: size - 1, length: size - offset }
+  }
+
+  const offset = Number(startValue)
+  const end = endValue ? Number(endValue) : size - 1
+  if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(end) || offset < 0 || end < offset || offset >= size) {
+    return 'invalid' as const
+  }
+
+  const normalizedEnd = Math.min(end, size - 1)
+  return { offset, end: normalizedEnd, length: normalizedEnd - offset + 1 }
+}
+
 function deriveHeight(sourceWidth: number | null, sourceHeight: number | null, targetWidth: number): number {
   if (!sourceWidth || !sourceHeight || sourceWidth <= 0 || sourceHeight <= 0) {
     return targetWidth
@@ -181,6 +218,59 @@ async function handleOrigin(request: Request, env: Env, url: URL) {
   return new Response(object.body, { headers })
 }
 
+async function handleMapAsset(request: Request, env: Env, url: URL) {
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: buildMapHeaders() })
+  }
+
+  const objectKey = url.pathname.substring(1)
+    .split('/')
+    .filter(Boolean)
+    .map(decodeURIComponent)
+    .join('/')
+
+  if (!objectKey) {
+    return new Response('Not found', { status: 404, headers: buildMapHeaders() })
+  }
+
+  const head = await env.PUBLIC_BUCKET.head(objectKey)
+  if (!head) {
+    return new Response('Not found', { status: 404, headers: buildMapHeaders() })
+  }
+
+  const range = parseRangeHeader(request.headers.get('Range'), head.size)
+  if (range === 'invalid') {
+    const headers = buildMapHeaders({ 'Content-Range': `bytes */${head.size}` })
+    return new Response('Invalid range', { status: 416, headers })
+  }
+
+  const headers = buildMapHeaders()
+  headers.set('Content-Length', String(range?.length ?? head.size))
+  if (range) {
+    headers.set('Content-Range', `bytes ${range.offset}-${range.end}/${head.size}`)
+  }
+
+  if (request.method === 'HEAD') {
+    return new Response(null, { status: range ? 206 : 200, headers })
+  }
+
+  const object = await env.PUBLIC_BUCKET.get(objectKey, range ? { range: { offset: range.offset, length: range.length } } : undefined)
+  if (!object) {
+    return new Response('Not found', { status: 404, headers: buildMapHeaders() })
+  }
+
+  object.writeHttpMetadata(headers)
+  headers.set('Content-Type', headers.get('Content-Type') || 'application/octet-stream')
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  headers.set('Access-Control-Allow-Origin', '*')
+  headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+  headers.set('Access-Control-Allow-Headers', 'Range')
+  headers.set('Access-Control-Expose-Headers', 'Accept-Ranges, Content-Length, Content-Range')
+  headers.set('Accept-Ranges', 'bytes')
+
+  return new Response(object.body, { status: range ? 206 : 200, headers })
+}
+
 async function handleMedia(request: Request, env: Env, url: URL) {
   const pathname = url.pathname.substring(1)
 
@@ -248,6 +338,10 @@ export default {
 
     if (request.method === 'GET' && url.pathname.startsWith('/origin/')) {
       return handleOrigin(request, env, url)
+    }
+
+    if ((request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') && url.pathname.startsWith('/maps/')) {
+      return handleMapAsset(request, env, url)
     }
 
     if (request.method === 'GET' && !url.pathname.startsWith('/origin/') && url.pathname !== '/enqueue') {
