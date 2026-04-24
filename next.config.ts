@@ -44,6 +44,21 @@ const nextConfig: NextConfig = {
         destination: '/',
         permanent: true,
       },
+      {
+        source: '/bouldering-map',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/climbing-map',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/rock-climbing-map',
+        destination: '/',
+        permanent: true,
+      },
     ]
   },
   async headers() {

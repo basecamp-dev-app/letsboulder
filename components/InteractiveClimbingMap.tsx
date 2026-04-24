@@ -40,7 +40,7 @@ function buildFitBounds(features: PinFeature[]): MapLibreFitBounds | null {
   ]
 }
 
-export default function SatelliteClimbingMap({
+export default function InteractiveClimbingMap({
   initialPlacePins = [],
   onReady,
 }: {
@@ -201,7 +201,7 @@ export default function SatelliteClimbingMap({
   }), [clusterIndex, clusteredPlaces])
 
   return (
-    <div className="relative h-screen w-full">
+    <div className="relative h-full min-h-full w-full">
       {isOffline ? <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(71,85,105,0.32),_transparent_48%),linear-gradient(180deg,_#020617_0%,_#0f172a_100%)]" /> : null}
       <MapLibreVectorMap
         center={WORLD_DEFAULT_CENTER}
@@ -223,7 +223,7 @@ export default function SatelliteClimbingMap({
         }}
       />
       {selectedPlace ? (
-        <div className="absolute inset-x-4 bottom-6 z-[1001] md:inset-x-auto md:left-6 md:w-[22rem]">
+        <div className="absolute inset-x-4 bottom-[calc(var(--app-mobile-footer-offset,0px)+1rem)] z-[1001] md:inset-x-auto md:bottom-6 md:left-6 md:w-[22rem]">
           <div className="overflow-hidden rounded-3xl border border-white/70 bg-white/95 text-stone-950 shadow-2xl shadow-slate-950/20 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/92 dark:text-white">
             <div className="flex items-start justify-between gap-3 px-4 pt-4">
               <div className="min-w-0">

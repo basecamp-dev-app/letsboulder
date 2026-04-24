@@ -7,7 +7,7 @@ import { listStoredOfflineMapPins } from '@/lib/offline/storage'
 import type { PlacePin } from '@/lib/map/place-pins'
 import { cn } from '@/lib/utils'
 
-const SatelliteClimbingMap = dynamic(() => import('@/components/SatelliteClimbingMap'), {
+const InteractiveClimbingMap = dynamic(() => import('@/components/InteractiveClimbingMap'), {
   ssr: false,
   loading: () => null,
 })
@@ -48,7 +48,7 @@ export default function MapViewport({ initialPlacePins = [], mode = 'fullscreen'
       className
     )}>
       {!isMapReady && <MapViewportFallback />}
-      <SatelliteClimbingMap initialPlacePins={resolvedPlacePins} onReady={() => setIsMapReady(true)} />
+      <InteractiveClimbingMap initialPlacePins={resolvedPlacePins} onReady={() => setIsMapReady(true)} />
     </div>
   )
 }
