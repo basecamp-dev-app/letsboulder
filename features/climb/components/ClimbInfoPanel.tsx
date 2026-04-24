@@ -236,36 +236,36 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
           </div>
           <div className="flex items-center gap-2">
             {cragPath ? (
-              <a href={cragPath} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
+              <a href={cragPath} className="inline-flex min-h-11 items-center justify-center px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
                 View crag
               </a>
             ) : null}
             {offlinePackAvailable ? (
-              <button onClick={onOpenOffline} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
+              <button onClick={onOpenOffline} className="inline-flex min-h-11 items-center justify-center px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
                 {isOfflineSaved ? 'Saved offline' : 'Save offline'}
               </button>
             ) : null}
             <button
               onClick={userPresent ? onToggleWantToTry : onGoToAuth}
               disabled={!selectedClimb || savingWantToTry}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isWantToTrySaved ? 'bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50' : 'text-amber-800 hover:text-amber-900 hover:bg-amber-50 dark:text-amber-300 dark:hover:text-amber-100 dark:hover:bg-amber-950/40'}`}
+              className={`inline-flex min-h-11 items-center justify-center px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isWantToTrySaved ? 'bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50' : 'text-amber-800 hover:text-amber-900 hover:bg-amber-50 dark:text-amber-300 dark:hover:text-amber-100 dark:hover:bg-amber-950/40'}`}
             >
               {savingWantToTry ? 'Saving...' : isWantToTrySaved ? 'Saved' : 'Want to try'}
             </button>
             {canEditRoute ? (
-              <button onClick={onEditRoute} className="px-3 py-1.5 text-sm font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-100 dark:hover:bg-blue-950/40 rounded-lg transition-colors">
+              <button onClick={onEditRoute} className="inline-flex min-h-11 items-center justify-center px-3 py-1.5 text-sm font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-100 dark:hover:bg-blue-950/40 rounded-lg transition-colors">
                 Edit this route
               </button>
             ) : null}
             {!canEditRoute && canAddRoutes ? (
-              <button onClick={onAddRoutes} className="px-3 py-1.5 text-sm font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-100 dark:hover:bg-blue-950/40 rounded-lg transition-colors">
+              <button onClick={onAddRoutes} className="inline-flex min-h-11 items-center justify-center px-3 py-1.5 text-sm font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-100 dark:hover:bg-blue-950/40 rounded-lg transition-colors">
                 Add routes to this image
               </button>
             ) : null}
-            <button onClick={onOpenFlag} disabled={!selectedClimb} className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Report incorrect route info" title={selectedClimb ? 'Report incorrect route info' : 'Select a route to report'}>
+            <button onClick={onOpenFlag} disabled={!selectedClimb} className="inline-flex size-11 items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Report incorrect route info" title={selectedClimb ? 'Report incorrect route info' : 'Select a route to report'}>
               <Flag className="w-5 h-5" />
             </button>
-            <button onClick={onShare} className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors" aria-label="Share climb">
+            <button onClick={onShare} className="inline-flex size-11 items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors" aria-label="Share climb">
               <Share2 className="w-5 h-5" />
             </button>
             {selectedClimbLogged ? <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 rounded-full text-sm font-medium">Logged</span> : null}
@@ -319,7 +319,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                 <button
                   type="button"
                   onClick={onToggleCommunityNotesExpanded}
-                  className="text-xs font-medium text-purple-700 transition hover:text-purple-900 dark:text-purple-300 dark:hover:text-purple-100"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-xs font-medium text-purple-700 transition hover:text-purple-900 dark:text-purple-300 dark:hover:text-purple-100"
                 >
                   {communityNotesExpanded ? 'Show fewer' : `See all ${communityNotes.length}`}
                 </button>

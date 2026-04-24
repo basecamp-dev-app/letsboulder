@@ -149,6 +149,16 @@ export default function MapLibreVectorMap({
         },
         paint: { 'text-color': '#ffffff' },
       })
+      map.addLayer({
+        id: 'letsboulder-pin-hit-targets',
+        type: 'circle',
+        source: 'letsboulder-pins',
+        paint: {
+          'circle-radius': 22,
+          'circle-color': '#ffffff',
+          'circle-opacity': 0,
+        },
+      })
 
       map.addSource('letsboulder-clusters', { type: 'geojson', data: clustersGeoJson || { type: 'FeatureCollection', features: [] } })
       map.addLayer({
@@ -164,6 +174,16 @@ export default function MapLibreVectorMap({
         },
       })
       map.addLayer({
+        id: 'letsboulder-cluster-hit-targets',
+        type: 'circle',
+        source: 'letsboulder-clusters',
+        paint: {
+          'circle-radius': 22,
+          'circle-color': '#ffffff',
+          'circle-opacity': 0,
+        },
+      })
+      map.addLayer({
         id: 'letsboulder-cluster-labels',
         type: 'symbol',
         source: 'letsboulder-clusters',
@@ -176,14 +196,14 @@ export default function MapLibreVectorMap({
         paint: { 'text-color': '#ffffff' },
       })
 
-      map.on('click', 'letsboulder-pin-circles', (event) => {
+      map.on('click', 'letsboulder-pin-hit-targets', (event) => {
         const feature = event.features?.[0]
         const properties = feature?.properties
         if (!properties || properties.interactive === false) return
         const selectId = typeof properties.selectId === 'string' ? properties.selectId : properties.id
         if (typeof selectId === 'string') onPinSelectRef.current?.(selectId)
       })
-      map.on('click', 'letsboulder-cluster-circles', (event) => {
+      map.on('click', 'letsboulder-cluster-hit-targets', (event) => {
         const feature = event.features?.[0]
         const properties = feature?.properties
         if (!feature || !properties || feature.geometry.type !== 'Point') return
@@ -195,10 +215,10 @@ export default function MapLibreVectorMap({
         }
         if (Number.isFinite(clusterId)) onClusterSelectRef.current?.(clusterId, coordinates)
       })
-      map.on('mouseenter', 'letsboulder-pin-circles', () => { map.getCanvas().style.cursor = 'pointer' })
-      map.on('mouseleave', 'letsboulder-pin-circles', () => { map.getCanvas().style.cursor = '' })
-      map.on('mouseenter', 'letsboulder-cluster-circles', () => { map.getCanvas().style.cursor = 'pointer' })
-      map.on('mouseleave', 'letsboulder-cluster-circles', () => { map.getCanvas().style.cursor = '' })
+      map.on('mouseenter', 'letsboulder-pin-hit-targets', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', 'letsboulder-pin-hit-targets', () => { map.getCanvas().style.cursor = '' })
+      map.on('mouseenter', 'letsboulder-cluster-hit-targets', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', 'letsboulder-cluster-hit-targets', () => { map.getCanvas().style.cursor = '' })
 
       readyRef.current = true
       emitViewport()
