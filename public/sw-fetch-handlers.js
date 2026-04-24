@@ -1,17 +1,4 @@
 async function handleShellFetch(request) {
-  const url = new URL(request.url)
-  const isHomeNavigation = request.mode === 'navigate' && url.pathname === HOME_URL
-
-  if (isHomeNavigation) {
-    try {
-      return await fetch(request)
-    } catch {
-      const cachedHome = await matchShellRequest(request)
-      if (cachedHome) return cachedHome
-      return Response.error()
-    }
-  }
-
   const cached = await matchShellRequest(request)
 
   if (cached) {
@@ -40,8 +27,24 @@ async function handleShellFetch(request) {
   } catch {
     const cached = await matchShellRequest(request)
     if (cached) return cached
-    return Response.error()
+    if (request.mode === 'navigate') {
+      return getOfflineNavigationFallback()
+    }
+    return new Response('', { status: 503, statusText: 'Offline shell unavailable' })
   }
+}
+
+async function getOfflineNavigationFallback() {
+  const fallback = await matchShellRequest(toSameOriginRequest(OFFLINE_URL))
+  if (fallback) return fallback
+
+  return new Response('<!doctype html><title>Offline</title><main><h1>You are offline</h1><p>Only cached content is available right now.</p></main>', {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+    status: 503,
+    statusText: 'Offline fallback unavailable',
+  })
 }
 
 async function handleRouteAssetFetch(request) {
