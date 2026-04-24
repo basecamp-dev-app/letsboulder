@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import maplibregl, { type Map as MapLibreMap, type Marker } from 'maplibre-gl'
 
-import { registerPmtilesProtocol } from '@/components/map/MapLibreVectorMap'
 import { buildMapLibreStyle } from '@/lib/map/maplibre-style'
 import { getVectorMapConfig } from '@/lib/map/vector-map-config'
 
@@ -42,7 +41,6 @@ export default function MapLibreStaticLocationMap({ point, secondaryPoint = null
     const container = containerRef.current
     if (!container || mapRef.current) return
 
-    registerPmtilesProtocol()
     const map = new maplibregl.Map({
       container,
       style,
