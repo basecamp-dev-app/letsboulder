@@ -9,6 +9,11 @@ type WorkerR2Object = {
   httpMetadata?: { contentType?: string | null }
 }
 
+type WorkerR2Range = {
+  offset: number
+  length?: number
+}
+
 type WorkerR2ObjectBody = WorkerR2Object & {
   body: ReadableStream<Uint8Array> | null
   writeHttpMetadata(headers: Headers): void
@@ -16,7 +21,7 @@ type WorkerR2ObjectBody = WorkerR2Object & {
 
 type WorkerR2Bucket = {
   head(key: string): Promise<WorkerR2Object | null>
-  get(key: string): Promise<WorkerR2ObjectBody | null>
+  get(key: string, options?: { range?: WorkerR2Range }): Promise<WorkerR2ObjectBody | null>
 }
 
 export type MessageBatch<T> = {
