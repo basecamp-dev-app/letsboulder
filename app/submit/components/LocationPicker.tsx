@@ -1,16 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { MapPin, Search, Loader2 } from 'lucide-react'
 import type { GpsData } from '@/types/domain'
-import dynamic from 'next/dynamic'
-import 'leaflet/dist/leaflet.css'
-import { useMapEvents } from 'react-leaflet'
+import MapLibreLocationPicker from '@/components/map/MapLibreLocationPicker'
 import { Skeleton } from '@/components/ui/skeleton'
-
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 
 interface LocationPickerProps {
   initialGps: GpsData | null
@@ -19,21 +13,12 @@ interface LocationPickerProps {
   cragName?: string
 }
 
-function MapClickHandler({ onClick }: { onClick: (e: import('leaflet').LeafletMouseEvent) => void }) {
-  useMapEvents({
-    click: onClick
-  })
-  return null
-}
-
 export default function LocationPicker({ initialGps, onConfirm, regionName, cragName }: LocationPickerProps) {
   const [position, setPosition] = useState<[number, number] | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
-  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
-  const mapRef = useRef<import('leaflet').Map | null>(null)
   const hasGps = initialGps !== null
 
   useEffect(() => {
@@ -41,31 +26,10 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
   }, [])
 
   useEffect(() => {
-    import('leaflet').then(L => {
-      setLeaflet(L)
-    })
-  }, [])
-
-  useEffect(() => {
     if (initialGps) {
       setPosition([initialGps.latitude, initialGps.longitude])
     }
   }, [initialGps])
-
-  useEffect(() => {
-    if (position && mapRef.current) {
-      mapRef.current.setView(position, 14)
-    }
-  }, [position])
-  
-  const handlePositionChange = useCallback((e: import('leaflet').LeafletEvent) => {
-    const { lat, lng } = e.target.getLatLng()
-    setPosition([lat, lng])
-  }, [])
-
-  const handleMapClick = useCallback((e: import('leaflet').LeafletMouseEvent) => {
-    setPosition([e.latlng.lat, e.latlng.lng])
-  }, [])
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
@@ -139,38 +103,11 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
   return (
     <div className="space-y-4">
       <div className="h-80 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 relative">
-        <MapContainer
-          ref={mapRef}
-          center={position || [20, 0]}
-          zoom={position ? 14 : 2}
-          style={{ height: '100%', width: '100%' }}
-        >
-          <MapClickHandler onClick={handleMapClick} />
-          <TileLayer
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            attribution='Imagery © Esri'
-            maxZoom={19}
-          />
-          <TileLayer
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-            attribution='Labels © Esri'
-            maxZoom={19}
-          />
-          {position && leaflet && (
-            <Marker
-              position={position}
-              icon={leaflet.divIcon({
-                className: 'location-marker',
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
-              })}
-              draggable={true}
-              eventHandlers={{
-                dragend: handlePositionChange
-              }}
-            />
-          )}
-        </MapContainer>
+        <MapLibreLocationPicker
+          value={position ? { latitude: position[0], longitude: position[1] } : null}
+          className="h-full w-full"
+          onChange={(next) => setPosition([next.latitude, next.longitude])}
+        />
         {!position && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
             <div className="bg-black/60 text-white px-4 py-2 rounded-full text-sm">

@@ -1,145 +1,38 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo, useRef, type RefObject, startTransition } from 'react'
-import dynamic from 'next/dynamic'
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
-import { useMapEvents } from 'react-leaflet'
-import { runWhenIdle } from '@/lib/run-when-idle'
-import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult, type PinFeature, type PlacePin } from '@/lib/map/place-pins'
-import { getMapBaseLayerConfig } from '@/lib/map/base-layer'
+
+import MapLibreVectorMap, { type MapBounds, type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
 import { reportError } from '@/lib/errors'
+import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult, type PinFeature, type PlacePin } from '@/lib/map/place-pins'
+import { runWhenIdle } from '@/lib/run-when-idle'
 
-import 'leaflet/dist/leaflet.css'
-
-interface LeafletIconDefault {
-  prototype: {
-    _getIconUrl?: () => void
-  }
-  mergeOptions: (options: Record<string, string>) => void
-}
-
-function setupLeafletIcons(leaflet: typeof import('leaflet')) {
-  if (typeof window !== 'undefined') {
-    delete (leaflet.Icon.Default as LeafletIconDefault).prototype._getIconUrl
-    ;(leaflet.Icon.Default as LeafletIconDefault).mergeOptions({
-      iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    })
-  }
-}
-
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
-
-const WORLD_DEFAULT_VIEW: [number, number] = [20, 0]
+const WORLD_DEFAULT_CENTER: [number, number] = [0, 20]
 const WORLD_DEFAULT_ZOOM = 2
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function buildPlaceHref(place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | 'type' | 'name'>) {
-  if (place.type === 'gym' && place.slug) {
-    return `/gyms/${place.slug}`
-  }
-
-  if (place.slug && place.country_code) {
-    return `/${place.country_code.toLowerCase()}/${place.slug}`
-  }
-
-  if (place.type === 'crag') {
-    return `/crag/${place.id}`
-  }
-
+function buildPlaceHref(place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | 'type'>) {
+  if (place.type === 'gym' && place.slug) return `/gyms/${place.slug}`
+  if (place.slug && place.country_code) return `/${place.country_code.toLowerCase()}/${place.slug}`
   return `/crag/${place.id}`
 }
 
-function navigateToPlace(router: ReturnType<typeof useRouter>, place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | 'type' | 'name'>) {
+function navigateToPlace(router: ReturnType<typeof useRouter>, place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | 'type'>) {
   startTransition(() => {
     router.push(buildPlaceHref(place))
   })
 }
 
-interface MapBounds {
-  north: number
-  south: number
-  east: number
-  west: number
-}
+function buildFitBounds(features: PinFeature[]): MapLibreFitBounds | null {
+  if (features.length === 0) return null
 
-function MapStateWatcher({
-  onStateChange
-}: {
-  onStateChange: (state: { zoom: number; bounds: MapBounds }) => void
-}) {
-  const map = useMapEvents({
-    moveend: () => {
-      const bounds = map.getBounds()
-      onStateChange({
-        zoom: map.getZoom(),
-        bounds: {
-          north: bounds.getNorth(),
-          south: bounds.getSouth(),
-          east: bounds.getEast(),
-          west: bounds.getWest()
-        }
-      })
-    },
-    zoomend: () => {
-      const bounds = map.getBounds()
-      onStateChange({
-        zoom: map.getZoom(),
-        bounds: {
-          north: bounds.getNorth(),
-          south: bounds.getSouth(),
-          east: bounds.getEast(),
-          west: bounds.getWest()
-        }
-      })
-    }
-  })
-
-  useEffect(() => {
-    const bounds = map.getBounds()
-    onStateChange({
-      zoom: map.getZoom(),
-      bounds: {
-        north: bounds.getNorth(),
-        south: bounds.getSouth(),
-        east: bounds.getEast(),
-        west: bounds.getWest()
-      }
-    })
-  }, [map, onStateChange])
-
-  return null
-}
-
-function MapInteractionWatcher({ onInteract, onClearSelection }: { onInteract: () => void; onClearSelection: () => void }) {
-  useMapEvents({
-    click: () => {
-      onInteract()
-      onClearSelection()
-    },
-    zoomstart: () => {
-      onInteract()
-      onClearSelection()
-    },
-    movestart: () => {
-      onInteract()
-      onClearSelection()
-    },
-  })
-
-  return null
+  const longitudes = features.map((feature) => feature.geometry.coordinates[0])
+  const latitudes = features.map((feature) => feature.geometry.coordinates[1])
+  return [
+    [Math.min(...longitudes), Math.min(...latitudes)],
+    [Math.max(...longitudes), Math.max(...latitudes)],
+  ]
 }
 
 export default function SatelliteClimbingMap({
@@ -150,9 +43,7 @@ export default function SatelliteClimbingMap({
   onReady?: () => void
 }) {
   const router = useRouter()
-  const mapRef = useRef<L.Map | null>(null)
   const [isClient, setIsClient] = useState(false)
-  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
   const [placePins, setPlacePins] = useState<PlacePin[]>(initialPlacePins)
   const [pinLoadState, setPinLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>(initialPlacePins.length > 0 ? 'ready' : 'idle')
@@ -160,16 +51,44 @@ export default function SatelliteClimbingMap({
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [isOffline, setIsOffline] = useState(false)
-  const [selectedPinId, setSelectedPinId] = useState<string | null>(null)
+
+  const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
+  const offlineFitBounds = useMemo(() => isOffline ? buildFitBounds(pinFeatures) : null, [isOffline, pinFeatures])
+
+  const loadPlacePins = useCallback(async () => {
+    if (!isClient || initialPlacePins.length > 0) {
+      if (initialPlacePins.length > 0) setPinLoadState('ready')
+      return
+    }
+
+    try {
+      setPinLoadState('loading')
+      const pinsResponse = await fetch('/api/crags/pins')
+      if (!pinsResponse.ok) {
+        reportError(new Error('Error fetching place pins'), { message: 'Error fetching place pins', extra: { status: pinsResponse.status } })
+        setPlacePins([])
+        setPinLoadState('error')
+        return
+      }
+
+      const { pins: apiPins } = await pinsResponse.json()
+      setPlacePins((apiPins || []) as PlacePin[])
+      setPinLoadState('ready')
+    } catch (err) {
+      reportError(err instanceof Error ? err : new Error('Error loading place pins'), { message: 'Error loading place pins' })
+      setPlacePins([])
+      setPinLoadState('error')
+    }
+  }, [initialPlacePins.length, isClient])
 
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     setMapZoom(state.zoom)
     setMapBounds(state.bounds)
   }, [])
 
-  const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
-  const baseLayer = useMemo(() => getMapBaseLayerConfig({ offline: isOffline }), [isOffline])
-  const isPinsOnlyOfflineMode = baseLayer.mode === 'offline-pins-only'
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -197,18 +116,11 @@ export default function SatelliteClimbingMap({
       if (cancelled) return
 
       const SuperclusterLib = mod.default
-      const index = new SuperclusterLib({
-        radius: 56,
-        maxZoom: 16,
-        minZoom: 0,
-        minPoints: 2,
-      }) as ClusterIndex
+      const index = new SuperclusterLib({ radius: 56, maxZoom: 16, minZoom: 0, minPoints: 2 }) as ClusterIndex
       index.load(pinFeatures)
       setClusterIndex(index)
     }).catch(() => {
-      if (!cancelled) {
-        setClusterIndex(null)
-      }
+      if (!cancelled) setClusterIndex(null)
     })
 
     return () => {
@@ -216,15 +128,20 @@ export default function SatelliteClimbingMap({
     }
   }, [pinFeatures])
 
+  useEffect(() => {
+    if (!isClient || !mapLoaded) return
+    return runWhenIdle(() => {
+      void loadPlacePins()
+    }, 150)
+  }, [isClient, loadPlacePins, mapLoaded])
+
   const clusteredPlaces = useMemo<ClusterResult[]>(() => {
     if (pinFeatures.length === 0 || !clusterIndex) return pinFeatures
 
     const zoom = Math.max(0, Math.floor(mapZoom))
     const worldBounds: [number, number, number, number] = [-180, -85, 180, 85]
 
-    if (!mapBounds) {
-      return clusterIndex.getClusters(worldBounds, zoom) as ClusterResult[]
-    }
+    if (!mapBounds) return clusterIndex.getClusters(worldBounds, zoom) as ClusterResult[]
 
     const north = Math.min(85, mapBounds.north)
     const south = Math.max(-85, mapBounds.south)
@@ -238,193 +155,84 @@ export default function SatelliteClimbingMap({
     return [...westClusters, ...eastClusters]
   }, [clusterIndex, mapBounds, mapZoom, pinFeatures])
 
-  useEffect(() => {
-    import('leaflet').then(Lib => {
-      setLeaflet(Lib)
-      setupLeafletIcons(Lib)
-    })
-  }, [])
+  const pinsGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
+    type: 'FeatureCollection',
+    features: clusteredPlaces.flatMap((feature) => {
+      if (isClusterFeature(feature)) return []
+      const place = feature.properties
+      return [{
+        type: 'Feature' as const,
+        geometry: feature.geometry,
+        properties: {
+          id: place.id,
+          selectId: place.id,
+          label: '',
+          placeType: place.type,
+          interactive: true,
+        },
+      }]
+    }),
+  }), [clusteredPlaces])
 
-  const loadPlacePins = useCallback(async () => {
-    if (!isClient || initialPlacePins.length > 0) {
-      if (initialPlacePins.length > 0) {
-        setPinLoadState('ready')
-      }
-      return
-    }
+  const clustersGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
+    type: 'FeatureCollection',
+    features: clusteredPlaces.flatMap((feature) => {
+      if (!isClusterFeature(feature)) return []
+      return [{
+        type: 'Feature' as const,
+        geometry: feature.geometry,
+        properties: {
+          clusterId: feature.properties.cluster_id,
+          pointCount: feature.properties.point_count,
+          expansionZoom: clusterIndex ? Math.min(clusterIndex.getClusterExpansionZoom(feature.properties.cluster_id), 17) : 17,
+        },
+      }]
+    }),
+  }), [clusterIndex, clusteredPlaces])
 
-    try {
-      setPinLoadState('loading')
-      const pinsResponse = await fetch('/api/crags/pins')
-      if (!pinsResponse.ok) {
-        reportError(new Error('Error fetching place pins'), { message: 'Error fetching place pins', extra: { status: pinsResponse.status } })
-        setPlacePins([])
-        setPinLoadState('error')
-        return
-      }
-
-      const { pins: apiPins } = await pinsResponse.json()
-      setPlacePins((apiPins || []) as PlacePin[])
-      setPinLoadState('ready')
-    } catch (err) {
-      reportError(err instanceof Error ? err : new Error('Error loading place pins'), { message: 'Error loading place pins' })
-      setPlacePins([])
-      setPinLoadState('error')
-    }
-  }, [initialPlacePins.length, isClient])
-
-  useEffect(() => {
-    if (!isClient || !mapLoaded) return
-    return runWhenIdle(() => {
-      void loadPlacePins()
-    }, 150)
-  }, [isClient, loadPlacePins, mapLoaded])
-
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-
-  useEffect(() => {
-      if (!mapRef.current || !mapLoaded) return
-
-      if (isPinsOnlyOfflineMode && pinFeatures.length > 0) {
-        const bounds = pinFeatures.map((feature) => {
-          const [longitude, latitude] = feature.geometry.coordinates
-          return [latitude, longitude] as [number, number]
-        })
-
-        mapRef.current.fitBounds(bounds, {
-          padding: [32, 32],
-          maxZoom: 12,
-        })
-        return
-      }
-
-      mapRef.current.setView(WORLD_DEFAULT_VIEW, WORLD_DEFAULT_ZOOM)
-    }, [mapLoaded, isPinsOnlyOfflineMode, pinFeatures])
+  const placesById = useMemo(() => new Map(placePins.map((place) => [place.id, place])), [placePins])
 
   return (
-    <div className="h-screen w-full relative">
-      {isPinsOnlyOfflineMode ? <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(71,85,105,0.32),_transparent_48%),linear-gradient(180deg,_#020617_0%,_#0f172a_100%)]" /> : null}
-      <MapContainer
-        ref={mapRef as RefObject<L.Map>}
-        center={WORLD_DEFAULT_VIEW}
+    <div className="relative h-screen w-full">
+      {isOffline ? <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(71,85,105,0.32),_transparent_48%),linear-gradient(180deg,_#020617_0%,_#0f172a_100%)]" /> : null}
+      <MapLibreVectorMap
+        center={WORLD_DEFAULT_CENTER}
         zoom={WORLD_DEFAULT_ZOOM}
         minZoom={2}
         maxZoom={19}
-        maxBounds={[[-90, -180], [90, 180]]}
-        style={{ height: '100%', width: '100%' }}
-        preferCanvas={true}
-        zoomControl={false}
-        scrollWheelZoom={true}
-        worldCopyJump={false}
-        whenReady={() => {
+        fitBounds={offlineFitBounds}
+        pinsGeoJson={pinsGeoJson}
+        clustersGeoJson={clustersGeoJson}
+        offline={isOffline}
+        className="h-full w-full"
+        onReady={() => {
           setMapLoaded(true)
           onReady?.()
         }}
-      >
-        <MapStateWatcher onStateChange={handleMapStateChange} />
-        <MapInteractionWatcher onInteract={() => {}} onClearSelection={() => setSelectedPinId(null)} />
-        {!isPinsOnlyOfflineMode ? <TileLayer
-          url={baseLayer.imageryUrl}
-          attribution={baseLayer.imageryAttribution}
-          maxZoom={19}
-        /> : null}
-        {!isPinsOnlyOfflineMode && baseLayer.labelsUrl ? (
-          <TileLayer
-            url={baseLayer.labelsUrl}
-            attribution={baseLayer.labelsAttribution || undefined}
-            maxZoom={19}
-          />
-        ) : null}
-
-        {leaflet && clusteredPlaces.map((feature) => {
-          const [longitude, latitude] = feature.geometry.coordinates
-
-          if (!isClusterFeature(feature)) {
-            const place = feature.properties
-            const isGym = place.type === 'gym'
-            const isSelected = selectedPinId === place.id
-            return (
-              <Marker
-                key={place.id}
-                position={[latitude, longitude]}
-                icon={leaflet.divIcon({
-                  className: isGym ? 'gym-pin' : 'crag-pin',
-                  html: `<div style="position:relative;width:20px;height:20px;pointer-events:none;overflow:visible;">
-                    <div style="position:absolute;left:50%;top:50%;transform:translate(-50%, -50%);">
-                      <div class="place-dot ${isGym ? 'gym-dot' : 'crag-dot'}"></div>
-                    </div>
-                    <div style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);padding:4px 8px;border-radius:9999px;background:rgba(15,23,42,0.9);color:white;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 12px rgba(15,23,42,0.28);opacity:${isSelected ? 1 : 0};transition:opacity 150ms ease;">${escapeHtml(place.name)}</div>
-                  </div>`,
-                  iconSize: [20, 20],
-                  iconAnchor: [10, 10]
-                })}
-                bubblingMouseEvents={false}
-                zIndexOffset={1000}
-                eventHandlers={{
-                  mousedown: (event) => {
-                    event.originalEvent?.stopPropagation()
-                  },
-                  click: (event) => {
-                    event.originalEvent?.stopPropagation()
-                    if (isSelected) {
-                      navigateToPlace(router, place)
-                    } else {
-                      setSelectedPinId(place.id)
-                    }
-                  },
-                }}
-              >
-              </Marker>
-            )
-          }
-
-          return (
-            <Marker
-              key={`cluster-${feature.properties.cluster_id}`}
-              position={[latitude, longitude]}
-              icon={leaflet.divIcon({
-                className: 'crag-cluster-wrapper',
-                html: `<div class="crag-cluster-pin">${feature.properties.point_count}</div>`,
-                iconSize: [36, 36],
-                iconAnchor: [18, 18]
-              })}
-              zIndexOffset={1200}
-              eventHandlers={{
-                click: () => {
-                  if (!mapRef.current) return
-                    if (!clusterIndex) return
-                    const expansionZoom = Math.min(clusterIndex.getClusterExpansionZoom(feature.properties.cluster_id), 17)
-                  mapRef.current.setView([latitude, longitude], expansionZoom, {
-                    animate: true,
-                    duration: 0.5
-                  })
-                }
-              }}
-            />
-          )
-        })}
-      </MapContainer>
+        onViewportChange={handleMapStateChange}
+        onPinSelect={(id) => {
+          const place = placesById.get(id)
+          if (place) navigateToPlace(router, place)
+        }}
+      />
       <div className="pointer-events-none absolute bottom-6 left-4 z-[1000] space-y-2 md:left-6">
-        {isPinsOnlyOfflineMode && pinLoadState === 'ready' && (
+        {isOffline && pinLoadState === 'ready' ? (
           <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
             Offline: showing saved pins only.
           </div>
-        )}
-        {pinLoadState === 'loading' && (
+        ) : null}
+        {pinLoadState === 'loading' ? (
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
             <Loader2 className="size-3.5 animate-spin" />
             Loading crags...
           </div>
-        )}
-        {pinLoadState === 'error' && (
+        ) : null}
+        {pinLoadState === 'error' ? (
           <div className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 shadow-lg backdrop-blur-md">
             Couldn&apos;t load map pins. Header search still works.
           </div>
-        )}
+        ) : null}
       </div>
-
     </div>
   )
 }

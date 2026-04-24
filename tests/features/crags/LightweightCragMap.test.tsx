@@ -1,58 +1,34 @@
-import { render, waitFor } from '@testing-library/react'
+import { fireEvent, render, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import LightweightCragMap from '@/components/LightweightCragMap'
 
-vi.mock('leaflet', () => ({
-  latLngBounds: vi.fn(() => ({
-    pad: vi.fn(() => 'mock-bounds'),
-  })),
-  divIcon: vi.fn((options: unknown) => options),
-}))
-
-vi.mock('next/dynamic', () => ({
-  default: (loader: () => Promise<unknown>) => {
-    void loader
-    return function MockDynamicComponent(props: Record<string, unknown>) {
-      return <div data-testid="dynamic-node" {...props} />
-    }
+vi.mock('@/components/map/MapLibreVectorMap', () => ({
+  default: (props: {
+    pinsGeoJson: GeoJSON.FeatureCollection<GeoJSON.Point>
+    onReady?: () => void
+    onPinSelect?: (id: string) => void
+  }) => {
+    window.setTimeout(() => props.onReady?.(), 0)
+    const firstPinId = props.pinsGeoJson.features[0]?.properties?.selectId as string | undefined
+    return (
+      <button
+        type="button"
+        data-testid="mock-maplibre-map"
+        data-pin-count={props.pinsGeoJson.features.length}
+        onClick={() => firstPinId ? props.onPinSelect?.(firstPinId) : undefined}
+      />
+    )
   },
-}))
-
-vi.mock('react-leaflet', async () => {
-  const Marker = ({ children }: { children?: unknown }) => <div data-testid="mock-marker">{children as string | number | boolean | null | undefined}</div>
-  const TileLayer = () => <div data-testid="mock-tile-layer" />
-  const ZoomControl = () => <div data-testid="mock-zoom-control" />
-  const MapContainer = () => <div data-testid="mock-map-container" />
-  const useMapEvents = () => ({
-    getBounds: () => ({
-      getNorth: () => 0,
-      getSouth: () => 0,
-      getEast: () => 0,
-      getWest: () => 0,
-    }),
-    getZoom: () => 15,
-  })
-
-  return { MapContainer, Marker, TileLayer, ZoomControl, useMapEvents }
-})
-
-vi.mock('@/lib/map/base-layer', () => ({
-  getMapBaseLayerConfig: () => ({
-    imageryUrl: 'https://example.com/tiles/{z}/{x}/{y}.png',
-    imageryAttribution: 'Example',
-    labelsUrl: null,
-    labelsAttribution: null,
-    mode: 'satellite',
-  }),
 }))
 
 vi.mock('@/lib/map/place-pins', () => ({
   buildPinFeatures: (pins: Array<{ id: string; latitude: number; longitude: number; name: string }>) => pins.map((pin) => ({
-    geometry: { coordinates: [pin.longitude, pin.latitude] },
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [pin.longitude, pin.latitude] },
     properties: { cluster: false, id: pin.id, name: pin.name },
   })),
-  isClusterFeature: () => false,
+  isClusterFeature: (feature: { properties: { cluster?: boolean } }) => feature.properties.cluster === true,
 }))
 
 describe('LightweightCragMap', () => {
@@ -104,28 +80,34 @@ describe('LightweightCragMap', () => {
     expect(wrapper?.className).toContain('ring-1')
   })
 
-  it('shows a loading state before the interactive map is mounted', () => {
-    const { container, queryAllByTestId } = render(
+  it('shows a loading state before the vector map is ready', () => {
+    const { container } = render(
       <LightweightCragMap pins={pins} initialCenter={[48.85, 2.35]} />
     )
 
     expect(container.querySelector('[data-testid="map-loading-state"]')).not.toBeNull()
     expect(container.querySelector('.lightweight-crag-map')).not.toBeNull()
-    expect(queryAllByTestId('mock-marker')).toHaveLength(0)
   })
 
-  it('renders the interactive map once leaflet loads', async () => {
-    const { container, queryAllByTestId } = render(
+  it('renders the interactive vector map after map init', async () => {
+    const { container, getByTestId } = render(
       <LightweightCragMap pins={pins} initialCenter={[48.85, 2.35]} />
     )
 
-    await vi.dynamicImportSettled()
     await waitFor(() => {
-      expect(container.querySelector('[data-testid="dynamic-node"]')).not.toBeNull()
+      expect(container.querySelector('[data-testid="map-loading-state"]')).toBeNull()
     })
+    expect(getByTestId('mock-maplibre-map')).toHaveAttribute('data-pin-count', '1')
+  })
 
-    expect(container.querySelector('[data-testid="map-loading-state"]')).toBeNull()
-    expect(container.querySelector('[data-testid="dynamic-node"]')).not.toBeNull()
-    expect(queryAllByTestId('mock-marker')).toHaveLength(0)
+  it('selects the primary image id when a pin is clicked', async () => {
+    const onPinSelect = vi.fn()
+    const { getByTestId } = render(
+      <LightweightCragMap pins={pins} initialCenter={[48.85, 2.35]} onPinSelect={onPinSelect} />
+    )
+
+    fireEvent.click(getByTestId('mock-maplibre-map'))
+
+    expect(onPinSelect).toHaveBeenCalledWith('image-1')
   })
 })

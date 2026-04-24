@@ -127,12 +127,12 @@ User notifications. Requires authentication. Uses CSRF protection.
 
 ### offline-tiles
 
-Offline map tile serving. No authentication or CSRF protection. Public tile data.
+Legacy offline raster tile serving. No authentication or CSRF protection. Public tile data. This route is not live map infrastructure; live maps use MapLibre + PMTiles from the static CDN.
 
 - `offline-tiles/[layer]/[z]/[x]/[y]` — layered offline tile proxy for saved map coverage
 - Supported `layer` values:
   - `imagery`
-  - `labels`
+  - `labels` optional; tile manifests default to imagery-only unless labels are explicitly requested
 
 ### places
 

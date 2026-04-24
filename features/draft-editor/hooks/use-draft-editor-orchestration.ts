@@ -125,7 +125,7 @@ export function useDraftEditorOrchestration({
 
   const { shareOpen, setShareOpen, loadingCollaborators, collaborators, activeInvites, creatingInvite, revokingInviteId, removingCollaboratorId, latestInviteUrl, loadCollaborators, handleCreateInvite, handleCopyInvite, handleRevokeInvite, handleRemoveCollaborator } = useDraftCollaborators(draftId, isOwner, addToast, setError)
   const collaborationAdded = false
-  const { currentUserId, leaflet } = useEditDraftHydration({
+  const { currentUserId } = useEditDraftHydration({
     collaborationAdded,
     activeImageId,
     loadCollaborators,
@@ -232,8 +232,7 @@ export function useDraftEditorOrchestration({
 
   const {
     activeImageCustomPosition,
-    handleMapClick,
-    handleMarkerDragEnd,
+    handleMapPositionChange,
     handleSearchLocation,
     flushLocationSync,
   } = useEditDraftLocationSync({
@@ -472,8 +471,7 @@ export function useDraftEditorOrchestration({
       effectiveMarkerPosition,
       effectivePublishLocation,
       hasValidLocation,
-      handleMapClick,
-      handleMarkerDragEnd,
+      handleMapPositionChange,
       handleSearchLocation,
     },
     canvas: {
@@ -529,7 +527,6 @@ export function useDraftEditorOrchestration({
       isOwner,
       publishedCragPins,
       currentUserId,
-      leaflet,
     },
     merged: {
       mergedCragCanvasImages,

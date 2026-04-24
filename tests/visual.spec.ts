@@ -28,7 +28,7 @@ test.describe('Visual - Key Element Checks', () => {
     
     await page.goto('/')
 
-    await expect(page.locator('.leaflet-container').first()).toBeVisible({ timeout: 20000 })
+    await expect(page.locator('.maplibregl-map').first()).toBeVisible({ timeout: 20000 })
     
     const criticalErrors = errors.filter(e => 
       !e.includes('favicon') && 

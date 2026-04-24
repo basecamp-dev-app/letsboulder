@@ -1,35 +1,13 @@
 'use client'
 
 import { MapPin } from 'lucide-react'
-import dynamic from 'next/dynamic'
-import { useMapEvents } from 'react-leaflet'
-import type { LeafletMouseEvent, LeafletEvent } from 'leaflet'
-import { useEffect } from 'react'
+import MapLibreLocationPicker from '@/components/map/MapLibreLocationPicker'
 import AtlasContextCard from '@/features/submissions/components/AtlasContextCard'
 import { parseOptionalCoordinate } from '@/features/submissions/lib/location-metadata'
 import CragSelector from '@/features/submissions/components/CragSelector'
 import SectorSelector from '@/features/submissions/components/SectorSelector'
 import { LocationSearchBar } from '@/features/submissions/components/editor/LocationSearchBar'
 import type { AtlasAutoSyncResult } from '@/features/submissions/editor/location/use-atlas-auto-sync'
-
-const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
-
-function MapClickHandler({ onClick }: { onClick: (event: LeafletMouseEvent) => void }) {
-  useMapEvents({ click: onClick })
-  return null
-}
-
-function MapRecenter({ position }: { position: [number, number] | null }) {
-  const map = useMapEvents({})
-  useEffect(() => {
-    if (position) {
-      map.setView(position, Math.max(map.getZoom(), 14))
-    }
-  }, [map, position])
-  return null
-}
 
 interface DraftMetadataPanelProps {
   atlasSync: AtlasAutoSyncResult
@@ -44,7 +22,6 @@ interface DraftMetadataPanelProps {
   customGpsByImageId: Record<string, { latitude: number | null; longitude: number | null }>
   effectiveMarkerPosition: [number, number] | null
   mapOpen: boolean
-  leaflet: typeof import('leaflet') | null
   searchQuery: string
   searchingLocation: boolean
   locationSearchError: string | null
@@ -57,8 +34,7 @@ interface DraftMetadataPanelProps {
   onLatitudeChange: (value: string) => void
   onLongitudeChange: (value: string) => void
   onCustomGpsChange: (imageId: string, gps: { latitude: number | null; longitude: number | null }) => void
-  onMapClick: (event: LeafletMouseEvent) => void
-  onMarkerDragEnd: (event: LeafletEvent) => void
+  onMapPositionChange: (position: { latitude: number; longitude: number }) => void
   onMapOpenChange: (open: boolean) => void
   onSearchQueryChange: (value: string) => void
   onSearchLocation: () => void
@@ -78,7 +54,6 @@ export function DraftMetadataPanel({
   customGpsByImageId,
   effectiveMarkerPosition,
   mapOpen,
-  leaflet,
   searchQuery,
   searchingLocation,
   locationSearchError,
@@ -91,8 +66,7 @@ export function DraftMetadataPanel({
   onLatitudeChange,
   onLongitudeChange,
   onCustomGpsChange,
-  onMapClick,
-  onMarkerDragEnd,
+  onMapPositionChange,
   onMapOpenChange,
   onSearchQueryChange,
   onSearchLocation,
@@ -257,36 +231,11 @@ export function DraftMetadataPanel({
                 </button>
               </div>
               <div className="h-72 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-                <MapContainer
-                  center={effectiveMarkerPosition || [20, 0]}
-                  zoom={effectiveMarkerPosition ? 14 : 2}
-                  style={{ height: '100%', width: '100%' }}
-                >
-                  <MapRecenter position={effectiveMarkerPosition} />
-                  <MapClickHandler onClick={onMapClick} />
-                  <TileLayer
-                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    attribution="Imagery © Esri"
-                    maxZoom={19}
-                  />
-                  <TileLayer
-                    url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-                    attribution="Labels © Esri"
-                    maxZoom={19}
-                  />
-                  {effectiveMarkerPosition && leaflet ? (
-                    <Marker
-                      position={effectiveMarkerPosition}
-                      draggable={true}
-                      icon={leaflet.divIcon({
-                        className: 'location-marker',
-                        iconSize: [20, 20],
-                        iconAnchor: [10, 10],
-                      })}
-                      eventHandlers={{ dragend: onMarkerDragEnd }}
-                    />
-                  ) : null}
-                </MapContainer>
+                <MapLibreLocationPicker
+                  value={effectiveMarkerPosition ? { latitude: effectiveMarkerPosition[0], longitude: effectiveMarkerPosition[1] } : null}
+                  className="h-full w-full"
+                  onChange={onMapPositionChange}
+                />
               </div>
             </div>
           ) : (

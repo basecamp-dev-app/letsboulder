@@ -45,10 +45,11 @@ export function buildOfflineTileUrl(z: number, x: number, y: number, layer: 'ima
   return `/api/offline-tiles/${layer}/${z}/${x}/${y}`
 }
 
-export function buildTileManifestForPins(pins: OfflineMapPin[]): OfflineTileManifest | null {
+export function buildTileManifestForPins(pins: OfflineMapPin[], options?: { includeLabels?: boolean }): OfflineTileManifest | null {
   const validPins = pins.filter(isValidOfflineMapPin)
   if (validPins.length === 0) return null
 
+  const includeLabels = options?.includeLabels === true
   const imageryTileUrls = new Set<string>()
   const labelsTileUrls = new Set<string>()
 
@@ -67,14 +68,15 @@ export function buildTileManifestForPins(pins: OfflineMapPin[]): OfflineTileMani
       return null
     }
 
-    if (imageryTileUrls.size + labelsTileUrls.size + tileCountForZoom * 2 > MAX_TOTAL_TILES) {
+    const tileCountMultiplier = includeLabels ? 2 : 1
+    if (imageryTileUrls.size + labelsTileUrls.size + tileCountForZoom * tileCountMultiplier > MAX_TOTAL_TILES) {
       return null
     }
 
     for (let x = minX; x <= maxX; x += 1) {
       for (let y = minY; y <= maxY; y += 1) {
         imageryTileUrls.add(buildOfflineTileUrl(zoom, x, y, 'imagery'))
-        labelsTileUrls.add(buildOfflineTileUrl(zoom, x, y, 'labels'))
+        if (includeLabels) labelsTileUrls.add(buildOfflineTileUrl(zoom, x, y, 'labels'))
       }
     }
   }

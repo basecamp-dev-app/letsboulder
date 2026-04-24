@@ -266,23 +266,31 @@ if (!moderation.enabled) {
 
 ---
 
-## 7. Service Worker / Degraded Maps
+## 7. Vector Maps / Offline Fallback
 
 ### Pattern
 - Keep the service worker focused on shell/static asset resilience.
-- Prefer degraded map coverage via app-owned tile routes instead of assuming upstream imagery is always reachable.
+- Use MapLibre + PMTiles as the foundation for all live maps, picker maps, and static location snippets.
+- Serve the versioned PMTiles archive from `static.letsboulder.com/maps/v*/planet.pmtiles` through Cloudflare R2/CDN.
+- Do not add live third-party raster basemaps, satellite toggles, or separate raster label layers by default.
+- Fall back to pins-only degraded maps when the browser is offline unless the PMTiles archive or regional extracts are explicitly cached.
 
 ### Key Files
 - `public/sw.js` — service worker for shell/static asset resilience
-- `lib/offline/tiles.ts` — layered tile URL helpers for degraded map coverage
-- `lib/map/base-layer.ts` — shared resolver for online satellite vs degraded basemap
+- `components/map/MapLibreVectorMap.tsx` — shared MapLibre primitive for live vector maps
+- `components/map/MapLibreLocationPicker.tsx` — shared click/drag location picker map
+- `components/map/MapLibreStaticLocationMap.tsx` — shared non-interactive location snippet map
+- `lib/map/vector-map-config.ts` — shared resolver for PMTiles vs pins-only fallback
+- `lib/map/maplibre-style.ts` — PMTiles-compatible MapLibre style
+- `lib/offline/tiles.ts` — legacy raster tile URL helpers for saved offline coverage
 - `lib/query-persistence.ts` — React Query IndexedDB persistence (12h max age)
 
 ### Known Edge Cases
 - **Cache invalidation:** Use versioned cache names so shell/build assets rotate cleanly across deploys.
 - **Network-first routes:** App navigations should stay network-first; cached shell/assets are fallback infrastructure, not primary content.
-- **Degraded basemap:** Keep the same map UI while swapping the base layer to app-owned tile routes (`imagery` + `labels`) when network quality drops.
-- **OSM compliance:** Browser fetch cannot reliably override `User-Agent`; handle provider compliance server-side and consider a self-hosted tile server or packaged basemap for production scale.
+- **PMTiles schema:** MapLibre source-layer names must match the generated PMTiles archive. Keep schema-specific layer names isolated in `lib/map/maplibre-style.ts`.
+- **Range/CORS:** The CDN path must support HTTP range requests, long immutable cache headers, and CORS for the app origin.
+- **Offline maps:** Legacy `/api/offline-tiles` coverage is separate from the vector map foundation. Labels are optional and default off in tile manifests.
 
 ---
 

@@ -1,14 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import dynamic from 'next/dynamic'
-import 'leaflet/dist/leaflet.css'
-import { useMapEvents } from 'react-leaflet'
+import { useMemo, useState } from 'react'
 import { Loader2, Search } from 'lucide-react'
-
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+import MapLibreLocationPicker from '@/components/map/MapLibreLocationPicker'
 
 interface AdminGymLocationPickerProps {
   value: { latitude: number; longitude: number } | null
@@ -22,46 +16,11 @@ interface LocationSearchResult {
   display_name: string
 }
 
-function MapClickHandler({ onClick }: { onClick: (event: import('leaflet').LeafletMouseEvent) => void }) {
-  useMapEvents({ click: onClick })
-  return null
-}
-
-function MapRecenter({ position }: { position: [number, number] | null }) {
-  const map = useMapEvents({})
-
-  useEffect(() => {
-    if (!position) return
-    map.setView(position, Math.max(map.getZoom(), 14))
-  }, [map, position])
-
-  return null
-}
-
 export default function AdminGymLocationPicker({ value, onChange }: AdminGymLocationPickerProps) {
-  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<LocationSearchResult[]>([])
   const [searchError, setSearchError] = useState<string | null>(null)
-
-  useEffect(() => {
-    import('leaflet').then(lib => setLeaflet(lib))
-  }, [])
-
-  const handleMapClick = useCallback((event: import('leaflet').LeafletMouseEvent) => {
-    onChange({ latitude: event.latlng.lat, longitude: event.latlng.lng })
-  }, [onChange])
-
-  const handleDragEnd = useCallback((event: import('leaflet').LeafletEvent) => {
-    const target = event.target as import('leaflet').Marker
-    const latLng = target.getLatLng()
-    onChange({ latitude: latLng.lat, longitude: latLng.lng })
-  }, [onChange])
-
-  const markerPosition: [number, number] | null = value ? [value.latitude, value.longitude] : null
-  const defaultCenter: [number, number] = markerPosition || [54.5, -2.5]
-  const defaultZoom = markerPosition ? 14 : 6
 
   const canSearch = useMemo(() => query.trim().length >= 2, [query])
 
@@ -152,32 +111,13 @@ export default function AdminGymLocationPicker({ value, onChange }: AdminGymLoca
       </div>
 
       <div className="h-72 overflow-hidden rounded-lg border border-gray-700 bg-gray-950">
-        <MapContainer center={defaultCenter} zoom={defaultZoom} style={{ height: '100%', width: '100%' }}>
-          <MapRecenter position={markerPosition} />
-          <MapClickHandler onClick={handleMapClick} />
-          <TileLayer
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            attribution="Imagery © Esri"
-            maxZoom={19}
-          />
-          <TileLayer
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-            attribution="Labels © Esri"
-            maxZoom={19}
-          />
-          {markerPosition && leaflet ? (
-            <Marker
-              position={markerPosition}
-              draggable={true}
-              icon={leaflet.divIcon({
-                className: 'location-marker',
-                iconSize: [20, 20],
-                iconAnchor: [10, 10],
-              })}
-              eventHandlers={{ dragend: handleDragEnd }}
-            />
-          ) : null}
-        </MapContainer>
+        <MapLibreLocationPicker
+          value={value}
+          defaultCenter={{ latitude: 54.5, longitude: -2.5 }}
+          defaultZoom={6}
+          className="h-full w-full"
+          onChange={onChange}
+        />
       </div>
 
       <p className="text-xs text-gray-400">

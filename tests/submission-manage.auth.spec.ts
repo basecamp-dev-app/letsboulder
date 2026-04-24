@@ -59,7 +59,7 @@ async function submitSingleRoute(page: Page, routeName: string) {
   await expect(page.getByRole('heading', { name: 'Set Route Location' })).toBeVisible({ timeout: 30000 })
   const confirmLocationButton = page.getByRole('button', { name: /Confirm Location|Place Location/i })
   if (await confirmLocationButton.isDisabled()) {
-    await page.locator('.leaflet-container').first().click({ position: { x: 180, y: 150 } })
+    await page.locator('.maplibregl-map').first().click({ position: { x: 180, y: 150 } })
   }
   await confirmLocationButton.click()
 

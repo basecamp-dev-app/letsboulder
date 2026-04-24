@@ -1,16 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import dynamic from 'next/dynamic'
 import Image from 'next/image'
-import 'leaflet/dist/leaflet.css'
+import MapLibreStaticLocationMap from '@/components/map/MapLibreStaticLocationMap'
 import { FACE_DIRECTIONS, type FaceDirection, type FaceDirectionsByImage, type GpsData } from '@/types/domain'
 import type { NewUploadedImage } from '@/features/submissions/lib/submission-types'
-import { Skeleton } from '@/components/ui/skeleton'
-
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 
 interface FaceDirectionPickerProps {
   gps: GpsData | null
@@ -34,8 +28,6 @@ const FACE_DIRECTION_DEGREES: Record<FaceDirection, number> = {
 export default function FaceDirectionPicker({ gps, images, activeImageIndex, initialFaceDirectionsByImage = {}, onConfirm }: FaceDirectionPickerProps) {
   const [orientationsByImage, setOrientationsByImage] = useState<FaceDirectionsByImage>(() => initialFaceDirectionsByImage)
   const [currentImageIndex, setCurrentImageIndex] = useState(() => Math.max(0, activeImageIndex))
-  const [isClient, setIsClient] = useState(false)
-  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
 
   const hasBatchImages = images.length > 0
   const maxImageIndex = hasBatchImages ? images.length - 1 : 0
@@ -43,19 +35,12 @@ export default function FaceDirectionPicker({ gps, images, activeImageIndex, ini
   const currentFaceDirections = orientationsByImage[clampedCurrentImageIndex] || []
 
   useEffect(() => {
-    setIsClient(true)
-  }, [])
-
-  useEffect(() => {
-    import('leaflet').then(Lib => {
-      setLeaflet(Lib)
-    })
-  }, [])
-
-  useEffect(() => {
     const clampedActiveIndex = Math.min(Math.max(activeImageIndex, 0), maxImageIndex)
-    setCurrentImageIndex(clampedActiveIndex)
-    setOrientationsByImage(initialFaceDirectionsByImage)
+    const timeoutId = window.setTimeout(() => {
+      setCurrentImageIndex(clampedActiveIndex)
+      setOrientationsByImage(initialFaceDirectionsByImage)
+    }, 0)
+    return () => window.clearTimeout(timeoutId)
   }, [activeImageIndex, initialFaceDirectionsByImage, maxImageIndex])
 
   const handleConfirm = () => {
@@ -115,20 +100,6 @@ export default function FaceDirectionPicker({ gps, images, activeImageIndex, ini
     if (nextImageIndex !== null) {
       setCurrentImageIndex(nextImageIndex)
     }
-  }
-
-  if (!isClient) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-32 w-full rounded-lg" />
-        <div className="grid grid-cols-4 gap-2">
-          {Array.from({ length: 8 }).map((_, index) => (
-            <Skeleton key={index} className="h-10 w-full rounded-lg" />
-          ))}
-        </div>
-        <Skeleton className="h-10 w-full rounded-lg" />
-      </div>
-    )
   }
 
   return (
@@ -191,35 +162,7 @@ export default function FaceDirectionPicker({ gps, images, activeImageIndex, ini
 
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-100 dark:bg-gray-800 relative h-52">
         {gps ? (
-          <MapContainer
-            center={[gps.latitude, gps.longitude]}
-            zoom={16}
-            zoomControl={false}
-            dragging={false}
-            scrollWheelZoom={false}
-            doubleClickZoom={false}
-            touchZoom={false}
-            keyboard={false}
-            attributionControl={false}
-            className="z-0"
-            style={{ height: '100%', width: '100%' }}
-          >
-            <TileLayer
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              attribution='Tiles © Esri'
-              maxZoom={19}
-            />
-            {leaflet && (
-              <Marker
-                position={[gps.latitude, gps.longitude]}
-                icon={leaflet.divIcon({
-                  className: 'location-marker',
-                  iconSize: [16, 16],
-                  iconAnchor: [8, 8]
-                })}
-              />
-            )}
-          </MapContainer>
+          <MapLibreStaticLocationMap point={gps} zoom={16} className="h-full w-full" />
         ) : (
           <div className="h-full flex items-center justify-center text-xs text-gray-500 dark:text-gray-400 px-3 text-center">
             Missing location. Go back and place a pin first.
