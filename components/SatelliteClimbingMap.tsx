@@ -2,7 +2,7 @@
 
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 
 import MapLibreVectorMap, { type MapBounds, type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
 import { reportError } from '@/lib/errors'
@@ -22,6 +22,11 @@ function navigateToPlace(router: ReturnType<typeof useRouter>, place: Pick<Place
   startTransition(() => {
     router.push(buildPlaceHref(place))
   })
+}
+
+function formatCount(count: number | null, singular: string, plural: string) {
+  if (!count) return null
+  return `${count} ${count === 1 ? singular : plural}`
 }
 
 function buildFitBounds(features: PinFeature[]): MapLibreFitBounds | null {
@@ -51,6 +56,7 @@ export default function SatelliteClimbingMap({
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [isOffline, setIsOffline] = useState(false)
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
 
   const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
   const offlineFitBounds = useMemo(() => isOffline ? buildFitBounds(pinFeatures) : null, [isOffline, pinFeatures])
@@ -155,6 +161,9 @@ export default function SatelliteClimbingMap({
     return [...westClusters, ...eastClusters]
   }, [clusterIndex, mapBounds, mapZoom, pinFeatures])
 
+  const placesById = useMemo(() => new Map(placePins.map((place) => [place.id, place])), [placePins])
+  const selectedPlace = selectedPlaceId ? placesById.get(selectedPlaceId) || null : null
+
   const pinsGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
     type: 'FeatureCollection',
     features: clusteredPlaces.flatMap((feature) => {
@@ -167,12 +176,13 @@ export default function SatelliteClimbingMap({
           id: place.id,
           selectId: place.id,
           label: '',
+          active: place.id === selectedPlaceId,
           placeType: place.type,
           interactive: true,
         },
       }]
     }),
-  }), [clusteredPlaces])
+  }), [clusteredPlaces, selectedPlaceId])
 
   const clustersGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
     type: 'FeatureCollection',
@@ -189,8 +199,6 @@ export default function SatelliteClimbingMap({
       }]
     }),
   }), [clusterIndex, clusteredPlaces])
-
-  const placesById = useMemo(() => new Map(placePins.map((place) => [place.id, place])), [placePins])
 
   return (
     <div className="relative h-screen w-full">
@@ -211,10 +219,47 @@ export default function SatelliteClimbingMap({
         }}
         onViewportChange={handleMapStateChange}
         onPinSelect={(id) => {
-          const place = placesById.get(id)
-          if (place) navigateToPlace(router, place)
+          if (placesById.has(id)) setSelectedPlaceId(id)
         }}
       />
+      {selectedPlace ? (
+        <div className="absolute inset-x-4 bottom-6 z-[1001] md:inset-x-auto md:left-6 md:w-[22rem]">
+          <div className="overflow-hidden rounded-3xl border border-white/70 bg-white/95 text-stone-950 shadow-2xl shadow-slate-950/20 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/92 dark:text-white">
+            <div className="flex items-start justify-between gap-3 px-4 pt-4">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+                  {selectedPlace.type === 'gym' ? 'Gym' : 'Crag'}{selectedPlace.country_code ? ` · ${selectedPlace.country_code.toUpperCase()}` : ''}
+                </p>
+                <h2 className="mt-1 truncate text-lg font-black tracking-tight">{selectedPlace.name}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPlaceId(null)}
+                className="rounded-full border border-stone-200 bg-white p-2 text-stone-500 shadow-sm transition hover:bg-stone-100 hover:text-stone-900 dark:border-white/10 dark:bg-white/10 dark:text-white/70 dark:hover:bg-white/15 dark:hover:text-white"
+                aria-label="Close selected place"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="px-4 pb-4 pt-3">
+              <div className="mb-4 flex flex-wrap gap-2 text-xs font-semibold text-stone-600 dark:text-white/65">
+                {[formatCount(selectedPlace.route_count, 'route', 'routes'), formatCount(selectedPlace.image_count, 'image', 'images')]
+                  .filter((label): label is string => Boolean(label))
+                  .map((label) => (
+                    <span key={label} className="rounded-full bg-stone-100 px-2.5 py-1 dark:bg-white/10">{label}</span>
+                  ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => navigateToPlace(router, selectedPlace)}
+                className="w-full rounded-2xl bg-stone-950 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-stone-800 dark:bg-amber-300 dark:text-slate-950 dark:hover:bg-amber-200"
+              >
+                View {selectedPlace.type === 'gym' ? 'gym' : 'crag'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="pointer-events-none absolute bottom-6 left-4 z-[1000] space-y-2 md:left-6">
         {isOffline && pinLoadState === 'ready' ? (
           <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
