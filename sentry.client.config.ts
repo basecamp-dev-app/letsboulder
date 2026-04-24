@@ -14,10 +14,7 @@ function isReplayAllowed(pathname: string): boolean {
   return (
     pathname === '/' ||
     pathname.startsWith('/crag') ||
-    pathname.startsWith('/climb') ||
-    pathname.startsWith('/bouldering-map') ||
-    pathname.startsWith('/climbing-map') ||
-    pathname.startsWith('/rock-climbing-map')
+    pathname.startsWith('/climb')
   )
 }
 
