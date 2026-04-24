@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import useEmblaCarousel from 'embla-carousel-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -78,18 +79,18 @@ export default function FaceSwipeGallery({ faces, isOwner }: FaceSwipeGalleryPro
           onClick={scrollPrev}
           disabled={!canScrollPrev}
           aria-label="Previous face"
-          className="absolute left-2 top-1/2 z-20 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white transition disabled:cursor-not-allowed disabled:opacity-35 md:flex"
+          className="absolute left-2 top-1/2 z-20 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white transition disabled:cursor-not-allowed disabled:opacity-35"
         >
-          {'<'}
+          <ChevronLeft className="h-4 w-4" />
         </button>
         <button
           type="button"
           onClick={scrollNext}
           disabled={!canScrollNext}
           aria-label="Next face"
-          className="absolute right-2 top-1/2 z-20 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white transition disabled:cursor-not-allowed disabled:opacity-35 md:flex"
+          className="absolute right-2 top-1/2 z-20 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white transition disabled:cursor-not-allowed disabled:opacity-35"
         >
-          {'>'}
+          <ChevronRight className="h-4 w-4" />
         </button>
 
         <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800" ref={emblaRef}>
