@@ -355,21 +355,23 @@ export default function Header() {
   return (
     <header ref={headerRef} className="relative z-[3000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none block">
       <div className="container mx-auto px-4 py-2 flex justify-between items-center gap-4">
-        <Link href="/" className="flex flex-shrink-0 items-center -my-1 md:-my-4">
-          <div className="relative h-12 w-12 sm:h-16 sm:w-16 md:h-20 md:w-20">
+        <Link href="/" className="flex flex-shrink-0 items-center">
+          <div className="relative flex items-center">
             <Image
               src="/logo-light.png"
               alt="letsboulder"
-              fill
-              sizes="(min-width: 768px) 80px, (min-width: 640px) 64px, 48px"
-              className="object-contain dark:hidden"
+              width={240}
+              height={34}
+              priority
+              className="h-6 w-auto sm:h-7 md:h-8 dark:hidden"
             />
             <Image
               src="/logo-dark.png"
               alt="letsboulder"
-              fill
-              sizes="(min-width: 768px) 80px, (min-width: 640px) 64px, 48px"
-              className="object-contain hidden dark:block"
+              width={240}
+              height={34}
+              priority
+              className="hidden h-6 w-auto sm:h-7 md:h-8 dark:block"
             />
           </div>
         </Link>
