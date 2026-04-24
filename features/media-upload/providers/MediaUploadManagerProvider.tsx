@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { useMediaUploadQueueController } from '@/features/media-upload/hooks/use-media-upload-queue-controller'
 import { isSameTarget, type MediaUploadItem, type MediaUploadTarget, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
 
@@ -25,6 +25,7 @@ interface MediaUploadManagerValue {
 }
 
 const MediaUploadManagerContext = createContext<MediaUploadManagerValue | null>(null)
+const UPLOAD_ACTIVITY_EVENT = 'letsboulder:upload-activity'
 
 
 export function MediaUploadManagerProvider({ children }: { children: ReactNode }) {
@@ -42,6 +43,18 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
   } = useMediaUploadQueueController()
 
   const uploadsList = useMemo(() => Object.values(uploads).sort((a, b) => a.startedAt - b.startedAt), [uploads])
+  const hasActiveUploads = useMemo(() => {
+    return uploadsList.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
+  }, [uploadsList])
+
+  useEffect(() => {
+    window.__letsboulderHasActiveUploads = hasActiveUploads
+    window.dispatchEvent(new CustomEvent(UPLOAD_ACTIVITY_EVENT, { detail: { active: hasActiveUploads } }))
+    return () => {
+      window.__letsboulderHasActiveUploads = false
+      window.dispatchEvent(new CustomEvent(UPLOAD_ACTIVITY_EVENT, { detail: { active: false } }))
+    }
+  }, [hasActiveUploads])
 
   const getUploadsForDraft = useCallback((draftId: string) => {
     return uploadsList.filter((upload) => upload.target.kind === 'draft' && upload.target.draftId === draftId)
