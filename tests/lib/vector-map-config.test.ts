@@ -1,33 +1,33 @@
 import { describe, expect, test } from 'vitest'
 
-import { DEFAULT_PMTILES_URL, getVectorMapConfig } from '@/lib/map/vector-map-config'
+import { DEFAULT_MAP_STYLE_URL, getVectorMapConfig } from '@/lib/map/vector-map-config'
 
 describe('vector map config resolver', () => {
-  test('uses vector PMTiles while online', () => {
+  test('uses OpenFreeMap while online', () => {
     const config = getVectorMapConfig({ offline: false })
 
-    expect(config.mode).toBe('vector')
-    expect(config.pmtilesUrl).toBe(DEFAULT_PMTILES_URL)
-    expect(config.attribution).toContain('OpenStreetMap')
+    expect(config.mode).toBe('hosted-style')
+    expect(config.styleUrl).toBe(DEFAULT_MAP_STYLE_URL)
+    expect(config.attribution).toContain('OpenFreeMap')
   })
 
   test('uses degraded pins-only mode while offline', () => {
     const config = getVectorMapConfig({ offline: true })
 
     expect(config.mode).toBe('offline-pins-only')
-    expect(config.pmtilesUrl).toBe('')
+    expect(config.styleUrl).toBe('')
   })
 
-  test('uses configured PMTiles URL when provided', () => {
-    const previousUrl = process.env.NEXT_PUBLIC_PMTILES_URL
-    process.env.NEXT_PUBLIC_PMTILES_URL = 'https://static.dev.letsboulder.com/maps/v1/planet.pmtiles'
+  test('uses configured map style URL when provided', () => {
+    const previousUrl = process.env.NEXT_PUBLIC_MAP_STYLE_URL
+    process.env.NEXT_PUBLIC_MAP_STYLE_URL = 'https://tiles.example.com/styles/outdoor'
 
-    expect(getVectorMapConfig().pmtilesUrl).toBe('https://static.dev.letsboulder.com/maps/v1/planet.pmtiles')
+    expect(getVectorMapConfig().styleUrl).toBe('https://tiles.example.com/styles/outdoor')
 
     if (previousUrl === undefined) {
-      delete process.env.NEXT_PUBLIC_PMTILES_URL
+      delete process.env.NEXT_PUBLIC_MAP_STYLE_URL
     } else {
-      process.env.NEXT_PUBLIC_PMTILES_URL = previousUrl
+      process.env.NEXT_PUBLIC_MAP_STYLE_URL = previousUrl
     }
   })
 })

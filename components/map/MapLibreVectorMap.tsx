@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef } from 'react'
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl'
-import { Protocol } from 'pmtiles'
 
 import { buildMapLibreStyle } from '@/lib/map/maplibre-style'
 import { getVectorMapConfig } from '@/lib/map/vector-map-config'
@@ -34,15 +33,6 @@ interface MapLibreVectorMapProps {
   onViewportChange?: (state: { zoom: number; bounds: MapBounds }) => void
   onPinSelect?: (id: string) => void
   onClusterSelect?: (clusterId: number, coordinates: MapLibreLngLat) => void
-}
-
-let pmtilesProtocolRegistered = false
-
-export function registerPmtilesProtocol() {
-  if (pmtilesProtocolRegistered) return
-  const protocol = new Protocol()
-  maplibregl.addProtocol('pmtiles', protocol.tile)
-  pmtilesProtocolRegistered = true
 }
 
 function getSource(map: MapLibreMap, sourceId: string) {
@@ -111,7 +101,6 @@ export default function MapLibreVectorMap({
     const container = containerRef.current
     if (!container || mapRef.current) return
 
-    registerPmtilesProtocol()
     const map = new maplibregl.Map({
       container,
       style,

@@ -1,23 +1,23 @@
 export interface VectorMapConfig {
-  mode: 'vector' | 'offline-pins-only'
-  pmtilesUrl: string
+  mode: 'hosted-style' | 'offline-pins-only'
+  styleUrl: string
   attribution: string
 }
 
-export const DEFAULT_PMTILES_URL = 'https://static.letsboulder.com/maps/v1/planet.pmtiles'
+export const DEFAULT_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty'
 
 export function getVectorMapConfig(options?: { offline?: boolean }): VectorMapConfig {
   if (options?.offline) {
     return {
       mode: 'offline-pins-only',
-      pmtilesUrl: '',
+      styleUrl: '',
       attribution: '',
     }
   }
 
   return {
-    mode: 'vector',
-    pmtilesUrl: process.env.NEXT_PUBLIC_PMTILES_URL || DEFAULT_PMTILES_URL,
-    attribution: '© OpenStreetMap contributors',
+    mode: 'hosted-style',
+    styleUrl: process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEFAULT_MAP_STYLE_URL,
+    attribution: 'OpenFreeMap © OpenMapTiles Data from OpenStreetMap',
   }
 }
