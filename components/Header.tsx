@@ -485,7 +485,6 @@ export default function Header() {
               onKeyDown={handleMoreButtonKeyDown}
               className="flex items-center px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="More navigation"
-              aria-haspopup="menu"
               aria-expanded={showMoreDropdown}
               aria-controls={showMoreDropdown ? moreMenuId : undefined}
             >
@@ -494,13 +493,12 @@ export default function Header() {
               </svg>
             </button>
               {showMoreDropdown && (
-                <div id={moreMenuId} role="menu" aria-label="More navigation" className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-40 z-[4000]">
+                <div id={moreMenuId} aria-label="More navigation" className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-40 z-[4000]">
                   {DESKTOP_MORE_MENU_SECTIONS.map((section) => renderMoreMenuSection(section.label, section.items))}
                 <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                 {user ? (
                   <button
                     type="button"
-                    role="menuitem"
                     onClick={() => {
                       setShowMoreDropdown(false)
                       handleLogout()
@@ -513,7 +511,6 @@ export default function Header() {
                   <Link
                     href="/auth"
                     onClick={() => setShowMoreDropdown(false)}
-                    role="menuitem"
                     className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                   >
                     Login
