@@ -4,7 +4,6 @@
 import { useEffect, useId, useState, useRef, useCallback, useMemo, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
 import { DESKTOP_MORE_MENU_SECTIONS } from '@/lib/nav-items'
 import { csrfFetch } from '@/lib/csrf-client'
@@ -356,24 +355,9 @@ export default function Header() {
     <header ref={headerRef} className="relative z-[3000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none block">
       <div className="container mx-auto px-4 py-2 flex justify-between items-center gap-4">
         <Link href="/" className="flex flex-shrink-0 items-center">
-          <div className="relative flex items-center">
-            <Image
-              src="/logo-light.png"
-              alt="letsboulder"
-              width={240}
-              height={34}
-              priority
-              className="h-6 w-auto sm:h-7 md:h-8 dark:hidden"
-            />
-            <Image
-              src="/logo-dark.png"
-              alt="letsboulder"
-              width={240}
-              height={34}
-              priority
-              className="hidden h-6 w-auto sm:h-7 md:h-8 dark:block"
-            />
-          </div>
+          <span className="text-xl font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-2xl">
+            letsboulder
+          </span>
         </Link>
 
         <div ref={searchRef} className="relative flex-1 max-w-md">
