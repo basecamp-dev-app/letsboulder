@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import type { Metadata } from 'next'
 import { getServerClient } from '@/lib/supabase-server'
 import { Card, CardContent } from '@/components/ui/card'
 import Link from 'next/link'
@@ -188,13 +189,27 @@ function ProfileNotFound() {
   )
 }
 
-export async function generateMetadata({ params }: PublicLogbookPageProps) {
+export async function generateMetadata({ params }: PublicLogbookPageProps): Promise<Metadata> {
   const { userId } = await params
   const profile = await getProfile(userId)
 
   if (!profile) {
     return {
       title: 'Profile Not Found',
+      robots: {
+        index: false,
+        follow: true,
+      },
+    }
+  }
+
+  if (profile.is_public === false) {
+    return {
+      title: `${profile.username}'s Logbook`,
+      robots: {
+        index: false,
+        follow: true,
+      },
     }
   }
 
@@ -203,6 +218,10 @@ export async function generateMetadata({ params }: PublicLogbookPageProps) {
     description: `View ${profile.username}'s climbing logbook and achievements on letsboulder.`,
     alternates: {
       canonical: `/logbook/${userId}`,
+    },
+    robots: {
+      index: true,
+      follow: true,
     },
     openGraph: {
       title: `${profile.username}'s Logbook - letsboulder`,
