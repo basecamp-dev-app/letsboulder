@@ -356,7 +356,7 @@ export async function buildImageFirstPayload(args: {
     ? getStableSpatialOrder(spatialNodes)
     : {
         orderedImageIds: [image.canonicalId],
-        orderedStacks: [{ stackId: image.canonicalId, images: [{ displayImageId: image.canonicalId, latitude: null, longitude: null, createdAt: null }] }],
+        orderedStacks: [],
         imageIndexByDisplayImageId: new Map([[image.canonicalId, 0]]),
       }
   timing.step('stable-spatial-order', {
@@ -412,24 +412,18 @@ export async function buildImageFirstPayload(args: {
         : args.routeSlug
           ? routeById.get(args.routeSlug) || null
           : null
-  const currentImageNode = spatialNodes.find((node) => node.displayImageId === image.canonicalId) || null
-  const mapPinSource = currentImageNode
-    && typeof currentImageNode.latitude === 'number'
-    && typeof currentImageNode.longitude === 'number'
-      ? currentImageNode
-      : spatialNodes.find((node) => typeof node.latitude === 'number' && typeof node.longitude === 'number') || null
-  const mapPins = mapPinSource
-    && typeof mapPinSource.latitude === 'number'
-    && typeof mapPinSource.longitude === 'number'
-      ? [{
-          imageId: mapPinSource.displayImageId,
-          latitude: mapPinSource.latitude,
-          longitude: mapPinSource.longitude,
-          activeImageIds: [mapPinSource.displayImageId],
-          primaryImageId: mapPinSource.displayImageId,
-          routeSlug: resolvedRoute?.climbSlug || null,
-        }]
-      : []
+  const mapPins = ordered.orderedStacks.map((stack) => {
+    const activeImageIds = stack.images.map((imageNode) => imageNode.displayImageId)
+    const primaryImageId = activeImageIds[0] || stack.stackId
+    return {
+      imageId: stack.stackId,
+      latitude: stack.latitude,
+      longitude: stack.longitude,
+      activeImageIds,
+      primaryImageId,
+      routeSlug: resolvedRoute?.climbSlug || null,
+    }
+  })
 
   const result = {
     redirectTo: null,

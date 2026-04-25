@@ -2,6 +2,7 @@
 
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import { useImageNavigation } from '@/features/image-first/hooks/use-image-navigation'
@@ -29,6 +30,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 type ExportMode = 'image' | 'selected-route' | 'all-routes'
 
+interface SelectedPinImageRailProps {
+  pin: LightweightCragMapPin | null
+  activeImageId: string | null
+  imageMap: Record<string, { src: string; width: number; height: number }>
+  onSelectImage: (imageId: string) => void
+}
+
 type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']
 
 function isAdminProfile(value: unknown): value is { is_admin: boolean | null } {
@@ -47,6 +55,58 @@ function toLoggedClimbInfo(row: UserClimbRow | null): { gradeOpinion: 'soft' | '
     starRating: row.star_rating,
     notes: row.notes,
   }
+}
+
+function SelectedPinImageRail({ pin, activeImageId, imageMap, onSelectImage }: SelectedPinImageRailProps) {
+  const imageIds = pin?.activeImageIds || []
+  const availableImageIds = imageIds.filter((imageId) => Boolean(imageMap[imageId]))
+
+  if (!pin || availableImageIds.length === 0) return null
+
+  return (
+    <section className="mt-3 rounded-[28px] border border-white/10 bg-zinc-950/90 p-3 text-white shadow-2xl shadow-black/25" aria-label="Images at selected pin">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Images at selected pin</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">Select an image to switch the route viewer.</p>
+        </div>
+        <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-zinc-200">
+          {availableImageIds.length} image{availableImageIds.length === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {availableImageIds.map((imageId, index) => {
+          const imageMeta = imageMap[imageId]
+          const active = imageId === activeImageId
+          return (
+            <button
+              key={imageId}
+              type="button"
+              onClick={() => onSelectImage(imageId)}
+              aria-pressed={active}
+              className={`group min-w-[7.5rem] overflow-hidden rounded-2xl border text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 ${active ? 'border-amber-300 bg-amber-300/10 ring-2 ring-amber-300/35' : 'border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10'}`}
+            >
+              <div className="relative aspect-[4/3] overflow-hidden bg-zinc-900">
+                <Image
+                  src={imageMeta.src}
+                  alt={`Selected pin image ${index + 1}`}
+                  fill
+                  sizes="120px"
+                  className="object-cover transition duration-300 group-hover:scale-[1.03]"
+                  loading="lazy"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+                <span className="text-xs font-medium text-zinc-100">Image {index + 1}</span>
+                {active ? <span className="text-[11px] font-semibold text-amber-200">Active</span> : null}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
 }
 
 export default function ImageFirstClient({ payload }: { payload: ImageFirstPayload }) {
@@ -635,6 +695,24 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   const mapPins = allMapPins
 
+  const selectedMapPin = useMemo(() => {
+    if (!activeImageId) return mapPins[0] || null
+    return mapPins.find((pin) => pin.activeImageIds?.includes(activeImageId) === true || pin.primaryImageId === activeImageId || pin.id === activeImageId)
+      || mapPins[0]
+      || null
+  }, [activeImageId, mapPins])
+
+  const mapInitialCenter = useMemo<[number, number] | null>(() => {
+    const centerPin = selectedMapPin || mapPins[0]
+    if (!centerPin) return null
+    return [centerPin.latitude, centerPin.longitude]
+  }, [mapPins, selectedMapPin])
+
+  const handleSelectImage = useCallback((imageId: string) => {
+    const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
+    if (nextIndex >= 0) setActiveImageIndex(nextIndex)
+  }, [navigationContext.orderedImageIds, setActiveImageIndex])
+
   const visibleRoutes = useMemo(() => {
     const filteredRoutes = activeRoutes.filter(route => route.imageId === activePrimaryImageId)
 
@@ -1047,22 +1125,25 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       />
 
       {(() => {
-        const shouldRender = mapPins.length > 0 && mapPins[0]?.latitude
+        const shouldRender = mapPins.length > 0 && mapInitialCenter
         return shouldRender ? (
           <div className="px-4 pb-4">
             <div className="mx-auto w-full max-w-6xl">
               <LightweightCragMap
                 pins={mapPins}
                 activePinId={activeImageId}
-                initialCenter={[mapPins[0].latitude, mapPins[0].longitude]}
+                initialCenter={mapInitialCenter}
                 initialZoom={18}
-                onPinSelect={(imageId) => {
-                  const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
-                  if (nextIndex >= 0) setActiveImageIndex(nextIndex)
-                }}
+                onPinSelect={handleSelectImage}
                 disableClustering={true}
                 disableAutoFit={true}
                 heightClassName="h-[240px] md:h-[280px]"
+              />
+              <SelectedPinImageRail
+                pin={selectedMapPin}
+                activeImageId={activeImageId}
+                imageMap={navigationContext.imageMap}
+                onSelectImage={handleSelectImage}
               />
             </div>
           </div>
