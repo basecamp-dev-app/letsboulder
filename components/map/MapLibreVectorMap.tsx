@@ -16,6 +16,11 @@ export interface MapBounds {
 export type MapLibreLngLat = [number, number]
 export type MapLibreFitBounds = [MapLibreLngLat, MapLibreLngLat]
 
+interface LocationPoint {
+  latitude: number
+  longitude: number
+}
+
 interface MapLibreVectorMapProps {
   center: MapLibreLngLat
   zoom: number
@@ -24,6 +29,7 @@ interface MapLibreVectorMapProps {
   fitBounds?: MapLibreFitBounds | null
   pinsGeoJson: GeoJSON.FeatureCollection<GeoJSON.Point>
   clustersGeoJson?: GeoJSON.FeatureCollection<GeoJSON.Point>
+  userLocation?: LocationPoint | null
   activePinId?: string | null
   interactive?: boolean
   staticPreview?: boolean
@@ -72,6 +78,7 @@ export default function MapLibreVectorMap({
   fitBounds = null,
   pinsGeoJson,
   clustersGeoJson,
+  userLocation = null,
   interactive = true,
   staticPreview = false,
   offline = false,
@@ -89,6 +96,14 @@ export default function MapLibreVectorMap({
   const onPinSelectRef = useRef(onPinSelect)
   const onClusterSelectRef = useRef(onClusterSelect)
   const style = useMemo(() => buildMapLibreStyle(getVectorMapConfig({ offline })), [offline])
+  const userLocationGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
+    type: 'FeatureCollection',
+    features: userLocation ? [{
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [userLocation.longitude, userLocation.latitude] },
+      properties: {},
+    }] : [],
+  }), [userLocation])
 
   useEffect(() => {
     onReadyRef.current = onReady
@@ -197,6 +212,29 @@ export default function MapLibreVectorMap({
         paint: { 'text-color': '#ffffff' },
       })
 
+      map.addSource('letsboulder-user-location', { type: 'geojson', data: userLocationGeoJson })
+      map.addLayer({
+        id: 'letsboulder-user-location-halo',
+        type: 'circle',
+        source: 'letsboulder-user-location',
+        paint: {
+          'circle-radius': 13,
+          'circle-color': '#2563eb',
+          'circle-opacity': 0.18,
+        },
+      })
+      map.addLayer({
+        id: 'letsboulder-user-location-dot',
+        type: 'circle',
+        source: 'letsboulder-user-location',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#2563eb',
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2,
+        },
+      })
+
       map.on('click', 'letsboulder-pin-hit-targets', (event) => {
         const feature = event.features?.[0]
         const properties = feature?.properties
@@ -246,6 +284,12 @@ export default function MapLibreVectorMap({
     if (!map || !readyRef.current) return
     getSource(map, 'letsboulder-clusters')?.setData(clustersGeoJson || { type: 'FeatureCollection', features: [] })
   }, [clustersGeoJson])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+    getSource(map, 'letsboulder-user-location')?.setData(userLocationGeoJson)
+  }, [userLocationGeoJson])
 
   useEffect(() => {
     const map = mapRef.current

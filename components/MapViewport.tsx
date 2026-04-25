@@ -22,9 +22,10 @@ interface MapViewportProps {
   initialPlacePins?: PlacePin[]
   mode?: 'fullscreen' | 'hero'
   className?: string
+  showUserLocation?: boolean
 }
 
-export default function MapViewport({ initialPlacePins = [], mode = 'fullscreen', className }: MapViewportProps) {
+export default function MapViewport({ initialPlacePins = [], mode = 'fullscreen', className, showUserLocation = false }: MapViewportProps) {
   const [isMapReady, setIsMapReady] = useState(false)
   const [resolvedPlacePins, setResolvedPlacePins] = useState<PlacePin[]>(initialPlacePins)
 
@@ -48,7 +49,7 @@ export default function MapViewport({ initialPlacePins = [], mode = 'fullscreen'
       className
     )}>
       {!isMapReady && <MapViewportFallback />}
-      <InteractiveClimbingMap initialPlacePins={resolvedPlacePins} onReady={() => setIsMapReady(true)} />
+      <InteractiveClimbingMap initialPlacePins={resolvedPlacePins} onReady={() => setIsMapReady(true)} showUserLocation={showUserLocation} />
     </div>
   )
 }
