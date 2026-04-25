@@ -111,18 +111,13 @@ describe('LightweightCragMap', () => {
     expect(onPinSelect).toHaveBeenCalledWith('image-1')
   })
 
-  it('renders keyboard-accessible marker controls', () => {
+  it('does not render ambiguous marker controls when map selection is available', () => {
     const onPinSelect = vi.fn()
-    const { getByRole } = render(
+    const { queryByRole } = render(
       <LightweightCragMap pins={pins} initialCenter={[48.85, 2.35]} activePinId="image-1" onPinSelect={onPinSelect} />
     )
 
-    const markerButton = getByRole('button', { name: /select marker 1/i })
-    expect(markerButton).toHaveAttribute('aria-pressed', 'true')
-
-    fireEvent.click(markerButton)
-
-    expect(onPinSelect).toHaveBeenCalledWith('image-1')
+    expect(queryByRole('button', { name: /select marker 1/i })).toBeNull()
   })
 
   it('does not render marker controls when selection is unavailable', () => {

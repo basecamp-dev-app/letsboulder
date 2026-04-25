@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
+import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 interface ImagePinRow {
   id: string
   latitude: number | null
   longitude: number | null
+  created_at: string | null
 }
 
 export async function GET(request: Request) {
@@ -22,7 +24,7 @@ export async function GET(request: Request) {
   const supabase = getUnauthenticatedClient()
   const query = supabase
     .from('images')
-    .select('id, latitude, longitude')
+    .select('id, latitude, longitude, created_at')
     .eq('crag_id', cragId)
     .not('latitude', 'is', null)
     .not('longitude', 'is', null)
@@ -39,15 +41,24 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to load image pins' }, { status: 500 })
   }
 
-  const pins = ((data || []) as ImagePinRow[])
-    .filter((row) => typeof row.latitude === 'number' && typeof row.longitude === 'number')
-    .map((row) => ({
-      imageId: row.id,
-      latitude: row.latitude as number,
-      longitude: row.longitude as number,
-      activeImageIds: [row.id],
-      primaryImageId: row.id,
-    }))
+  const ordered = getStableSpatialOrder(((data || []) as ImagePinRow[]).map((row) => ({
+    displayImageId: row.id,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    createdAt: row.created_at,
+  })))
+
+  const pins = ordered.orderedStacks.map((stack) => {
+    const activeImageIds = stack.images.map((image) => image.displayImageId)
+    const primaryImageId = activeImageIds[0] || stack.stackId
+    return {
+      imageId: stack.stackId,
+      latitude: stack.latitude,
+      longitude: stack.longitude,
+      activeImageIds,
+      primaryImageId,
+    }
+  })
 
   return NextResponse.json({ pins })
 }

@@ -54,7 +54,7 @@ vi.mock('@supabase/ssr', () => ({
           return {
             eq: () => ({
               maybeSingle: async () => ({ data: state.rawImage, error: null }),
-              order: async () => ({ data: [state.rawImage], error: null }),
+              order: async () => ({ data: state.cragImagesForCrag.length > 0 ? state.cragImagesForCrag : [state.rawImage], error: null }),
             }),
           }
         }
@@ -404,7 +404,7 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.attribution.communityEditorsCount).toBe(0)
   })
 
-  test('includes primary image ids for route-page map pins when coordinates exist', async () => {
+  test('groups route-page map pins by image coordinates', async () => {
     state.rawImage = {
       ...state.rawImage,
       latitude: 49.18,
@@ -420,6 +420,24 @@ describe('image-page-server raw image fallback', () => {
         latitude: 49.18,
         longitude: -2.24,
       },
+      {
+        id: 'stacked-image',
+        url: 'https://static.letsboulder.com/images/stacked/v1/detail.jpg',
+        width: 1200,
+        height: 900,
+        created_at: '2026-03-02T00:00:00Z',
+        latitude: 49.18,
+        longitude: -2.24,
+      },
+      {
+        id: 'nearby-image',
+        url: 'https://static.letsboulder.com/images/nearby/v1/detail.jpg',
+        width: 1200,
+        height: 900,
+        created_at: '2026-03-03T00:00:00Z',
+        latitude: 49.181,
+        longitude: -2.241,
+      },
     ]
 
     const { buildImageFirstPayload } = await import('../../features/image-first/server/load-image-first-page')
@@ -434,10 +452,18 @@ describe('image-page-server raw image fallback', () => {
 
     expect(result.payload?.mapPins).toEqual([
       {
-        imageId: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
+        imageId: 'stack:nearby-image',
+        latitude: 49.181,
+        longitude: -2.241,
+        activeImageIds: ['nearby-image'],
+        primaryImageId: 'nearby-image',
+        routeSlug: 'test-route',
+      },
+      {
+        imageId: 'stack:215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
         latitude: 49.18,
         longitude: -2.24,
-        activeImageIds: ['215b8180-4727-404d-8fbf-6cb9bd8f5f9a'],
+        activeImageIds: ['215b8180-4727-404d-8fbf-6cb9bd8f5f9a', 'stacked-image'],
         primaryImageId: '215b8180-4727-404d-8fbf-6cb9bd8f5f9a',
         routeSlug: 'test-route',
       },
