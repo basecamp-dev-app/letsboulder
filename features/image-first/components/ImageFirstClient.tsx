@@ -1137,6 +1137,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                 onPinSelect={handleSelectImage}
                 disableClustering={true}
                 disableAutoFit={true}
+                showUserLocation={true}
                 heightClassName="h-[240px] md:h-[280px]"
               />
               <SelectedPinImageRail

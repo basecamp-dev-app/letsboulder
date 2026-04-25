@@ -1,11 +1,12 @@
 import { fireEvent, render, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import LightweightCragMap from '@/components/LightweightCragMap'
 
 vi.mock('@/components/map/MapLibreVectorMap', () => ({
   default: (props: {
     pinsGeoJson: GeoJSON.FeatureCollection<GeoJSON.Point>
+    userLocation?: { latitude: number; longitude: number } | null
     onReady?: () => void
     onPinSelect?: (id: string) => void
   }) => {
@@ -16,6 +17,8 @@ vi.mock('@/components/map/MapLibreVectorMap', () => ({
         type="button"
         data-testid="mock-maplibre-map"
         data-pin-count={props.pinsGeoJson.features.length}
+        data-user-latitude={props.userLocation?.latitude ?? ''}
+        data-user-longitude={props.userLocation?.longitude ?? ''}
         onClick={() => firstPinId ? props.onPinSelect?.(firstPinId) : undefined}
       />
     )
@@ -41,6 +44,10 @@ describe('LightweightCragMap', () => {
       primaryImageId: 'image-1',
     },
   ]
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
 
   it('uses intrinsic height by default', () => {
     const { container } = render(
@@ -126,5 +133,25 @@ describe('LightweightCragMap', () => {
     )
 
     expect(queryByRole('button', { name: /select marker 1/i })).toBeNull()
+  })
+
+  it('passes the browser location to the vector map when enabled', async () => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: vi.fn((success: PositionCallback) => success({
+          coords: { latitude: 48.86, longitude: 2.36 },
+        } as GeolocationPosition)),
+      },
+    })
+
+    const { getByTestId } = render(
+      <LightweightCragMap pins={pins} initialCenter={[48.85, 2.35]} showUserLocation={true} />
+    )
+
+    await waitFor(() => {
+      expect(getByTestId('mock-maplibre-map')).toHaveAttribute('data-user-latitude', '48.86')
+    })
+    expect(getByTestId('mock-maplibre-map')).toHaveAttribute('data-user-longitude', '2.36')
   })
 })

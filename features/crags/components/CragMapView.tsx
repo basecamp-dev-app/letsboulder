@@ -47,6 +47,7 @@ export default function CragMapView({
         initialCenter={cragCenter}
         onPinSelect={onPinSelect}
         heightMode="fill"
+        showUserLocation={true}
       />
 
       <div className="absolute top-4 left-4 z-[1000] bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-100 shadow-md backdrop-blur">

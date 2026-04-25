@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import MapLibreVectorMap, { type MapBounds, type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
+import { useBrowserGeolocation } from '@/hooks/use-browser-geolocation'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult } from '@/lib/map/place-pins'
 
@@ -48,6 +49,7 @@ interface LightweightCragMapProps {
   staticPreview?: boolean
   disableClustering?: boolean
   disableAutoFit?: boolean
+  showUserLocation?: boolean
   onViewportChange?: (state: { zoom: number; bounds: MapBounds }) => void
   className?: string
   heightMode?: 'intrinsic' | 'fill'
@@ -66,6 +68,7 @@ export default function LightweightCragMap({
   staticPreview = false,
   disableClustering = false,
   disableAutoFit = false,
+  showUserLocation = false,
   onViewportChange,
   className,
   heightMode = 'intrinsic',
@@ -77,6 +80,7 @@ export default function LightweightCragMap({
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [isOffline, setIsOffline] = useState(false)
   const lastMapStateRef = useRef<{ zoom: number; bounds: MapBounds } | null>(null)
+  const userLocation = useBrowserGeolocation(showUserLocation)
 
   const resolvedPins = useMemo(() => {
     if (draftPins || publishedPins) {
@@ -263,6 +267,7 @@ export default function LightweightCragMap({
           fitBounds={usesStaticPreview ? null : fitBounds}
           pinsGeoJson={pinsGeoJson}
           clustersGeoJson={clustersGeoJson}
+          userLocation={userLocation}
           interactive={interactiveViewport}
           staticPreview={usesStaticPreview}
           offline={isOffline}
