@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, X } from 'lucide-react'
 
 import MapLibreVectorMap, { type MapBounds, type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
-import { useBrowserGeolocation } from '@/hooks/use-browser-geolocation'
+import type { BrowserLocationPoint } from '@/hooks/use-browser-geolocation'
 import { reportError } from '@/lib/errors'
 import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult, type PinFeature, type PlacePin } from '@/lib/map/place-pins'
 import { runWhenIdle } from '@/lib/run-when-idle'
@@ -44,11 +44,11 @@ function buildFitBounds(features: PinFeature[]): MapLibreFitBounds | null {
 export default function InteractiveClimbingMap({
   initialPlacePins = [],
   onReady,
-  showUserLocation = false,
+  userLocation = null,
 }: {
   initialPlacePins?: PlacePin[]
   onReady?: () => void
-  showUserLocation?: boolean
+  userLocation?: BrowserLocationPoint | null
 }) {
   const router = useRouter()
   const [isClient, setIsClient] = useState(false)
@@ -60,7 +60,6 @@ export default function InteractiveClimbingMap({
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [isOffline, setIsOffline] = useState(false)
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
-  const userLocation = useBrowserGeolocation(showUserLocation)
 
   const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
   const offlineFitBounds = useMemo(() => isOffline ? buildFitBounds(pinFeatures) : null, [isOffline, pinFeatures])
