@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import MapLoadingShell from '@/components/map/MapLoadingShell'
+import { useBrowserGeolocation } from '@/hooks/use-browser-geolocation'
 import { listStoredOfflineMapPins } from '@/lib/offline/storage'
 import type { PlacePin } from '@/lib/map/place-pins'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,7 @@ interface MapViewportProps {
 export default function MapViewport({ initialPlacePins = [], mode = 'fullscreen', className, showUserLocation = false }: MapViewportProps) {
   const [isMapReady, setIsMapReady] = useState(false)
   const [resolvedPlacePins, setResolvedPlacePins] = useState<PlacePin[]>(initialPlacePins)
+  const userLocation = useBrowserGeolocation(showUserLocation)
 
   useEffect(() => {
     if (typeof window === 'undefined' || window.navigator.onLine !== false || initialPlacePins.length > 0) {
@@ -49,7 +51,7 @@ export default function MapViewport({ initialPlacePins = [], mode = 'fullscreen'
       className
     )}>
       {!isMapReady && <MapViewportFallback />}
-      <InteractiveClimbingMap initialPlacePins={resolvedPlacePins} onReady={() => setIsMapReady(true)} showUserLocation={showUserLocation} />
+      <InteractiveClimbingMap initialPlacePins={resolvedPlacePins} onReady={() => setIsMapReady(true)} userLocation={userLocation} />
     </div>
   )
 }
