@@ -142,4 +142,27 @@ describe('CragRouteList thumbnail priority', () => {
     expect(previews[6]?.getAttribute('loading')).toBe('eager')
     expect(previews[6]?.getAttribute('fetchpriority')).toBe('high')
   })
+
+  it('shows a contribution CTA when the crag has no routes', () => {
+    render(
+      <CragRouteList
+        filteredRoutes={[]}
+        routesLoadState="loaded"
+        highlightedRouteIds={new Set()}
+        routePreviewDisplayByClimbId={{}}
+        routeTargetsHydrating={false}
+        routeTargetsComplete={true}
+        pinNumberByImageId={new Map()}
+        gradeSystem={'french_equivalent'}
+        routesCount={0}
+        hasActiveRouteFilters={false}
+        onClearRouteFilters={vi.fn()}
+        onRetryRoutes={vi.fn()}
+        getRouteDestination={(route) => ({ href: `/routes/${route.id}`, ready: true })}
+      />
+    )
+
+    expect(screen.getByText('No routes have been added here yet.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Add the first route' }).getAttribute('href')).toBe('/submit')
+  })
 })

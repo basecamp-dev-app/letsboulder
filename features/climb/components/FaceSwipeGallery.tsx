@@ -20,6 +20,7 @@ interface FaceSwipeGalleryProps {
 }
 
 export default function FaceSwipeGallery({ faces, isOwner }: FaceSwipeGalleryProps) {
+  void isOwner
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'start',
     containScroll: 'trimSnaps',
@@ -115,11 +116,11 @@ export default function FaceSwipeGallery({ faces, isOwner }: FaceSwipeGalleryPro
                   ) : null}
                 </div>
 
-                {isOwner && !face.has_routes && !face.is_primary ? (
+                {!face.has_routes && !face.is_primary ? (
                   <div className="border-t border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
-                    Add routes to this face in{' '}
-                    <Link href="/submit" prefetch={false} className="font-semibold text-blue-700 underline dark:text-blue-300">
-                      Submit
+                    Know this wall?{' '}
+                    <Link href={`/logbook/submissions/${face.id}/edit`} prefetch={false} className="font-semibold text-blue-700 underline dark:text-blue-300">
+                      Add routes to this face
                     </Link>
                   </div>
                 ) : null}

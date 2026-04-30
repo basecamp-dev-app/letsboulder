@@ -1077,7 +1077,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         selectedClimb={selectedClimb}
         selectedRouteExists={!!activeRouteId}
         canEditRoute={!!selectedClimb && !!activePrimaryImageId && !!resolvedActiveRouteId}
-        canAddRoutes={!!activePrimaryImageId && allRoutesFlat.length === 0}
+        canAddRoutes={!!activePrimaryImageId && visibleRoutes.length === 0}
         totalRoutesCombined={allRoutesFlat.length}
         totalFaces={navigationContext.orderedImageIds.length}
         isFacesLoading={false}
