@@ -1,4 +1,5 @@
 import { getGradePoints, type LogEntry } from '@/lib/grades'
+import type { ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 
 export type ProgressRangePreset = '6m' | '1y' | '2y' | 'all'
 
@@ -25,6 +26,11 @@ export interface ProgressChartData {
   rangeEnd: number
   points: ProgressChartPoint[]
   trend: ProgressTrendPoint[]
+  summary: {
+    sendCount: number
+    bestPoints: number | null
+    currentAveragePoints: number | null
+  }
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -54,11 +60,11 @@ const pointDateFormatter = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'UTC',
 })
 
-export function buildProgressChartData(logs: LogEntry[], range: ProgressRangePreset, now = new Date()): ProgressChartData {
+export function buildProgressChartData(logs: Array<LogEntry | ProgressLogEntry>, range: ProgressRangePreset, now = new Date()): ProgressChartData {
   const rangeStart = getRangeStart(now, range)
   const rangeEnd = now.getTime()
 
-  const points = logs
+  const allPoints = logs
     .filter((log): log is LogEntry & { style: 'flash' | 'top'; climbs: NonNullable<LogEntry['climbs']> } => {
       if (log.style !== 'flash' && log.style !== 'top') return false
       if (!log.climbs?.grade) return false
@@ -80,13 +86,14 @@ export function buildProgressChartData(logs: LogEntry[], range: ProgressRangePre
         topPoints: log.style === 'top' ? pointsValue : null,
       }
     })
-    .filter((point) => !rangeStart || point.timestamp >= rangeStart.getTime())
     .sort((a, b) => a.timestamp - b.timestamp)
+
+  const points = allPoints.filter((point) => !rangeStart || point.timestamp >= rangeStart.getTime())
 
   const trend = points
     .map((point) => {
       const windowStart = point.timestamp - (ROLLING_WINDOW_DAYS * MS_PER_DAY)
-      const windowPoints = points.filter((candidate) => candidate.timestamp >= windowStart && candidate.timestamp <= point.timestamp)
+      const windowPoints = allPoints.filter((candidate) => candidate.timestamp >= windowStart && candidate.timestamp <= point.timestamp)
 
       if (windowPoints.length === 0) return null
 
@@ -100,10 +107,17 @@ export function buildProgressChartData(logs: LogEntry[], range: ProgressRangePre
     })
     .filter((point): point is ProgressTrendPoint => point !== null)
 
+  const currentAveragePoints = trend.length > 0 ? trend[trend.length - 1].averagePoints : null
+
   return {
     rangeStart: rangeStart?.getTime() ?? null,
     rangeEnd,
     points,
     trend,
+    summary: {
+      sendCount: points.length,
+      bestPoints: points.length > 0 ? Math.max(...points.map((point) => point.points)) : null,
+      currentAveragePoints,
+    },
   }
 }

@@ -42,6 +42,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
     ? {
         user,
         logs: initialData.logs,
+        progressLogs: initialData.progressLogs,
         profile: initialData.profile,
         savedClimbs: initialData.savedClimbs,
         savedCrags: initialData.savedCrags,
@@ -70,6 +71,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
   const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null)
 
   const logs = data?.logs ?? initialData?.logs ?? []
+  const progressLogs = data?.progressLogs ?? initialData?.progressLogs ?? logs
   const profile = data?.profile ?? initialData?.profile ?? undefined
   const savedClimbs = useMemo(() => data?.savedClimbs ?? initialData?.savedClimbs ?? [], [data?.savedClimbs, initialData?.savedClimbs])
   const savedCrags = useMemo(() => data?.savedCrags ?? initialData?.savedCrags ?? [], [data?.savedCrags, initialData?.savedCrags])
@@ -261,6 +263,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
       userId={user.id}
       isOwnProfile={true}
       logs={logs}
+      progressLogs={progressLogs}
       profile={profile}
       submissions={submissions}
       submissionCounts={submissionCounts}

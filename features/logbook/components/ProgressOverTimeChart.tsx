@@ -5,10 +5,10 @@ import { CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'r
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { getGradeFromPoints, type GradeSystem } from '@/lib/grades'
 import { buildProgressChartData, type ProgressRangePreset } from '@/features/logbook/lib/progress-chart'
-import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
+import type { ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 
 interface ProgressOverTimeChartProps {
-  logs: LogbookClimb[]
+  logs: ProgressLogEntry[]
   gradeSystem: GradeSystem
   range: ProgressRangePreset
 }
@@ -47,6 +47,12 @@ export default function ProgressOverTimeChart({ logs, gradeSystem, range }: Prog
   const emptyState = range === 'all'
     ? 'No tops or flashes logged yet.'
     : `No tops or flashes logged in the ${RANGE_EMPTY_LABELS[range]}.`
+  const bestGrade = chartData.summary.bestPoints === null
+    ? 'None'
+    : formatGradeForDisplay(getGradeFromPoints(chartData.summary.bestPoints), gradeSystem)
+  const currentAverage = chartData.summary.currentAveragePoints === null
+    ? 'None'
+    : formatGradeForDisplay(getGradeFromPoints(chartData.summary.currentAveragePoints), gradeSystem)
 
   useEffect(() => {
     const element = containerRef.current
@@ -83,6 +89,20 @@ export default function ProgressOverTimeChart({ logs, gradeSystem, range }: Prog
 
   return (
     <div>
+      <dl className="mb-3 grid grid-cols-3 gap-2 text-center text-xs sm:text-sm">
+        <div className="rounded-2xl bg-gray-50 px-2 py-2 dark:bg-gray-900">
+          <dt className="text-gray-500 dark:text-gray-400">Sends</dt>
+          <dd className="font-semibold text-gray-900 dark:text-gray-100">{chartData.summary.sendCount}</dd>
+        </div>
+        <div className="rounded-2xl bg-gray-50 px-2 py-2 dark:bg-gray-900">
+          <dt className="text-gray-500 dark:text-gray-400">Best</dt>
+          <dd className="font-semibold text-gray-900 dark:text-gray-100">{bestGrade}</dd>
+        </div>
+        <div className="rounded-2xl bg-gray-50 px-2 py-2 dark:bg-gray-900">
+          <dt className="text-gray-500 dark:text-gray-400">60-day avg</dt>
+          <dd className="font-semibold text-gray-900 dark:text-gray-100">{currentAverage}</dd>
+        </div>
+      </dl>
       <div className="h-72 min-h-[240px] w-full min-w-0 md:h-80">
         <div ref={containerRef} className="h-full w-full min-w-0">
           {dimensions ? (
@@ -117,7 +137,7 @@ export default function ProgressOverTimeChart({ logs, gradeSystem, range }: Prog
                 labelFormatter={(value) => new Date(Number(value)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}
                 formatter={(value, name, item) => {
                   if (name === 'averagePoints') {
-                    return [formatGradeForDisplay(getGradeFromPoints(Number(value)), gradeSystem), '60-day average']
+                    return [formatGradeForDisplay(getGradeFromPoints(Number(value)), gradeSystem), '60-day sent-grade average']
                   }
 
                   const payload = item.payload as { style: 'flash' | 'top'; grade: string; climbName: string | null }
@@ -131,7 +151,7 @@ export default function ProgressOverTimeChart({ logs, gradeSystem, range }: Prog
                 formatter={(value) => {
                   if (value === 'flashPoints') return 'Flash ascents'
                   if (value === 'topPoints') return 'Top ascents'
-                  if (value === 'averagePoints') return '60-day average'
+                  if (value === 'averagePoints') return '60-day sent-grade average'
                   return value
                 }}
               />

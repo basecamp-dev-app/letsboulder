@@ -16,6 +16,7 @@ import {
   type OwnerSubmissionCounts,
   type LogbookClimb,
   type LogbookProfile,
+  type ProgressLogEntry,
 } from '@/features/logbook/lib/logbook-view'
 import type { Submission } from '@/types/submissions'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
@@ -31,6 +32,7 @@ interface LogbookViewProps {
   userId: string
   isOwnProfile: boolean
   logs: LogbookClimb[]
+  progressLogs?: ProgressLogEntry[]
   profile?: LogbookProfile
   submissions: Submission[]
   submissionCounts?: OwnerSubmissionCounts
@@ -56,6 +58,7 @@ export default function LogbookView({
   isHydratingSubmissions = false,
   isOwnProfile,
   logs,
+  progressLogs,
   profile,
   submissions,
   submissionCounts,
@@ -193,7 +196,7 @@ export default function LogbookView({
           gradeSystem={gradeSystem}
           stats={stats}
           lowestGrade={lowestGrade}
-          logs={logs}
+          progressLogs={progressLogs ?? logs}
           recentLogs={recentLogs}
           isOwnProfile={isOwnProfile}
           deletingId={deletingId}

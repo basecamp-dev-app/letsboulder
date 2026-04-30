@@ -11,7 +11,7 @@ import type { ProgressRangePreset } from '@/features/logbook/lib/progress-chart'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { getGradeFromPoints, type GradeSystem } from '@/lib/grades'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
-import { statusStyles, type LogEntry, type LogbookClimb, type LogbookStats } from '@/features/logbook/lib/logbook-view'
+import { statusStyles, type LogEntry, type LogbookClimb, type LogbookStats, type ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 
 const ProgressOverTimeChart = dynamic(() => import('@/features/logbook/components/ProgressOverTimeChart'), {
   ssr: false,
@@ -29,7 +29,7 @@ interface LogbookStatsSectionProps {
   gradeSystem: GradeSystem
   stats: LogbookStats
   lowestGrade: string
-  logs: LogbookClimb[]
+  progressLogs: ProgressLogEntry[]
   recentLogs: LogbookClimb[]
   isOwnProfile: boolean
   deletingId: string | null
@@ -52,7 +52,7 @@ export function LogbookStatsSection({
   gradeSystem,
   stats,
   lowestGrade,
-  logs,
+  progressLogs,
   recentLogs,
   isOwnProfile,
   deletingId,
@@ -103,7 +103,7 @@ export function LogbookStatsSection({
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <ProgressOverTimeChart logs={logs} gradeSystem={gradeSystem} range={progressRange} />
+          <ProgressOverTimeChart logs={progressLogs} gradeSystem={gradeSystem} range={progressRange} />
         </CardContent>
       </Card>
 

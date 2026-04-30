@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Lock, ArrowLeft } from 'lucide-react'
 import ProfileViewTracker from './components/ProfileViewTracker'
 import PublicLogbookClient from './PublicLogbookClient'
-import type { LogbookClimb, LogbookProfile } from '@/features/logbook/lib/logbook-view'
+import type { LogbookClimb, LogbookProfile, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 import type { Database } from '@/types/database'
 
 export const revalidate = 60
@@ -15,6 +15,7 @@ import type { Submission } from '@/types/submissions'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 
 const PUBLIC_LOGBOOK_PAGE_SIZE = 50
+const PUBLIC_PROGRESS_LOG_LIMIT = 2000
 
 type PublicProfileRow = Pick<Database['public']['Tables']['profiles']['Row'], 'is_public'> & LogbookProfile
 
@@ -97,6 +98,23 @@ async function getPublicLogs(
     : null
 
   return { logs: logsWithCrags, nextCursor }
+}
+
+async function getPublicProgressLogs(userId: string): Promise<ProgressLogEntry[]> {
+  const supabase = await getServerClient()
+
+  const { data, error } = await supabase
+    .from('user_climbs')
+    .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(PUBLIC_PROGRESS_LOG_LIMIT)
+
+  if (error || !data) {
+    return []
+  }
+
+  return data as unknown as ProgressLogEntry[]
 }
 
 async function getPublicSubmissions(userId: string): Promise<Submission[]> {
@@ -243,8 +261,9 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
     return <PrivateProfileCard username={profile.username} />
   }
 
-  const [logsResult, submissions] = await Promise.all([
+  const [logsResult, progressLogs, submissions] = await Promise.all([
     getPublicLogs(userId),
+    getPublicProgressLogs(userId),
     getPublicSubmissions(userId),
   ])
 
@@ -255,6 +274,7 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
         userId={userId}
         initialPage={{
           logs: logsResult.logs,
+          progressLogs,
           nextCursor: logsResult.nextCursor,
           profile,
           submissions,
