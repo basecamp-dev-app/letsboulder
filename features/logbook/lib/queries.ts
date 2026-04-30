@@ -3,7 +3,7 @@ import { getGradePoints } from '@/lib/grades'
 import { csrfFetch } from '@/lib/csrf-client'
 import { fetchOwnSubmissions } from '@/features/submissions/lib/fetch-own-submissions'
 import { createClient } from '@/lib/supabase'
-import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
+import type { LogbookClimb, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 import type { Submission } from '@/types/submissions'
 import { fetchSavedClimbs, fetchSavedCrags } from '@/features/saved/lib/queries'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
@@ -25,6 +25,7 @@ export interface LogbookProfile {
 export interface OwnLogbookData {
   user: User | null
   logs: LogbookClimb[]
+  progressLogs: ProgressLogEntry[]
   profile: LogbookProfile | null
   savedClimbs: SavedClimb[]
   savedCrags: SavedCrag[]
@@ -34,6 +35,19 @@ export interface OwnLogbookData {
     'pending-review': number
     published: number
   }
+}
+
+interface RawProgressLogRow {
+  id: string
+  climb_id: string
+  style: string
+  created_at: string
+  date_climbed?: string | null
+  climbs: {
+    id: string
+    name: string | null
+    grade: string
+  } | null
 }
 
 interface RawLogbookRow {
@@ -53,6 +67,7 @@ interface RawLogbookRow {
 }
 
 const INITIAL_LOGBOOK_LOG_LIMIT = 24
+const PROGRESS_LOG_LIMIT = 2000
 
 export const ownLogbookSummaryQueryKey = ['logbook', 'own', 'summary'] as const
 export const ownLogbookSubmissionsQueryKey = ['logbook', 'own', 'submissions'] as const
@@ -78,7 +93,7 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
 
     if (userError) {
       if (userError.name === 'AuthSessionMissingError' || userError.message.includes('session')) {
-        return { user: null, logs: [], profile: null, savedClimbs: [], savedCrags: [], submissionCounts: emptySubmissionCounts() }
+        return { user: null, logs: [], progressLogs: [], profile: null, savedClimbs: [], savedCrags: [], submissionCounts: emptySubmissionCounts() }
       }
       throw userError
     }
@@ -87,13 +102,13 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
   }
 
   if (!user) {
-    return { user: null, logs: [], profile: null, savedClimbs: [], savedCrags: [], submissionCounts: emptySubmissionCounts() }
+    return { user: null, logs: [], progressLogs: [], profile: null, savedClimbs: [], savedCrags: [], submissionCounts: emptySubmissionCounts() }
   }
 
   const userId = user.id
   const supabase = createClient()
 
-  const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }] = await Promise.all([
+  const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }, { data: progressLogsData, error: progressLogsError }] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade, contributor_score_total, accepted_contribution_count, contributor_tier')
@@ -105,6 +120,12 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(INITIAL_LOGBOOK_LOG_LIMIT),
+    supabase
+      .from('user_climbs')
+      .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(PROGRESS_LOG_LIMIT),
   ])
 
   if (profileError && profileError.code !== 'PGRST116') {
@@ -113,6 +134,10 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
 
   if (logsError) {
     throw logsError
+  }
+
+  if (progressLogsError) {
+    throw progressLogsError
   }
 
   const logsWithCrags = ((logsData || []) as unknown as RawLogbookRow[]).map((log) => {
@@ -168,6 +193,7 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
   return {
     user,
     logs: logsWithUrls,
+    progressLogs: (progressLogsData || []) as unknown as RawProgressLogRow[] as ProgressLogEntry[],
     profile: (profileData || null) as LogbookProfile | null,
     savedClimbs,
     savedCrags,

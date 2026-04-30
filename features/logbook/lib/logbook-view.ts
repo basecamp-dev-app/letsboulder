@@ -25,6 +25,19 @@ export interface LogbookClimb {
   }
 }
 
+export interface ProgressLogEntry {
+  id: string
+  climb_id: string
+  style: string
+  created_at: string
+  date_climbed?: string | null
+  climbs?: {
+    id?: string
+    name: string | null
+    grade: string
+  } | null
+}
+
 export interface LogbookProfile {
   id: string
   username: string
