@@ -12,7 +12,7 @@ vi.stubGlobal('BUILD_MANIFEST_URL', '/_next/build-manifest.json')
 vi.stubGlobal('SW_BUILD_ASSET_MANIFEST_URL', '/sw-build-assets.json')
 vi.stubGlobal('ROUTE_ASSET_CACHE', 'offline-route-assets-v2')
 vi.stubGlobal('BUILD_ASSET_CACHE_PREFIX', 'offline-build-assets')
-vi.stubGlobal('SHELL_CACHE', 'offline-shell-v3')
+vi.stubGlobal('SHELL_CACHE', 'offline-shell-v4')
 
 const BASE_ORIGIN = 'https://letsboulder.com'
 

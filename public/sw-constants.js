@@ -1,6 +1,6 @@
 self.__WB_DISABLE_DEV_LOGS = true
 
-const SHELL_CACHE = 'offline-shell-v3'
+const SHELL_CACHE = 'offline-shell-v4'
 const PACK_CACHE = 'offline-climb-packs-v3'
 const MEDIA_CACHE = 'offline-media-v2'
 const TILE_CACHE = 'offline-tiles-v2'
@@ -17,6 +17,7 @@ const LOGO_LIGHT_URL = '/logo-light.png'
 const LOGO_DARK_URL = '/logo-dark.png'
 const THEME_INIT_URL = '/theme-init.js'
 const SHELL_ROUTES = [HOME_URL, OFFLINE_URL, MANIFEST_URL, LOGO_URL, LOGO_LIGHT_URL, LOGO_DARK_URL, THEME_INIT_URL, SW_BUILD_ASSET_MANIFEST_URL]
+const ACTIVE_CACHES = [SHELL_CACHE, PACK_CACHE, MEDIA_CACHE, TILE_CACHE, ROUTE_ASSET_CACHE, TRANSIENT_CACHE]
 
 if (typeof globalThis !== 'undefined') {
   globalThis.SHELL_CACHE = SHELL_CACHE
@@ -36,4 +37,5 @@ if (typeof globalThis !== 'undefined') {
   globalThis.LOGO_DARK_URL = LOGO_DARK_URL
   globalThis.THEME_INIT_URL = THEME_INIT_URL
   globalThis.SHELL_ROUTES = SHELL_ROUTES
+  globalThis.ACTIVE_CACHES = ACTIVE_CACHES
 }

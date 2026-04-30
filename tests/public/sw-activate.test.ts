@@ -24,7 +24,7 @@ vi.stubGlobal('Request', class extends Request {
 vi.stubGlobal('Response', Response)
 vi.stubGlobal('SW_BUILD_ASSET_MANIFEST_URL', '/sw-build-assets.json')
 vi.stubGlobal('caches', {
-  keys: vi.fn(async () => ['offline-shell-v3', 'offline-route-assets-v2', 'offline-build-assets-old', 'offline-build-assets-new', 'stale-cache']),
+  keys: vi.fn(async () => ['offline-shell-v3', 'offline-shell-v4', 'offline-route-assets-v2', 'offline-build-assets-old', 'offline-build-assets-new', 'stale-cache']),
   delete: vi.fn(async () => true),
   open: vi.fn(async () => ({
     keys: vi.fn(async () => [
@@ -37,7 +37,7 @@ vi.stubGlobal('caches', {
 
 vi.stubGlobal('fetch', vi.fn())
 vi.stubGlobal('importScripts', vi.fn())
-vi.stubGlobal('ACTIVE_CACHES', ['offline-shell-v3', 'offline-route-assets-v2'])
+vi.stubGlobal('ACTIVE_CACHES', ['offline-shell-v4', 'offline-route-assets-v2'])
 vi.stubGlobal('BUILD_ASSET_CACHE_PREFIX', 'offline-build-assets')
 vi.stubGlobal('handleMessageEvent', vi.fn())
 vi.stubGlobal('handleShellFetch', vi.fn())
@@ -76,7 +76,8 @@ describe('service worker activate', () => {
     await pending
 
     expect(caches.delete).toHaveBeenCalledWith('stale-cache')
-    expect(caches.delete).not.toHaveBeenCalledWith('offline-shell-v3')
+    expect(caches.delete).toHaveBeenCalledWith('offline-shell-v3')
+    expect(caches.delete).not.toHaveBeenCalledWith('offline-shell-v4')
     expect(caches.delete).not.toHaveBeenCalledWith('offline-route-assets-v2')
     expect(caches.delete).toHaveBeenCalledWith('offline-build-assets-old')
     expect(caches.delete).not.toHaveBeenCalledWith('offline-build-assets-new')

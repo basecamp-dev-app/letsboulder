@@ -1,4 +1,8 @@
 async function handleShellFetch(request) {
+  if (request.mode === 'navigate') {
+    return handleNavigationFetch(request)
+  }
+
   const cached = await matchShellRequest(request)
 
   if (cached) {
@@ -31,6 +35,21 @@ async function handleShellFetch(request) {
       return getOfflineNavigationFallback()
     }
     return new Response('', { status: 503, statusText: 'Offline shell unavailable' })
+  }
+}
+
+async function handleNavigationFetch(request) {
+  try {
+    const response = await fetch(request)
+    if (response.ok) {
+      const shellCache = await caches.open(SHELL_CACHE)
+      await shellCache.put(request, response.clone())
+    }
+    return response
+  } catch {
+    const cached = await matchShellRequest(request)
+    if (cached) return cached
+    return getOfflineNavigationFallback()
   }
 }
 
@@ -67,5 +86,6 @@ async function handleRouteAssetFetch(request) {
 
 if (typeof globalThis !== 'undefined') {
   globalThis.handleShellFetch = handleShellFetch
+  globalThis.handleNavigationFetch = handleNavigationFetch
   globalThis.handleRouteAssetFetch = handleRouteAssetFetch
 }

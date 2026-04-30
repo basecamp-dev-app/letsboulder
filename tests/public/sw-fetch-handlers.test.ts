@@ -8,6 +8,7 @@ vi.stubGlobal('HOME_URL', '/')
 vi.stubGlobal('OFFLINE_URL', '/offline')
 vi.stubGlobal('OFFLINE_LAUNCH_URL', '/offline')
 vi.stubGlobal('OFFLINE_LIBRARY_URL', '/offline/library')
+vi.stubGlobal('SHELL_CACHE', 'offline-shell-v4')
 vi.stubGlobal('toSameOriginRequest', (url: string) => new Request(url.startsWith('/') ? `https://letsboulder.com${url}` : url))
 vi.stubGlobal('getBuildAssetCacheName', vi.fn(async () => 'offline-build-assets-current'))
 vi.stubGlobal('matchShellRequest', vi.fn())
@@ -15,9 +16,14 @@ vi.stubGlobal('matchRouteAssetRequest', vi.fn())
 
 const routeAssetCacheMatch = vi.fn()
 const routeAssetCachePut = vi.fn()
+const shellCachePut = vi.fn()
 
 vi.stubGlobal('caches', {
   open: vi.fn(async (cacheName: string) => {
+    if (cacheName === 'offline-shell-v4') {
+      return { match: vi.fn(), put: shellCachePut }
+    }
+
     if (cacheName === 'offline-route-assets-v2') {
       return { match: routeAssetCacheMatch, put: routeAssetCachePut }
     }
@@ -40,6 +46,7 @@ beforeEach(() => {
   fetchMock.mockReset()
   routeAssetCacheMatch.mockReset()
   routeAssetCachePut.mockReset()
+  shellCachePut.mockReset()
   vi.resetModules()
 })
 
@@ -53,7 +60,7 @@ function createNavigateRequest(url: string): Request {
 }
 
 describe('sw-fetch-handlers', () => {
-  test('handleShellFetch serves cached shell response before network refresh', async () => {
+  test('handleShellFetch serves cached shell response before network refresh for non-navigation requests', async () => {
     const cachedResponse = new Response('cached shell', { status: 200 })
     vi.mocked(matchShellRequest).mockResolvedValue(cachedResponse)
     fetchMock.mockResolvedValue(new Response('fresh shell', { status: 200 }))
@@ -64,6 +71,21 @@ describe('sw-fetch-handlers', () => {
 
     expect(response).toBe(cachedResponse)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('handleShellFetch returns fresh network html for online navigations', async () => {
+    const cachedResponse = new Response('cached shell', { status: 200 })
+    const freshResponse = new Response('fresh shell', { status: 200 })
+    vi.mocked(matchShellRequest).mockResolvedValue(cachedResponse)
+    fetchMock.mockResolvedValue(freshResponse)
+
+    await import('../../public/sw-fetch-handlers.js')
+
+    const response = await globalThis.handleShellFetch(createNavigateRequest('https://letsboulder.com/'))
+
+    expect(response).toBe(freshResponse)
+    expect(shellCachePut).toHaveBeenCalledTimes(1)
+    expect(matchShellRequest).not.toHaveBeenCalled()
   })
 
   test('handleShellFetch serves a cached climb navigation when offline', async () => {
