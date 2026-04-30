@@ -33,11 +33,12 @@ export default function ProgressOverTimeChart({ logs, gradeSystem, range }: Prog
     const trendPoint = chartData.trend.find((entry) => entry.timestamp === point.timestamp)
     return {
       ...point,
-      averagePoints: trendPoint?.averagePoints ?? null,
+      flashAveragePoints: trendPoint?.flashAveragePoints ?? null,
+      topAveragePoints: trendPoint?.topAveragePoints ?? null,
     }
   })
 
-  const values = mergedData.flatMap((point) => [point.flashPoints, point.topPoints, point.averagePoints]).filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  const values = mergedData.flatMap((point) => [point.flashAveragePoints, point.topAveragePoints]).filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
   const yDomain: [number, number] = values.length === 0
     ? [400, 700]
     : [Math.max(0, Math.min(...values) - 16), Math.max(...values) + 16]
@@ -50,9 +51,12 @@ export default function ProgressOverTimeChart({ logs, gradeSystem, range }: Prog
   const bestGrade = chartData.summary.bestPoints === null
     ? 'None'
     : formatGradeForDisplay(getGradeFromPoints(chartData.summary.bestPoints), gradeSystem)
-  const currentAverage = chartData.summary.currentAveragePoints === null
+  const currentFlashAverage = chartData.summary.currentFlashAveragePoints === null
     ? 'None'
-    : formatGradeForDisplay(getGradeFromPoints(chartData.summary.currentAveragePoints), gradeSystem)
+    : formatGradeForDisplay(getGradeFromPoints(chartData.summary.currentFlashAveragePoints), gradeSystem)
+  const currentTopAverage = chartData.summary.currentTopAveragePoints === null
+    ? 'None'
+    : formatGradeForDisplay(getGradeFromPoints(chartData.summary.currentTopAveragePoints), gradeSystem)
 
   useEffect(() => {
     const element = containerRef.current
@@ -89,7 +93,7 @@ export default function ProgressOverTimeChart({ logs, gradeSystem, range }: Prog
 
   return (
     <div>
-      <dl className="mb-3 grid grid-cols-3 gap-2 text-center text-xs sm:text-sm">
+      <dl className="mb-3 grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4 sm:text-sm">
         <div className="rounded-2xl bg-gray-50 px-2 py-2 dark:bg-gray-900">
           <dt className="text-gray-500 dark:text-gray-400">Sends</dt>
           <dd className="font-semibold text-gray-900 dark:text-gray-100">{chartData.summary.sendCount}</dd>
@@ -99,8 +103,12 @@ export default function ProgressOverTimeChart({ logs, gradeSystem, range }: Prog
           <dd className="font-semibold text-gray-900 dark:text-gray-100">{bestGrade}</dd>
         </div>
         <div className="rounded-2xl bg-gray-50 px-2 py-2 dark:bg-gray-900">
-          <dt className="text-gray-500 dark:text-gray-400">60-day avg</dt>
-          <dd className="font-semibold text-gray-900 dark:text-gray-100">{currentAverage}</dd>
+          <dt className="text-gray-500 dark:text-gray-400">Flash avg</dt>
+          <dd className="font-semibold text-gray-900 dark:text-gray-100">{currentFlashAverage}</dd>
+        </div>
+        <div className="rounded-2xl bg-gray-50 px-2 py-2 dark:bg-gray-900">
+          <dt className="text-gray-500 dark:text-gray-400">Top avg</dt>
+          <dd className="font-semibold text-gray-900 dark:text-gray-100">{currentTopAverage}</dd>
         </div>
       </dl>
       <div className="h-72 min-h-[240px] w-full min-w-0 md:h-80">
@@ -135,57 +143,40 @@ export default function ProgressOverTimeChart({ logs, gradeSystem, range }: Prog
                   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                 }}
                 labelFormatter={(value) => new Date(Number(value)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}
-                formatter={(value, name, item) => {
-                  if (name === 'averagePoints') {
-                    return [formatGradeForDisplay(getGradeFromPoints(Number(value)), gradeSystem), '60-day sent-grade average']
-                  }
-
-                  const payload = item.payload as { style: 'flash' | 'top'; grade: string; climbName: string | null }
-                  const label = payload.style === 'flash' ? 'Flash' : 'Top'
-                  const routeName = payload.climbName ? `${payload.climbName} • ` : ''
-                  return [`${routeName}${formatGradeForDisplay(payload.grade, gradeSystem)}`, label]
+                formatter={(value, name) => {
+                  const label = name === 'flashAveragePoints' ? 'Average flash' : 'Average top'
+                  return [formatGradeForDisplay(getGradeFromPoints(Number(value)), gradeSystem), label]
                 }}
               />
               <Legend
                 wrapperStyle={{ paddingTop: 8 }}
                 formatter={(value) => {
-                  if (value === 'flashPoints') return 'Flash ascents'
-                  if (value === 'topPoints') return 'Top ascents'
-                  if (value === 'averagePoints') return '60-day sent-grade average'
+                  if (value === 'flashAveragePoints') return 'Average flash'
+                  if (value === 'topAveragePoints') return 'Average top'
                   return value
                 }}
               />
               <Line
                 type="linear"
-                dataKey="averagePoints"
+                dataKey="flashAveragePoints"
+                stroke="#4b5563"
+                strokeWidth={2.5}
+                dot={{ r: 2.5, fill: '#4b5563', strokeWidth: 0 }}
+                activeDot={{ r: 5 }}
+                connectNulls={false}
+                isAnimationActive={false}
+                name="flashAveragePoints"
+              />
+              <Line
+                type="linear"
+                dataKey="topAveragePoints"
                 stroke="#111111"
                 strokeWidth={2.5}
-                dot={false}
+                dot={{ r: 2.5, fill: '#111111', strokeWidth: 0 }}
+                activeDot={{ r: 5 }}
                 connectNulls={false}
                 isAnimationActive={false}
-                name="averagePoints"
-              />
-              <Line
-                type="linear"
-                dataKey="flashPoints"
-                stroke="transparent"
-                strokeWidth={0}
-                dot={{ r: 4, fill: '#4b5563', strokeWidth: 0 }}
-                activeDot={{ r: 6 }}
-                connectNulls={false}
-                isAnimationActive={false}
-                name="flashPoints"
-              />
-              <Line
-                type="linear"
-                dataKey="topPoints"
-                stroke="transparent"
-                strokeWidth={0}
-                dot={{ r: 4, fill: '#111111', strokeWidth: 0 }}
-                activeDot={{ r: 6 }}
-                connectNulls={false}
-                isAnimationActive={false}
-                name="topPoints"
+                name="topAveragePoints"
               />
             </LineChart>
           ) : (

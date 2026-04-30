@@ -52,17 +52,35 @@ describe('buildProgressChartData', () => {
     expect(data.points[1].topPoints).toBe(getGradePoints('6C'))
   })
 
-  test('uses pre-range logs for the first visible 60-day average', () => {
+  test('uses pre-range logs for independent first visible 60-day averages', () => {
     const data = buildProgressChartData([
-      makeLog({ id: 'context', grade: '6A', created_at: '2025-04-15T12:00:00.000Z' }),
-      makeLog({ id: 'visible', grade: '7A', created_at: '2025-05-01T12:00:00.000Z' }),
+      makeLog({ id: 'flash-context', style: 'flash', grade: '6A', created_at: '2025-04-15T12:00:00.000Z' }),
+      makeLog({ id: 'top-context', style: 'top', grade: '6B', created_at: '2025-04-15T12:00:00.000Z' }),
+      makeLog({ id: 'flash-visible', style: 'flash', grade: '7A', created_at: '2025-05-01T12:00:00.000Z' }),
+      makeLog({ id: 'top-visible', style: 'top', grade: '7B', created_at: '2025-05-01T12:00:00.000Z' }),
     ], '1y', now)
 
-    const expectedAverage = (getGradePoints('6A') + getGradePoints('7A')) / 2
+    const expectedFlashAverage = (getGradePoints('6A') + getGradePoints('7A')) / 2
+    const expectedTopAverage = (getGradePoints('6B') + getGradePoints('7B')) / 2
 
-    expect(data.points.map((point) => point.id)).toEqual(['visible'])
-    expect(data.trend[0].averagePoints).toBe(expectedAverage)
-    expect(data.summary.currentAveragePoints).toBe(expectedAverage)
+    expect(data.points.map((point) => point.id)).toEqual(['flash-visible', 'top-visible'])
+    expect(data.trend[0].flashAveragePoints).toBe(expectedFlashAverage)
+    expect(data.trend[0].topAveragePoints).toBe(expectedTopAverage)
+    expect(data.summary.currentFlashAveragePoints).toBe(expectedFlashAverage)
+    expect(data.summary.currentTopAveragePoints).toBe(expectedTopAverage)
+  })
+
+  test('calculates flash and top rolling averages independently', () => {
+    const data = buildProgressChartData([
+      makeLog({ id: 'flash-low', style: 'flash', grade: '6A', created_at: '2026-04-01T12:00:00.000Z' }),
+      makeLog({ id: 'flash-high', style: 'flash', grade: '7A', created_at: '2026-04-20T12:00:00.000Z' }),
+      makeLog({ id: 'top', style: 'top', grade: '8A', created_at: '2026-04-20T12:00:00.000Z' }),
+    ], '6m', now)
+
+    const expectedFlashAverage = (getGradePoints('6A') + getGradePoints('7A')) / 2
+
+    expect(data.summary.currentFlashAveragePoints).toBe(expectedFlashAverage)
+    expect(data.summary.currentTopAveragePoints).toBe(getGradePoints('8A'))
   })
 
   test('returns empty summary for no sends', () => {
@@ -75,7 +93,8 @@ describe('buildProgressChartData', () => {
     expect(data.summary).toEqual({
       sendCount: 0,
       bestPoints: null,
-      currentAveragePoints: null,
+      currentFlashAveragePoints: null,
+      currentTopAveragePoints: null,
     })
   })
 })
