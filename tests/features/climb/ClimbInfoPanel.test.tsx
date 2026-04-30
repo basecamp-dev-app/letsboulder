@@ -81,11 +81,11 @@ describe('ClimbInfoPanel', () => {
     const user = userEvent.setup()
     const { onAddRoutes } = renderPanel()
 
-    expect(screen.getByText('No routes added yet')).toBeTruthy()
-    expect(screen.getByText('Open the editor to add the first topo lines for this image')).toBeTruthy()
-    expect(screen.getByText('No routes have been added to this image yet')).toBeTruthy()
+    expect(screen.getByText('This photo needs routes')).toBeTruthy()
+    expect(screen.getByText('Know this wall? Trace the first line and add route details.')).toBeTruthy()
+    expect(screen.getByText('No routes have been added to this image yet.')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'Add routes to this image' }))
+    await user.click(screen.getByRole('button', { name: 'Add the first route' }))
     expect(onAddRoutes).toHaveBeenCalledTimes(1)
   })
 

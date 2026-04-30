@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { AlertCircle, ChevronRight, RefreshCw } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeSystem } from '@/lib/grades'
 import { formatRatingValue, formatRouteTypeLabel } from '@/features/crags/lib/crag-page-domain'
@@ -93,10 +94,6 @@ const CragRouteList = React.memo(function CragRouteList({
   const resultSummary = filteredRoutes.length === routesCount || !hasActiveRouteFilters
     ? `${filteredRoutes.length} routes`
     : `${filteredRoutes.length} of ${routesCount} routes`
-  const previewCount = useMemo(() => {
-    return filteredRoutes.reduce((count, route) => count + (routePreviewDisplayByClimbId[route.id] ? 1 : 0), 0)
-  }, [filteredRoutes, routePreviewDisplayByClimbId])
-
   return (
     <div className="overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
       <div className="border-b border-stone-100 px-4 py-3 dark:border-gray-800">
@@ -129,14 +126,20 @@ const CragRouteList = React.memo(function CragRouteList({
       ) : filteredRoutes.length === 0 ? (
         <div className="px-4 py-5">
           <div className="rounded-3xl border border-dashed border-stone-300 bg-stone-50/80 p-5 dark:border-gray-700 dark:bg-gray-950/40">
-            <p className="text-sm font-semibold text-stone-900 dark:text-gray-100">No routes match these filters.</p>
-            <p className="mt-1 text-sm text-stone-600 dark:text-gray-300">Try widening the grade range, removing route-type filters, or clearing everything to get back to the full list.</p>
+            <p className="text-sm font-semibold text-stone-900 dark:text-gray-100">{routesCount === 0 && !hasActiveRouteFilters ? 'No routes have been added here yet.' : 'No routes match these filters.'}</p>
+            <p className="mt-1 text-sm text-stone-600 dark:text-gray-300">{routesCount === 0 && !hasActiveRouteFilters ? 'Know this crag? Upload a topo photo and add the first route for the guide.' : 'Try widening the grade range, removing route-type filters, or clearing everything to get back to the full list.'}</p>
             <div className="mt-3 text-xs font-medium uppercase tracking-[0.18em] text-stone-500 dark:text-gray-400">0 of {routesCount} routes</div>
             {hasActiveRouteFilters ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" onClick={onClearRouteFilters} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm transition hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
                   Clear filters
                 </button>
+              </div>
+            ) : routesCount === 0 ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link href="/submit" prefetch={false} className="rounded-full bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700">
+                  Add the first route
+                </Link>
               </div>
             ) : null}
           </div>
