@@ -155,7 +155,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 |-------|---------|
 | `product_clicks` | Affiliate/product click tracking |
 | `climb_video_betas` | Video beta links for climbs |
-| `media_jobs` | Legacy media processing queue (retired) |
+| `media_jobs` | Durable media ingest outbox claimed by the Cloudflare Worker |
 
 ---
 
@@ -253,8 +253,9 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - **Legacy column:** `images.submission_id` is an orphan column with no FK constraint. No `submissions` table exists. It is not referenced by any application code and should be ignored.
 - `submission_draft_images` mirrors the provider-aware original reference.
 - `submission_draft_routes` stores durable draft route geometry and metadata. Route drawing now persists per image via image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
-- `media_jobs` and `claim_media_job(worker_name text)` are legacy artifacts from the retired polling Node worker.
-- Active ingest runs through Cloudflare Queue + the Worker in `apps/media-worker`; `images` remains the source of truth.
+- `media_jobs` is the durable outbox for active media ingest. Upload completion calls `queue_media_ingest_job(...)` to update `images` and insert/reuse a queued job atomically.
+- `claim_media_job(worker_name text)` is used by the Cloudflare Worker scheduled handler to claim pending ingest work. Cloudflare Queue ingress remains as a compatibility path, but the durable outbox is the source of truth for app-owned uploads.
+- Active ingest runs through `media_jobs` + the Worker in `apps/media-worker`; `images` remains the source of truth.
 
 ### Collaboration Tables
 - Published submissions use wiki-style editing for authenticated users; `submission_collaborators` and `submission_collaborator_invites` remain legacy published-collaboration tables.

@@ -287,11 +287,12 @@ describe('Media upload session routes', () => {
 
   test('complete queues ingest when moderation is disabled', async () => {
     vi.mocked(getMediaModerationConfig).mockReturnValue({ enabled: false, provider: 'disabled', failOpen: false })
-    const updateQuery = { eq: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })) }
+    const rpc = vi.fn(async () => ({ data: { id: 'job-123' }, error: null }))
     const supabase = {
       auth: {
         getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
       },
+      rpc,
       from: vi.fn((table: string) => {
         if (table !== 'images') {
           throw new Error(`Unexpected table ${table}`)
@@ -306,12 +307,12 @@ describe('Media upload session routes', () => {
                   created_by: 'user-1',
                   original_bucket: 'private-bucket',
                   original_key: 'originals/image-123.jpg',
+                  processing_status: 'pending',
                 },
                 error: null,
               })),
             })),
           })),
-          update: vi.fn(() => updateQuery),
         }
       }),
     }
@@ -330,19 +331,26 @@ describe('Media upload session routes', () => {
     expect(response.status).toBe(200)
     expect(ensurePrivateObjectExists).toHaveBeenCalledWith('originals/image-123.jpg')
     expect(json).toEqual({ success: true, imageId: 'image-123', status: 'queued' })
-    expect(fetch).toHaveBeenCalledWith(
-      'https://worker.example/enqueue',
-      expect.objectContaining({ method: 'POST' })
-    )
+    expect(rpc).toHaveBeenCalledWith('queue_media_ingest_job', {
+      p_image_id: 'image-123',
+      p_original_bucket: 'private-bucket',
+      p_original_key: 'originals/image-123.jpg',
+      p_storage_provider: 'r2',
+      p_purpose: 'submission_image',
+      p_triggered_by_user_id: 'user-1',
+      p_trigger: 'upload',
+      p_auto_approve: true,
+    })
   })
 
   test('complete queues ingest when moderation requires review', async () => {
     vi.mocked(getMediaModerationConfig).mockReturnValue({ enabled: true, provider: 'aws_rekognition', failOpen: false })
-    const updateQuery = { eq: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })) }
+    const rpc = vi.fn(async () => ({ data: { id: 'job-123' }, error: null }))
     const supabase = {
       auth: {
         getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
       },
+      rpc,
       from: vi.fn((table: string) => {
         if (table !== 'images') {
           throw new Error(`Unexpected table ${table}`)
@@ -357,12 +365,12 @@ describe('Media upload session routes', () => {
                   created_by: 'user-1',
                   original_bucket: 'private-bucket',
                   original_key: 'originals/image-123.jpg',
+                  processing_status: 'pending',
                 },
                 error: null,
               })),
             })),
           })),
-          update: vi.fn(() => updateQuery),
         }
       }),
     }
@@ -380,9 +388,91 @@ describe('Media upload session routes', () => {
 
     expect(response.status).toBe(200)
     expect(json).toEqual({ success: true, imageId: 'image-123', status: 'queued' })
-    expect(fetch).toHaveBeenCalledWith(
-      'https://worker.example/enqueue',
-      expect.objectContaining({ method: 'POST' })
-    )
+    expect(rpc).toHaveBeenCalledWith('queue_media_ingest_job', expect.objectContaining({
+      p_auto_approve: false,
+      p_purpose: 'crag_image',
+    }))
+  })
+
+  test('complete returns ready without queueing an already processed image', async () => {
+    const rpc = vi.fn()
+    const supabase = {
+      auth: {
+        getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
+      },
+      rpc,
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({
+              data: {
+                id: 'image-123',
+                created_by: 'user-1',
+                original_bucket: 'private-bucket',
+                original_key: 'originals/image-123.jpg',
+                processing_status: 'ready',
+              },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    }
+
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: supabase as never,
+      userId: null,
+    } as unknown as MiddlewareResult)
+
+    const response = await completeUploadSession(makeCompleteRequest({ purpose: 'submission_image' }), {
+      params: Promise.resolve({ imageId: 'image-123' }),
+    })
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json).toEqual({ success: true, imageId: 'image-123', status: 'ready' })
+    expect(ensurePrivateObjectExists).not.toHaveBeenCalled()
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  test('complete fails when durable queueing fails', async () => {
+    const rpc = vi.fn(async () => ({ data: null, error: new Error('rpc failed') }))
+    const supabase = {
+      auth: {
+        getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
+      },
+      rpc,
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({
+              data: {
+                id: 'image-123',
+                created_by: 'user-1',
+                original_bucket: 'private-bucket',
+                original_key: 'originals/image-123.jpg',
+                processing_status: 'pending',
+              },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    }
+
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: supabase as never,
+      userId: null,
+    } as unknown as MiddlewareResult)
+
+    const response = await completeUploadSession(makeCompleteRequest({ purpose: 'submission_image' }), {
+      params: Promise.resolve({ imageId: 'image-123' }),
+    })
+    const json = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(json.error).toBe('Failed to queue image for ingest')
   })
 })

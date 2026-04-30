@@ -11,3 +11,19 @@ export const mediaIngestJobSchema = z.object({
 })
 
 export type MediaIngestJobPayload = z.infer<typeof mediaIngestJobSchema>
+
+export interface MediaJobRow {
+  id: string
+  image_id: string
+  job_type: 'ingest_image'
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'
+  payload: unknown
+  attempts: number
+  max_attempts: number
+  run_at: string
+  locked_at: string | null
+  locked_by: string | null
+  last_error: string | null
+  created_at: string
+  updated_at: string
+}

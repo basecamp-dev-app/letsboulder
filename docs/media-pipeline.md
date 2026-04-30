@@ -9,11 +9,12 @@
 
 ## Processing Flow
 
-1. Server enqueues the media key to Cloudflare Queues via `POST /enqueue` on the media worker (`apps/media-worker/wrangler.toml`)
-2. Worker reads the object from the R2 private bucket (`lb-dev-media-private` / `lb-prod-media-private`)
-3. Worker generates variants (resize, format conversion, thumbnail)
-4. Worker writes processed variants to the R2 public bucket (`lb-dev-media-public` / `lb-prod-media-public`)
-5. Worker updates the `images` table with variant metadata and status
+1. Server validates the private R2 object exists and atomically queues ingest with `queue_media_ingest_job(...)`
+2. The RPC updates `images.processing_status = 'queued'` and inserts or reuses a durable `media_jobs` row
+3. The Cloudflare media worker scheduled handler claims jobs with `claim_media_job(worker_name)`
+4. Worker reads the object from the R2 private bucket (`lb-dev-media-private` / `lb-prod-media-private`)
+5. Worker builds the variant manifest and updates the `images` table with public delivery metadata and status
+6. Worker marks the `media_jobs` row `completed`, retries it with backoff, or marks it `failed`
 
 ## Delivery Flow
 
@@ -24,10 +25,10 @@
 
 ## Moderation Flow
 
-1. After upload, server calls AWS Rekognition via `lib/image-moderation.ts`
-2. GPS data is extracted via `lib/image-gps.ts` and `lib/image-metadata.ts`
-3. If moderation fails, the media record is flagged and the object is not enqueued for processing
-4. Moderation is optional and runs server-side before queue dispatch
+1. Upload completion records whether moderation is enabled and sets `moderation_status` to `approved` or `pending`
+2. GPS data is extracted client-side before upload and persisted on the `images` row
+3. Durable ingest still queues through `media_jobs`; moderation-enabled worker processing must finalize approval before public delivery
+4. Moderation is optional and disabled environments auto-approve media during upload completion
 
 ## Draft Image Flow
 
@@ -53,4 +54,4 @@
 | `R2_ACCESS_KEY_ID` | Server | R2 access key |
 | `R2_SECRET_ACCESS_KEY` | Server | R2 secret key |
 | `NEXT_PUBLIC_MEDIA_CDN_URL` | Client + Server | CDN base URL for public media |
-| `CF_MEDIA_WORKER_INGRESS_SECRET` | Server | Optional auth token for worker ingress |
+| `CF_MEDIA_WORKER_SECRET` | Worker | Optional auth token for legacy direct worker ingress |

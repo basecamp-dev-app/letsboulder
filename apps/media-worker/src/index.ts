@@ -1,6 +1,9 @@
 import { createSupabaseAdminClient, type Env, type MessageBatch } from './supabase'
 import { MEDIA_FORMATS, MEDIA_VARIANT_WIDTHS, getVariantWidth, type MediaFormatKey, type MediaVariantKey } from './config'
-import { mediaIngestJobSchema, type MediaIngestJobPayload } from './schema'
+import { mediaIngestJobSchema, type MediaIngestJobPayload, type MediaJobRow } from './schema'
+
+const OUTBOX_WORKER_NAME = 'media-worker-scheduled'
+const OUTBOX_DRAIN_LIMIT = 10
 
 interface ImageRow {
   id: string
@@ -25,6 +28,16 @@ function json(data: unknown, init?: ResponseInit) {
       ...(init?.headers || {}),
     },
   })
+}
+
+function stringifyError(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return typeof error === 'string' ? error : 'Unknown media job error'
+}
+
+function getRetryRunAt(attempts: number): string {
+  const backoffMinutes = Math.min(60, 2 ** Math.max(attempts - 1, 0))
+  return new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString()
 }
 
 function buildMediaPath(originalKey: string, variant: MediaVariantKey, format: MediaFormatKey): string {
@@ -188,6 +201,131 @@ async function processJob(job: MediaIngestJobPayload, env: Env) {
 
   await setImageProcessing(supabase, image.id)
   await finalizeImage(supabase, env, image, job.originalKey)
+}
+
+async function claimMediaJob(supabase: ReturnType<typeof createSupabaseAdminClient>, workerName: string) {
+  const { data, error } = await supabase.rpc('claim_media_job', { worker_name: workerName })
+  if (error) throw error
+  return data as MediaJobRow | null
+}
+
+async function markMediaJobCompleted(supabase: ReturnType<typeof createSupabaseAdminClient>, jobId: string) {
+  const { error } = await supabase
+    .from('media_jobs')
+    .update({
+      status: 'completed',
+      locked_at: null,
+      locked_by: null,
+      last_error: null,
+    })
+    .eq('id', jobId)
+
+  if (error) throw error
+}
+
+async function markMediaJobForRetry(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  job: MediaJobRow,
+  error: unknown
+) {
+  const errorMessage = stringifyError(error)
+  const hasAttemptsRemaining = job.attempts < job.max_attempts
+
+  if (!hasAttemptsRemaining) {
+    const { error: jobError } = await supabase
+      .from('media_jobs')
+      .update({
+        status: 'failed',
+        locked_at: null,
+        locked_by: null,
+        last_error: errorMessage,
+      })
+      .eq('id', job.id)
+
+    if (jobError) throw jobError
+
+    const { error: imageError } = await supabase
+      .from('images')
+      .update({ processing_status: 'failed' })
+      .eq('id', job.image_id)
+
+    if (imageError) throw imageError
+    return
+  }
+
+  const { error: retryError } = await supabase
+    .from('media_jobs')
+    .update({
+      status: 'queued',
+      locked_at: null,
+      locked_by: null,
+      last_error: errorMessage,
+      run_at: getRetryRunAt(job.attempts),
+    })
+    .eq('id', job.id)
+
+  if (retryError) throw retryError
+}
+
+async function failMediaJobPermanently(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  job: MediaJobRow,
+  error: unknown
+) {
+  const errorMessage = stringifyError(error)
+  const { error: jobError } = await supabase
+    .from('media_jobs')
+    .update({
+      status: 'failed',
+      locked_at: null,
+      locked_by: null,
+      last_error: errorMessage,
+    })
+    .eq('id', job.id)
+
+  if (jobError) throw jobError
+
+  const { error: imageError } = await supabase
+    .from('images')
+    .update({ processing_status: 'failed' })
+    .eq('id', job.image_id)
+
+  if (imageError) throw imageError
+}
+
+async function processClaimedMediaJob(job: MediaJobRow, env: Env) {
+  const supabase = createSupabaseAdminClient(env)
+  const parsed = mediaIngestJobSchema.safeParse(job.payload)
+
+  if (!parsed.success) {
+    await failMediaJobPermanently(supabase, job, new Error('Invalid media ingest payload'))
+    return
+  }
+
+  try {
+    if (env.ENABLE_MODERATION === 'true' && env.MEDIA_MODERATION_PROVIDER === 'aws_rekognition') {
+      throw new Error('AWS Rekognition moderation is not implemented in the Cloudflare worker yet')
+    }
+
+    await processJob(parsed.data, env)
+    await markMediaJobCompleted(supabase, job.id)
+  } catch (error) {
+    await markMediaJobForRetry(supabase, job, error)
+  }
+}
+
+async function drainMediaOutbox(env: Env, workerName = OUTBOX_WORKER_NAME, limit = OUTBOX_DRAIN_LIMIT) {
+  const supabase = createSupabaseAdminClient(env)
+  let processed = 0
+
+  for (let index = 0; index < limit; index += 1) {
+    const job = await claimMediaJob(supabase, workerName)
+    if (!job) break
+    await processClaimedMediaJob(job, env)
+    processed += 1
+  }
+
+  return processed
 }
 
 async function handleOrigin(request: Request, env: Env, url: URL) {
@@ -372,7 +510,16 @@ export default {
       }
     }
   },
+
+  async scheduled(_controller: unknown, env: Env) {
+    try {
+      await drainMediaOutbox(env)
+    } catch (error) {
+      console.error('Failed to drain media outbox', error)
+    }
+  },
 } satisfies {
   fetch(request: Request, env: Env): Promise<Response>
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void>
+  scheduled(controller: unknown, env: Env): Promise<void>
 }
