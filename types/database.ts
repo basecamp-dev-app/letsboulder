@@ -2748,6 +2748,39 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      queue_media_ingest_job: {
+        Args: {
+          p_auto_approve?: boolean
+          p_image_id: string
+          p_original_bucket: string
+          p_original_key: string
+          p_purpose: string
+          p_storage_provider: string
+          p_trigger?: string
+          p_triggered_by_user_id: string
+        }
+        Returns: {
+          attempts: number
+          created_at: string
+          id: string
+          image_id: string
+          job_type: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "media_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       claim_submission_collaborator_invite: {
         Args: { p_token: string }
         Returns: Json

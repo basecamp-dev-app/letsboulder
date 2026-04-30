@@ -41,7 +41,7 @@ This is a maintainer reference for system shape, deployment flow, and module own
 
 - **Auth**: Supabase Auth with JWT sessions
 - **Extensions**: PostGIS for geo queries
-- **Key RPCs**: `get_crag_pins`, `get_crag_route_intelligence`, `get_upload_context`, `create_unified_submission`
+- **Key RPCs**: `get_crag_pins`, `get_crag_route_intelligence`, `get_upload_context`, `create_unified_submission`, `queue_media_ingest_job`, `claim_media_job`
 - **Migrations**: `supabase/migrations/*.sql` (canonical source of truth)
 - **Wiki Value Protection**: Deterministic risk scoring for community edits — high-risk non-owner edits are blocked, suspicious edits are flagged, all edits are logged with risk metadata
 - **Types**: Auto-generated in `types/database.ts` via `supabase gen types`
