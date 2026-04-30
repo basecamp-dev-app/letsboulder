@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { Geist, Geist_Mono } from 'next/font/google'
-import VercelAnalytics from '@/components/VercelAnalytics'
+
 import './globals.css'
 import RootClientUtilities from '@/components/RootClientUtilities'
 import QueryProviders from '@/components/QueryProviders'
-import WebVitalsReporter from '@/components/WebVitalsReporter'
+
 import '@/lib/env-startup'
 import {
   BRAND_NAME,
@@ -179,9 +179,7 @@ export default function RootLayout({
         </a>
         <QueryProviders>
           {children}
-          <WebVitalsReporter />
           <RootClientUtilities />
-          <VercelAnalytics />
         </QueryProviders>
       </body>
     </html>
