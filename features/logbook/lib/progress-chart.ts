@@ -18,7 +18,8 @@ export interface ProgressChartPoint {
 export interface ProgressTrendPoint {
   date: string
   timestamp: number
-  averagePoints: number
+  flashAveragePoints: number | null
+  topAveragePoints: number | null
 }
 
 export interface ProgressChartData {
@@ -29,7 +30,8 @@ export interface ProgressChartData {
   summary: {
     sendCount: number
     bestPoints: number | null
-    currentAveragePoints: number | null
+    currentFlashAveragePoints: number | null
+    currentTopAveragePoints: number | null
   }
 }
 
@@ -94,20 +96,31 @@ export function buildProgressChartData(logs: Array<LogEntry | ProgressLogEntry>,
     .map((point) => {
       const windowStart = point.timestamp - (ROLLING_WINDOW_DAYS * MS_PER_DAY)
       const windowPoints = allPoints.filter((candidate) => candidate.timestamp >= windowStart && candidate.timestamp <= point.timestamp)
+      const flashWindowPoints = windowPoints.filter((candidate) => candidate.style === 'flash')
+      const topWindowPoints = windowPoints.filter((candidate) => candidate.style === 'top')
 
       if (windowPoints.length === 0) return null
 
-      const averagePoints = windowPoints.reduce((sum, candidate) => sum + candidate.points, 0) / windowPoints.length
+      const flashAveragePoints = flashWindowPoints.length > 0
+        ? flashWindowPoints.reduce((sum, candidate) => sum + candidate.points, 0) / flashWindowPoints.length
+        : null
+      const topAveragePoints = topWindowPoints.length > 0
+        ? topWindowPoints.reduce((sum, candidate) => sum + candidate.points, 0) / topWindowPoints.length
+        : null
+
+      if (flashAveragePoints === null && topAveragePoints === null) return null
 
       return {
         date: point.date,
         timestamp: point.timestamp,
-        averagePoints,
+        flashAveragePoints,
+        topAveragePoints,
       }
     })
     .filter((point): point is ProgressTrendPoint => point !== null)
 
-  const currentAveragePoints = trend.length > 0 ? trend[trend.length - 1].averagePoints : null
+  const currentFlashAveragePoints = [...trend].reverse().find((point) => point.flashAveragePoints !== null)?.flashAveragePoints ?? null
+  const currentTopAveragePoints = [...trend].reverse().find((point) => point.topAveragePoints !== null)?.topAveragePoints ?? null
 
   return {
     rangeStart: rangeStart?.getTime() ?? null,
@@ -117,7 +130,8 @@ export function buildProgressChartData(logs: Array<LogEntry | ProgressLogEntry>,
     summary: {
       sendCount: points.length,
       bestPoints: points.length > 0 ? Math.max(...points.map((point) => point.points)) : null,
-      currentAveragePoints,
+      currentFlashAveragePoints,
+      currentTopAveragePoints,
     },
   }
 }
