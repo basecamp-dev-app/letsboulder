@@ -56,6 +56,19 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Validate build env
+        run: |
+          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY)
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required build environment variable: $var. Add it as a repository secret before running CI builds."
+              exit 1
+            fi
+          done
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
       - name: Build
         run: npm run build
         env:
