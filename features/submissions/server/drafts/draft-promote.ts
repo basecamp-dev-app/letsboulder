@@ -24,7 +24,7 @@ interface DraftRouteRef {
   draft_image_id: string
 }
 
-type DraftImagePublishRow = Pick<DraftImageRow, 'id' | 'latitude' | 'longitude' | 'route_data'>
+type DraftImagePublishRow = Pick<DraftImageRow, 'id' | 'display_order' | 'latitude' | 'longitude' | 'route_data'>
 
 interface DraftRouteSyncPayload {
   id: string
@@ -75,6 +75,20 @@ function normalizeDraftRouteSyncPayload(value: unknown): DraftRouteSyncPayload[]
   })
 }
 
+function resolveDraftImageLocationMode(metadata: unknown, image: DraftImagePublishRow): 'shared' | 'custom' {
+  const safeMetadata = normalizeJsonRecord(metadata)
+  const images = normalizeJsonRecord(safeMetadata?.images)
+  const imageMetadata = normalizeJsonRecord(images?.[image.id])
+  const locationMode = imageMetadata?.locationMode
+
+  if (locationMode === 'shared' || locationMode === 'custom') return locationMode
+  return hasValidDraftCoordinate(image.latitude, image.longitude) ? 'custom' : 'shared'
+}
+
+function formatDraftImageLabel(image: DraftImagePublishRow): string {
+  return `Image ${image.display_order + 1}`
+}
+
 export async function promoteDraftToSubmission(input: {
   supabase: ReturnType<typeof import('@supabase/ssr').createServerClient>
   request: Request
@@ -102,7 +116,7 @@ export async function promoteDraftToSubmission(input: {
 
   const { data: draftImages, error: draftImagesError } = await supabase
     .from('submission_draft_images')
-    .select('id, latitude, longitude, route_data')
+    .select('id, display_order, latitude, longitude, route_data')
     .eq('draft_id', draftId)
 
   if (draftImagesError) {
@@ -148,6 +162,21 @@ export async function promoteDraftToSubmission(input: {
     }
   }
 
+  const imagesMissingLocation = draftImageRows.filter((image) => {
+    const locationMode = resolveDraftImageLocationMode(draft.metadata, image)
+    if (locationMode === 'custom') return !hasValidDraftCoordinate(image.latitude, image.longitude)
+    return !hasValidLocation
+  })
+
+  if (imagesMissingLocation.length > 0) {
+    const labels = imagesMissingLocation
+      .sort((a, b) => a.display_order - b.display_order)
+      .map(formatDraftImageLabel)
+      .join(', ')
+
+    return NextResponse.json({ error: `Add location for ${labels} before publishing this draft` }, { status: 400 })
+  }
+
   const { data: draftRoutes, error: draftRoutesError } = await supabase
     .from('submission_draft_routes')
     .select('id, draft_image_id')
@@ -174,14 +203,26 @@ export async function promoteDraftToSubmission(input: {
       const completedRoutes = normalizeDraftRouteSyncPayload(routeData?.completedRoutes)
       if (completedRoutes.length === 0) continue
 
-      const { error } = await supabase.rpc('sync_submission_draft_routes', {
-        p_draft_id: draftId,
-        p_draft_image_id: imageId,
-        p_routes: completedRoutes,
-      })
+      try {
+        const { error } = await supabase.rpc('sync_submission_draft_routes', {
+          p_draft_id: draftId,
+          p_draft_image_id: imageId,
+          p_routes: completedRoutes,
+        })
 
-      if (error) {
-        return createErrorResponse(error, 'Failed to repair draft routes before publish')
+        if (error) {
+          reportError(error, {
+            message: 'Failed to repair draft routes before publish',
+            level: 'warning',
+            extra: { draftId, imageId, routeCount: completedRoutes.length },
+          })
+        }
+      } catch (error) {
+        reportError(error, {
+          message: 'Failed to repair draft routes before publish',
+          level: 'warning',
+          extra: { draftId, imageId, routeCount: completedRoutes.length },
+        })
       }
     }
 
@@ -191,11 +232,15 @@ export async function promoteDraftToSubmission(input: {
       .eq('draft_id', draftId)
 
     if (repairedDraftRoutesError) {
-      return createErrorResponse(repairedDraftRoutesError, 'Failed to validate repaired draft routes before publish')
+      reportError(repairedDraftRoutesError, {
+        message: 'Failed to validate repaired draft routes before publish',
+        level: 'warning',
+        extra: { draftId },
+      })
+    } else {
+      routeRows = (repairedDraftRoutes || []) as DraftRouteRef[]
+      imagesMissingRoutes = resolveImagesMissingRoutes(routeRows)
     }
-
-    routeRows = (repairedDraftRoutes || []) as DraftRouteRef[]
-    imagesMissingRoutes = resolveImagesMissingRoutes(routeRows)
   }
 
   const { data, error } = await supabase.rpc('promote_draft_to_submission', { p_draft_id: draftId })

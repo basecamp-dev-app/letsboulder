@@ -63,6 +63,7 @@ function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallba
               data: [
                 {
                   id: 'draft-image-1',
+                  display_order: 0,
                   latitude: 49.45,
                   longitude: -2.55,
                   route_data: includeFallbackRouteData
@@ -81,7 +82,7 @@ function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallba
                       }
                     : null,
                 },
-                { id: 'draft-image-2', latitude: 49.46, longitude: -2.54, route_data: null },
+                { id: 'draft-image-2', display_order: 1, latitude: 49.46, longitude: -2.54, route_data: null },
               ],
               error: null,
             })),
@@ -275,6 +276,7 @@ describe('promoteDraftToSubmission', () => {
               data: [
                 {
                   id: 'draft-image-1',
+                  display_order: 0,
                   latitude: 49.45,
                   longitude: -2.55,
                   route_data: {
@@ -291,7 +293,7 @@ describe('promoteDraftToSubmission', () => {
                     }],
                   },
                 },
-                { id: 'draft-image-2', latitude: 49.46, longitude: -2.54, route_data: null },
+                { id: 'draft-image-2', display_order: 1, latitude: 49.46, longitude: -2.54, route_data: null },
               ],
               error: null,
             })),
@@ -431,6 +433,7 @@ describe('promoteDraftToSubmission', () => {
               data: [
                 {
                   id: 'draft-image-1',
+                  display_order: 0,
                   latitude: 49.45,
                   longitude: -2.55,
                   route_data: null,
@@ -471,5 +474,115 @@ describe('promoteDraftToSubmission', () => {
       },
     })
     expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
+  })
+
+  test('logs draft route repair failures and still publishes', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const supabase = makeSupabase({ includeAllImageRoutes: false, includeFallbackRouteData: true })
+
+    ;(supabase.rpc as unknown) = vi.fn(async (fnName: string) => {
+      if (fnName === 'sync_submission_draft_routes') {
+        return { data: null, error: { message: 'routes payload malformed' } }
+      }
+
+      if (fnName === 'promote_draft_to_submission') {
+        return {
+          data: {
+            success: true,
+            status: 'submitted',
+            image_id: 'image-1',
+            default_image_id: 'image-1',
+            image_ids: ['image-1'],
+            climb_ids: ['climb-1'],
+            route_line_ids: ['route-line-1'],
+            published_at: '2026-03-01T00:00:00Z',
+          },
+          error: null,
+        }
+      }
+
+      return { data: null, error: null }
+    })
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(200)
+    expect(supabase.rpc).toHaveBeenCalledWith('sync_submission_draft_routes', expect.anything())
+    expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to repair draft routes before publish'),
+      expect.any(Error),
+      expect.objectContaining({ draftId: 'draft-1', imageId: 'draft-image-1', routeCount: 1 })
+    )
+
+    consoleError.mockRestore()
+  })
+
+  test('rejects custom image location without coordinates before publish', async () => {
+    const supabase = makeSupabase() as unknown as ReturnType<typeof makeSupabase> & { from: ReturnType<typeof vi.fn> }
+    const originalFrom = supabase.from
+
+    Object.defineProperty(supabase, 'from', { value: vi.fn((table: string) => {
+      if (table === 'submission_drafts') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: {
+                  id: 'draft-1',
+                  user_id: 'user-1',
+                  metadata: {
+                    version: 2,
+                    navigation: { defaultImageId: 'draft-image-1' },
+                    images: {
+                      'draft-image-1': { imageId: 'draft-image-1', displayOrder: 0, locationMode: 'custom' },
+                    },
+                    submission: { location: { latitude: 49.45, longitude: -2.55 } },
+                  },
+                },
+                error: null,
+              })),
+            })),
+          })),
+        }
+      }
+
+      if (table === 'submission_draft_images') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => makeThenableResult({
+              data: [
+                {
+                  id: 'draft-image-1',
+                  display_order: 0,
+                  latitude: null,
+                  longitude: null,
+                  route_data: null,
+                },
+              ],
+              error: null,
+            })),
+          })),
+        }
+      }
+
+      return originalFrom(table)
+    }) })
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: 'Add location for Image 1 before publishing this draft' })
+    expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
   })
 })
