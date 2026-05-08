@@ -7,12 +7,14 @@ import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { getBoundingBoxesForCountry, validateCoordinatesInBoundingBox } from '@/lib/geo/bounding-boxes'
 import { haversineMeters } from '@/lib/geo/haversine'
 import { parseWithSchema } from '@/lib/api-validation'
+import { findCragDuplicateCandidate } from '@/features/crags/lib/crag-duplicates'
 
 import type { NextRequest } from 'next/server'
 import type { Database } from '@/types/database'
 
 type RequestSupabaseClient = ReturnType<typeof import('@/lib/supabase-server').getServerClientFromRequest>
 type LocationTagRow = Pick<Database['public']['Tables']['location_tags']['Row'], 'id' | 'kind' | 'name' | 'country_code'>
+type CragDuplicateRow = Pick<Database['public']['Tables']['crags']['Row'], 'id' | 'name' | 'latitude' | 'longitude'>
 
 export const createCragSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -134,8 +136,8 @@ async function validateCragDuplicates(
       }, { status: 409 })
     }
 
-    const latRange = 0.002
-    const lngRange = 0.002
+    const latRange = 0.02
+    const lngRange = 0.03
     const { data: nearbyCrags } = await supabase
       .from('crags')
       .select('id, name, latitude, longitude')
@@ -143,9 +145,25 @@ async function validateCragDuplicates(
       .lte('latitude', latitude + latRange)
       .gte('longitude', longitude - lngRange)
       .lte('longitude', longitude + lngRange)
-      .limit(10)
+      .limit(80)
 
     if (nearbyCrags && nearbyCrags.length > 0) {
+      const duplicateCandidate = findCragDuplicateCandidate({
+        name,
+        latitude,
+        longitude,
+        candidates: nearbyCrags as CragDuplicateRow[],
+      })
+
+      if (duplicateCandidate) {
+        return NextResponse.json({
+          error: `A crag with the same name already exists nearby: "${duplicateCandidate.name}"${duplicateCandidate.distance !== null ? ` (${duplicateCandidate.distance}m away)` : ''}`,
+          existingCragId: duplicateCandidate.id,
+          existingCragName: duplicateCandidate.name,
+          code: 'DUPLICATE_NAME',
+        }, { status: 409 })
+      }
+
       for (const nearby of nearbyCrags) {
         const distance = haversineMeters(latitude, longitude, nearby.latitude, nearby.longitude)
         if (distance <= 200) {
@@ -164,16 +182,22 @@ async function validateCragDuplicates(
 
   const { data: nameMatches } = await supabase
     .from('crags')
-    .select('id, name')
-    .ilike('name', name)
+    .select('id, name, latitude, longitude')
     .eq('country_code', countryCode)
-    .limit(1)
+    .limit(200)
 
-  if (nameMatches && nameMatches.length > 0) {
+  const duplicateNameMatch = findCragDuplicateCandidate({
+    name,
+    latitude: latitude ?? null,
+    longitude: longitude ?? null,
+    candidates: (nameMatches || []) as CragDuplicateRow[],
+  })
+
+  if (duplicateNameMatch) {
     return NextResponse.json({
-      error: `A crag with the same name already exists in this country: "${nameMatches[0].name}"`,
-      existingCragId: nameMatches[0].id,
-      existingCragName: nameMatches[0].name,
+      error: `A crag with the same name already exists in this country: "${duplicateNameMatch.name}"`,
+      existingCragId: duplicateNameMatch.id,
+      existingCragName: duplicateNameMatch.name,
       code: 'DUPLICATE_NAME',
     }, { status: 409 })
   }

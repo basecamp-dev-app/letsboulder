@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { haversineMeters } from '@/lib/geo/haversine'
+import { normalizeCragDuplicateName } from '@/features/crags/lib/crag-duplicates'
 
 interface CragSearchRow {
   id: string
@@ -73,6 +74,31 @@ export async function searchCrags({ supabase, query, latitude, longitude }: Sear
       _nameMatch: true,
       _tagMatch: false,
     })
+  }
+
+  if (hasLocation) {
+    const normalizedQuery = normalizeCragDuplicateName(query)
+    const { data: nearbyRows, error: nearbyNormalizedError } = await supabase
+      .from('crags')
+      .select('id,name,latitude,longitude,slug,country_code,region_name,sub_area,rock_type')
+      .gte('latitude', latitude - 0.02)
+      .lte('latitude', latitude + 0.02)
+      .gte('longitude', longitude - 0.03)
+      .lte('longitude', longitude + 0.03)
+      .limit(80)
+
+    if (!nearbyNormalizedError) {
+      for (const row of (nearbyRows || []) as CragSearchRow[]) {
+        if (rankedById.has(row.id)) continue
+        if (normalizeCragDuplicateName(row.name) !== normalizedQuery) continue
+
+        rankedById.set(row.id, {
+          ...row,
+          _nameMatch: true,
+          _tagMatch: false,
+        })
+      }
+    }
   }
 
   try {
