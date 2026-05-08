@@ -25,6 +25,12 @@ interface ImageContributionRow {
   route_lines: Array<{ id: string; climb_id: string }> | null
 }
 
+interface PublishedRouteLineRow {
+  id: string
+  image_id: string
+  climb_id: string
+}
+
 export async function fetchOwnSubmissions(
   supabase: SupabaseClient,
   userId: string,
@@ -53,10 +59,37 @@ export async function fetchOwnSubmissions(
     .order('created_at', { ascending: false })
     .limit(200)
 
-  const publishedSubmissions: Submission[] = contributionRows
+  const groupedPublishedSubmissions = contributionRows
     ? groupSubmittedImages(contributionRows as ImageContributionRow[], [])
-      .filter((submission) => submission.route_lines_count > 0)
     : []
+  const publishedImageIds = [...new Set(groupedPublishedSubmissions.flatMap((submission) => submission.image_ids || []))]
+  const publishedRouteLines = publishedImageIds.length > 0
+    ? await supabase
+      .from('route_lines')
+      .select('id, image_id, climb_id')
+      .in('image_id', publishedImageIds)
+    : { data: [], error: null }
+  const routeLinesByImageId = new Map<string, PublishedRouteLineRow[]>()
+
+  for (const routeLine of (publishedRouteLines.data || []) as PublishedRouteLineRow[]) {
+    const existing = routeLinesByImageId.get(routeLine.image_id) || []
+    existing.push(routeLine)
+    routeLinesByImageId.set(routeLine.image_id, existing)
+  }
+
+  const publishedSubmissions: Submission[] = groupedPublishedSubmissions
+    .map((submission) => {
+      const routeLines = (submission.image_ids || []).flatMap((imageId) => routeLinesByImageId.get(imageId) || [])
+      const firstRouteLine = routeLines[0] || null
+      return {
+        ...submission,
+        route_lines_count: routeLines.length,
+        route_image_id: firstRouteLine?.image_id || submission.route_image_id || null,
+        route_line_id: firstRouteLine?.id || submission.route_line_id || null,
+        climb_id: firstRouteLine?.climb_id || submission.climb_id || null,
+      }
+    })
+    .filter((submission) => submission.route_lines_count > 0)
 
   const { data: draftSubmissions } = await supabase
     .from('submission_drafts')

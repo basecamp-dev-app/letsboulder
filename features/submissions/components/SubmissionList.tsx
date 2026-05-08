@@ -71,7 +71,12 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
   }, [submissions])
 
   const pendingSubmission = useMemo(
-    () => submissions.find((submission) => submission.id === pendingAction?.id) ?? null,
+    () => submissions.find((submission) => {
+      if (!pendingAction) return false
+      return submission.id === pendingAction.id
+        || submission.canonical_image_id === pendingAction.id
+        || submission.image_ids?.includes(pendingAction.id)
+    }) ?? null,
     [pendingAction, submissions]
   )
 
