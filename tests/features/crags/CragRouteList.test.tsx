@@ -143,6 +143,28 @@ describe('CragRouteList thumbnail priority', () => {
     expect(previews[6]?.getAttribute('fetchpriority')).toBe('high')
   })
 
+  it('includes grade and route type in route link names', () => {
+    render(
+      <CragRouteList
+        filteredRoutes={[createRoutes(1)[0]]}
+        routesLoadState="loaded"
+        highlightedRouteIds={new Set()}
+        routePreviewDisplayByClimbId={{}}
+        routeTargetsHydrating={false}
+        routeTargetsComplete={true}
+        pinNumberByImageId={new Map()}
+        gradeSystem={'french_equivalent'}
+        routesCount={1}
+        hasActiveRouteFilters={false}
+        onClearRouteFilters={vi.fn()}
+        onRetryRoutes={vi.fn()}
+        getRouteDestination={(route) => ({ href: `/routes/${route.id}`, ready: true })}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'Open route Route 1, 6b, Sport' })).toBeTruthy()
+  })
+
   it('shows a contribution CTA when the crag has no routes', () => {
     render(
       <CragRouteList
