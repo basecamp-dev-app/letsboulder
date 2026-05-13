@@ -152,6 +152,9 @@ const CragRouteList = React.memo(function CragRouteList({
             const preview = routePreviewDisplayByClimbId[route.id]
             const showPreviewSkeleton = !preview && routeTargetsHydrating && !routeTargetsComplete
 
+            const gradeLabel = formatGradeForDisplay(route.grade, gradeSystem)
+            const routeTypeLabel = route.routeType ? formatRouteTypeLabel(route.routeType) : null
+            const routeAccessibleName = [route.name, gradeLabel, routeTypeLabel].filter(Boolean).join(', ')
             const content = (
               <>
                 {preview ? (
@@ -169,12 +172,12 @@ const CragRouteList = React.memo(function CragRouteList({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     <span className="truncate text-sm font-semibold text-stone-900 dark:text-gray-100">{route.name}</span>
-                    <span className="text-sm font-medium text-stone-600 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
+                    <span className="text-sm font-medium text-stone-600 dark:text-gray-300">{gradeLabel}</span>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-600 dark:text-gray-300">
                     <span>{formatRatingValue(route.weightedRating)}{route.ratingCount > 0 ? ` (${route.ratingCount})` : ''}</span>
                     <span>{route.sendCount} ascents</span>
-                    {route.routeType ? <span>{formatRouteTypeLabel(route.routeType)}</span> : null}
+                    {routeTypeLabel ? <span>{routeTypeLabel}</span> : null}
                   </div>
                 </div>
                 <ChevronRight className="size-4 shrink-0 text-stone-400" />
@@ -182,7 +185,7 @@ const CragRouteList = React.memo(function CragRouteList({
             )
 
             return (
-              <a key={route.id} aria-label={`Open route ${route.name}`} aria-current={highlightedRouteIds.has(route.id) ? 'page' : undefined} href={destination.href} className={className}>
+              <a key={route.id} aria-label={`Open route ${routeAccessibleName}`} aria-current={highlightedRouteIds.has(route.id) ? 'page' : undefined} href={destination.href} className={className}>
                 {content}
               </a>
             )
