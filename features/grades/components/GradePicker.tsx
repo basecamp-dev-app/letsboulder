@@ -8,6 +8,14 @@ import type { ClimbType } from '@/types/climbing'
 
 const FRENCH_GRADES = PUBLIC_GRADES
 
+function getComparableGradeLabel(grade: string | null | undefined, gradeSystem: GradeSystem): string | null {
+  if (!grade) return null
+  if (gradeSystem === 'v_scale') {
+    return toWholeVGrade(grade) || formatGradeForDisplay(grade, gradeSystem)
+  }
+  return formatGradeForDisplay(grade, gradeSystem)
+}
+
 interface GradePickerProps {
   isOpen: boolean
   onClose: () => void
@@ -54,39 +62,20 @@ export default function GradePicker({
   }, [climbType, gradePreferences, gradeSystemProp])
 
   const gradeOptions = useMemo(() => {
-    if (gradeSystem !== 'v_scale') {
-      return FRENCH_GRADES.map((grade) => ({
-        grade,
-        label: formatGradeForDisplay(grade, gradeSystem),
-      }))
-    }
-
-    const byWholeV = new Map<string, string>()
+    const byLabel = new Map<string, string>()
     for (const grade of FRENCH_GRADES) {
-      const wholeV = toWholeVGrade(grade)
-      if (!wholeV) continue
-      if (!byWholeV.has(wholeV)) {
-        byWholeV.set(wholeV, grade)
+      const label = getComparableGradeLabel(grade, gradeSystem)
+      if (label && !byLabel.has(label)) {
+        byLabel.set(label, grade)
       }
     }
 
-    return Array.from(byWholeV.entries()).map(([label, grade]) => ({ grade, label }))
+    return Array.from(byLabel, ([label, grade]) => ({ label, grade }))
   }, [gradeSystem])
 
-  const selectedWholeV = useMemo(() => {
-    if (gradeSystem !== 'v_scale') return null
-    return toWholeVGrade(pendingGrade)
-  }, [gradeSystem, pendingGrade])
-
-  const userVoteWholeV = useMemo(() => {
-    if (gradeSystem !== 'v_scale') return null
-    return toWholeVGrade(userVote || null)
-  }, [gradeSystem, userVote])
-
-  const consensusWholeV = useMemo(() => {
-    if (gradeSystem !== 'v_scale') return null
-    return toWholeVGrade(consensusGrade || null)
-  }, [consensusGrade, gradeSystem])
+  const selectedLabel = getComparableGradeLabel(pendingGrade, gradeSystem)
+  const userVoteLabel = getComparableGradeLabel(userVote, gradeSystem)
+  const consensusLabel = getComparableGradeLabel(consensusGrade, gradeSystem)
 
   const getDisplayLabel = (grade: string | null | undefined): string => {
     if (gradeSystem === 'v_scale') {
@@ -152,15 +141,9 @@ export default function GradePicker({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {filteredGrades.map((option) => {
-            const isSelected = gradeSystem === 'v_scale'
-              ? selectedWholeV === option.label
-              : pendingGrade === option.grade
-            const isUserVote = gradeSystem === 'v_scale'
-              ? userVoteWholeV === option.label
-              : userVote === option.grade
-            const isConsensus = gradeSystem === 'v_scale'
-              ? consensusWholeV === option.label
-              : consensusGrade === option.grade
+            const isSelected = selectedLabel === option.label
+            const isUserVote = userVoteLabel === option.label
+            const isConsensus = consensusLabel === option.label
 
             return (
               <button

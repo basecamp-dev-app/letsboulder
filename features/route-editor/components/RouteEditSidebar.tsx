@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import GradePicker from '@/features/grades/components/GradePicker'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import type { GradeSystem } from '@/lib/grades'
 import type { ClimbType } from '@/types/climbing'
 
 const ROUTE_TYPES = [
@@ -19,6 +20,14 @@ const ROUTE_TYPES = [
 ]
 
 const DEFAULT_GRADE = '6A'
+
+const GRADE_SYSTEM_LABELS: Record<GradeSystem, string> = {
+  v_scale: 'V Scale',
+  font_scale: 'Font',
+  yds_equivalent: 'YDS',
+  french_equivalent: 'French',
+  british_equivalent: 'British',
+}
 
 function isClimbType(value: string | null | undefined): value is ClimbType {
   return value === 'sport' || value === 'boulder' || value === 'trad' || value === 'deep-water-solo' || value === 'deep_water_solo'
@@ -56,6 +65,7 @@ export function RouteEditSidebar({ onClose, allowDelete = false }: RouteEditSide
   const gradePreferences = useGradePreferences()
   const selectedRoute = routes.find((r) => r.id === selectedRouteId)
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
+  const [gradeDisplayNotice, setGradeDisplayNotice] = useState<string | null>(null)
 
   const nameInputRef = useRef<HTMLInputElement>(null)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
@@ -76,6 +86,12 @@ export function RouteEditSidebar({ onClose, allowDelete = false }: RouteEditSide
   )
 
   const formattedCurrentGrade = getGradeDisplay(currentGrade)
+
+  useEffect(() => {
+    if (!gradeDisplayNotice) return
+    const timeout = setTimeout(() => setGradeDisplayNotice(null), 3000)
+    return () => clearTimeout(timeout)
+  }, [gradeDisplayNotice])
 
   useEffect(() => {
     if (!selectedRouteId || !selectedRoute) return
@@ -132,6 +148,12 @@ export function RouteEditSidebar({ onClose, allowDelete = false }: RouteEditSide
     updateEditorDraft({ grade: newGrade })
   }
 
+  const handleClimbTypeChange = (newClimbType: ClimbType) => {
+    updateEditorDraft({ climbType: newClimbType })
+    const gradeSystem = getGradeSystemForClimbType(newClimbType, gradePreferences)
+    setGradeDisplayNotice(`Grade unchanged. Now shown in ${GRADE_SYSTEM_LABELS[gradeSystem]}.`)
+  }
+
   const handleDeleteRoute = () => {
     if (!selectedRouteId) return
     deleteRoute(selectedRouteId)
@@ -180,6 +202,29 @@ export function RouteEditSidebar({ onClose, allowDelete = false }: RouteEditSide
           </div>
 
           <div className="space-y-2">
+            <label htmlFor="route-type" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Type
+            </label>
+            <select
+              ref={typeSelectRef}
+              id="route-type"
+              value={currentClimbType}
+              onChange={(e) => {
+                if (isClimbType(e.target.value)) {
+                  handleClimbTypeChange(e.target.value)
+                }
+              }}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {ROUTE_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
             <label htmlFor="route-grade" className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Grade
             </label>
@@ -191,29 +236,11 @@ export function RouteEditSidebar({ onClose, allowDelete = false }: RouteEditSide
             >
               {formattedCurrentGrade}
             </button>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="route-type" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Type
-            </label>
-            <select
-              ref={typeSelectRef}
-              id="route-type"
-              value={currentClimbType}
-              onChange={(e) => {
-                if (isClimbType(e.target.value)) {
-                  updateEditorDraft({ climbType: e.target.value })
-                }
-              }}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {ROUTE_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+            {gradeDisplayNotice ? (
+              <p role="status" className="text-xs text-gray-500 dark:text-gray-400">
+                {gradeDisplayNotice}
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-2">
