@@ -1,6 +1,7 @@
 'use client'
 
 import { forwardRef, useRef, useState, useEffect, useCallback, useImperativeHandle, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useContainerSize } from '@/hooks/use-container-size'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/lib/grades/preferences'
 import { uploadDebug } from '@/lib/media/upload-debug'
@@ -80,7 +81,20 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     setEditorPanelOpen,
     setSelectedRoute,
     commitCurrentRoute,
-  } = useRouteStore()
+  } = useRouteStore(useShallow((state) => ({
+    setActiveRoute: state.setActiveRoute,
+    activeRouteId: state.activeRouteId,
+    currentPoints: state.currentPoints,
+    interactionTool: state.interactionTool,
+    selectedRouteId: state.selectedRouteId,
+    currentDrawing: state.currentDrawing,
+    routeEditorDraft: state.routeEditorDraft,
+    editorPanelOpen: state.editorPanelOpen,
+    setEditorIntent: state.setEditorIntent,
+    setEditorPanelOpen: state.setEditorPanelOpen,
+    setSelectedRoute: state.setSelectedRoute,
+    commitCurrentRoute: state.commitCurrentRoute,
+  })))
   const gradePreferences = useGradePreferences()
 
   const routes = useMemo(() => propRoutes || [], [propRoutes])

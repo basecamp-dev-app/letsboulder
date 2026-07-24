@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useRouteStore } from '@/features/route-editor/store'
 import { useDraftUploadManager } from '@/features/media-upload/hooks/use-draft-upload-manager'
 import { useMediaUploadManager } from '@/features/media-upload/hooks/use-media-upload-manager'
@@ -59,7 +60,35 @@ export function useDraftEditorOrchestration({
   const routeCanvasRef = useRef<UnifiedRouteCanvasRef>(null)
   const isFetchingRef = useRef(false)
   const needsRefetchRef = useRef(false)
-  const { setMode, setInteractionTool, reset, clearCanvasState, selectedRouteId, routes: routeStoreRoutes, setRoutes: setRouteStoreRoutes, setSelectedRoute, setActiveRoute, setEditorPanelOpen, currentPoints, interactionTool, undoLastPoint } = useRouteStore()
+  const {
+    setMode,
+    setInteractionTool,
+    reset,
+    clearCanvasState,
+    selectedRouteId,
+    routes: routeStoreRoutes,
+    setRoutes: setRouteStoreRoutes,
+    setSelectedRoute,
+    setActiveRoute,
+    setEditorPanelOpen,
+    currentPointsCount,
+    interactionTool,
+    undoLastPoint,
+  } = useRouteStore(useShallow((state) => ({
+    setMode: state.setMode,
+    setInteractionTool: state.setInteractionTool,
+    reset: state.reset,
+    clearCanvasState: state.clearCanvasState,
+    selectedRouteId: state.selectedRouteId,
+    routes: state.routes,
+    setRoutes: state.setRoutes,
+    setSelectedRoute: state.setSelectedRoute,
+    setActiveRoute: state.setActiveRoute,
+    setEditorPanelOpen: state.setEditorPanelOpen,
+    currentPointsCount: state.currentPoints.length,
+    interactionTool: state.interactionTool,
+    undoLastPoint: state.undoLastPoint,
+  })))
   const { uploads, hasPendingUploads, hasFailedUploads, retryUpload, removeUpload, registerDraftUpdatedAt, queueDraftUploads, resumeQueue, isQueuePaused, subscribeToUploadComplete } = useDraftUploadManager()
   const { getUploadsForCrag } = useMediaUploadManager()
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
@@ -482,7 +511,7 @@ export function useDraftEditorOrchestration({
       setSelectedRoute,
       setActiveRoute,
       setEditorPanelOpen,
-      currentPoints,
+      currentPointsCount,
       interactionTool,
       setInteractionTool,
       undoLastPoint,

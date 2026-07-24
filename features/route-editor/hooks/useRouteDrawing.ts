@@ -1,10 +1,24 @@
 import { useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useRouteStore } from '@/features/route-editor/store'
 import type { RoutePoint } from '@/types/domain'
 
 export function useRouteDrawing() {
-  const { currentPoints, addCurrentPoint, setCurrentPoints, clearCurrentPoints, interactionTool, commitToHistory } =
-    useRouteStore()
+  const {
+    currentPointsCount,
+    addCurrentPoint,
+    setCurrentPoints,
+    clearCurrentPoints,
+    interactionTool,
+    commitToHistory,
+  } = useRouteStore(useShallow((state) => ({
+    currentPointsCount: state.currentPoints.length,
+    addCurrentPoint: state.addCurrentPoint,
+    setCurrentPoints: state.setCurrentPoints,
+    clearCurrentPoints: state.clearCurrentPoints,
+    interactionTool: state.interactionTool,
+    commitToHistory: state.commitToHistory,
+  })))
 
   const isDrawingEnabled = interactionTool === 'draw'
 
@@ -19,19 +33,19 @@ export function useRouteDrawing() {
 
   const continueDrawing = useCallback(
     (point: RoutePoint) => {
-      if (!isDrawingEnabled || currentPoints.length === 0) return
+      if (!isDrawingEnabled || currentPointsCount === 0) return
       addCurrentPoint(point)
     },
-    [isDrawingEnabled, currentPoints.length, addCurrentPoint]
+    [isDrawingEnabled, currentPointsCount, addCurrentPoint]
   )
 
   const finishDrawing = useCallback(() => {
-    if (!isDrawingEnabled || currentPoints.length < 2) {
+    if (!isDrawingEnabled || currentPointsCount < 2) {
       clearCurrentPoints()
       return false
     }
     return true
-  }, [isDrawingEnabled, currentPoints.length, clearCurrentPoints])
+  }, [isDrawingEnabled, currentPointsCount, clearCurrentPoints])
 
   const cancelDrawing = useCallback(() => {
     clearCurrentPoints()
@@ -40,17 +54,17 @@ export function useRouteDrawing() {
   const addPoint = useCallback(
     (point: RoutePoint) => {
       if (!isDrawingEnabled) return
-      if (currentPoints.length === 0) {
+      if (currentPointsCount === 0) {
         startDrawing(point)
       } else {
         addCurrentPoint(point)
       }
     },
-    [isDrawingEnabled, currentPoints.length, startDrawing, addCurrentPoint]
+    [isDrawingEnabled, currentPointsCount, startDrawing, addCurrentPoint]
   )
 
   return {
-    currentPoints,
+    currentPointsCount,
     isDrawingEnabled,
     startDrawing,
     continueDrawing,

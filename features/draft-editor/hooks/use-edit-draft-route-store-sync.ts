@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useRouteStore } from '@/features/route-editor/store'
 import { areSerializedRoutesEqual, type RouteEditorSerializableRoute } from '@/features/route-editor/route-editor-utils'
 import { serializeStoredRoutes } from '@/features/submissions/lib/route-store-sync'
@@ -29,7 +30,14 @@ export function useEditDraftRouteStoreSync({
     setActiveRoute,
     setEditorPanelOpen,
     clearCanvasState,
-  } = useRouteStore()
+  } = useRouteStore(useShallow((state) => ({
+    routes: state.routes,
+    setRoutes: state.setRoutes,
+    setSelectedRoute: state.setSelectedRoute,
+    setActiveRoute: state.setActiveRoute,
+    setEditorPanelOpen: state.setEditorPanelOpen,
+    clearCanvasState: state.clearCanvasState,
+  })))
 
   const lastSeededImageIdRef = useRef<string | null>(null)
   const lastAppliedParentRoutesRef = useRef<RouteEditorSerializableRoute[]>([])

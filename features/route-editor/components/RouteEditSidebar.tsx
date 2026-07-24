@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Trash2, X } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useRouteStore } from '@/features/route-editor/store'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -39,7 +40,18 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
     setEditorIntent,
     setEditorPanelOpen,
     setSelectedRoute,
-  } = useRouteStore()
+  } = useRouteStore(useShallow((state) => ({
+    routes: state.routes,
+    selectedRouteId: state.selectedRouteId,
+    routeEditorDraft: state.routeEditorDraft,
+    editorIntent: state.editorIntent,
+    deleteRoute: state.deleteRoute,
+    setEditorDraft: state.setEditorDraft,
+    updateEditorDraft: state.updateEditorDraft,
+    setEditorIntent: state.setEditorIntent,
+    setEditorPanelOpen: state.setEditorPanelOpen,
+    setSelectedRoute: state.setSelectedRoute,
+  })))
   const gradePreferences = useGradePreferences()
   const selectedRoute = routes.find((r) => r.id === selectedRouteId)
   const [gradePickerOpen, setGradePickerOpen] = useState(false)

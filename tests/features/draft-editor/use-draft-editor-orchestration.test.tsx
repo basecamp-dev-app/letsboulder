@@ -28,7 +28,9 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/features/route-editor/store', () => ({
-  useRouteStore: () => mockUseRouteStore(),
+  useRouteStore: <T,>(selector: (state: Record<string, unknown>) => T) => (
+    selector(mockUseRouteStore() as Record<string, unknown>)
+  ),
 }))
 
 vi.mock('@/features/media-upload/hooks/use-draft-upload-manager', () => ({

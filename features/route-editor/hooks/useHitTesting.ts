@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useRouteStore } from '@/features/route-editor/store'
 import { createRoutePath2D } from '@/lib/route-renderer'
 import type { RoutePoint, RouteLine } from '@/types/domain'
@@ -12,7 +13,12 @@ function isMobileDevice(): boolean {
 }
 
 export function useHitTesting(routes: RouteLine[]) {
-  const { activeRouteId, setActiveRoute, setSelectedRoute, interactionTool } = useRouteStore()
+  const { activeRouteId, setActiveRoute, setSelectedRoute, interactionTool } = useRouteStore(useShallow((state) => ({
+    activeRouteId: state.activeRouteId,
+    setActiveRoute: state.setActiveRoute,
+    setSelectedRoute: state.setSelectedRoute,
+    interactionTool: state.interactionTool,
+  })))
   const pathCache = useRef<Map<string, Path2D | null>>(new Map())
 
   const getPathForRoute = useCallback((route: RouteLine): Path2D | null => {
