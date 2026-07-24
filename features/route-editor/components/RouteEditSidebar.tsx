@@ -33,7 +33,6 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
     selectedRouteId,
     routeEditorDraft,
     editorIntent,
-    updateRoute,
     deleteRoute,
     setEditorDraft,
     updateEditorDraft,
@@ -45,7 +44,6 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
   const selectedRoute = routes.find((r) => r.id === selectedRouteId)
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
 
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const gradeButtonRef = useRef<HTMLButtonElement>(null)
@@ -83,38 +81,6 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
     setGradePickerOpen(true)
   }, [setGradePickerOpen])
 
-  const saveChanges = useCallback(() => {
-    if (!selectedRouteId || !routeEditorDraft || routeEditorDraft.routeId !== selectedRouteId) return
-    updateRoute(selectedRouteId, {
-      climb: {
-        id: selectedRoute?.climb?.id || '',
-        name: routeEditorDraft.name,
-        grade: routeEditorDraft.grade,
-        route_type: routeEditorDraft.climbType,
-        description: routeEditorDraft.description,
-        status: selectedRoute?.climb?.status || 'pending',
-      },
-    } as Partial<(typeof routes)[0]>)
-  }, [selectedRouteId, selectedRoute, updateRoute, routeEditorDraft])
-
-  useEffect(() => {
-    if (!selectedRouteId || !routeEditorDraft || routeEditorDraft.routeId !== selectedRouteId) return
-
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-
-    saveTimeoutRef.current = setTimeout(() => {
-      saveChanges()
-    }, 500)
-
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
-  }, [routeEditorDraft, selectedRouteId, saveChanges])
-
   useEffect(() => {
     if (!editorIntent) return
 
@@ -144,10 +110,6 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
   }, [editorIntent, openGradePicker, routeEditorDraft?.routeId, selectedRouteId, setEditorIntent, setEditorPanelOpen])
 
   const handleClose = () => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-      saveChanges()
-    }
     setEditorPanelOpen(false)
     setEditorIntent(null)
     onClose?.()

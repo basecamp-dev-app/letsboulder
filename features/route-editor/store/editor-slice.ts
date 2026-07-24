@@ -18,7 +18,28 @@ export const createEditorSlice: StateCreator<RouteStoreSlice, [], [], EditorSlic
   editorPanelOpen: false,
 
   setEditorDraft: (draft) => set({ routeEditorDraft: draft }),
-  updateEditorDraft: (updates) => set((state) => ({ routeEditorDraft: state.routeEditorDraft ? { ...state.routeEditorDraft, ...updates } : null })),
+  updateEditorDraft: (updates) => set((state) => {
+    const draft = state.routeEditorDraft
+    if (!draft) return state
+
+    const nextDraft = { ...draft, ...updates }
+
+    return {
+      routeEditorDraft: nextDraft,
+      routes: state.routes.map((route) => route.id === draft.routeId
+        ? {
+            ...route,
+            climb: route.climb && {
+              ...route.climb,
+              name: nextDraft.name,
+              grade: nextDraft.grade,
+              route_type: nextDraft.climbType,
+              description: nextDraft.description,
+            },
+          }
+        : route),
+    }
+  }),
   setEditorIntent: (intent) => set({ editorIntent: intent }),
   setEditorPanelOpen: (open) => set({ editorPanelOpen: open }),
 })
