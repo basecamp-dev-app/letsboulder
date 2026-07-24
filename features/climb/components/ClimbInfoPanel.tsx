@@ -72,6 +72,7 @@ interface ClimbInfoPanelProps {
   savingFeedback: boolean
   logging: boolean
   savingWantToTry: boolean
+  loadingSelectedClimbState: boolean
   userPresent: boolean
   isWantToTrySaved: boolean
   gradeSystem: GradeSystem
@@ -123,6 +124,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     savingFeedback,
     logging,
     savingWantToTry,
+    loadingSelectedClimbState,
     userPresent,
     isWantToTrySaved,
     gradeSystem,
@@ -247,10 +249,10 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             ) : null}
             <button
               onClick={userPresent ? onToggleWantToTry : onGoToAuth}
-              disabled={!selectedClimb || savingWantToTry}
+              disabled={!selectedClimb || savingWantToTry || loadingSelectedClimbState}
               className={`inline-flex min-h-11 items-center justify-center px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isWantToTrySaved ? 'bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50' : 'text-amber-800 hover:text-amber-900 hover:bg-amber-50 dark:text-amber-300 dark:hover:text-amber-100 dark:hover:bg-amber-950/40'}`}
             >
-              {savingWantToTry ? 'Saving...' : isWantToTrySaved ? 'Saved' : 'Want to try'}
+              {loadingSelectedClimbState ? 'Loading...' : savingWantToTry ? 'Saving...' : isWantToTrySaved ? 'Saved' : 'Want to try'}
             </button>
             {canEditRoute ? (
               <button onClick={onEditRoute} className="inline-flex min-h-11 items-center justify-center px-3 py-1.5 text-sm font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-100 dark:hover:bg-blue-950/40 rounded-lg transition-colors">
@@ -268,11 +270,13 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             <button onClick={onShare} className="inline-flex size-11 items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors" aria-label="Share climb">
               <Share2 className="w-5 h-5" />
             </button>
-            {selectedClimbLogged ? <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 rounded-full text-sm font-medium">Logged</span> : null}
+            {!loadingSelectedClimbState && selectedClimbLogged ? <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 rounded-full text-sm font-medium">Logged</span> : null}
           </div>
         </div>
 
-        {!selectedClimbLogged ? (
+        {loadingSelectedClimbState && selectedClimb ? (
+          <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Loading climb state...</p>
+        ) : !selectedClimbLogged ? (
           <div className="space-y-3">
             {!userPresent && selectedRouteExists ? (
               <button onClick={onGoToAuth} className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
@@ -342,7 +346,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
           </div>
         ) : null}
 
-        {selectedClimbLogged && selectedClimb ? (
+        {!loadingSelectedClimbState && selectedClimbLogged && selectedClimb ? (
           <div className="space-y-3">
             {selectedClimbFeedbackCollapsed ? (
               <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
