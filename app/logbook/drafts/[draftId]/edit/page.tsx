@@ -149,6 +149,7 @@ export default function EditDraftPage() {
             onSelectImage={actions.handleQuickSwitchImage}
             onReorderImages={(imageIds) => { void actions.handleReorderDraftImages(imageIds) }}
             existingRouteLines={derived.existingRouteLines}
+            allowDelete={true}
             selectedRouteId={canvas.selectedRouteId}
             onSelectRoute={(routeId) => {
               canvas.setSelectedRoute(routeId)

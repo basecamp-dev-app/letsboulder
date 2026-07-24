@@ -57,6 +57,7 @@ interface SubmissionWorkstationProps {
   canvasMode?: 'edit-existing'
   defaultClimbType?: ClimbType
   onRoutesUpdate: (routes: RouteLine[]) => void
+  allowDelete?: boolean
   hideRouteActions?: boolean
 }
 
@@ -94,6 +95,7 @@ export function SubmissionWorkstation({
   canvasMode = 'edit-existing',
   defaultClimbType = 'boulder',
   onRoutesUpdate,
+  allowDelete = false,
   hideRouteActions = false,
 }: SubmissionWorkstationProps) {
   const [isQuickBarDragOver, setIsQuickBarDragOver] = useState(false)
@@ -159,6 +161,7 @@ export function SubmissionWorkstation({
         defaultClimbType={defaultClimbType}
         existingRouteLines={existingRouteLines}
         onRoutesUpdate={onRoutesUpdate}
+        allowDelete={allowDelete}
         onRetryActiveImage={onRetryActiveImage}
         onDeleteActiveImage={onDeleteActiveImage}
       />

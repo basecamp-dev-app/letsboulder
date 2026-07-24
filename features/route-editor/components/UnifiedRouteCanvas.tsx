@@ -24,6 +24,7 @@ interface UnifiedRouteCanvasProps {
   onRouteSelect?: (routeId: string | null) => void
   onRoutesUpdate?: (routes: RouteLine[]) => void
   onImageOrientationChange?: (orientation: 'portrait' | 'landscape') => void
+  allowDelete?: boolean
   className?: string
 }
 
@@ -64,6 +65,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   onRouteSelect,
   onRoutesUpdate,
   onImageOrientationChange,
+  allowDelete = false,
   className = '',
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -400,7 +402,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
         />
       ) : null}
 
-      {mode !== 'browse' && editorPanelOpen && <RouteEditSidebar />}
+      {mode !== 'browse' && editorPanelOpen && <RouteEditSidebar allowDelete={allowDelete} />}
     </div>
   )
 })

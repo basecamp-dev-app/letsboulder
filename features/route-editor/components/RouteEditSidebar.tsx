@@ -26,9 +26,10 @@ function isClimbType(value: string | null | undefined): value is ClimbType {
 
 interface RouteEditSidebarProps {
   onClose?: () => void
+  allowDelete?: boolean
 }
 
-export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
+export function RouteEditSidebar({ onClose, allowDelete = false }: RouteEditSidebarProps) {
   const {
     routes,
     selectedRouteId,
@@ -230,14 +231,16 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
             />
           </div>
 
-          <button
-            type="button"
-            onClick={handleDeleteRoute}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete Route
-          </button>
+          {allowDelete ? (
+            <button
+              type="button"
+              onClick={handleDeleteRoute}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Route
+            </button>
+          ) : null}
         </div>
       </div>
 
