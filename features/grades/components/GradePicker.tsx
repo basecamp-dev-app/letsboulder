@@ -35,8 +35,18 @@ export default function GradePicker({
 }: GradePickerProps) {
   const gradePreferences = useGradePreferences()
   const [search, setSearch] = useState('')
+  const [pendingGrade, setPendingGrade] = useState(currentGrade || '')
+  const [pickerSession, setPickerSession] = useState({ isOpen, currentGrade })
   const inputRef = useRef<HTMLInputElement>(null)
   const openedAtRef = useRef<number>(0)
+
+  if (pickerSession.isOpen !== isOpen || (isOpen && pickerSession.currentGrade !== currentGrade)) {
+    setPickerSession({ isOpen, currentGrade })
+    if (isOpen) {
+      setPendingGrade(currentGrade || '')
+      setSearch('')
+    }
+  }
 
   const gradeSystem = useMemo(() => {
     if (gradeSystemProp) return gradeSystemProp
@@ -63,12 +73,10 @@ export default function GradePicker({
     return Array.from(byWholeV.entries()).map(([label, grade]) => ({ grade, label }))
   }, [gradeSystem])
 
-  const selectedGrade = currentGrade || ''
-
   const selectedWholeV = useMemo(() => {
     if (gradeSystem !== 'v_scale') return null
-    return toWholeVGrade(selectedGrade)
-  }, [gradeSystem, selectedGrade])
+    return toWholeVGrade(pendingGrade)
+  }, [gradeSystem, pendingGrade])
 
   const userVoteWholeV = useMemo(() => {
     if (gradeSystem !== 'v_scale') return null
@@ -88,10 +96,10 @@ export default function GradePicker({
   }
 
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      openedAtRef.current = Date.now()
-      inputRef.current.focus()
-    }
+    if (!isOpen) return
+
+    openedAtRef.current = Date.now()
+    inputRef.current?.focus()
   }, [isOpen])
 
   const handleBackdropClose = () => {
@@ -104,10 +112,6 @@ export default function GradePicker({
     if (!query) return true
     return option.grade.toLowerCase().includes(query) || option.label.toLowerCase().includes(query)
   })
-
-  const handleSelect = (grade: string) => {
-    onSelect(grade)
-  }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -150,7 +154,7 @@ export default function GradePicker({
           {filteredGrades.map((option) => {
             const isSelected = gradeSystem === 'v_scale'
               ? selectedWholeV === option.label
-              : selectedGrade === option.grade
+              : pendingGrade === option.grade
             const isUserVote = gradeSystem === 'v_scale'
               ? userVoteWholeV === option.label
               : userVote === option.grade
@@ -161,7 +165,7 @@ export default function GradePicker({
             return (
               <button
                 key={option.grade}
-                onClick={() => handleSelect(option.grade)}
+                onClick={() => setPendingGrade(option.grade)}
                 className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${
                   isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                 }`}
@@ -206,12 +210,11 @@ export default function GradePicker({
             </button>
             <button
               onClick={() => {
-                if (!selectedGrade) return
-                onSelect(selectedGrade)
-                setSearch('')
+                if (!pendingGrade) return
+                onSelect(pendingGrade)
                 onClose()
               }}
-              disabled={!selectedGrade}
+              disabled={!pendingGrade}
               className="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {mode === 'select' ? 'Save Grade' : 'Submit Vote'}
