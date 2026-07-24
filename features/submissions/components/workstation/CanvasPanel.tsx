@@ -16,6 +16,7 @@ interface WorkstationCanvasPanelProps {
   defaultClimbType: ClimbType
   existingRouteLines: RouteLine[]
   onRoutesUpdate: (routes: RouteLine[]) => void
+  allowDelete?: boolean
   onRetryActiveImage?: () => void
   onDeleteActiveImage?: () => void
 }
@@ -31,6 +32,7 @@ export function WorkstationCanvasPanel({
   defaultClimbType,
   existingRouteLines,
   onRoutesUpdate,
+  allowDelete = false,
   onRetryActiveImage,
   onDeleteActiveImage,
 }: WorkstationCanvasPanelProps) {
@@ -47,6 +49,7 @@ export function WorkstationCanvasPanel({
           defaultClimbType={defaultClimbType}
           routes={existingRouteLines}
           onRoutesUpdate={onRoutesUpdate}
+          allowDelete={allowDelete}
           onImageOrientationChange={setImageOrientation}
           className={imageOrientation === 'portrait' ? 'h-full min-h-[72dvh] md:min-h-[78dvh]' : 'h-full min-h-[52dvh] md:min-h-[60dvh]'}
         />

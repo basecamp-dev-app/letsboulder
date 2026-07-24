@@ -74,7 +74,9 @@ vi.mock('@/features/route-editor/store', () => ({
 }))
 
 vi.mock('@/features/route-editor/components/RouteEditSidebar', () => ({
-  RouteEditSidebar: () => <div>Route edit sidebar</div>,
+  RouteEditSidebar: ({ allowDelete }: { allowDelete?: boolean }) => (
+    <div data-testid="route-edit-sidebar" data-allow-delete={String(allowDelete)}>Route edit sidebar</div>
+  ),
 }))
 
 function createRoute(): RouteLine {
@@ -166,6 +168,17 @@ describe('UnifiedRouteCanvas', () => {
     fireEvent.pointerDown(document.querySelector('canvas') as HTMLCanvasElement, { button: 0, clientX: 90, clientY: 120 })
 
     expect(mockAddPoint).toHaveBeenCalledWith({ x: 0.3125, y: 0.3125 })
+  })
+
+  it.each([
+    { allowDelete: false, expected: 'false' },
+    { allowDelete: true, expected: 'true' },
+  ])('forwards allowDelete=$allowDelete to the route editor', ({ allowDelete, expected }) => {
+    routeStoreState.editorPanelOpen = true
+
+    render(<UnifiedRouteCanvas mode="edit-existing" imageUrl="/wall.jpg" routes={[createRoute()]} allowDelete={allowDelete} />)
+
+    expect(screen.getByTestId('route-edit-sidebar')).toHaveAttribute('data-allow-delete', expected)
   })
 
   it('exposes finishRoute through the imperative ref', () => {
