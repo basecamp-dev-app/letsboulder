@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useRouteStore } from '@/features/route-editor/store'
 import { buildMapPins, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
@@ -96,7 +97,11 @@ export function useSubmissionEditorData() {
   const routeImageId = params.imageId as string
   const requestedFaceImageId = searchParams.get('face')
   const activeImageId = requestedFaceImageId || routeImageId
-  const { setMode, setInteractionTool, reset } = useRouteStore()
+  const { setMode, setInteractionTool, reset } = useRouteStore(useShallow((state) => ({
+    setMode: state.setMode,
+    setInteractionTool: state.setInteractionTool,
+    reset: state.reset,
+  })))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)

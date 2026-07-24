@@ -70,7 +70,7 @@ vi.mock('@/features/route-editor/hooks/useHitTesting', () => ({
 }))
 
 vi.mock('@/features/route-editor/store', () => ({
-  useRouteStore: () => routeStoreState,
+  useRouteStore: <T,>(selector: (state: RouteCanvasStoreMock) => T) => selector(routeStoreState),
 }))
 
 vi.mock('@/features/route-editor/components/RouteEditSidebar', () => ({

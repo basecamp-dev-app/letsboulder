@@ -168,7 +168,7 @@ export default function EditDraftPage() {
               })
             }}
             interactionTool={canvas.interactionTool === 'select' ? 'select' : 'draw'}
-            currentPointsCount={canvas.currentPoints.length}
+            currentPointsCount={canvas.currentPointsCount}
             onSetSelectTool={() => {
               canvas.setInteractionTool('select')
               canvas.setEditorPanelOpen(true)

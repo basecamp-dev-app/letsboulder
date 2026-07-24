@@ -21,7 +21,7 @@ function createMockStore(routes: RouteLine[] = []) {
 let mockStore = createMockStore()
 
 vi.mock('@/features/route-editor/store', () => ({
-  useRouteStore: () => mockStore,
+  useRouteStore: <T,>(selector: (state: ReturnType<typeof createMockStore>) => T) => selector(mockStore),
 }))
 
 function createRoute(id: string, imageId: string, name = id): RouteLine {
