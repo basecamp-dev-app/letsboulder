@@ -1,6 +1,39 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment jsdom
+
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useMediaUploadQueueController } from '@/features/media-upload/hooks/use-media-upload-queue-controller'
 import { moveQueueItemToFront, pickNextQueueClientId, resetUploadForQueue } from '@/features/media-upload/lib/media-upload-queue-state'
 import type { MediaUploadItem } from '@/features/media-upload/lib/upload-types'
+
+const uploadMocks = vi.hoisted(() => ({
+  buildPreviewUrl: vi.fn(),
+  createMediaUploadSession: vi.fn(),
+  extractGpsFromFile: vi.fn(),
+  getImageDimensions: vi.fn(),
+  preprocessFile: vi.fn(),
+}))
+
+vi.mock('@/lib/image-gps', () => ({
+  extractGpsFromFile: uploadMocks.extractGpsFromFile,
+}))
+
+vi.mock('@/lib/media/client-upload', () => ({
+  completeMediaUploadSession: vi.fn(),
+  createMediaUploadSession: uploadMocks.createMediaUploadSession,
+  deleteMediaUploadSession: vi.fn(),
+  uploadFileToMediaSession: vi.fn(),
+}))
+
+vi.mock('@/lib/media/upload-debug', () => ({
+  uploadDebug: vi.fn(),
+}))
+
+vi.mock('@/features/media-upload/lib/preprocess-image', () => ({
+  buildPreviewUrl: uploadMocks.buildPreviewUrl,
+  getImageDimensions: uploadMocks.getImageDimensions,
+  preprocessFile: uploadMocks.preprocessFile,
+}))
 
 function createUpload(overrides: Partial<MediaUploadItem> = {}): MediaUploadItem {
   return {
@@ -25,6 +58,17 @@ function createUpload(overrides: Partial<MediaUploadItem> = {}): MediaUploadItem
 }
 
 describe('media upload queue state machine', () => {
+  beforeEach(() => {
+    uploadMocks.buildPreviewUrl.mockResolvedValue('')
+    uploadMocks.extractGpsFromFile.mockResolvedValue(null)
+    uploadMocks.getImageDimensions.mockResolvedValue({ width: 1200, height: 900 })
+    uploadMocks.preprocessFile.mockImplementation(async (file: File) => file)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('resets a retried item back to the queued state', () => {
     const current = createUpload()
 
@@ -74,5 +118,36 @@ describe('media upload queue state machine', () => {
       activeClientId: null,
       isPaused: true,
     })).toBeNull()
+  })
+
+  it('does not restart a failed upload automatically and allows explicit retry', async () => {
+    vi.useFakeTimers()
+    uploadMocks.createMediaUploadSession.mockRejectedValue(new Error('Failed to create upload session'))
+    const { result } = renderHook(() => useMediaUploadQueueController())
+    const file = new File(['image'], 'test.jpg', { type: 'image/jpeg' })
+
+    act(() => {
+      result.current.queueUploads([file], { kind: 'draft', draftId: 'draft-1' })
+    })
+
+    await vi.waitFor(() => {
+      expect(uploadMocks.createMediaUploadSession).toHaveBeenCalledTimes(1)
+      expect(Object.values(result.current.uploads)[0]?.status).toBe('FAILED')
+      expect(result.current.isPaused).toBe(true)
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000)
+    })
+    expect(uploadMocks.createMediaUploadSession).toHaveBeenCalledTimes(1)
+
+    const clientId = Object.keys(result.current.uploads)[0]
+    act(() => {
+      result.current.retryUpload(clientId)
+    })
+
+    await vi.waitFor(() => {
+      expect(uploadMocks.createMediaUploadSession).toHaveBeenCalledTimes(2)
+    })
   })
 })

@@ -49,11 +49,17 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
   useEffect(() => { isPausedRef.current = isPaused }, [isPaused])
 
   const updateUpload = useCallback((clientId: string, updater: UploadStateUpdater) => {
-    setUploads((current) => {
-      const existing = current[clientId]
-      if (!existing) return current
-      return { ...current, [clientId]: updater(existing) }
-    })
+    const current = uploadsRef.current
+    const existing = current[clientId]
+    if (!existing) return
+    const nextUploads = { ...current, [clientId]: updater(existing) }
+    uploadsRef.current = nextUploads
+    setUploads(nextUploads)
+  }, [])
+
+  const setQueuePaused = useCallback((paused: boolean) => {
+    isPausedRef.current = paused
+    setIsPaused(paused)
   }, [])
 
   const revokePreviewUrl = useCallback((clientId: string) => {
@@ -192,6 +198,8 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
         return
       }
 
+      setQueuePaused(true)
+
       if (uploadSessionImageId) {
         await deleteMediaUploadSession(uploadSessionImageId).catch(() => null)
       }
@@ -222,7 +230,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       setActiveClientId(null)
       startNextUploadRef.current()
     }
-  }, [attachUpload, revokePreviewUrl, updateUpload])
+  }, [attachUpload, revokePreviewUrl, setQueuePaused, updateUpload])
 
   const startNextUpload = useCallback(() => {
     uploadDebug('start-next-upload-called', {
@@ -265,7 +273,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
 
     if (nextUpload.status === 'FAILED') {
       uploadDebug('start-next-upload-paused-on-failed-item', { nextClientId })
-      setIsPaused(true)
+      setQueuePaused(true)
       return
     }
 
@@ -278,7 +286,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     })
     setActiveClientId(nextClientId)
     void processActiveEntry(nextEntry)
-  }, [processActiveEntry])
+  }, [processActiveEntry, setQueuePaused])
 
   startNextUploadRef.current = startNextUpload
 
@@ -344,7 +352,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     if (!entry) return
 
     alreadyAttachedRef.current.delete(clientId)
-    setIsPaused(false)
+    setQueuePaused(false)
     const nextQueueOrder = prepareRetryQueue(queueOrderRef.current, clientId)
     queueOrderRef.current = nextQueueOrder
     setQueueOrder(nextQueueOrder)
@@ -353,7 +361,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     queueMicrotask(() => {
       startNextUploadRef.current()
     })
-  }, [updateUpload])
+  }, [setQueuePaused, updateUpload])
 
   const removeUpload = useCallback(async (clientId: string) => {
     const { nextUploads, nextQueueOrder } = await removeUploadEntry({
@@ -373,19 +381,19 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       activeClientIdRef.current = null
     }
     setActiveClientId((current) => current === clientId ? null : current)
-    setIsPaused(false)
+    setQueuePaused(false)
     startNextUploadRef.current()
-  }, [revokePreviewUrl])
+  }, [revokePreviewUrl, setQueuePaused])
 
   const resumeQueue = useCallback(() => {
-    setIsPaused(false)
+    setQueuePaused(false)
     uploadDebug('queue-resume-requested', {
       queueOrder: queueOrderRef.current,
     })
     queueMicrotask(() => {
       startNextUploadRef.current()
     })
-  }, [])
+  }, [setQueuePaused])
 
   useEffect(() => {
     const resumeIfNeeded = () => {
