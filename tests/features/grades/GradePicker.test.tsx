@@ -75,4 +75,43 @@ describe('GradePicker', () => {
     expect(screen.getByRole('button', { name: '6A' })).toHaveClass('bg-blue-50')
     expect(screen.getByRole('button', { name: '7A' })).not.toHaveClass('bg-blue-50')
   })
+
+  it.each([
+    ['yds_equivalent', '5.5'],
+    ['french_equivalent', '6b'],
+    ['british_equivalent', 'E11'],
+  ] as const)('shows one row per %s display label', (gradeSystem, duplicateLabel) => {
+    render(
+      <GradePicker
+        isOpen
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        currentGrade="6A"
+        gradeSystem={gradeSystem}
+      />
+    )
+
+    expect(screen.getAllByRole('button', { name: duplicateLabel })).toHaveLength(1)
+  })
+
+  it('commits the first canonical grade for a deduplicated label', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+
+    render(
+      <GradePicker
+        isOpen
+        onClose={vi.fn()}
+        onSelect={onSelect}
+        currentGrade="3B"
+        gradeSystem="yds_equivalent"
+      />
+    )
+
+    expect(screen.getByRole('button', { name: '5.5' })).toHaveClass('bg-blue-50')
+    await user.click(screen.getByRole('button', { name: '5.5' }))
+    await user.click(screen.getByRole('button', { name: 'Save Grade' }))
+
+    expect(onSelect).toHaveBeenCalledWith('3A+')
+  })
 })
