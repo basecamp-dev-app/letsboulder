@@ -144,40 +144,53 @@ export async function checkRateLimit(
   const limiter = await getRateLimiter(configKey)
 
   if (!limiter) {
-    if (!fallbackAlertLogged) {
-      fallbackAlertLogged = true
-      reportError(new Error('Upstash Redis unavailable; rate limiting using in-memory fallback'), {
-        message: 'Rate limiting fallback activated',
-        level: 'warning',
-      })
-    }
-
-    const config = RATE_LIMIT_CONFIGS[configKey]
-    if (config?.fallbackMode === 'local-bucket') {
-      const now = Date.now()
-      const windowMs = parseWindowMs(config.window)
-      const key = `${config.prefix}:${identifier}`
-      let bucket = inMemoryFallback.get(key)
-
-      if (!bucket || now > bucket.resetAt) {
-        bucket = { count: 0, resetAt: now + windowMs }
-        inMemoryFallback.set(key, bucket)
-      }
-
-      bucket.count++
-      const allowed = bucket.count <= config.tokens
-      return {
-        success: allowed,
-        limit: config.tokens,
-        remaining: Math.max(0, config.tokens - bucket.count),
-        reset: bucket.resetAt,
-      }
-    }
-
-    return { success: true, limit: 9999, remaining: 9999, reset: Date.now() + 60000 }
+    reportRateLimitFallback(new Error('Upstash Redis unavailable; rate limiting using fallback'))
+    return applyRateLimitFallback(identifier, configKey)
   }
 
-  return limiter.limit(identifier)
+  try {
+    return await limiter.limit(identifier)
+  } catch (error) {
+    reportRateLimitFallback(error)
+    return applyRateLimitFallback(identifier, configKey)
+  }
+}
+
+function reportRateLimitFallback(error: unknown) {
+  if (fallbackAlertLogged) return
+  fallbackAlertLogged = true
+  reportError(error, {
+    message: 'Rate limiting fallback activated',
+    level: 'warning',
+  })
+}
+
+function applyRateLimitFallback(
+  identifier: string,
+  configKey: string
+): { success: boolean; limit: number; remaining: number; reset: number } {
+  const config = RATE_LIMIT_CONFIGS[configKey]
+  if (config?.fallbackMode === 'local-bucket') {
+    const now = Date.now()
+    const windowMs = parseWindowMs(config.window)
+    const key = `${config.prefix}:${identifier}`
+    let bucket = inMemoryFallback.get(key)
+
+    if (!bucket || now > bucket.resetAt) {
+      bucket = { count: 0, resetAt: now + windowMs }
+      inMemoryFallback.set(key, bucket)
+    }
+
+    bucket.count++
+    return {
+      success: bucket.count <= config.tokens,
+      limit: config.tokens,
+      remaining: Math.max(0, config.tokens - bucket.count),
+      reset: bucket.resetAt,
+    }
+  }
+
+  return { success: true, limit: 9999, remaining: 9999, reset: Date.now() + 60000 }
 }
 
 function parseWindowMs(window: string): number {
