@@ -46,6 +46,7 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ClimbInfoPan
     savingFeedback: false,
     logging: false,
     savingWantToTry: false,
+    loadingSelectedClimbState: false,
     userPresent: true,
     isWantToTrySaved: false,
     gradeSystem: 'font_scale',
@@ -198,6 +199,7 @@ describe('ClimbInfoPanel', () => {
       savingFeedback: false,
       logging: false,
       savingWantToTry: false,
+      loadingSelectedClimbState: false,
       userPresent: true,
       isWantToTrySaved: false,
       gradeSystem: 'font_scale',
@@ -265,6 +267,7 @@ describe('ClimbInfoPanel', () => {
       savingFeedback: false,
       logging: false,
       savingWantToTry: false,
+      loadingSelectedClimbState: false,
       userPresent: true,
       isWantToTrySaved: true,
       gradeSystem: 'font_scale',
@@ -288,5 +291,24 @@ describe('ClimbInfoPanel', () => {
     }))
 
     expect(screen.getByRole('button', { name: 'Saved' })).toBeTruthy()
+  })
+
+  it('shows loading state and disables route-bound actions while climb state loads', () => {
+    renderPanel({
+      selectedClimb: {
+        id: 'climb-1',
+        name: 'Pebble Wrestle',
+        grade: '6B',
+        route_type: 'boulder',
+        description: null,
+      },
+      selectedRouteExists: true,
+      canAddRoutes: false,
+      loadingSelectedClimbState: true,
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading climb state...')
+    expect(screen.getByRole('button', { name: 'Loading...' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Flash' })).toBeNull()
   })
 })

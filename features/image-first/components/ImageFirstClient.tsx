@@ -143,6 +143,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [savingFeedback, setSavingFeedback] = useState(false)
   const [logging, setLogging] = useState(false)
   const [savingWantToTry, setSavingWantToTry] = useState(false)
+  const [loadingSelectedClimbState, setLoadingSelectedClimbState] = useState(false)
   const [downloadingPost, setDownloadingPost] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [notesDialogOpen, setNotesDialogOpen] = useState(false)
@@ -361,6 +362,11 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const activeRouteId = resolvedActiveRouteId
 
   const activeClimbId = activeRouteMeta?.climbId || null
+  const activeClimbIdRef = useRef(activeClimbId)
+
+  useEffect(() => {
+    activeClimbIdRef.current = activeClimbId
+  }, [activeClimbId])
 
   useEffect(() => {
     const targets = [
@@ -449,79 +455,59 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   }, [activePrimaryImageId, activeRouteMeta, countryCode, cragSlug, pathname, resolvedActiveRouteId, router])
 
   useEffect(() => {
-    if (!activeClimbId) {
-      setSelectedClimbRatingSummary(null)
-      setSelectedClimbLogged(false)
-      setSelectedClimbLog(null)
-      setSelectedClimbHasSavedFeedback(false)
-      setSelectedClimbFeedbackCollapsed(true)
-      setPendingGradeOpinion(null)
-      setPendingStarRating(null)
-      setCommunityNotesCount(0)
-      setCommunityNotes([])
-      setCommunityNotesExpanded(false)
-      setIsWantToTrySaved(false)
-      return
-    }
+    setSelectedClimbLogged(false)
+    setSelectedClimbLog(null)
+    setSelectedClimbHasSavedFeedback(false)
+    setSelectedClimbFeedbackCollapsed(true)
+    setPendingGradeOpinion(null)
+    setPendingStarRating(null)
+    setPendingNotes('')
+    setIsWantToTrySaved(false)
+    setLoadingSelectedClimbState(Boolean(activeClimbId && userPresent))
+
+    if (!activeClimbId || !userPresent) return
 
     const supabase = createClient()
     let cancelled = false
 
     const fetchData = async () => {
-      if (!userPresent) return
+      try {
+        const { data: userData } = await supabase.auth.getUser()
+        const userId = userData.user?.id
+        if (!userId) return
 
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) return
+        const [{ data, error }, saved] = await Promise.all([
+          supabase
+            .from('user_climbs')
+            .select('grade_opinion, star_rating, notes')
+            .eq('user_id', userId)
+            .eq('climb_id', activeClimbId)
+            .maybeSingle(),
+          isClimbSavedByUser(supabase, userId, activeClimbId),
+        ])
 
-      const { data, error } = await supabase
-        .from('user_climbs')
-        .select('grade_opinion, star_rating, notes')
-        .eq('user_id', userId)
-        .eq('climb_id', activeClimbId)
-        .maybeSingle()
+        if (cancelled) return
 
-      if (cancelled || error) return
-
-      const log = toLoggedClimbInfo(data)
-      setSelectedClimbLogged(!!data)
-      setSelectedClimbLog(log)
-      setSelectedClimbHasSavedFeedback(!!data && (!!log?.gradeOpinion || log?.starRating !== null || !!log?.notes))
-      setSelectedClimbFeedbackCollapsed(!!data)
-      setPendingGradeOpinion(log?.gradeOpinion ?? null)
-      setPendingStarRating(log?.starRating ?? null)
-      setPendingNotes(log?.notes ?? '')
+        if (!error) {
+          const log = toLoggedClimbInfo(data)
+          setSelectedClimbLogged(!!data)
+          setSelectedClimbLog(log)
+          setSelectedClimbHasSavedFeedback(!!data && (!!log?.gradeOpinion || log?.starRating !== null || !!log?.notes))
+          setSelectedClimbFeedbackCollapsed(!!data)
+          setPendingGradeOpinion(log?.gradeOpinion ?? null)
+          setPendingStarRating(log?.starRating ?? null)
+          setPendingNotes(log?.notes ?? '')
+        }
+        setIsWantToTrySaved(saved)
+      } catch {
+        // Keep the synchronously reset state when route-state requests fail.
+      } finally {
+        if (!cancelled) setLoadingSelectedClimbState(false)
+      }
     }
 
     void fetchData()
     return () => { cancelled = true }
-  }, [activeClimbId, userPresent])
-
-  useEffect(() => {
-    if (!activeClimbId || !userPresent) {
-      setIsWantToTrySaved(false)
-      return
-    }
-
-    const supabase = createClient()
-    let cancelled = false
-
-    const fetchSavedState = async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) {
-        if (!cancelled) setIsWantToTrySaved(false)
-        return
-      }
-
-      const saved = await isClimbSavedByUser(supabase, userId, activeClimbId)
-      if (!cancelled) setIsWantToTrySaved(saved)
-    }
-
-    void fetchSavedState()
-    return () => {
-      cancelled = true
-    }
   }, [activeClimbId, userPresent])
 
   useEffect(() => {
@@ -792,12 +778,18 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const handleLog = useCallback(async (style: 'flash' | 'top' | 'try', notes?: string) => {
     if (!activeClimbId || !userPresent) return false
 
+    const targetClimbId = activeClimbId
     setLogging(true)
     try {
-      const result = await logRoutesAction([activeClimbId], style, notes || undefined)
+      const result = await logRoutesAction([targetClimbId], style, notes || undefined)
       if (!result.success) {
         addToast('Failed to log climb', 'error')
         return false
+      }
+
+      if (activeClimbIdRef.current !== targetClimbId) {
+        addToast('Climb logged', 'success')
+        return true
       }
 
       await Promise.all([
@@ -1102,6 +1094,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         savingFeedback={savingFeedback}
         logging={logging}
         savingWantToTry={savingWantToTry}
+        loadingSelectedClimbState={loadingSelectedClimbState}
         userPresent={userPresent || !hasHydratedAuth}
         isWantToTrySaved={isWantToTrySaved}
         gradeSystem={gradeSystem}
