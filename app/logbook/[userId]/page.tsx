@@ -125,7 +125,7 @@ async function getPublicSubmissions(userId: string): Promise<Submission[]> {
     .select('id, url, created_at, submission_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name, slug, country_code), route_lines(count)')
     .eq('created_by', userId)
     .eq('is_anonymous_submission', false)
-    .eq('moderation_status', 'approved')
+    .in('moderation_status', ['approved', 'skipped'])
     .not('crag_id', 'is', null)
     .not('latitude', 'is', null)
     .not('longitude', 'is', null)

@@ -37,6 +37,7 @@ const routeSchema = z.object({
 })
 
 const newSubmissionImageSchema = z.object({
+  uploadedImageId: z.string().uuid('Image uploadedImageId is required'),
   uploadedBucket: z.string().min(1, 'Image uploadedBucket is required'),
   uploadedPath: z.string().min(1, 'Image uploadedPath is required'),
   uploadedUrl: z.string().optional(),

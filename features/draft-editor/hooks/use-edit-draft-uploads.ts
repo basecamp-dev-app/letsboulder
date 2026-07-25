@@ -11,6 +11,7 @@ import type {
   DraftRoute,
   ManageImageTab,
 } from '@/features/draft-editor/lib/edit-draft-types'
+import { isMediaUploadPending, MEDIA_UPLOAD_STATUS_LABELS } from '@/features/media-upload/lib/upload-types'
 import type { MediaUploadItem, UploadCompleteCallback } from '@/features/media-upload/hooks/use-media-upload-manager'
 
 interface UseEditDraftUploadsParams {
@@ -109,7 +110,7 @@ export function useEditDraftUploads({
       }))
 
     const optimistic = pendingCragUploads
-      .filter((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId && upload.uploadedPath)
+      .filter((upload) => upload.attachedRecordId && upload.uploadedPath)
       .filter((upload) => !cragCanvasImages.some((img) => img.id === upload.attachedRecordId))
       .map<ManageImageTab>((upload) => ({
         imageId: upload.attachedRecordId || upload.clientId,
@@ -119,9 +120,9 @@ export function useEditDraftUploads({
         signedUrl: upload.previewUrl,
         latitude: upload.gpsData?.latitude ?? null,
         longitude: upload.gpsData?.longitude ?? null,
-        status: undefined,
+        status: upload.status,
         error: null,
-        pendingClientId: null,
+        pendingClientId: upload.clientId,
       }))
 
     const pending = pendingCragUploads
@@ -134,9 +135,11 @@ export function useEditDraftUploads({
           ? `Failed: ${upload.fileName}`
           : upload.status === 'UPLOADING'
             ? `Uploading ${upload.progress}%: ${upload.fileName}`
-            : upload.status === 'PREPROCESSING'
-              ? `Preparing: ${upload.fileName}`
-              : `Waiting: ${upload.fileName}`,
+              : upload.status === 'PREPROCESSING'
+                ? `Preparing: ${upload.fileName}`
+                : MEDIA_UPLOAD_STATUS_LABELS[upload.status]
+                  ? `${MEDIA_UPLOAD_STATUS_LABELS[upload.status]}: ${upload.fileName}`
+                  : `Waiting: ${upload.fileName}`,
         signedUrl: upload.previewUrl,
         latitude: upload.gpsData?.latitude ?? null,
         longitude: upload.gpsData?.longitude ?? null,
@@ -150,7 +153,7 @@ export function useEditDraftUploads({
 
   const mergedManageImages = useMemo(() => {
     const optimisticTabs: ManageImageTab[] = pendingDraftUploads
-      .filter((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId && upload.uploadedPath)
+      .filter((upload) => upload.attachedRecordId && upload.uploadedPath)
       .filter((upload) => !manageImages.some((img) => img.imageId === upload.attachedRecordId))
       .map((upload) => ({
         imageId: upload.attachedRecordId || upload.clientId,
@@ -160,9 +163,9 @@ export function useEditDraftUploads({
         signedUrl: upload.previewUrl,
         latitude: upload.gpsData?.latitude ?? null,
         longitude: upload.gpsData?.longitude ?? null,
-        status: undefined,
+        status: upload.status,
         error: null,
-        pendingClientId: null,
+        pendingClientId: upload.clientId,
       }))
 
     const pendingTabs: ManageImageTab[] = pendingDraftUploads
@@ -175,9 +178,11 @@ export function useEditDraftUploads({
           ? `Failed: ${upload.fileName}`
           : upload.status === 'UPLOADING'
             ? `Uploading ${upload.progress}%: ${upload.fileName}`
-            : upload.status === 'PREPROCESSING'
-              ? `Preparing: ${upload.fileName}`
-              : `Waiting: ${upload.fileName}`,
+              : upload.status === 'PREPROCESSING'
+                ? `Preparing: ${upload.fileName}`
+                : MEDIA_UPLOAD_STATUS_LABELS[upload.status]
+                  ? `${MEDIA_UPLOAD_STATUS_LABELS[upload.status]}: ${upload.fileName}`
+                  : `Waiting: ${upload.fileName}`,
         signedUrl: upload.previewUrl,
         latitude: upload.gpsData?.latitude ?? null,
         longitude: upload.gpsData?.longitude ?? null,
@@ -190,7 +195,7 @@ export function useEditDraftUploads({
   }, [manageImages, pendingDraftUploads])
 
   const hasInFlightDraftUploads = useMemo(() => {
-    return pendingDraftUploads.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
+    return pendingDraftUploads.some((upload) => isMediaUploadPending(upload.status))
   }, [pendingDraftUploads])
 
   useEffect(() => {

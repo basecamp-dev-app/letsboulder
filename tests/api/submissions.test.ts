@@ -2,9 +2,7 @@ import { NextRequest } from 'next/server'
 import { describe, expect, test, vi } from 'vitest'
 import { createServerClient } from '@supabase/ssr'
 
-const mockServerEnv = vi.hoisted(() => ({
-  INTERNAL_MODERATION_SECRET: 'test-moderation-secret',
-}))
+const mockServerEnv = vi.hoisted(() => ({}))
 
 vi.mock('@/lib/env.server', () => ({
   serverEnv: mockServerEnv,
@@ -168,7 +166,8 @@ describe('POST /api/submissions', () => {
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              single: vi.fn(async () => ({ data: { id: 'image-1', crag_id: null }, error: null })),
+              single: vi.fn(async () => ({ data: { id: 'image-1', crag_id: null, processing_status: 'ready', moderation_status: 'approved', visibility: 'public', status: 'approved' }, error: null })),
+              maybeSingle: vi.fn(async () => ({ data: { processing_status: 'ready', moderation_status: 'approved', visibility: 'public', status: 'approved' }, error: null })),
             })),
           })),
         }

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
-import { getMediaModerationConfig, getMediaStorageConfig } from '@/lib/media/config'
+import { getMediaStorageConfig } from '@/lib/media/config'
 import { createPrivateUploadUrl } from '@/lib/media/r2'
 import { buildOriginalObjectKey, normalizeUploadSessionRequest } from '@/lib/media/upload-session'
 import type { MediaUploadSessionResponse } from '@/lib/media/types'
@@ -53,8 +53,6 @@ export async function POST(request: NextRequest) {
     const imageId = randomUUID()
     const objectKey = buildOriginalObjectKey(imageId, payload)
     const storage = getMediaStorageConfig()
-    const moderation = getMediaModerationConfig()
-    const autoApprove = !moderation.enabled || moderation.provider === 'disabled'
     const privateUrl = `private://${storage.privateBucket}/${objectKey}`
 
     const insertPayload = {
@@ -75,11 +73,12 @@ export async function POST(request: NextRequest) {
       original_bytes: payload.byteSize,
       original_width: payload.width,
       original_height: payload.height,
-      visibility: autoApprove ? 'public' : 'private',
-      moderation_status: autoApprove ? 'approved' : 'pending',
-      // Public-by-default uploads still need worker finalization for variants and static URLs.
+      visibility: 'private',
+      moderation_status: 'skipped',
+      moderation_provider: 'disabled',
+      moderation_error: null,
       processing_status: 'pending',
-      status: autoApprove ? 'approved' : 'pending',
+      status: 'pending',
     }
 
     const { error: insertError } = await supabase

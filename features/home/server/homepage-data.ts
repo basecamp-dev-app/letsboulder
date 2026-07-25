@@ -107,7 +107,7 @@ export const fetchHomepageRecentCragUpdates = cache(async function fetchHomepage
   const { data, error } = await supabase
     .from('images')
     .select('id, url, created_at, crag_id, created_by, crags(id, name, slug, country_code)')
-    .eq('moderation_status', 'approved')
+    .in('moderation_status', ['approved', 'skipped'])
     .not('crag_id', 'is', null)
     .not('url', 'is', null)
     .order('created_at', { ascending: false })
@@ -154,7 +154,7 @@ export const fetchHomepageRecentContributors = cache(async function fetchHomepag
   const { data, error } = await supabase
     .from('images')
     .select('created_at, created_by')
-    .eq('moderation_status', 'approved')
+    .in('moderation_status', ['approved', 'skipped'])
     .not('created_by', 'is', null)
     .order('created_at', { ascending: false })
     .limit(36)

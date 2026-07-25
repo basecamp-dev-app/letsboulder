@@ -49,7 +49,19 @@ function createAuthClient(userId: string | null) {
   }
 }
 
-function createImagesQuery(rows: Array<{ created_by: string | null; moderation_status: string | null }>) {
+interface MediaRow {
+  created_by: string | null
+  moderation_status: string | null
+  processing_status: string
+  visibility: string
+  status: string
+}
+
+function mediaRow(created_by: string | null, moderation_status: string | null, overrides: Partial<MediaRow> = {}): MediaRow {
+  return { created_by, moderation_status, processing_status: 'ready', visibility: 'public', status: 'approved', ...overrides }
+}
+
+function createImagesQuery(rows: MediaRow[]) {
   return {
     select: vi.fn(() => ({
       eq: vi.fn(() => ({
@@ -71,7 +83,7 @@ function createCragImagesQuery() {
   }
 }
 
-function createAdminClient(rows: Array<{ created_by: string | null; moderation_status: string | null }>) {
+function createAdminClient(rows: MediaRow[]) {
   return {
     from: vi.fn((table: string) => {
       if (table === 'images') {
@@ -102,7 +114,7 @@ describe('Media proxy route', () => {
 
   test('omits CORS headers for hostile-origin private media requests', async () => {
     getServerClientFromRequest.mockReturnValue(createAuthClient('user-1'))
-    createClient.mockReturnValue(createAdminClient([{ created_by: 'user-1', moderation_status: 'pending' }]))
+    createClient.mockReturnValue(createAdminClient([mediaRow('user-1', 'pending', { processing_status: 'processing', visibility: 'private', status: 'pending' })]))
     createR2Client.mockReturnValue({
       send: vi.fn(async () => ({
         Body: createR2Body(new Uint8Array([1, 2, 3])),
@@ -142,7 +154,7 @@ describe('Media proxy route', () => {
 
   test('public media responses use wildcard CORS without credentials', async () => {
     getServerClientFromRequest.mockReturnValue(createAuthClient(null))
-    createClient.mockReturnValue(createAdminClient([{ created_by: null, moderation_status: 'approved' }]))
+    createClient.mockReturnValue(createAdminClient([mediaRow(null, 'approved')]))
     createR2Client.mockReturnValue({
       send: vi.fn(async () => ({
         Body: createR2Body(new Uint8Array([4, 5, 6])),
@@ -196,7 +208,7 @@ describe('Media proxy route', () => {
 
   test('private media returns 404 when user has no access', async () => {
     getServerClientFromRequest.mockReturnValue(createAuthClient('user-1'))
-    createClient.mockReturnValue(createAdminClient([{ created_by: 'other-user', moderation_status: 'pending' }]))
+    createClient.mockReturnValue(createAdminClient([mediaRow('other-user', 'pending', { processing_status: 'processing', visibility: 'private', status: 'pending' })]))
 
     const response = await GET(
       new NextRequest('http://localhost:3000/api/media/private-bucket/originals/photo.jpg'),
@@ -208,7 +220,7 @@ describe('Media proxy route', () => {
 
   test('public media allows anonymous access with approved images', async () => {
     getServerClientFromRequest.mockReturnValue(createAuthClient(null))
-    createClient.mockReturnValue(createAdminClient([{ created_by: null, moderation_status: 'approved' }]))
+    createClient.mockReturnValue(createAdminClient([mediaRow(null, 'approved')]))
     createR2Client.mockReturnValue({
       send: vi.fn(async () => ({
         Body: createR2Body(new Uint8Array([4, 5, 6])),
@@ -228,7 +240,7 @@ describe('Media proxy route', () => {
 
   test('public media with pending images returns 404', async () => {
     getServerClientFromRequest.mockReturnValue(createAuthClient(null))
-    createClient.mockReturnValue(createAdminClient([{ created_by: null, moderation_status: 'pending' }]))
+    createClient.mockReturnValue(createAdminClient([mediaRow(null, 'pending')]))
 
     const response = await GET(
       new NextRequest('http://localhost:3000/api/media/public-bucket/derived/photo.jpg'),
@@ -236,6 +248,37 @@ describe('Media proxy route', () => {
     )
 
     expect(response.status).toBe(404)
+  })
+
+  test('public media with approved moderation but unfinished processing returns 404', async () => {
+    getServerClientFromRequest.mockReturnValue(createAuthClient(null))
+    createClient.mockReturnValue(createAdminClient([mediaRow(null, 'approved', { processing_status: 'processing' })]))
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/media/public-bucket/derived/photo.jpg'),
+      { params: Promise.resolve({ bucket: 'public-bucket', path: ['derived', 'photo.jpg'] }) }
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  test('public media accepts skipped moderation when all public states are ready', async () => {
+    getServerClientFromRequest.mockReturnValue(createAuthClient(null))
+    createClient.mockReturnValue(createAdminClient([mediaRow(null, 'skipped')]))
+    createR2Client.mockReturnValue({
+      send: vi.fn(async () => ({
+        Body: createR2Body(new Uint8Array([4, 5, 6])),
+        ContentType: 'image/jpeg',
+        ContentLength: 3,
+      })),
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/media/public-bucket/derived/photo.jpg'),
+      { params: Promise.resolve({ bucket: 'public-bucket', path: ['derived', 'photo.jpg'] }) }
+    )
+
+    expect(response.status).toBe(200)
   })
 })
 
@@ -246,7 +289,7 @@ describe('Media transform behavior', () => {
 
   test('public media caches with long TTL', async () => {
     getServerClientFromRequest.mockReturnValue(createAuthClient(null))
-    createClient.mockReturnValue(createAdminClient([{ created_by: null, moderation_status: 'approved' }]))
+    createClient.mockReturnValue(createAdminClient([mediaRow(null, 'approved')]))
     createR2Client.mockReturnValue({
       send: vi.fn(async () => ({
         Body: createR2Body(new Uint8Array([4, 5, 6])),

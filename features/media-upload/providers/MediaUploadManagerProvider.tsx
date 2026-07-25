@@ -2,9 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { useMediaUploadQueueController } from '@/features/media-upload/hooks/use-media-upload-queue-controller'
-import { isSameTarget, type MediaUploadItem, type MediaUploadTarget, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
+import { isMediaUploadPending, isSameTarget, type MediaUploadItem, type MediaUploadTarget, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
 
-export type { MediaUploadItem, MediaUploadTarget, UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
+export type { MediaUploadItem, MediaUploadStatus, MediaUploadTarget, UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
 
 interface MediaUploadManagerValue {
   uploads: MediaUploadItem[]
@@ -44,7 +44,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
 
   const uploadsList = useMemo(() => Object.values(uploads).sort((a, b) => a.startedAt - b.startedAt), [uploads])
   const hasActiveUploads = useMemo(() => {
-    return uploadsList.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
+    return uploadsList.some((upload) => isMediaUploadPending(upload.status))
   }, [uploadsList])
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
 
   const hasPendingUploads = useCallback((target: MediaUploadTarget) => {
     const matching = target.kind === 'draft' ? getUploadsForDraft(target.draftId) : getUploadsForCrag(target.cragId)
-    return matching.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
+    return matching.some((upload) => isMediaUploadPending(upload.status))
   }, [getUploadsForCrag, getUploadsForDraft])
 
   const hasFailedUploads = useCallback((target: MediaUploadTarget) => {

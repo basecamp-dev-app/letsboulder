@@ -169,10 +169,11 @@ async function finalizeImage(
       storage_provider: 'r2',
       variants: manifest,
       visibility: 'public',
-      moderation_status: 'approved',
-      moderation_provider: env.MEDIA_MODERATION_PROVIDER === 'aws_rekognition' ? 'aws_rekognition' : 'disabled',
+      moderation_status: 'skipped',
+      moderation_provider: 'disabled',
       moderation_labels: [],
       moderation_error: null,
+      moderated_at: null,
       processed_at: new Date().toISOString(),
       processing_status: 'ready',
       status: 'approved',
@@ -303,10 +304,6 @@ async function processClaimedMediaJob(job: MediaJobRow, env: Env) {
   }
 
   try {
-    if (env.ENABLE_MODERATION === 'true' && env.MEDIA_MODERATION_PROVIDER === 'aws_rekognition') {
-      throw new Error('AWS Rekognition moderation is not implemented in the Cloudflare worker yet')
-    }
-
     await processJob(parsed.data, env)
     await markMediaJobCompleted(supabase, job.id)
   } catch (error) {
@@ -496,10 +493,6 @@ export default {
         if (!parsed.success) {
           message.ack()
           continue
-        }
-
-        if (env.ENABLE_MODERATION === 'true' && env.MEDIA_MODERATION_PROVIDER === 'aws_rekognition') {
-          throw new Error('AWS Rekognition moderation is not implemented in the Cloudflare worker yet')
         }
 
         await processJob(parsed.data, env)

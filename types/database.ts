@@ -2724,6 +2724,10 @@ export type Database = {
         }
         Returns: Json
       }
+      assert_media_ready_for_publication: {
+        Args: { p_image_ids: string[] }
+        Returns: undefined
+      }
       claim_media_job: {
         Args: { worker_name: string }
         Returns: {

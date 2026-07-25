@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
-import { serverEnv } from '@/lib/env.server'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
-import { getMediaModerationConfig } from '@/lib/media/config'
+import { isMediaNotReadyError, isMediaPubliclyDeliverable, MEDIA_NOT_READY_RESPONSE } from '@/lib/media/readiness'
 import { recordSubmissionPublishedEvent } from '@/features/community/lib/contributor-score'
 import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
-
-const INTERNAL_MODERATION_SECRET = serverEnv.INTERNAL_MODERATION_SECRET
 
 interface PromoteResult {
   success?: boolean
@@ -24,7 +21,7 @@ interface DraftRouteRef {
   draft_image_id: string
 }
 
-type DraftImagePublishRow = Pick<DraftImageRow, 'id' | 'display_order' | 'latitude' | 'longitude' | 'route_data'>
+type DraftImagePublishRow = Pick<DraftImageRow, 'id' | 'display_order' | 'latitude' | 'longitude' | 'route_data'> & { linked_image_id: string | null }
 
 interface DraftRouteSyncPayload {
   id: string
@@ -95,7 +92,7 @@ export async function promoteDraftToSubmission(input: {
   draftId: string
   userId: string
 }) {
-  const { supabase, request, draftId, userId } = input
+  const { supabase, draftId, userId } = input
   const { data: draft, error: draftError } = await supabase
     .from('submission_drafts')
     .select('id, user_id, metadata')
@@ -116,7 +113,7 @@ export async function promoteDraftToSubmission(input: {
 
   const { data: draftImages, error: draftImagesError } = await supabase
     .from('submission_draft_images')
-    .select('id, display_order, latitude, longitude, route_data')
+    .select('id, display_order, latitude, longitude, route_data, linked_image_id')
     .eq('draft_id', draftId)
 
   if (draftImagesError) {
@@ -124,6 +121,18 @@ export async function promoteDraftToSubmission(input: {
   }
 
   const draftImageRows = (draftImages || []) as DraftImagePublishRow[]
+  const linkedImageIds = Array.from(new Set(draftImageRows.flatMap((image) => image.linked_image_id ? [image.linked_image_id] : [])))
+  const { data: linkedImages, error: linkedImagesError } = linkedImageIds.length > 0
+    ? await supabase
+      .from('images')
+      .select('id, processing_status, moderation_status, visibility, status')
+      .in('id', linkedImageIds)
+    : { data: [], error: null }
+
+  if (linkedImagesError) return createErrorResponse(linkedImagesError, 'Failed to validate draft media before publish')
+  if (draftImageRows.some((image) => !image.linked_image_id) || (linkedImages || []).length !== linkedImageIds.length || !(linkedImages || []).every(isMediaPubliclyDeliverable)) {
+    return NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 })
+  }
   const draftLocation = extractDraftLocation(draft.metadata)
   const effectiveDraftLocation = resolveEffectiveDraftPublishLocation(draft.metadata, draftImageRows)
   const hasValidLocation = hasValidDraftCoordinate(effectiveDraftLocation.latitude, effectiveDraftLocation.longitude)
@@ -245,6 +254,9 @@ export async function promoteDraftToSubmission(input: {
 
   const { data, error } = await supabase.rpc('promote_draft_to_submission', { p_draft_id: draftId })
   if (error) {
+    if (isMediaNotReadyError(error)) {
+      return NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 })
+    }
     if (typeof error.message === 'string' && error.message.includes('Draft location is required before publishing')) {
       return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
     }
@@ -330,45 +342,6 @@ export async function promoteDraftToSubmission(input: {
   }).catch((contributorScoreError) => {
     reportError(contributorScoreError, { message: 'Contributor score publish event error' })
   })
-
-  const moderationConfig = getMediaModerationConfig()
-  if (INTERNAL_MODERATION_SECRET && moderationConfig.enabled) {
-    const csrfToken = request.headers.get('x-csrf-token')
-    const cookieHeader = request.headers.get('cookie')
-    const moderationHeaders: Record<string, string> = {
-      'content-type': 'application/json',
-      'x-internal-secret': INTERNAL_MODERATION_SECRET,
-    }
-
-    if (csrfToken) moderationHeaders['x-csrf-token'] = csrfToken
-    if (cookieHeader) moderationHeaders.cookie = cookieHeader
-
-    fetch(new URL('/api/moderation/check', request.url), {
-      method: 'POST',
-      headers: moderationHeaders,
-      body: JSON.stringify({ imageId: result.image_id }),
-    })
-      .then(async (res) => {
-        if (res.ok) return
-        const text = await res.text().catch(() => '')
-        reportError(new Error('Failed to queue moderation for published draft'), {
-          message: 'Failed to queue moderation for published draft',
-          extra: {
-            draftId,
-            imageId: result.image_id,
-            status: res.status,
-            body: text.slice(0, 500),
-          },
-        })
-      })
-      .catch((queueError) => reportError(queueError, {
-        message: 'Failed to queue moderation for published draft',
-        extra: {
-          draftId,
-          imageId: result.image_id,
-        },
-      }))
-  }
 
   return NextResponse.json({
     success: true,

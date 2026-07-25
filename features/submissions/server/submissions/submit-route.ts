@@ -3,7 +3,6 @@ import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { makeUniqueSlug, fetchUsedSlugs } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { serverEnv } from '@/lib/env.server'
-import { getMediaModerationConfig } from '@/lib/media/config'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { parseWithSchema } from '@/lib/api-validation'
@@ -23,57 +22,13 @@ interface RoutePoint {
   y: number
 }
 
-const INTERNAL_MODERATION_SECRET = serverEnv.INTERNAL_MODERATION_SECRET
 export const MAX_ROUTES_PER_DAY = 5
-
-async function queueSubmissionModeration(request: NextRequest, imageId: string) {
-  const moderationConfig = getMediaModerationConfig()
-  if (!INTERNAL_MODERATION_SECRET || !moderationConfig.enabled) return
-
-  const csrfToken = request.headers.get('x-csrf-token')
-  const cookieHeader = request.headers.get('cookie')
-  const moderationHeaders: Record<string, string> = {
-    'content-type': 'application/json',
-    'x-internal-secret': INTERNAL_MODERATION_SECRET,
-  }
-
-  if (csrfToken) {
-    moderationHeaders['x-csrf-token'] = csrfToken
-  }
-
-  if (cookieHeader) {
-    moderationHeaders.cookie = cookieHeader
-  }
-
-  fetch(new URL('/api/moderation/check', request.url), {
-    method: 'POST',
-    headers: moderationHeaders,
-    body: JSON.stringify({ imageId }),
-  })
-    .then(async (res) => {
-      if (res.ok) return
-      const text = await res.text().catch(() => '')
-      reportError(new Error('Failed to queue moderation'), {
-        message: 'Failed to queue moderation',
-        extra: {
-          imageId,
-          status: res.status,
-          body: text.slice(0, 500),
-        },
-      })
-    })
-    .catch((error) => reportError(error, { message: 'Failed to queue moderation', extra: { imageId } }))
-}
 
 async function runSubmissionSideEffects(
   supabase: ReturnType<typeof getServerClientFromRequest>,
-  input: { request: NextRequest; body: SubmissionRequest; imageId: string; cragId: string | null; userId: string; executionResult: SubmissionExecutionResult }
+  input: { imageId: string; cragId: string | null; userId: string; executionResult: SubmissionExecutionResult }
 ) {
   await getRegionData(supabase, input.imageId)
-
-  if (input.body.mode === 'new') {
-    await queueSubmissionModeration(input.request, input.imageId)
-  }
 
   if (!input.cragId) return
 
@@ -225,7 +180,7 @@ export async function submitRoute(request: NextRequest) {
 
       const { data: existingImage, error: imageError } = await supabase
         .from('images')
-        .select('id, crag_id')
+        .select('id, crag_id, processing_status, moderation_status, visibility, status')
         .eq('id', body.imageId)
         .single()
 
@@ -278,8 +233,6 @@ export async function submitRoute(request: NextRequest) {
 
     imageId = executionResult.imageId
     await runSubmissionSideEffects(supabase, {
-      request,
-      body,
       imageId,
       cragId: resolvedCragId,
       userId,

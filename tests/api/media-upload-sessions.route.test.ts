@@ -9,6 +9,10 @@ vi.mock('@/lib/csrf-server', () => ({
   withApiMiddleware: vi.fn(),
 }))
 
+vi.mock('@/lib/supabase-admin', () => ({
+  getAdminClientWithAudit: vi.fn(),
+}))
+
 vi.mock('@/lib/errors', () => ({
   createErrorResponse: vi.fn((error: unknown, message: string) =>
     NextResponse.json(
@@ -21,7 +25,6 @@ vi.mock('@/lib/errors', () => ({
 
 vi.mock('@/lib/media/config', () => ({
   getMediaStorageConfig: vi.fn(() => ({ privateBucket: 'private-bucket' })),
-  getMediaModerationConfig: vi.fn(() => ({ enabled: false, provider: 'disabled' })),
 }))
 
 vi.mock('@/lib/media/r2', () => ({
@@ -48,11 +51,11 @@ vi.mock('@/lib/media/upload-session', () => ({
 }))
 
 import { POST as createUploadSession } from '@/app/api/media/upload-sessions/route'
-import { DELETE as deleteUploadSession } from '@/app/api/media/upload-sessions/[imageId]/route'
+import { DELETE as deleteUploadSession, GET as getUploadSession } from '@/app/api/media/upload-sessions/[imageId]/route'
 import { POST as completeUploadSession } from '@/app/api/media/upload-sessions/[imageId]/complete/route'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createPrivateUploadUrl, deleteObject, ensurePrivateObjectExists } from '@/lib/media/r2'
-import { getMediaModerationConfig } from '@/lib/media/config'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 
 type MiddlewareResult = Awaited<ReturnType<typeof withApiMiddleware>>
 
@@ -87,9 +90,20 @@ function makeCompleteRequest(body: unknown) {
   })
 }
 
+function makeGetRequest() {
+  return new NextRequest('http://localhost:3000/api/media/upload-sessions/image-123')
+}
+
 describe('Media upload session routes', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.mocked(getAdminClientWithAudit).mockReturnValue({
+      from: vi.fn(() => ({
+        update: vi.fn(() => ({
+          eq: vi.fn(async () => ({ error: null })),
+        })),
+      })),
+    } as never)
   })
 
   test('create returns 401 when auth user is missing', async () => {
@@ -175,8 +189,9 @@ describe('Media upload session routes', () => {
       created_by: 'user-1',
       storage_bucket: 'private-bucket',
       storage_path: 'originals/image-123.jpg',
-      visibility: 'public',
-      moderation_status: 'approved',
+      visibility: 'private',
+      moderation_status: 'skipped',
+      moderation_provider: 'disabled',
       processing_status: 'pending',
     }))
     expect(createPrivateUploadUrl).toHaveBeenCalledWith('originals/image-123.jpg', 'image/jpeg')
@@ -206,6 +221,9 @@ describe('Media upload session routes', () => {
                 original_bucket: 'private-bucket',
                 original_key: 'originals/image-123.jpg',
                 processing_status: 'ready',
+                moderation_status: 'skipped',
+                visibility: 'public',
+                status: 'approved',
               },
               error: null,
             })),
@@ -285,9 +303,94 @@ describe('Media upload session routes', () => {
     expect(json).toEqual({ success: true })
   })
 
-  test('complete queues ingest when moderation is disabled', async () => {
-    vi.mocked(getMediaModerationConfig).mockReturnValue({ enabled: false, provider: 'disabled', failOpen: false })
-    const rpc = vi.fn(async () => ({ data: { id: 'job-123' }, error: null }))
+  test('get returns the owner a sanitized status from the latest job', async () => {
+    const supabase = {
+      auth: {
+        getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({
+              data: { id: 'image-123', created_by: 'user-1', processing_status: 'failed' },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    }
+    const maybeSingle = vi.fn(async () => ({
+      data: { status: 'failed', attempts: 5, max_attempts: 5 },
+      error: null,
+    }))
+    const limit = vi.fn(() => ({ maybeSingle }))
+    const order = vi.fn(() => ({ limit }))
+    const jobTypeEq = vi.fn(() => ({ order }))
+    const imageIdEq = vi.fn(() => ({ eq: jobTypeEq }))
+    const admin = {
+      from: vi.fn(() => ({ select: vi.fn(() => ({ eq: imageIdEq })) })),
+    }
+
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: supabase as never,
+      userId: null,
+    } as unknown as MiddlewareResult)
+    vi.mocked(getAdminClientWithAudit).mockReturnValue(admin as never)
+
+    const response = await getUploadSession(makeGetRequest(), {
+      params: Promise.resolve({ imageId: 'image-123' }),
+    })
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json).toEqual({
+      imageId: 'image-123',
+      processingStatus: 'failed',
+      moderationStatus: 'skipped',
+      retryable: false,
+      errorCode: 'MEDIA_PROCESSING_FAILED',
+    })
+    expect(json).not.toHaveProperty('last_error')
+    expect(getAdminClientWithAudit).toHaveBeenCalledOnce()
+  })
+
+  test('get does not read jobs for an image owned by another user', async () => {
+    const supabase = {
+      auth: {
+        getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({
+              data: { id: 'image-123', created_by: 'user-2', processing_status: 'queued' },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    }
+
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: supabase as never,
+      userId: null,
+    } as unknown as MiddlewareResult)
+
+    const response = await getUploadSession(makeGetRequest(), {
+      params: Promise.resolve({ imageId: 'image-123' }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(getAdminClientWithAudit).not.toHaveBeenCalled()
+  })
+
+  test('complete queues private ingest with moderation skipped', async () => {
+    const rpc = vi.fn(async () => ({
+      data: { status: 'queued', attempts: 0, max_attempts: 5 },
+      error: null,
+    }))
     const supabase = {
       auth: {
         getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
@@ -330,7 +433,13 @@ describe('Media upload session routes', () => {
 
     expect(response.status).toBe(200)
     expect(ensurePrivateObjectExists).toHaveBeenCalledWith('originals/image-123.jpg')
-    expect(json).toEqual({ success: true, imageId: 'image-123', status: 'queued' })
+    expect(json).toEqual({
+      imageId: 'image-123',
+      processingStatus: 'queued',
+      moderationStatus: 'skipped',
+      retryable: false,
+      errorCode: null,
+    })
     expect(rpc).toHaveBeenCalledWith('queue_media_ingest_job', {
       p_image_id: 'image-123',
       p_original_bucket: 'private-bucket',
@@ -339,13 +448,15 @@ describe('Media upload session routes', () => {
       p_purpose: 'submission_image',
       p_triggered_by_user_id: 'user-1',
       p_trigger: 'upload',
-      p_auto_approve: true,
+      p_auto_approve: false,
     })
   })
 
-  test('complete queues ingest when moderation requires review', async () => {
-    vi.mocked(getMediaModerationConfig).mockReturnValue({ enabled: true, provider: 'aws_rekognition', failOpen: false })
-    const rpc = vi.fn(async () => ({ data: { id: 'job-123' }, error: null }))
+  test('complete always skips moderation', async () => {
+    const rpc = vi.fn(async () => ({
+      data: { status: 'queued', attempts: 0, max_attempts: 5 },
+      error: null,
+    }))
     const supabase = {
       auth: {
         getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
@@ -387,7 +498,7 @@ describe('Media upload session routes', () => {
     const json = await response.json()
 
     expect(response.status).toBe(200)
-    expect(json).toEqual({ success: true, imageId: 'image-123', status: 'queued' })
+    expect(json.moderationStatus).toBe('skipped')
     expect(rpc).toHaveBeenCalledWith('queue_media_ingest_job', expect.objectContaining({
       p_auto_approve: false,
       p_purpose: 'crag_image',
@@ -411,6 +522,9 @@ describe('Media upload session routes', () => {
                 original_bucket: 'private-bucket',
                 original_key: 'originals/image-123.jpg',
                 processing_status: 'ready',
+                moderation_status: 'skipped',
+                visibility: 'public',
+                status: 'approved',
               },
               error: null,
             })),
@@ -431,7 +545,13 @@ describe('Media upload session routes', () => {
     const json = await response.json()
 
     expect(response.status).toBe(200)
-    expect(json).toEqual({ success: true, imageId: 'image-123', status: 'ready' })
+    expect(json).toEqual({
+      imageId: 'image-123',
+      processingStatus: 'ready',
+      moderationStatus: 'skipped',
+      retryable: false,
+      errorCode: null,
+    })
     expect(ensurePrivateObjectExists).not.toHaveBeenCalled()
     expect(rpc).not.toHaveBeenCalled()
   })

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isMediaNotReadyError, isMediaPubliclyDeliverable, MEDIA_NOT_READY_RESPONSE } from '@/lib/media/readiness'
 import type { AtomicSubmissionRouteResult } from '@/features/submissions/server/submissions/submit-shared'
 import type { ExecutorDependencies, RoutePayloadItem } from '@/features/submissions/server/submissions/submit-types'
 
@@ -9,6 +10,17 @@ export async function executeExistingImageSubmission(input: ExecutorDependencies
   normalizedRouteType: string | null
 }) {
   const { supabase, imageId, cragId, routePayload, normalizedRouteType } = input
+  const { data: image, error: imageError } = await supabase
+    .from('images')
+    .select('processing_status, moderation_status, visibility, status')
+    .eq('id', imageId)
+    .maybeSingle()
+
+  if (imageError) return { error: input.createErrorResponse(imageError, 'Error validating submission media') }
+  if (!image || !isMediaPubliclyDeliverable(image)) {
+    return { error: NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 }) }
+  }
+
   const { data: climbs, error: atomicError } = await supabase.rpc('create_submission_routes_atomic', {
     p_image_id: imageId,
     p_crag_id: cragId,
@@ -17,6 +29,9 @@ export async function executeExistingImageSubmission(input: ExecutorDependencies
   })
 
   if (atomicError) {
+    if (isMediaNotReadyError(atomicError)) {
+      return { error: NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 }) }
+    }
     return { error: input.createErrorResponse(atomicError, 'Error creating submission routes') }
   }
 

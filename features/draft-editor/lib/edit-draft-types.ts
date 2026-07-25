@@ -1,6 +1,7 @@
 import type { RouteLine } from '@/features/submissions/lib/submission-types'
 import type { ClimbRouteType, RoutePoint } from '@/types/climbing'
 import type { OrientationDirection } from '@/features/submissions/lib/draft-metadata'
+import type { MediaUploadStatus } from '@/features/media-upload/lib/upload-types'
 
 export type ClimbType = ClimbRouteType
 
@@ -121,7 +122,7 @@ export interface ManageImageTab {
   latitude: number | null
   longitude: number | null
   locationMode?: 'shared' | 'custom'
-  status?: 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
+  status?: MediaUploadStatus
   error?: string | null
   pendingClientId?: string | null
 }

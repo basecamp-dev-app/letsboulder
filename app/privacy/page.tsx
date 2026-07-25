@@ -119,8 +119,7 @@ export default function PrivacyPage() {
             <li><strong>Vercel</strong> for hosting and infrastructure.</li>
             <li><strong>Vercel Analytics and Vercel Speed Insights</strong> for usage and performance measurement.</li>
             <li><strong>Resend</strong> for transactional email delivery.</li>
-            <li><strong>AWS Rekognition</strong> for image moderation and safety checks.</li>
-            <li><strong>Cloudflare</strong> for storage (R2), Workers, and CDN delivery.</li>
+            <li><strong>Cloudflare</strong> for image storage, processing, and delivery.</li>
             <li><strong>Sentry</strong> for error tracking and performance monitoring.</li>
           </ul>
           <p className="text-gray-700 dark:text-gray-300">

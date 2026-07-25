@@ -4,17 +4,65 @@ import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { deleteObject } from '@/lib/media/r2'
 import { parseWithSchema } from '@/lib/api-validation'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
+import { toMediaStatusResponse } from '@/lib/media/media-status'
+import type { Database } from '@/types/database'
 
 const deleteUploadSessionParamsSchema = z.object({
   imageId: z.string().min(1, 'imageId is required'),
 })
 
-interface ImageRow {
-  id: string
-  created_by: string | null
-  original_bucket: string | null
-  original_key: string | null
-  processing_status: string | null
+type ImageRow = Pick<Database['public']['Tables']['images']['Row'],
+  'id' | 'created_by' | 'original_bucket' | 'original_key' | 'processing_status' | 'moderation_status' | 'visibility' | 'status'>
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ imageId: string }> }
+) {
+  const middlewareResult = await withApiMiddleware(request, { requireCsrf: false, requireUser: false })
+  if (!middlewareResult.ok) return middlewareResult.response
+
+  const validation = parseWithSchema(deleteUploadSessionParamsSchema, await params)
+  if (!validation.success) return validation.response
+
+  const { supabase } = middlewareResult
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('images')
+      .select('id, created_by, processing_status, moderation_status, visibility, status')
+      .eq('id', validation.data.imageId)
+      .single()
+
+    if (error || !data) {
+      return NextResponse.json({ error: 'Image not found' }, { status: 404 })
+    }
+    if (data.created_by !== user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
+    const admin = getAdminClientWithAudit('Read owner-scoped media upload status')
+    const { data: latestJob, error: jobError } = await admin
+      .from('media_jobs')
+      .select('status, attempts, max_attempts')
+      .eq('image_id', data.id)
+      .eq('job_type', 'ingest_image')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (jobError) {
+      return createErrorResponse(jobError, 'Failed to read upload status')
+    }
+
+    return NextResponse.json(toMediaStatusResponse(data, latestJob))
+  } catch (error) {
+    return createErrorResponse(error, 'Failed to read upload status')
+  }
 }
 
 export async function DELETE(
@@ -39,7 +87,7 @@ export async function DELETE(
 
     const { data, error } = await supabase
       .from('images')
-      .select('id, created_by, original_bucket, original_key, processing_status')
+      .select('id, created_by, original_bucket, original_key, processing_status, moderation_status, visibility, status')
       .eq('id', imageId)
       .single()
 

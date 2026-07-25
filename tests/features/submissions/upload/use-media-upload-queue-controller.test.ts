@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMediaUploadQueueController } from '@/features/media-upload/hooks/use-media-upload-queue-controller'
 import { moveQueueItemToFront, pickNextQueueClientId, resetUploadForQueue } from '@/features/media-upload/lib/media-upload-queue-state'
 import type { MediaUploadItem } from '@/features/media-upload/lib/upload-types'
+import { isMediaUploadPending, mapMediaUploadStatus, MEDIA_UPLOAD_STATUS_LABELS } from '@/features/media-upload/lib/upload-types'
 
 const uploadMocks = vi.hoisted(() => ({
   buildPreviewUrl: vi.fn(),
@@ -81,6 +82,22 @@ describe('media upload queue state machine', () => {
       uploadedBucket: null,
       uploadedPath: null,
       attachedRecordId: null,
+    })
+  })
+
+  it('maps server lifecycle statuses and keeps processing states pending', () => {
+    expect(mapMediaUploadStatus({ imageId: 'image-1', processingStatus: 'queued', moderationStatus: 'skipped', retryable: false, errorCode: null })).toBe('PROCESSING')
+    expect(mapMediaUploadStatus({ imageId: 'image-1', processingStatus: 'processing', moderationStatus: 'approved', retryable: false, errorCode: null })).toBe('PROCESSING')
+    expect(mapMediaUploadStatus({ imageId: 'image-1', processingStatus: 'ready', moderationStatus: 'pending', retryable: false, errorCode: null })).toBe('MODERATING')
+    expect(mapMediaUploadStatus({ imageId: 'image-1', processingStatus: 'ready', moderationStatus: 'skipped', retryable: false, errorCode: null })).toBe('READY')
+    expect(mapMediaUploadStatus({ imageId: 'image-1', processingStatus: 'failed', moderationStatus: 'skipped', retryable: false, errorCode: 'FAILED' })).toBe('FAILED')
+    expect(isMediaUploadPending('PROCESSING')).toBe(true)
+    expect(isMediaUploadPending('MODERATING')).toBe(true)
+    expect(isMediaUploadPending('READY')).toBe(false)
+    expect(MEDIA_UPLOAD_STATUS_LABELS).toMatchObject({
+      PROCESSING: 'Uploaded, preparing photo',
+      MODERATING: 'Checking photo safety',
+      READY: 'Ready',
     })
   })
 

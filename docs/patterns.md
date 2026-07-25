@@ -235,32 +235,25 @@ See [media-pipeline.md](../media-pipeline.md) for the full end-to-end flow.
 ### Pattern
 ```typescript
 import { createPrivateUploadUrl } from '@/lib/media/r2'
-import { getMediaModerationConfig } from '@/lib/media/config'
 
 // Generate presigned upload URL
 const { uploadUrl, objectKey } = await createPrivateUploadUrl(
   `uploads/${userId}/${imageId}.jpg`,
   'image/jpeg'
 )
-
-// Check moderation config
-const moderation = getMediaModerationConfig()
-if (!moderation.enabled) {
-  // Skip moderation — auto-approve for dev
-}
 ```
 
 ### Key Files
 - `lib/media/r2.ts` — R2 S3 client (presigned URLs, object operations)
-- `lib/media/config.ts` — storage and moderation configuration
+- `lib/media/config.ts` — storage configuration
 - `lib/media/cloudflare-loader.ts` — Next.js custom image loader for CDN
 - `lib/media/client-upload.ts` — client-side upload orchestration
 - `lib/media/draft-storage.ts` — draft image storage
 - `apps/media-worker/` — Cloudflare Worker for processing
 
 ### Known Edge Cases
-- **Public delivery:** Serve approved immutable variants from the CDN hostname, not app-route proxies.
-- **Private originals:** Keep originals in private object storage and use short-lived signed access for draft/moderation views.
+- **Public delivery:** Serve ready immutable variants from the CDN hostname, not app-route proxies.
+- **Private originals:** Keep originals in private object storage and use short-lived signed access for draft views.
 - **Cache busting:** Use versioned object paths like `v{asset_version}` instead of query strings.
 - **Worker safety:** Async ingest jobs must be idempotent; retries should not create duplicate variants.
 

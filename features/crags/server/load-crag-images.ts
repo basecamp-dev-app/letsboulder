@@ -14,6 +14,17 @@ interface CragImageRow {
   height: number | null
   linked_image_id: string | null
   created_at: string
+  linked_image: {
+    processing_status: string
+    moderation_status: string | null
+    visibility: string
+    status: string
+  } | Array<{
+    processing_status: string
+    moderation_status: string | null
+    visibility: string
+    status: string
+  }> | null
 }
 
 interface RouteTargetRow {
@@ -59,7 +70,7 @@ export async function loadCragImages(supabase: RequestSupabaseClient, cragId: st
     const [{ data, error }, { data: cragData }, { data: routeTargetData, error: routeTargetError }] = await Promise.all([
       supabase
         .from('crag_images')
-        .select('id, url, width, height, linked_image_id, created_at')
+        .select('id, url, width, height, linked_image_id, created_at, linked_image:linked_image_id(processing_status, moderation_status, visibility, status)')
         .eq('crag_id', cragId)
         .order('created_at', { ascending: false })
         .limit(50),
@@ -85,7 +96,14 @@ export async function loadCragImages(supabase: RequestSupabaseClient, cragId: st
       return createErrorResponse(routeTargetError, 'Failed to load route image targets')
     }
 
-    const rows = (data || []) as CragImageRow[]
+    const rows = ((data || []) as CragImageRow[]).filter((row) => {
+      if (!row.linked_image_id) return true
+      const linkedImage = Array.isArray(row.linked_image) ? row.linked_image[0] : row.linked_image
+      return linkedImage?.processing_status === 'ready'
+        && (linkedImage.moderation_status === 'approved' || linkedImage.moderation_status === 'skipped')
+        && linkedImage.visibility === 'public'
+        && linkedImage.status === 'approved'
+    })
     const pathsByBucket = new Map<string, Set<string>>()
 
     for (const row of rows) {
@@ -154,6 +172,7 @@ export async function loadCragImages(supabase: RequestSupabaseClient, cragId: st
       },
       images: result.map((row) => ({
         ...row,
+        linked_image: undefined,
         display_image_id: row.linked_image_id || row.id,
         routeTarget: routeTargetByImageId.get(row.linked_image_id || row.id) || null,
       })),

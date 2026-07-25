@@ -6,6 +6,7 @@ import sharp from 'sharp'
 import { createR2Client } from '@/lib/media/r2'
 import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
+import { isMediaPubliclyDeliverable } from '@/lib/media/readiness'
 
 function reportMediaWarning(message: string, extra: Record<string, unknown>) {
   reportError(new Error(message), {
@@ -189,13 +190,13 @@ function getMediaCacheControl(access: MediaAccess): string {
 }
 
 function getRowAccess(
-  rows: Array<{ created_by: string | null; moderation_status: string | null }>,
+  rows: Array<{ created_by: string | null; processing_status: string; moderation_status: string | null; visibility: string; status: string }>,
   userId: string | null
 ): MediaAccess | null {
   let access: MediaAccess | null = null
 
   for (const row of rows) {
-    if (row.moderation_status === 'approved') {
+    if (isMediaPubliclyDeliverable(row)) {
       access = mergeMediaAccess(access ?? 'private', 'public')
       continue
     }
@@ -216,7 +217,7 @@ async function canReadObject(bucket: string, path: string, userId: string | null
   if (isR2) {
     const { data: imageRows, error: imageError } = await admin
       .from('images')
-      .select('id, created_by, moderation_status')
+      .select('id, created_by, processing_status, moderation_status, visibility, status')
       .eq('original_bucket', bucket)
       .eq('original_key', path)
       .limit(10)
@@ -251,7 +252,7 @@ async function canReadObject(bucket: string, path: string, userId: string | null
     if (linkedIds.length > 0) {
       const { data: linkedImages, error: linkedError } = await admin
         .from('images')
-        .select('id, created_by, moderation_status')
+        .select('id, created_by, processing_status, moderation_status, visibility, status')
         .in('id', linkedIds)
 
       if (linkedError) {
@@ -268,7 +269,7 @@ async function canReadObject(bucket: string, path: string, userId: string | null
   if (!isR2) {
     const { data: legacyImageRows, error: legacyError } = await admin
       .from('images')
-      .select('id, created_by, moderation_status')
+      .select('id, created_by, processing_status, moderation_status, visibility, status')
       .eq('storage_bucket', bucket)
       .eq('storage_path', path)
       .limit(10)

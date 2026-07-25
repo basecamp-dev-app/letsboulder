@@ -59,7 +59,7 @@ function createUpload(overrides: Partial<MediaUploadItem> = {}): MediaUploadItem
     clientId: 'upload-1',
     target: { kind: 'draft', draftId: 'draft-1' },
     fileName: 'route.jpg',
-    status: 'SUCCESS',
+    status: 'READY',
     progress: 100,
     previewUrl: 'https://example.com/route.jpg',
     width: 1200,
@@ -162,7 +162,7 @@ describe('DraftIntakeView', () => {
     const user = userEvent.setup()
 
     mockGetUploadsForDraft.mockReturnValue([
-      createUpload({ clientId: 'success-1', status: 'SUCCESS' }),
+      createUpload({ clientId: 'success-1', status: 'READY' }),
       createUpload({ clientId: 'failed-1', status: 'FAILED', error: 'Network error', attachedRecordId: null }),
     ])
 
