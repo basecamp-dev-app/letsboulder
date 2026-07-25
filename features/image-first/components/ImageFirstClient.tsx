@@ -13,6 +13,8 @@ import type { Database } from '@/types/database'
 import { createClient } from '@/lib/supabase'
 import type { RouteLine, RoutePoint } from '@/types/domain'
 import ClimbInfoPanel from '@/features/climb/components/ClimbInfoPanel'
+import ClimbShareDialog from '@/features/climb/components/ClimbShareDialog'
+import FlagClimbModal from '@/components/FlagClimbModal'
 import { saveClimbFeedbackAction } from '@/features/climb/actions/save-climb-feedback'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/lib/grades/preferences'
 import { logRoutesAction } from '@/features/logbook/actions/log-routes'
@@ -149,6 +151,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [downloadingPost, setDownloadingPost] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [notesDialogOpen, setNotesDialogOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [flagOpen, setFlagOpen] = useState(false)
   const [isWantToTrySaved, setIsWantToTrySaved] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
@@ -960,6 +964,42 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     router.push('/logbook')
   }, [router])
 
+  const openShareUrl = (platform: 'x' | 'facebook' | 'whatsapp') => {
+    if (!selectedClimb) return
+
+    const pageUrl = window.location.href
+    const shareText = `Check out ${selectedClimb.name}`
+    const shareUrl = new URL(
+      platform === 'x'
+        ? 'https://x.com/intent/post'
+        : platform === 'facebook'
+          ? 'https://www.facebook.com/sharer/sharer.php'
+          : 'https://wa.me/'
+    )
+
+    if (platform === 'x') {
+      shareUrl.searchParams.set('text', shareText)
+      shareUrl.searchParams.set('url', pageUrl)
+    } else if (platform === 'facebook') {
+      shareUrl.searchParams.set('u', pageUrl)
+    } else {
+      shareUrl.searchParams.set('text', `${shareText} ${pageUrl}`)
+    }
+
+    window.open(shareUrl.toString(), '_blank', 'noopener,noreferrer')
+    setShareOpen(false)
+  }
+
+  const handleCopyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      addToast('Climb link copied', 'success')
+      setShareOpen(false)
+    } catch {
+      addToast('Could not copy climb link', 'error')
+    }
+  }
+
   const handleToggleWantToTry = useCallback(async () => {
     if (!activeClimbId) return
     if (!userPresent) {
@@ -1126,8 +1166,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onOpenOffline={() => undefined}
         onEditRoute={handleEditRoute}
         onAddRoutes={handleAddRoutes}
-        onOpenFlag={() => undefined}
-        onShare={() => undefined}
+        onOpenFlag={() => setFlagOpen(true)}
+        onShare={() => setShareOpen(true)}
         onGoToAuth={handleGoToAuth}
         onToggleWantToTry={handleToggleWantToTry}
         onLog={handleLog}
@@ -1138,6 +1178,24 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onSaveFeedback={handleSaveFeedback}
         onGoToLogbook={handleGoToLogbook}
         deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
+      />
+
+      {selectedClimb && flagOpen ? (
+        <FlagClimbModal
+          climbId={selectedClimb.id}
+          climbName={selectedClimb.name}
+          onClose={() => setFlagOpen(false)}
+        />
+      ) : null}
+
+      <ClimbShareDialog
+        open={shareOpen}
+        climbName={selectedClimb?.name ?? ''}
+        onOpenChange={setShareOpen}
+        onCopyLink={() => void handleCopyShareLink()}
+        onShareTwitter={() => openShareUrl('x')}
+        onShareFacebook={() => openShareUrl('facebook')}
+        onShareWhatsApp={() => openShareUrl('whatsapp')}
       />
 
       {(() => {

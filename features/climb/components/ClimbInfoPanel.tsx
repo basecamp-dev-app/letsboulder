@@ -202,7 +202,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             <button onClick={onOpenFlag} disabled={!selectedClimb} className="inline-flex size-11 items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Report incorrect route info" title={selectedClimb ? 'Report incorrect route info' : 'Select a route to report'}>
               <Flag className="w-5 h-5" />
             </button>
-            <button onClick={onShare} className="inline-flex size-11 items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors" aria-label="Share climb">
+            <button onClick={onShare} disabled={!selectedClimb} className="inline-flex size-11 items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Share climb" title={selectedClimb ? 'Share climb' : 'Select a route to share'}>
               <Share2 className="w-5 h-5" />
             </button>
             {!loadingSelectedClimbState && selectedClimbLogged ? <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 rounded-full text-sm font-medium">Logged</span> : null}

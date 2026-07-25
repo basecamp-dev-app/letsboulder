@@ -119,6 +119,38 @@ describe('ClimbInfoPanel', () => {
     expect(screen.getByRole('button', { name: 'Save offline' })).toBeTruthy()
   })
 
+  it('disables route actions until a climb is selected', () => {
+    renderPanel()
+
+    expect(screen.getByRole('button', { name: 'Report incorrect route info' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Share climb' })).toBeDisabled()
+  })
+
+  it('calls report and share actions for a selected climb', async () => {
+    const user = userEvent.setup()
+    const onOpenFlag = vi.fn()
+    const onShare = vi.fn()
+    renderPanel({
+      selectedClimb: {
+        id: 'climb-1',
+        name: 'Pebble Wrestle',
+        grade: '6B',
+        route_type: 'boulder',
+        description: null,
+      },
+      selectedRouteExists: true,
+      canAddRoutes: false,
+      onOpenFlag,
+      onShare,
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Report incorrect route info' }))
+    await user.click(screen.getByRole('button', { name: 'Share climb' }))
+
+    expect(onOpenFlag).toHaveBeenCalledTimes(1)
+    expect(onShare).toHaveBeenCalledTimes(1)
+  })
+
   it('renders named uploader and contributor count when present', () => {
     renderPanel({
       attribution: {
