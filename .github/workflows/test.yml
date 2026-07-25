@@ -17,7 +17,7 @@ on:
     - cron: "0 2 * * *"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -29,6 +29,7 @@ permissions:
 jobs:
   quality:
     name: Quality Gates
+    if: github.event_name != 'deployment_status'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -122,6 +123,7 @@ jobs:
 
   media-worker:
     name: Media Worker Check
+    if: github.event_name != 'deployment_status'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -145,8 +147,12 @@ jobs:
         github.event_name == 'deployment_status' &&
         github.event.deployment_status.state == 'success' &&
         (
-          github.event.deployment.ref == 'refs/heads/main' ||
-          github.event.deployment.ref == 'refs/heads/dev'
+          github.event.deployment.ref == 'main' ||
+          github.event.deployment.ref == 'dev'
+        ) &&
+        (
+          contains(github.event.deployment_status.target_url, '.vercel.app') ||
+          contains(github.event.deployment_status.target_url, 'dev.letsboulder.com')
         )
       ) ||
       github.event_name == 'workflow_dispatch'
