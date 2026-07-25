@@ -2,18 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
-import { deleteObject } from '@/lib/media/r2'
+import { getRpcErrorDetail, isRecord, parseStorageCleanupRows } from '@/lib/media/deletion-rpc'
+import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { parseWithSchema } from '@/lib/api-validation'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { toMediaStatusResponse } from '@/lib/media/media-status'
-import type { Database } from '@/types/database'
 
 const deleteUploadSessionParamsSchema = z.object({
   imageId: z.string().min(1, 'imageId is required'),
 })
-
-type ImageRow = Pick<Database['public']['Tables']['images']['Row'],
-  'id' | 'created_by' | 'original_bucket' | 'original_key' | 'processing_status' | 'moderation_status' | 'visibility' | 'status'>
 
 export async function GET(
   request: NextRequest,
@@ -85,37 +82,28 @@ export async function DELETE(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const { data, error } = await supabase
-      .from('images')
-      .select('id, created_by, original_bucket, original_key, processing_status, moderation_status, visibility, status')
-      .eq('id', imageId)
-      .single()
+    const { data, error } = await supabase.rpc('delete_unassociated_upload_image', {
+      p_image_id: imageId,
+    })
 
-    if (error || !data) {
-      return NextResponse.json({ error: 'Image not found' }, { status: 404 })
+    if (error) {
+      const detail = getRpcErrorDetail(error)
+      if (detail === 'not_found') return NextResponse.json({ error: 'Image not found' }, { status: 404 })
+      if (detail === 'permission_denied') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      if (detail === 'image_associated') {
+        return NextResponse.json({ error: 'This image is associated with content and cannot be deleted' }, { status: 409 })
+      }
+      return createErrorResponse(error, 'Failed to delete upload session')
     }
 
-    const image = data as ImageRow
-    if (image.created_by !== user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    if (!isRecord(data)) {
+      return createErrorResponse(new Error('Invalid upload deletion response'), 'Failed to delete upload session')
     }
 
-    if (image.processing_status === 'ready') {
-      return NextResponse.json({ error: 'Processed images cannot be deleted from this endpoint' }, { status: 409 })
-    }
-
-    if (image.original_bucket && image.original_key) {
-      await deleteObject(image.original_bucket, image.original_key).catch(() => null)
-    }
-
-    const { error: deleteError } = await supabase
-      .from('images')
-      .delete()
-      .eq('id', image.id)
-      .eq('created_by', user.id)
-
-    if (deleteError) {
-      return createErrorResponse(deleteError, 'Failed to delete upload session')
+    const cleanupRows = parseStorageCleanupRows([data])
+    if (cleanupRows.length > 0) {
+      const storageClient = getAdminClientWithAudit('delete upload session storage cleanup')
+      await cleanupDraftStorageObjects(storageClient, cleanupRows)
     }
 
     return NextResponse.json({ success: true })

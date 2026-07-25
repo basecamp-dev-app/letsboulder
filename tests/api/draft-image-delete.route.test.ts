@@ -39,40 +39,13 @@ vi.mock('@/lib/csrf-server', () => ({
   withApiMiddleware,
 }))
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/supabase-admin', () => ({
   getAdminClientWithAudit,
 }))
 
 import { DELETE } from '@/app/api/submissions/drafts/[id]/images/[imageId]/route'
 
 type MiddlewareResult = Awaited<ReturnType<typeof withApiMiddleware>>
-
-const DRAFT_BASE = {
-  id: 'draft-1',
-  user_id: 'user-1',
-  status: 'draft',
-  updated_at: '2026-01-01T00:00:00Z',
-  last_edited_by: null,
-  metadata: { primaryIndex: 0 },
-}
-
-const DRAFT_IMAGE_ONE = {
-  id: 'image-1',
-  draft_id: 'draft-1',
-  display_order: 0,
-  storage_provider: 'supabase',
-  storage_bucket: 'private-bucket',
-  storage_path: 'drafts/draft-1/image-1.jpg',
-}
-
-const DRAFT_IMAGE_TWO = {
-  id: 'image-2',
-  draft_id: 'draft-1',
-  display_order: 1,
-  storage_provider: 'supabase',
-  storage_bucket: 'private-bucket',
-  storage_path: 'drafts/draft-1/image-2.jpg',
-}
 
 function makeRequest(url: string) {
   return new NextRequest(url, { method: 'DELETE' })
@@ -90,83 +63,14 @@ function makeAuthenticatedMiddleware(supabase: unknown, userId: string) {
   } as MiddlewareResult
 }
 
-function makeSupabaseForDelete(options: {
-  draft?: typeof DRAFT_BASE
-  images?: Array<typeof DRAFT_IMAGE_ONE>
-}) {
-  const draft = options.draft ?? DRAFT_BASE
-  const images = options.images ?? [DRAFT_IMAGE_ONE, DRAFT_IMAGE_TWO]
+function makeSupabaseForDelete(result: { data: unknown; error: unknown }) {
+  return { rpc: vi.fn(async () => result) }
+}
 
-  const deleteEqDraftId = vi.fn(async () => ({ error: null }))
-  const deleteEqImageId = vi.fn(() => ({ eq: deleteEqDraftId }))
-  const updateSelect = vi.fn(async () => ({ data: { updated_at: '2026-01-01T00:01:00Z', metadata: {} }, error: null }))
-  const updateEqStatus = vi.fn(() => ({ select: updateSelect }))
-  const updateEqId = vi.fn(() => ({ eq: updateEqStatus }))
-
-  return {
-    from: vi.fn((table: string) => {
-      if (table === 'submission_drafts') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              maybeSingle: vi.fn(async () => ({ data: draft, error: null })),
-            })),
-          })),
-          update: vi.fn(() => ({
-            eq: updateEqId,
-          })),
-        }
-      }
-
-      if (table === 'submission_draft_images') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              order: vi.fn(async () => ({ data: images, error: null })),
-            })),
-          })),
-          delete: vi.fn(() => ({
-            eq: deleteEqImageId,
-          })),
-          update: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              eq: vi.fn(async () => ({ error: null })),
-            })),
-          })),
-        }
-      }
-
-      if (table === 'submission_draft_collaborators') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                maybeSingle: vi.fn(async () => ({ data: null, error: null })),
-              })),
-            })),
-          })),
-        }
-      }
-
-      if (table === 'profiles') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              maybeSingle: vi.fn(async () => ({ data: null, error: null })),
-            })),
-          })),
-        }
-      }
-
-      return {
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(async () => ({ data: null, error: null })),
-          })),
-        })),
-      }
-    }),
-  }
+function mockValidRequest(expectedUpdatedAt = '2026-01-01T00:00:00Z') {
+  vi.mocked(parseWithSchema)
+    .mockReturnValueOnce({ success: true, data: { id: 'draft-1', imageId: 'image-2' } })
+    .mockReturnValueOnce({ success: true, data: { expected_updated_at: expectedUpdatedAt } })
 }
 
 describe('/api/submissions/drafts/[id]/images/[imageId]', () => {
@@ -175,12 +79,13 @@ describe('/api/submissions/drafts/[id]/images/[imageId]', () => {
     vi.mocked(getAdminClientWithAudit).mockReturnValue({} as never)
   })
 
-  test('returns 404 when the target image is not present even if only one image row is returned', async () => {
-    const supabase = makeSupabaseForDelete({ images: [DRAFT_IMAGE_ONE] })
+  test('maps an RPC not_found error to 404', async () => {
+    const supabase = makeSupabaseForDelete({
+      data: null,
+      error: { message: 'Draft image not found', details: 'not_found' },
+    })
     vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-1'))
-    vi.mocked(parseWithSchema)
-      .mockReturnValueOnce({ success: true, data: { id: 'draft-1', imageId: 'image-2' } })
-      .mockReturnValueOnce({ success: true, data: { expected_updated_at: '2026-01-01T00:00:00Z' } })
+    mockValidRequest()
 
     const response = await DELETE(
       makeRequest('http://localhost:3000/api/submissions/drafts/draft-1/images/image-2?expected_updated_at=2026-01-01T00:00:00Z'),
@@ -189,47 +94,112 @@ describe('/api/submissions/drafts/[id]/images/[imageId]', () => {
 
     expect(response.status).toBe(404)
     await expect(response.json()).resolves.toEqual({ error: 'Draft image not found' })
+    expect(supabase.rpc).toHaveBeenCalledWith('delete_submission_draft_image_atomic', {
+      p_draft_id: 'draft-1',
+      p_draft_image_id: 'image-2',
+      p_expected_updated_at: '2026-01-01T00:00:00Z',
+    })
   })
 
-  test('returns 400 when deleting the only remaining image', async () => {
-    const supabase = makeSupabaseForDelete({ images: [{ ...DRAFT_IMAGE_ONE, id: 'image-1' }] })
+  test('maps the minimum-image database conflict to 400', async () => {
+    const supabase = makeSupabaseForDelete({
+      data: null,
+      error: {
+        message: 'A draft must retain at least one image',
+        details: 'draft_conflict',
+      },
+    })
     vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-1'))
-    vi.mocked(parseWithSchema)
-      .mockReturnValueOnce({ success: true, data: { id: 'draft-1', imageId: 'image-1' } })
-      .mockReturnValueOnce({ success: true, data: { expected_updated_at: '2026-01-01T00:00:00Z' } })
+    mockValidRequest()
 
     const response = await DELETE(
-      makeRequest('http://localhost:3000/api/submissions/drafts/draft-1/images/image-1?expected_updated_at=2026-01-01T00:00:00Z'),
-      makeParams('draft-1', 'image-1')
+      makeRequest('http://localhost:3000/api/submissions/drafts/draft-1/images/image-2?expected_updated_at=2026-01-01T00:00:00Z'),
+      makeParams('draft-1', 'image-2')
     )
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({ error: 'A draft must keep at least one face image' })
+    expect(supabase.rpc).toHaveBeenCalledWith('delete_submission_draft_image_atomic', {
+      p_draft_id: 'draft-1',
+      p_draft_image_id: 'image-2',
+      p_expected_updated_at: '2026-01-01T00:00:00Z',
+    })
   })
 
-  test('accepts production-style timestamps with offset and fractional seconds', async () => {
+  test('uses the RPC hint timestamp in a stale conflict payload', async () => {
     const supabase = makeSupabaseForDelete({
-      draft: {
-        ...DRAFT_BASE,
-        updated_at: '2026-04-09T18:17:08.27673+00:00',
+      data: null,
+      error: {
+        message: 'Draft changed while deleting image',
+        details: 'draft_conflict',
+        hint: '2026-01-02 12:34:56+00',
       },
     })
     vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-1'))
-    vi.mocked(parseWithSchema)
-      .mockReturnValueOnce({ success: true, data: { id: 'draft-1', imageId: 'image-2' } })
-      .mockReturnValueOnce({ success: true, data: { expected_updated_at: '2026-04-09T18:17:08.27673+00:00' } })
+    mockValidRequest()
 
     const response = await DELETE(
-      makeRequest('http://localhost:3000/api/submissions/drafts/draft-1/images/image-2?expected_updated_at=2026-04-09T18:17:08.27673%2B00:00'),
+      makeRequest('http://localhost:3000/api/submissions/drafts/draft-1/images/image-2?expected_updated_at=2026-01-01T00:00:00Z'),
       makeParams('draft-1', 'image-2')
     )
 
-    expect(response.status).not.toBe(400)
-    await expect(response.json()).resolves.not.toEqual(expect.objectContaining({
-      error: 'Invalid request data',
-      fieldErrors: {
-        expected_updated_at: ['Invalid ISO datetime'],
-      },
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({
+      code: 'draft_conflict',
+      current_updated_at: '2026-01-02 12:34:56+00',
+      current_data: expect.objectContaining({ updated_at: '2026-01-02 12:34:56+00' }),
     }))
+    expect(supabase.rpc).toHaveBeenCalledWith('delete_submission_draft_image_atomic', {
+      p_draft_id: 'draft-1',
+      p_draft_image_id: 'image-2',
+      p_expected_updated_at: '2026-01-01T00:00:00Z',
+    })
+  })
+
+  test('returns updated metadata and cleans storage after a successful RPC', async () => {
+    const cleanup = [{
+      storage_provider: 'r2',
+      storage_bucket: 'private-bucket',
+      storage_path: 'drafts/draft-1/image-2.jpg',
+    }]
+    const supabase = makeSupabaseForDelete({
+      data: {
+        success: true,
+        draft: {
+          updated_at: '2026-01-01T00:01:00Z',
+          metadata: { primaryIndex: 0 },
+        },
+        cleanup,
+      },
+      error: null,
+    })
+    const admin = { storage: true }
+    vi.mocked(getAdminClientWithAudit).mockReturnValue(admin as never)
+    vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-1'))
+    mockValidRequest()
+
+    const response = await DELETE(
+      makeRequest('http://localhost:3000/api/submissions/drafts/draft-1/images/image-2?expected_updated_at=2026-01-01T00:00:00Z'),
+      makeParams('draft-1', 'image-2')
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      draft: {
+        updated_at: '2026-01-01T00:01:00Z',
+        metadata: { primaryIndex: 0 },
+      },
+      deleted_image_id: 'image-2',
+    })
+    expect(supabase.rpc).toHaveBeenCalledWith('delete_submission_draft_image_atomic', {
+      p_draft_id: 'draft-1',
+      p_draft_image_id: 'image-2',
+      p_expected_updated_at: '2026-01-01T00:00:00Z',
+    })
+    expect(cleanupDraftStorageObjects).toHaveBeenCalledWith(admin, cleanup)
+    expect(supabase.rpc.mock.invocationCallOrder[0]).toBeLessThan(
+      cleanupDraftStorageObjects.mock.invocationCallOrder[0]
+    )
   })
 })

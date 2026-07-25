@@ -49,6 +49,9 @@ vi.mock('@/lib/csrf-server', () => ({
 vi.mock('@/lib/supabase-server', () => ({
   getServerClientFromRequest,
   getAdminClient,
+}))
+
+vi.mock('@/lib/supabase-admin', () => ({
   getAdminClientWithAudit,
 }))
 
@@ -537,21 +540,17 @@ describe('/api/submissions/drafts/[id]', () => {
       expect(response.status).toBe(400)
     })
 
-    test('returns 403 when non-owner', async () => {
-      const supabase = makeSupabaseWithDraft(DRAFT_BASE)
-      vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-2'))
-
-      const response = await DELETE(
-        makeRequest('http://localhost:3000/api/submissions/drafts/draft-1', { method: 'DELETE' }),
-        makeParams('draft-1')
-      )
-
-      expect(response.status).toBe(403)
-    })
-
-    test('returns 400 when draft is not in draft status', async () => {
-      const submittedDraft = { ...DRAFT_BASE, status: 'submitted' }
-      const supabase = makeSupabaseWithDraft(submittedDraft)
+    test.each([
+      ['not_found', 404, 'Draft not found'],
+      ['permission_denied', 403, 'Forbidden'],
+      ['draft_not_editable', 409, 'Only draft submissions can be deleted'],
+      ['draft_conflict', 409, 'The draft changed while it was being deleted'],
+    ])('maps RPC detail %s to %s', async (details, status, message) => {
+      const supabase = makeSupabaseClient()
+      vi.mocked(supabase.rpc).mockResolvedValue({
+        data: null,
+        error: { message, details },
+      } as never)
       vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-1'))
 
       const response = await DELETE(
@@ -559,13 +558,30 @@ describe('/api/submissions/drafts/[id]', () => {
         makeParams('draft-1')
       )
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(status)
+      await expect(response.json()).resolves.toEqual({ error: message })
+      expect(supabase.rpc).toHaveBeenCalledWith('delete_submission_draft_atomic', {
+        p_draft_id: 'draft-1',
+      })
+      expect(cleanupDraftStorageObjects).not.toHaveBeenCalled()
     })
 
-    test('returns 200 on successful delete and calls cleanupDraftStorageObjects', async () => {
-      const supabase = makeSupabaseWithDraft(DRAFT_BASE)
+    test('returns 200 and cleans returned storage rows only after the atomic RPC', async () => {
+      const supabase = makeSupabaseClient()
+      vi.mocked(supabase.rpc).mockResolvedValue({
+        data: {
+          success: true,
+          cleanup: [{
+            storage_provider: 'r2',
+            storage_bucket: 'private-bucket',
+            storage_path: 'drafts/draft-1/image-1.jpg',
+          }],
+        },
+        error: null,
+      } as never)
       vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-1'))
-      vi.mocked(getAdminClient).mockReturnValue({} as ReturnType<typeof createServerClient>)
+      const admin = {} as ReturnType<typeof createServerClient>
+      vi.mocked(getAdminClientWithAudit).mockReturnValue(admin)
 
       const response = await DELETE(
         makeRequest('http://localhost:3000/api/submissions/drafts/draft-1', { method: 'DELETE' }),
@@ -575,7 +591,17 @@ describe('/api/submissions/drafts/[id]', () => {
       expect(response.status).toBe(200)
       const json = await response.json()
       expect(json.success).toBe(true)
-      expect(cleanupDraftStorageObjects).toHaveBeenCalled()
+      expect(supabase.rpc).toHaveBeenCalledWith('delete_submission_draft_atomic', {
+        p_draft_id: 'draft-1',
+      })
+      expect(cleanupDraftStorageObjects).toHaveBeenCalledWith(admin, [{
+        storage_provider: 'r2',
+        storage_bucket: 'private-bucket',
+        storage_path: 'drafts/draft-1/image-1.jpg',
+      }])
+      expect(supabase.rpc.mock.invocationCallOrder[0]).toBeLessThan(
+        cleanupDraftStorageObjects.mock.invocationCallOrder[0]
+      )
     })
   })
 })

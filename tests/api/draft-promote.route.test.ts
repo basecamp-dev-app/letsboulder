@@ -52,6 +52,7 @@ function makeSupabase(options?: {
                   user_id: 'user-1',
                   crag_id: 'crag-1',
                   status: options?.draftStatus || 'draft',
+                  updated_at: '2026-03-01T00:00:00Z',
                   metadata: {
                     navigation: { defaultImageId: 'draft-image-1' },
                     submission: { location: { latitude: 49.45, longitude: -2.55, countryCode: 'GG' } },
@@ -490,11 +491,15 @@ describe('promoteDraftToSubmission', () => {
   test('repairs draft metadata from image coordinates before publish when metadata location is missing', async () => {
     const supabase = makeSupabase() as unknown as ReturnType<typeof makeSupabase> & { from: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> }
     const originalFrom = supabase.from
-    const updateMock = vi.fn(() => ({
-      eq: vi.fn(() => ({
-        eq: vi.fn(async () => ({ data: null, error: null })),
-      })),
-    }))
+    const updateMock = vi.fn(() => {
+      const select = vi.fn(() => ({
+        maybeSingle: vi.fn(async () => ({ data: { id: 'draft-1' }, error: null })),
+      }))
+      const fourthEq = vi.fn(() => ({ select }))
+      const thirdEq = vi.fn(() => ({ eq: fourthEq }))
+      const secondEq = vi.fn(() => ({ eq: thirdEq }))
+      return { eq: vi.fn(() => ({ eq: secondEq })) }
+    })
 
     // @ts-expect-error - mock return types are intentionally flexible
     supabase.from = vi.fn((table: string) => {
@@ -508,6 +513,7 @@ describe('promoteDraftToSubmission', () => {
                   user_id: 'user-1',
                   crag_id: 'crag-1',
                   status: 'draft',
+                  updated_at: '2026-03-01T00:00:00Z',
                   metadata: {
                     navigation: { defaultImageId: 'draft-image-1' },
                     submission: {},

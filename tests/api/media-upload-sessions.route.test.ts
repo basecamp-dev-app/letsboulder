@@ -73,6 +73,15 @@ function makeAuthedSupabase() {
   }
 }
 
+function makeDeleteSupabase(rpcResult: { data: unknown; error: unknown }) {
+  return {
+    auth: {
+      getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
+    },
+    rpc: vi.fn(async () => rpcResult),
+  }
+}
+
 function makeCreateRequest(body: unknown) {
   return new NextRequest('http://localhost:3000/api/media/upload-sessions', {
     method: 'POST',
@@ -212,31 +221,15 @@ describe('Media upload session routes', () => {
     })
   })
 
-  test('delete rejects processed images', async () => {
-    const supabase = {
-      auth: {
-        getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
-      },
-      from: vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn(async () => ({
-              data: {
-                id: 'image-123',
-                created_by: 'user-1',
-                original_bucket: 'private-bucket',
-                original_key: 'originals/image-123.jpg',
-                processing_status: 'ready',
-                moderation_status: 'skipped',
-                visibility: 'public',
-                status: 'approved',
-              },
-              error: null,
-            })),
-          })),
-        })),
-      })),
-    }
+  test.each([
+    ['draft-linked', 'pending'],
+    ['draft-linked', 'failed'],
+    ['published', 'ready'],
+  ])('delete rejects a %s image with %s status', async (_association, status) => {
+    const supabase = makeDeleteSupabase({
+      data: { processing_status: status },
+      error: { message: 'Image is associated with content', details: 'image_associated' },
+    })
 
     vi.mocked(withApiMiddleware).mockResolvedValue({
       ok: true,
@@ -254,40 +247,23 @@ describe('Media upload session routes', () => {
     const json = await response.json()
 
     expect(response.status).toBe(409)
-    expect(json.error).toBe('Processed images cannot be deleted from this endpoint')
+    expect(json.error).toBe('This image is associated with content and cannot be deleted')
+    expect(supabase.rpc).toHaveBeenCalledWith('delete_unassociated_upload_image', {
+      p_image_id: 'image-123',
+    })
     expect(deleteObject).not.toHaveBeenCalled()
   })
 
-  test('delete removes original object and image row', async () => {
-    const deleteQuery = { eq: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })) }
-    const supabase = {
-      auth: {
-        getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
+  test('delete removes storage only after the atomic RPC deletes an owned unassociated image', async () => {
+    const supabase = makeDeleteSupabase({
+      data: {
+        image_id: 'image-123',
+        storage_provider: 'r2',
+        storage_bucket: 'private-bucket',
+        storage_path: 'originals/image-123.jpg',
       },
-      from: vi.fn((table: string) => {
-        if (table !== 'images') {
-          throw new Error(`Unexpected table ${table}`)
-        }
-
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn(async () => ({
-                data: {
-                  id: 'image-123',
-                  created_by: 'user-1',
-                  original_bucket: 'private-bucket',
-                  original_key: 'originals/image-123.jpg',
-                  processing_status: 'pending',
-                },
-                error: null,
-              })),
-            })),
-          })),
-          delete: vi.fn(() => deleteQuery),
-        }
-      }),
-    }
+      error: null,
+    })
 
     vi.mocked(withApiMiddleware).mockResolvedValue({
       ok: true,
@@ -305,7 +281,13 @@ describe('Media upload session routes', () => {
     const json = await response.json()
 
     expect(response.status).toBe(200)
+    expect(supabase.rpc).toHaveBeenCalledWith('delete_unassociated_upload_image', {
+      p_image_id: 'image-123',
+    })
     expect(deleteObject).toHaveBeenCalledWith('private-bucket', 'originals/image-123.jpg')
+    expect(supabase.rpc.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(deleteObject).mock.invocationCallOrder[0]
+    )
     expect(json).toEqual({ success: true })
   })
 

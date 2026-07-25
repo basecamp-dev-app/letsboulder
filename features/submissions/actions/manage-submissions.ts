@@ -5,18 +5,13 @@ import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
+import { getRpcErrorDetail, isRecord, parseStorageCleanupRows } from '@/lib/media/deletion-rpc'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { getServerClient } from '@/lib/supabase-server'
 import { deleteSubmission } from '@/features/submissions/server/submissions/delete-submission'
 import { promoteDraftToSubmission } from '@/features/submissions/server/drafts/draft-promote'
 import { buildUploadSignature, normalizeCreateImages, validateDraftImageOwnership } from '@/features/submissions/server/drafts/draft-route-helpers'
-import type { Database } from '@/types/database'
 import { z } from 'zod'
-
-type DraftStorageRow = Pick<
-  Database['public']['Tables']['submission_draft_images']['Row'],
-  'storage_provider' | 'storage_bucket' | 'storage_path'
->
 
 interface DraftCreateInput {
   images?: unknown
@@ -175,35 +170,26 @@ export async function deleteSubmissionDraftAction(draftId: string): Promise<Acti
   if (!draftId) return { success: false, error: 'Draft ID is required', status: 400 }
 
   const supabase = await getServerClient()
-  const storageClient = getAdminClientWithAudit('cleanup draft storage objects')
-  const { data: draft, error: draftError } = await supabase
-    .from('submission_drafts')
-    .select('id, user_id, status')
-    .eq('id', validation.data.draftId)
-    .single()
+  const { data, error: deleteError } = await supabase.rpc('delete_submission_draft_atomic', {
+    p_draft_id: validation.data.draftId,
+  })
 
-  if (draftError || !draft) return { success: false, error: 'Draft not found', status: 404 }
-  if (draft.user_id !== auth.data.userId) return { success: false, error: 'Forbidden', status: 403 }
-  if (draft.status !== 'draft') return { success: false, error: 'Only draft submissions can be deleted', status: 400 }
+  if (deleteError) {
+    const detail = getRpcErrorDetail(deleteError)
+    if (detail === 'not_found') return { success: false, error: 'Draft not found', status: 404 }
+    if (detail === 'permission_denied') return { success: false, error: 'Forbidden', status: 403 }
+    if (detail === 'draft_not_editable') return { success: false, error: 'Only draft submissions can be deleted', status: 409 }
+    if (detail === 'draft_conflict') return { success: false, error: 'The draft changed while it was being deleted', status: 409 }
+    return { success: false, error: 'Failed to delete submission draft', status: 500 }
+  }
 
-  const { data: draftImages, error: draftImagesError } = await supabase
-    .from('submission_draft_images')
-    .select('storage_provider, storage_bucket, storage_path')
-    .eq('draft_id', validation.data.draftId)
+  if (!isRecord(data)) return { success: false, error: 'Failed to delete submission draft', status: 500 }
 
-  if (draftImagesError) return { success: false, error: 'Failed to read draft image storage paths', status: 500 }
-
-  const { data: deletedDraft, error: deleteError } = await supabase
-    .from('submission_drafts')
-    .delete()
-    .eq('id', validation.data.draftId)
-    .select('id')
-    .maybeSingle()
-
-  if (deleteError) return { success: false, error: 'Failed to delete submission draft', status: 500 }
-  if (!deletedDraft) return { success: false, error: 'Failed to delete submission draft', status: 500 }
-
-  await cleanupDraftStorageObjects(storageClient, (draftImages || []) as DraftStorageRow[])
+  const cleanupRows = parseStorageCleanupRows(data.cleanup)
+  if (cleanupRows.length > 0) {
+    const storageClient = getAdminClientWithAudit('cleanup draft storage objects')
+    await cleanupDraftStorageObjects(storageClient, cleanupRows)
+  }
   return { success: true }
 }
 

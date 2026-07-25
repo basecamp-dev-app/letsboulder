@@ -265,12 +265,14 @@ export type Database = {
       }
       climbs: {
         Row: {
+          consensus_grade: string | null
           crag_id: string | null
           created_at: string | null
           deleted_at: string | null
           description: string | null
           grade: string
           grade_index: number | null
+          grade_tied: boolean | null
           id: string
           is_verified: boolean | null
           latitude: number | null
@@ -283,17 +285,20 @@ export type Database = {
           shared_climb_id: string | null
           slug: string | null
           status: string | null
+          total_votes: number | null
           updated_at: string | null
           user_id: string | null
           verification_count: number | null
         }
         Insert: {
+          consensus_grade?: string | null
           crag_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
           description?: string | null
           grade: string
           grade_index?: number | null
+          grade_tied?: boolean | null
           id?: string
           is_verified?: boolean | null
           latitude?: number | null
@@ -306,17 +311,20 @@ export type Database = {
           shared_climb_id?: string | null
           slug?: string | null
           status?: string | null
+          total_votes?: number | null
           updated_at?: string | null
           user_id?: string | null
           verification_count?: number | null
         }
         Update: {
+          consensus_grade?: string | null
           crag_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
           description?: string | null
           grade?: string
           grade_index?: number | null
+          grade_tied?: boolean | null
           id?: string
           is_verified?: boolean | null
           latitude?: number | null
@@ -329,6 +337,7 @@ export type Database = {
           shared_climb_id?: string | null
           slug?: string | null
           status?: string | null
+          total_votes?: number | null
           updated_at?: string | null
           user_id?: string | null
           verification_count?: number | null
@@ -500,58 +509,6 @@ export type Database = {
           },
         ]
       }
-      saved_climbs: {
-        Row: {
-          climb_id: string
-          created_at: string
-          user_id: string
-        }
-        Insert: {
-          climb_id: string
-          created_at?: string
-          user_id: string
-        }
-        Update: {
-          climb_id?: string
-          created_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saved_climbs_climb_id_fkey"
-            columns: ["climb_id"]
-            isOneToOne: false
-            referencedRelation: "climbs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      saved_crags: {
-        Row: {
-          crag_id: string
-          created_at: string
-          user_id: string
-        }
-        Insert: {
-          crag_id: string
-          created_at?: string
-          user_id: string
-        }
-        Update: {
-          crag_id?: string
-          created_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saved_crags_crag_id_fkey"
-            columns: ["crag_id"]
-            isOneToOne: false
-            referencedRelation: "crags"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       community_posts: {
         Row: {
           author_id: string
@@ -619,6 +576,167 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      contribution_bounties: {
+        Row: {
+          bounty_type: string
+          completed_at: string | null
+          completed_by_user_id: string | null
+          completed_event_id: string | null
+          crag_id: string | null
+          created_at: string
+          created_by_event_id: string | null
+          id: string
+          image_id: string | null
+          metadata: Json
+          place_id: string | null
+          status: string
+        }
+        Insert: {
+          bounty_type: string
+          completed_at?: string | null
+          completed_by_user_id?: string | null
+          completed_event_id?: string | null
+          crag_id?: string | null
+          created_at?: string
+          created_by_event_id?: string | null
+          id?: string
+          image_id?: string | null
+          metadata?: Json
+          place_id?: string | null
+          status?: string
+        }
+        Update: {
+          bounty_type?: string
+          completed_at?: string | null
+          completed_by_user_id?: string | null
+          completed_event_id?: string | null
+          crag_id?: string | null
+          created_at?: string
+          created_by_event_id?: string | null
+          id?: string
+          image_id?: string | null
+          metadata?: Json
+          place_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contribution_bounties_completed_event_id_fkey"
+            columns: ["completed_event_id"]
+            isOneToOne: false
+            referencedRelation: "contribution_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contribution_bounties_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contribution_bounties_created_by_event_id_fkey"
+            columns: ["created_by_event_id"]
+            isOneToOne: false
+            referencedRelation: "contribution_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contribution_bounties_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contribution_bounties_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contribution_events: {
+        Row: {
+          climb_id: string | null
+          crag_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          image_id: string | null
+          metadata: Json
+          place_id: string | null
+          resolved_at: string | null
+          score_delta: number
+          source_id: string
+          source_table: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          climb_id?: string | null
+          crag_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          image_id?: string | null
+          metadata?: Json
+          place_id?: string | null
+          resolved_at?: string | null
+          score_delta: number
+          source_id: string
+          source_table: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          climb_id?: string | null
+          crag_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          image_id?: string | null
+          metadata?: Json
+          place_id?: string | null
+          resolved_at?: string | null
+          score_delta?: number
+          source_id?: string
+          source_table?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contribution_events_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contribution_events_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contribution_events_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contribution_events_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       correction_votes: {
         Row: {
@@ -1556,50 +1674,6 @@ export type Database = {
         }
         Relationships: []
       }
-      logs: {
-        Row: {
-          climb_id: string
-          created_at: string | null
-          date_climbed: string | null
-          id: string
-          notes: string | null
-          status: string
-          style: string
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          climb_id: string
-          created_at?: string | null
-          date_climbed?: string | null
-          id?: string
-          notes?: string | null
-          status?: string
-          style?: string
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          climb_id?: string
-          created_at?: string | null
-          date_climbed?: string | null
-          id?: string
-          notes?: string | null
-          status?: string
-          style?: string
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "logs_climb_id_fkey"
-            columns: ["climb_id"]
-            isOneToOne: false
-            referencedRelation: "climbs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       media_jobs: {
         Row: {
           attempts: number
@@ -1792,13 +1866,17 @@ export type Database = {
       }
       profiles: {
         Row: {
+          accepted_contribution_count: number
           avatar_url: string | null
           bio: string | null
           boulder_system: string | null
           contribution_credit_handle: string | null
           contribution_credit_platform: string | null
+          contributor_score_total: number
+          contributor_tier: string | null
           country: string | null
           country_code: string | null
+          created_at: string | null
           default_location: string | null
           default_location_lat: number | null
           default_location_lng: number | null
@@ -1829,17 +1907,20 @@ export type Database = {
           units: string | null
           updated_at: string | null
           username: string | null
-          website: string | null
           welcome_email_sent_at: string | null
         }
         Insert: {
+          accepted_contribution_count?: number
           avatar_url?: string | null
           bio?: string | null
           boulder_system?: string | null
           contribution_credit_handle?: string | null
           contribution_credit_platform?: string | null
+          contributor_score_total?: number
+          contributor_tier?: string | null
           country?: string | null
           country_code?: string | null
+          created_at?: string | null
           default_location?: string | null
           default_location_lat?: number | null
           default_location_lng?: number | null
@@ -1870,17 +1951,20 @@ export type Database = {
           units?: string | null
           updated_at?: string | null
           username?: string | null
-          website?: string | null
           welcome_email_sent_at?: string | null
         }
         Update: {
+          accepted_contribution_count?: number
           avatar_url?: string | null
           bio?: string | null
           boulder_system?: string | null
           contribution_credit_handle?: string | null
           contribution_credit_platform?: string | null
+          contributor_score_total?: number
+          contributor_tier?: string | null
           country?: string | null
           country_code?: string | null
+          created_at?: string | null
           default_location?: string | null
           default_location_lat?: number | null
           default_location_lng?: number | null
@@ -1911,7 +1995,6 @@ export type Database = {
           units?: string | null
           updated_at?: string | null
           username?: string | null
-          website?: string | null
           welcome_email_sent_at?: string | null
         }
         Relationships: []
@@ -2040,6 +2123,58 @@ export type Database = {
           },
         ]
       }
+      saved_climbs: {
+        Row: {
+          climb_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          climb_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          climb_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_climbs_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_crags: {
+        Row: {
+          crag_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          crag_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          crag_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_crags_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sectors: {
         Row: {
           crag_id: string
@@ -2068,30 +2203,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      spatial_ref_sys: {
-        Row: {
-          auth_name: string | null
-          auth_srid: number | null
-          proj4text: string | null
-          srid: number
-          srtext: string | null
-        }
-        Insert: {
-          auth_name?: string | null
-          auth_srid?: number | null
-          proj4text?: string | null
-          srid: number
-          srtext?: string | null
-        }
-        Update: {
-          auth_name?: string | null
-          auth_srid?: number | null
-          proj4text?: string | null
-          srid?: number
-          srtext?: string | null
-        }
-        Relationships: []
       }
       submission_collaborator_invites: {
         Row: {
@@ -2159,6 +2270,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "submission_collaborators_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_contributors: {
+        Row: {
+          first_contributed_at: string
+          image_id: string
+          last_contributed_at: string
+          user_id: string
+        }
+        Insert: {
+          first_contributed_at?: string
+          image_id: string
+          last_contributed_at?: string
+          user_id: string
+        }
+        Update: {
+          first_contributed_at?: string
+          image_id?: string
+          last_contributed_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_contributors_image_id_fkey"
             columns: ["image_id"]
             isOneToOne: false
             referencedRelation: "images"
@@ -2469,6 +2609,59 @@ export type Database = {
           },
         ]
       }
+      submission_edit_history: {
+        Row: {
+          after_data: Json | null
+          before_data: Json | null
+          created_at: string
+          edit_kind: string
+          edited_by: string
+          field_targets: string[]
+          id: string
+          image_id: string
+          moderation_state: string
+          risk_level: string
+          risk_reasons: string[]
+          summary: string
+        }
+        Insert: {
+          after_data?: Json | null
+          before_data?: Json | null
+          created_at?: string
+          edit_kind: string
+          edited_by: string
+          field_targets?: string[]
+          id?: string
+          image_id: string
+          moderation_state?: string
+          risk_level?: string
+          risk_reasons?: string[]
+          summary: string
+        }
+        Update: {
+          after_data?: Json | null
+          before_data?: Json | null
+          created_at?: string
+          edit_kind?: string
+          edited_by?: string
+          field_targets?: string[]
+          id?: string
+          image_id?: string
+          moderation_state?: string
+          risk_level?: string
+          risk_reasons?: string[]
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_edit_history_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       un_regions: {
         Row: {
           continent_name: string
@@ -2539,183 +2732,53 @@ export type Database = {
           },
         ]
       }
-    }
-    Views: {
-      geography_columns: {
+      user_place_contributor_scores: {
         Row: {
-          coord_dimension: number | null
-          f_geography_column: unknown
-          f_table_catalog: unknown
-          f_table_name: unknown
-          f_table_schema: unknown
-          srid: number | null
-          type: string | null
-        }
-        Relationships: []
-      }
-      geometry_columns: {
-        Row: {
-          coord_dimension: number | null
-          f_geometry_column: unknown
-          f_table_catalog: string | null
-          f_table_name: unknown
-          f_table_schema: unknown
-          srid: number | null
-          type: string | null
+          accepted_contribution_count: number
+          contributor_score_total: number
+          last_contribution_at: string | null
+          place_id: string
+          user_id: string
         }
         Insert: {
-          coord_dimension?: number | null
-          f_geometry_column?: unknown
-          f_table_catalog?: string | null
-          f_table_name?: unknown
-          f_table_schema?: unknown
-          srid?: number | null
-          type?: string | null
+          accepted_contribution_count?: number
+          contributor_score_total?: number
+          last_contribution_at?: string | null
+          place_id: string
+          user_id: string
         }
         Update: {
-          coord_dimension?: number | null
-          f_geometry_column?: unknown
-          f_table_catalog?: string | null
-          f_table_name?: unknown
-          f_table_schema?: unknown
-          srid?: number | null
-          type?: string | null
+          accepted_contribution_count?: number
+          contributor_score_total?: number
+          last_contribution_at?: string | null
+          place_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_place_contributor_scores_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      worker_health: {
+        Row: {
+          active_jobs: number | null
+          backlog_count: number | null
+          oldest_job_age: string | null
         }
         Relationships: []
       }
     }
     Functions: {
-      _postgis_deprecate: {
-        Args: { newname: string; oldname: string; version: string }
-        Returns: undefined
-      }
-      _postgis_index_extent: {
-        Args: { col: string; tbl: unknown }
-        Returns: unknown
-      }
-      _postgis_pgsql_version: { Args: never; Returns: string }
-      _postgis_scripts_pgsql_version: { Args: never; Returns: string }
-      _postgis_selectivity: {
-        Args: { att_name: string; geom: unknown; mode?: string; tbl: unknown }
-        Returns: number
-      }
-      _postgis_stats: {
-        Args: { ""?: string; att_name: string; tbl: unknown }
-        Returns: string
-      }
-      _st_3dintersects: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      _st_contains: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      _st_containsproperly: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      _st_coveredby:
-        | { Args: { geog1: unknown; geog2: unknown }; Returns: boolean }
-        | { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      _st_covers:
-        | { Args: { geog1: unknown; geog2: unknown }; Returns: boolean }
-        | { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      _st_crosses: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      _st_dwithin: {
-        Args: {
-          geog1: unknown
-          geog2: unknown
-          tolerance: number
-          use_spheroid?: boolean
-        }
-        Returns: boolean
-      }
-      _st_equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      _st_intersects: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      _st_linecrossingdirection: {
-        Args: { line1: unknown; line2: unknown }
-        Returns: number
-      }
-      _st_longestline: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      _st_maxdistance: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: number
-      }
-      _st_orderingequals: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      _st_overlaps: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      _st_sortablehash: { Args: { geom: unknown }; Returns: number }
-      _st_touches: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      _st_voronoi: {
-        Args: {
-          clip?: unknown
-          g1: unknown
-          return_polygons?: boolean
-          tolerance?: number
-        }
-        Returns: unknown
-      }
-      _st_within: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      add_correction_type_value: {
-        Args: { p_type: string; p_value: string }
-        Returns: undefined
-      }
-      addauth: { Args: { "": string }; Returns: boolean }
-      addgeometrycolumn:
-        | {
-            Args: {
-              catalog_name: string
-              column_name: string
-              new_dim: number
-              new_srid_in: number
-              new_type: string
-              schema_name: string
-              table_name: string
-              use_typmod?: boolean
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: string
-              new_dim: number
-              new_srid: number
-              new_type: string
-              schema_name: string
-              table_name: string
-              use_typmod?: boolean
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: string
-              new_dim: number
-              new_srid: number
-              new_type: string
-              table_name: string
-              use_typmod?: boolean
-            }
-            Returns: string
-          }
+      add_correction_type_value:
+        | { Args: { new_value: string }; Returns: undefined }
+        | { Args: { p_type: string; p_value: string }; Returns: undefined }
       append_submission_draft_images_atomic: {
         Args: {
           p_draft_id: string
@@ -2752,39 +2815,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      queue_media_ingest_job: {
-        Args: {
-          p_auto_approve?: boolean
-          p_image_id: string
-          p_original_bucket: string
-          p_original_key: string
-          p_purpose: string
-          p_storage_provider: string
-          p_trigger?: string
-          p_triggered_by_user_id: string
-        }
-        Returns: {
-          attempts: number
-          created_at: string
-          id: string
-          image_id: string
-          job_type: string
-          last_error: string | null
-          locked_at: string | null
-          locked_by: string | null
-          max_attempts: number
-          payload: Json
-          run_at: string
-          status: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "media_jobs"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       claim_submission_collaborator_invite: {
         Args: { p_token: string }
         Returns: Json
@@ -2796,6 +2826,20 @@ export type Database = {
       cleanup_orphan_route_uploads: {
         Args: { max_age?: string; max_delete?: number }
         Returns: number
+      }
+      compute_contributor_tier: {
+        Args: { p_accepted_count: number; p_score: number }
+        Returns: string
+      }
+      create_notification: {
+        Args: {
+          p_link?: string
+          p_message?: string
+          p_target_user_id: string
+          p_title: string
+          p_type: string
+        }
+        Returns: string
       }
       create_submission_routes_atomic: {
         Args: {
@@ -2842,39 +2886,22 @@ export type Database = {
         Returns: boolean
       }
       delete_empty_crags: { Args: { grace_period?: string }; Returns: number }
-      disablelongtransactions: { Args: never; Returns: string }
-      dropgeometrycolumn:
-        | {
-            Args: {
-              catalog_name: string
-              column_name: string
-              schema_name: string
-              table_name: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: string
-              schema_name: string
-              table_name: string
-            }
-            Returns: string
-          }
-        | { Args: { column_name: string; table_name: string }; Returns: string }
-      dropgeometrytable:
-        | {
-            Args: {
-              catalog_name: string
-              schema_name: string
-              table_name: string
-            }
-            Returns: string
-          }
-        | { Args: { schema_name: string; table_name: string }; Returns: string }
-        | { Args: { table_name: string }; Returns: string }
-      enablelongtransactions: { Args: never; Returns: string }
-      equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      delete_submission_draft_atomic: {
+        Args: { p_draft_id: string }
+        Returns: Json
+      }
+      delete_submission_draft_image_atomic: {
+        Args: {
+          p_draft_id: string
+          p_draft_image_id: string
+          p_expected_updated_at: string
+        }
+        Returns: Json
+      }
+      delete_unassociated_upload_image: {
+        Args: { p_image_id: string }
+        Returns: Json
+      }
       find_region_by_location: {
         Args: { search_lat: number; search_lng: number }
         Returns: {
@@ -2886,110 +2913,47 @@ export type Database = {
           name: string
         }[]
       }
-      geometry: { Args: { "": string }; Returns: unknown }
-      geometry_above: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_below: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_cmp: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: number
-      }
-      geometry_contained_3d: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_contains: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_contains_3d: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_distance_box: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: number
-      }
-      geometry_distance_centroid: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: number
-      }
-      geometry_eq: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_ge: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_gt: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_le: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_left: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_lt: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_overabove: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_overbelow: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_overlaps: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_overlaps_3d: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_overleft: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_overright: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_right: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_same: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_same_3d: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geometry_within: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      geomfromewkt: { Args: { "": string }; Returns: unknown }
       get_active_climbers_count: { Args: never; Returns: number }
       get_boulders_with_gps_count: { Args: never; Returns: number }
       get_climb_full_context: { Args: { p_climb_id: string }; Returns: Json }
+      get_climbs_with_consensus:
+        | {
+            Args: never
+            Returns: {
+              consensus_grade: string
+              crag_id: string
+              grade: string
+              grade_tied: boolean
+              id: string
+              name: string
+              place_id: string
+              total_votes: number
+            }[]
+          }
+        | {
+            Args: { p_climb_ids: string[] }
+            Returns: {
+              climb_id: string
+              consensus_grade: string
+              grade_tied: boolean
+              total_votes: number
+            }[]
+          }
       get_community_contributors_count: { Args: never; Returns: number }
       get_community_photos_count: { Args: never; Returns: number }
       get_consensus_grade: { Args: { climb_id: string }; Returns: string }
+      get_crag_contributor_leaderboard: {
+        Args: { p_crag_id: string; p_limit?: number; p_page?: number }
+        Returns: {
+          accepted_contribution_count: number
+          avatar_url: string
+          contributor_score_total: number
+          rank: number
+          total_users: number
+          user_id: string
+          username: string
+        }[]
+      }
       get_crag_faces_complete_summary: {
         Args: { p_image_id: string }
         Returns: Json
@@ -3015,6 +2979,24 @@ export type Database = {
               name: string
             }[]
           }
+      get_crag_rankings_leaderboard: {
+        Args: {
+          p_crag_id: string
+          p_limit?: number
+          p_page?: number
+          p_sort?: string
+          p_window_start?: string
+        }
+        Returns: {
+          avatar_url: string
+          avg_grade: string
+          climb_count: number
+          rank: number
+          total_users: number
+          user_id: string
+          username: string
+        }[]
+      }
       get_crag_route_intelligence: {
         Args: { p_crag_id: string }
         Returns: {
@@ -3033,6 +3015,19 @@ export type Database = {
           weighted_rating: number
         }[]
       }
+      get_crag_route_targets_page: {
+        Args: { p_crag_id: string; p_limit?: number; p_offset?: number }
+        Returns: {
+          climb_slug: string
+          effective_climb_id: string
+          navigation_image_id: string
+          navigation_image_url: string
+          navigation_route_id: string
+          preview_image_id: string
+          preview_image_url: string
+          route_image_ids: string[]
+        }[]
+      }
       get_crags_mapped_count: { Args: never; Returns: number }
       get_effective_climb_id: { Args: { p_climb_id: string }; Returns: string }
       get_grade_vote_distribution: {
@@ -3047,6 +3042,18 @@ export type Database = {
         Returns: {
           total_faces: number
           total_routes_combined: number
+        }[]
+      }
+      get_place_contributor_leaderboard: {
+        Args: { p_limit?: number; p_page?: number; p_place_id: string }
+        Returns: {
+          accepted_contribution_count: number
+          avatar_url: string
+          contributor_score_total: number
+          rank: number
+          total_users: number
+          user_id: string
+          username: string
         }[]
       }
       get_place_pins: {
@@ -3117,13 +3124,21 @@ export type Database = {
       get_user_count: { Args: never; Returns: number }
       get_verification_count: { Args: { climb_id: string }; Returns: number }
       get_verified_routes_count: { Args: never; Returns: number }
-      gettransactionid: { Args: never; Returns: unknown }
+      image_has_content_references: {
+        Args: { p_image_id: string }
+        Returns: boolean
+      }
       increment_crag_report_count: {
         Args: { target_crag_id: string }
         Returns: undefined
       }
       increment_gear_click: {
         Args: { product_id_input: string }
+        Returns: undefined
+      }
+      initialize_climb_consensus: { Args: never; Returns: undefined }
+      initialize_climb_grade_vote: {
+        Args: { p_climb_id: string; p_grade: string; p_user_id: string }
         Returns: undefined
       }
       insert_grade_vote: {
@@ -3163,9 +3178,39 @@ export type Database = {
         Args: { p_draft_id: string; p_user_id: string }
         Returns: boolean
       }
-      longtransactionsenabled: { Args: never; Returns: boolean }
+      log_submission_edit:
+        | {
+            Args: {
+              p_after_data?: Json
+              p_before_data?: Json
+              p_edit_kind: string
+              p_edited_by: string
+              p_image_id: string
+              p_summary: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_after_data?: Json
+              p_before_data?: Json
+              p_edit_kind: string
+              p_edited_by: string
+              p_field_targets?: string[]
+              p_image_id: string
+              p_moderation_state?: string
+              p_risk_level?: string
+              p_risk_reasons?: string[]
+              p_summary: string
+            }
+            Returns: undefined
+          }
       normalize_climb_route_type: {
         Args: { raw_type: string }
+        Returns: string
+      }
+      open_missing_topo_bounty: {
+        Args: { p_created_by_event_id?: string; p_image_id: string }
         Returns: string
       }
       patch_submission_draft_images_atomic:
@@ -3178,49 +3223,42 @@ export type Database = {
             }
             Returns: Json
           }
-      populate_geometry_columns:
-        | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
-        | { Args: { use_typmod?: boolean }; Returns: string }
-      postgis_constraint_dims: {
-        Args: { geomcolumn: string; geomschema: string; geomtable: string }
-        Returns: number
-      }
-      postgis_constraint_srid: {
-        Args: { geomcolumn: string; geomschema: string; geomtable: string }
-        Returns: number
-      }
-      postgis_constraint_type: {
-        Args: { geomcolumn: string; geomschema: string; geomtable: string }
-        Returns: string
-      }
-      postgis_extensions_upgrade: { Args: never; Returns: string }
-      postgis_full_version: { Args: never; Returns: string }
-      postgis_geos_version: { Args: never; Returns: string }
-      postgis_lib_build_date: { Args: never; Returns: string }
-      postgis_lib_revision: { Args: never; Returns: string }
-      postgis_lib_version: { Args: never; Returns: string }
-      postgis_libjson_version: { Args: never; Returns: string }
-      postgis_liblwgeom_version: { Args: never; Returns: string }
-      postgis_libprotobuf_version: { Args: never; Returns: string }
-      postgis_libxml_version: { Args: never; Returns: string }
-      postgis_proj_version: { Args: never; Returns: string }
-      postgis_scripts_build_date: { Args: never; Returns: string }
-      postgis_scripts_installed: { Args: never; Returns: string }
-      postgis_scripts_released: { Args: never; Returns: string }
-      postgis_svn_version: { Args: never; Returns: string }
-      postgis_type_name: {
-        Args: {
-          coord_dimension: number
-          geomname: string
-          use_new_name?: boolean
-        }
-        Returns: string
-      }
-      postgis_version: { Args: never; Returns: string }
-      postgis_wagyu_version: { Args: never; Returns: string }
       promote_draft_to_submission: {
         Args: { p_draft_id: string }
         Returns: Json
+      }
+      queue_media_ingest_job: {
+        Args: {
+          p_auto_approve?: boolean
+          p_image_id: string
+          p_original_bucket: string
+          p_original_key: string
+          p_purpose: string
+          p_storage_provider: string
+          p_trigger?: string
+          p_triggered_by_user_id: string
+        }
+        Returns: {
+          attempts: number
+          created_at: string
+          id: string
+          image_id: string
+          job_type: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "media_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       rankings_grade_from_points: {
         Args: { p_points: number }
@@ -3231,593 +3269,42 @@ export type Database = {
         Args: { target_crag_id: string }
         Returns: undefined
       }
+      record_contribution_event: {
+        Args: {
+          p_climb_id?: string
+          p_crag_id?: string
+          p_event_type: string
+          p_image_id?: string
+          p_metadata?: Json
+          p_place_id?: string
+          p_score_delta: number
+          p_source_id: string
+          p_source_table: string
+          p_status?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      record_submission_contribution: {
+        Args: { p_image_id: string; p_user_id: string }
+        Returns: undefined
+      }
       refresh_crag_type_from_climbs: {
         Args: { target_crag_id: string }
         Returns: undefined
       }
+      resolve_missing_topo_bounty: {
+        Args: {
+          p_image_id: string
+          p_metadata?: Json
+          p_source_id: string
+          p_source_table: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       slugify: { Args: { input: string }; Returns: string }
       soft_delete_comment: { Args: { p_comment_id: string }; Returns: boolean }
-      st_3dclosestpoint: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_3ddistance: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: number
-      }
-      st_3dintersects: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      st_3dlongestline: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_3dmakebox: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_3dmaxdistance: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: number
-      }
-      st_3dshortestline: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_addpoint: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_angle:
-        | { Args: { line1: unknown; line2: unknown }; Returns: number }
-        | {
-            Args: { pt1: unknown; pt2: unknown; pt3: unknown; pt4?: unknown }
-            Returns: number
-          }
-      st_area:
-        | { Args: { geog: unknown; use_spheroid?: boolean }; Returns: number }
-        | { Args: { "": string }; Returns: number }
-      st_asencodedpolyline: {
-        Args: { geom: unknown; nprecision?: number }
-        Returns: string
-      }
-      st_asewkt: { Args: { "": string }; Returns: string }
-      st_asgeojson:
-        | {
-            Args: { geog: unknown; maxdecimaldigits?: number; options?: number }
-            Returns: string
-          }
-        | {
-            Args: { geom: unknown; maxdecimaldigits?: number; options?: number }
-            Returns: string
-          }
-        | {
-            Args: {
-              geom_column?: string
-              maxdecimaldigits?: number
-              pretty_bool?: boolean
-              r: Record<string, unknown>
-            }
-            Returns: string
-          }
-        | { Args: { "": string }; Returns: string }
-      st_asgml:
-        | {
-            Args: {
-              geog: unknown
-              id?: string
-              maxdecimaldigits?: number
-              nprefix?: string
-              options?: number
-            }
-            Returns: string
-          }
-        | {
-            Args: { geom: unknown; maxdecimaldigits?: number; options?: number }
-            Returns: string
-          }
-        | { Args: { "": string }; Returns: string }
-        | {
-            Args: {
-              geog: unknown
-              id?: string
-              maxdecimaldigits?: number
-              nprefix?: string
-              options?: number
-              version: number
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              geom: unknown
-              id?: string
-              maxdecimaldigits?: number
-              nprefix?: string
-              options?: number
-              version: number
-            }
-            Returns: string
-          }
-      st_askml:
-        | {
-            Args: { geog: unknown; maxdecimaldigits?: number; nprefix?: string }
-            Returns: string
-          }
-        | {
-            Args: { geom: unknown; maxdecimaldigits?: number; nprefix?: string }
-            Returns: string
-          }
-        | { Args: { "": string }; Returns: string }
-      st_aslatlontext: {
-        Args: { geom: unknown; tmpl?: string }
-        Returns: string
-      }
-      st_asmarc21: { Args: { format?: string; geom: unknown }; Returns: string }
-      st_asmvtgeom: {
-        Args: {
-          bounds: unknown
-          buffer?: number
-          clip_geom?: boolean
-          extent?: number
-          geom: unknown
-        }
-        Returns: unknown
-      }
-      st_assvg:
-        | {
-            Args: { geog: unknown; maxdecimaldigits?: number; rel?: number }
-            Returns: string
-          }
-        | {
-            Args: { geom: unknown; maxdecimaldigits?: number; rel?: number }
-            Returns: string
-          }
-        | { Args: { "": string }; Returns: string }
-      st_astext: { Args: { "": string }; Returns: string }
-      st_astwkb:
-        | {
-            Args: {
-              geom: unknown
-              prec?: number
-              prec_m?: number
-              prec_z?: number
-              with_boxes?: boolean
-              with_sizes?: boolean
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              geom: unknown[]
-              ids: number[]
-              prec?: number
-              prec_m?: number
-              prec_z?: number
-              with_boxes?: boolean
-              with_sizes?: boolean
-            }
-            Returns: string
-          }
-      st_asx3d: {
-        Args: { geom: unknown; maxdecimaldigits?: number; options?: number }
-        Returns: string
-      }
-      st_azimuth:
-        | { Args: { geog1: unknown; geog2: unknown }; Returns: number }
-        | { Args: { geom1: unknown; geom2: unknown }; Returns: number }
-      st_boundingdiagonal: {
-        Args: { fits?: boolean; geom: unknown }
-        Returns: unknown
-      }
-      st_buffer:
-        | {
-            Args: { geom: unknown; options?: string; radius: number }
-            Returns: unknown
-          }
-        | {
-            Args: { geom: unknown; quadsegs: number; radius: number }
-            Returns: unknown
-          }
-      st_centroid: { Args: { "": string }; Returns: unknown }
-      st_clipbybox2d: {
-        Args: { box: unknown; geom: unknown }
-        Returns: unknown
-      }
-      st_closestpoint: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_collect: { Args: { geom1: unknown; geom2: unknown }; Returns: unknown }
-      st_concavehull: {
-        Args: {
-          param_allow_holes?: boolean
-          param_geom: unknown
-          param_pctconvex: number
-        }
-        Returns: unknown
-      }
-      st_contains: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      st_containsproperly: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      st_coorddim: { Args: { geometry: unknown }; Returns: number }
-      st_coveredby:
-        | { Args: { geog1: unknown; geog2: unknown }; Returns: boolean }
-        | { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      st_covers:
-        | { Args: { geog1: unknown; geog2: unknown }; Returns: boolean }
-        | { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      st_crosses: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      st_curvetoline: {
-        Args: { flags?: number; geom: unknown; tol?: number; toltype?: number }
-        Returns: unknown
-      }
-      st_delaunaytriangles: {
-        Args: { flags?: number; g1: unknown; tolerance?: number }
-        Returns: unknown
-      }
-      st_difference: {
-        Args: { geom1: unknown; geom2: unknown; gridsize?: number }
-        Returns: unknown
-      }
-      st_disjoint: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      st_distance:
-        | {
-            Args: { geog1: unknown; geog2: unknown; use_spheroid?: boolean }
-            Returns: number
-          }
-        | { Args: { geom1: unknown; geom2: unknown }; Returns: number }
-      st_distancesphere:
-        | { Args: { geom1: unknown; geom2: unknown }; Returns: number }
-        | {
-            Args: { geom1: unknown; geom2: unknown; radius: number }
-            Returns: number
-          }
-      st_distancespheroid: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: number
-      }
-      st_dwithin: {
-        Args: {
-          geog1: unknown
-          geog2: unknown
-          tolerance: number
-          use_spheroid?: boolean
-        }
-        Returns: boolean
-      }
-      st_equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      st_expand:
-        | { Args: { box: unknown; dx: number; dy: number }; Returns: unknown }
-        | {
-            Args: { box: unknown; dx: number; dy: number; dz?: number }
-            Returns: unknown
-          }
-        | {
-            Args: {
-              dm?: number
-              dx: number
-              dy: number
-              dz?: number
-              geom: unknown
-            }
-            Returns: unknown
-          }
-      st_force3d: { Args: { geom: unknown; zvalue?: number }; Returns: unknown }
-      st_force3dm: {
-        Args: { geom: unknown; mvalue?: number }
-        Returns: unknown
-      }
-      st_force3dz: {
-        Args: { geom: unknown; zvalue?: number }
-        Returns: unknown
-      }
-      st_force4d: {
-        Args: { geom: unknown; mvalue?: number; zvalue?: number }
-        Returns: unknown
-      }
-      st_generatepoints:
-        | { Args: { area: unknown; npoints: number }; Returns: unknown }
-        | {
-            Args: { area: unknown; npoints: number; seed: number }
-            Returns: unknown
-          }
-      st_geogfromtext: { Args: { "": string }; Returns: unknown }
-      st_geographyfromtext: { Args: { "": string }; Returns: unknown }
-      st_geohash:
-        | { Args: { geog: unknown; maxchars?: number }; Returns: string }
-        | { Args: { geom: unknown; maxchars?: number }; Returns: string }
-      st_geomcollfromtext: { Args: { "": string }; Returns: unknown }
-      st_geometricmedian: {
-        Args: {
-          fail_if_not_converged?: boolean
-          g: unknown
-          max_iter?: number
-          tolerance?: number
-        }
-        Returns: unknown
-      }
-      st_geometryfromtext: { Args: { "": string }; Returns: unknown }
-      st_geomfromewkt: { Args: { "": string }; Returns: unknown }
-      st_geomfromgeojson:
-        | { Args: { "": Json }; Returns: unknown }
-        | { Args: { "": Json }; Returns: unknown }
-        | { Args: { "": string }; Returns: unknown }
-      st_geomfromgml: { Args: { "": string }; Returns: unknown }
-      st_geomfromkml: { Args: { "": string }; Returns: unknown }
-      st_geomfrommarc21: { Args: { marc21xml: string }; Returns: unknown }
-      st_geomfromtext: { Args: { "": string }; Returns: unknown }
-      st_gmltosql: { Args: { "": string }; Returns: unknown }
-      st_hasarc: { Args: { geometry: unknown }; Returns: boolean }
-      st_hausdorffdistance: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: number
-      }
-      st_hexagon: {
-        Args: { cell_i: number; cell_j: number; origin?: unknown; size: number }
-        Returns: unknown
-      }
-      st_hexagongrid: {
-        Args: { bounds: unknown; size: number }
-        Returns: Record<string, unknown>[]
-      }
-      st_interpolatepoint: {
-        Args: { line: unknown; point: unknown }
-        Returns: number
-      }
-      st_intersection: {
-        Args: { geom1: unknown; geom2: unknown; gridsize?: number }
-        Returns: unknown
-      }
-      st_intersects:
-        | { Args: { geog1: unknown; geog2: unknown }; Returns: boolean }
-        | { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      st_isvaliddetail: {
-        Args: { flags?: number; geom: unknown }
-        Returns: Database["public"]["CompositeTypes"]["valid_detail"]
-        SetofOptions: {
-          from: "*"
-          to: "valid_detail"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      st_length:
-        | { Args: { geog: unknown; use_spheroid?: boolean }; Returns: number }
-        | { Args: { "": string }; Returns: number }
-      st_letters: { Args: { font?: Json; letters: string }; Returns: unknown }
-      st_linecrossingdirection: {
-        Args: { line1: unknown; line2: unknown }
-        Returns: number
-      }
-      st_linefromencodedpolyline: {
-        Args: { nprecision?: number; txtin: string }
-        Returns: unknown
-      }
-      st_linefromtext: { Args: { "": string }; Returns: unknown }
-      st_linelocatepoint: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: number
-      }
-      st_linetocurve: { Args: { geometry: unknown }; Returns: unknown }
-      st_locatealong: {
-        Args: { geometry: unknown; leftrightoffset?: number; measure: number }
-        Returns: unknown
-      }
-      st_locatebetween: {
-        Args: {
-          frommeasure: number
-          geometry: unknown
-          leftrightoffset?: number
-          tomeasure: number
-        }
-        Returns: unknown
-      }
-      st_locatebetweenelevations: {
-        Args: { fromelevation: number; geometry: unknown; toelevation: number }
-        Returns: unknown
-      }
-      st_longestline: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_makebox2d: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_makeline: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_makevalid: {
-        Args: { geom: unknown; params: string }
-        Returns: unknown
-      }
-      st_maxdistance: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: number
-      }
-      st_minimumboundingcircle: {
-        Args: { inputgeom: unknown; segs_per_quarter?: number }
-        Returns: unknown
-      }
-      st_mlinefromtext: { Args: { "": string }; Returns: unknown }
-      st_mpointfromtext: { Args: { "": string }; Returns: unknown }
-      st_mpolyfromtext: { Args: { "": string }; Returns: unknown }
-      st_multilinestringfromtext: { Args: { "": string }; Returns: unknown }
-      st_multipointfromtext: { Args: { "": string }; Returns: unknown }
-      st_multipolygonfromtext: { Args: { "": string }; Returns: unknown }
-      st_node: { Args: { g: unknown }; Returns: unknown }
-      st_normalize: { Args: { geom: unknown }; Returns: unknown }
-      st_offsetcurve: {
-        Args: { distance: number; line: unknown; params?: string }
-        Returns: unknown
-      }
-      st_orderingequals: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      st_overlaps: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: boolean
-      }
-      st_perimeter: {
-        Args: { geog: unknown; use_spheroid?: boolean }
-        Returns: number
-      }
-      st_pointfromtext: { Args: { "": string }; Returns: unknown }
-      st_pointm: {
-        Args: {
-          mcoordinate: number
-          srid?: number
-          xcoordinate: number
-          ycoordinate: number
-        }
-        Returns: unknown
-      }
-      st_pointz: {
-        Args: {
-          srid?: number
-          xcoordinate: number
-          ycoordinate: number
-          zcoordinate: number
-        }
-        Returns: unknown
-      }
-      st_pointzm: {
-        Args: {
-          mcoordinate: number
-          srid?: number
-          xcoordinate: number
-          ycoordinate: number
-          zcoordinate: number
-        }
-        Returns: unknown
-      }
-      st_polyfromtext: { Args: { "": string }; Returns: unknown }
-      st_polygonfromtext: { Args: { "": string }; Returns: unknown }
-      st_project: {
-        Args: { azimuth: number; distance: number; geog: unknown }
-        Returns: unknown
-      }
-      st_quantizecoordinates: {
-        Args: {
-          g: unknown
-          prec_m?: number
-          prec_x: number
-          prec_y?: number
-          prec_z?: number
-        }
-        Returns: unknown
-      }
-      st_reduceprecision: {
-        Args: { geom: unknown; gridsize: number }
-        Returns: unknown
-      }
-      st_relate: { Args: { geom1: unknown; geom2: unknown }; Returns: string }
-      st_removerepeatedpoints: {
-        Args: { geom: unknown; tolerance?: number }
-        Returns: unknown
-      }
-      st_segmentize: {
-        Args: { geog: unknown; max_segment_length: number }
-        Returns: unknown
-      }
-      st_setsrid:
-        | { Args: { geog: unknown; srid: number }; Returns: unknown }
-        | { Args: { geom: unknown; srid: number }; Returns: unknown }
-      st_sharedpaths: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_shortestline: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_simplifypolygonhull: {
-        Args: { geom: unknown; is_outer?: boolean; vertex_fraction: number }
-        Returns: unknown
-      }
-      st_split: { Args: { geom1: unknown; geom2: unknown }; Returns: unknown }
-      st_square: {
-        Args: { cell_i: number; cell_j: number; origin?: unknown; size: number }
-        Returns: unknown
-      }
-      st_squaregrid: {
-        Args: { bounds: unknown; size: number }
-        Returns: Record<string, unknown>[]
-      }
-      st_srid:
-        | { Args: { geog: unknown }; Returns: number }
-        | { Args: { geom: unknown }; Returns: number }
-      st_subdivide: {
-        Args: { geom: unknown; gridsize?: number; maxvertices?: number }
-        Returns: unknown[]
-      }
-      st_swapordinates: {
-        Args: { geom: unknown; ords: unknown }
-        Returns: unknown
-      }
-      st_symdifference: {
-        Args: { geom1: unknown; geom2: unknown; gridsize?: number }
-        Returns: unknown
-      }
-      st_symmetricdifference: {
-        Args: { geom1: unknown; geom2: unknown }
-        Returns: unknown
-      }
-      st_tileenvelope: {
-        Args: {
-          bounds?: unknown
-          margin?: number
-          x: number
-          y: number
-          zoom: number
-        }
-        Returns: unknown
-      }
-      st_touches: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      st_transform:
-        | {
-            Args: { from_proj: string; geom: unknown; to_proj: string }
-            Returns: unknown
-          }
-        | {
-            Args: { from_proj: string; geom: unknown; to_srid: number }
-            Returns: unknown
-          }
-        | { Args: { geom: unknown; to_proj: string }; Returns: unknown }
-      st_triangulatepolygon: { Args: { g1: unknown }; Returns: unknown }
-      st_union:
-        | { Args: { geom1: unknown; geom2: unknown }; Returns: unknown }
-        | {
-            Args: { geom1: unknown; geom2: unknown; gridsize: number }
-            Returns: unknown
-          }
-      st_voronoilines: {
-        Args: { extend_to?: unknown; g1: unknown; tolerance?: number }
-        Returns: unknown
-      }
-      st_voronoipolygons: {
-        Args: { extend_to?: unknown; g1: unknown; tolerance?: number }
-        Returns: unknown
-      }
-      st_within: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      st_wkbtosql: { Args: { wkb: string }; Returns: unknown }
-      st_wkttosql: { Args: { "": string }; Returns: unknown }
-      st_wrapx: {
-        Args: { geom: unknown; move: number; wrap: number }
-        Returns: unknown
-      }
       sync_climb_grade_from_votes: {
         Args: { p_climb_id: string }
         Returns: undefined
@@ -3826,7 +3313,6 @@ export type Database = {
         Args: { p_draft_id: string; p_draft_image_id: string; p_routes: Json }
         Returns: Json
       }
-      unlockrows: { Args: { "": string }; Returns: number }
       update_own_profile_submission_credit: {
         Args: { p_handle: string; p_platform: string }
         Returns: Json
@@ -3876,18 +3362,12 @@ export type Database = {
         Args: { p_image_ids: Json; p_submission_id: string }
         Returns: number
       }
-      updategeometrysrid: {
-        Args: {
-          catalogn_name: string
-          column_name: string
-          new_srid_in: number
-          schema_name: string
-          table_name: string
-        }
-        Returns: string
-      }
       user_can_edit_submission_draft: {
         Args: { p_draft_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      user_can_wiki_edit_submission: {
+        Args: { p_image_id: string; p_user_id: string }
         Returns: boolean
       }
     }
@@ -3895,15 +3375,7 @@ export type Database = {
       [_ in never]: never
     }
     CompositeTypes: {
-      geometry_dump: {
-        path: number[] | null
-        geom: unknown
-      }
-      valid_detail: {
-        valid: boolean | null
-        reason: string | null
-        location: unknown
-      }
+      [_ in never]: never
     }
   }
   storage: {
@@ -4177,6 +3649,7 @@ export type Database = {
           id: string
           in_progress_size: number
           key: string
+          metadata: Json | null
           owner_id: string | null
           upload_signature: string
           user_metadata: Json | null
@@ -4188,6 +3661,7 @@ export type Database = {
           id: string
           in_progress_size?: number
           key: string
+          metadata?: Json | null
           owner_id?: string | null
           upload_signature: string
           user_metadata?: Json | null
@@ -4199,6 +3673,7 @@ export type Database = {
           id?: string
           in_progress_size?: number
           key?: string
+          metadata?: Json | null
           owner_id?: string | null
           upload_signature?: string
           user_metadata?: Json | null
@@ -4317,6 +3792,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      allow_any_operation: {
+        Args: { expected_operations: string[] }
+        Returns: boolean
+      }
+      allow_only_operation: {
+        Args: { expected_operation: string }
+        Returns: boolean
+      }
       can_insert_object: {
         Args: { bucketid: string; metadata: Json; name: string; owner: string }
         Returns: undefined

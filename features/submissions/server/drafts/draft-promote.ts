@@ -271,7 +271,7 @@ export async function promoteDraftToSubmission(input: {
   const { supabase, draftId, userId } = input
   const { data: draft, error: draftError } = await supabase
     .from('submission_drafts')
-    .select('id, user_id, crag_id, status, metadata')
+    .select('id, user_id, crag_id, status, metadata, updated_at')
     .eq('id', draftId)
     .maybeSingle()
 
@@ -341,7 +341,7 @@ export async function promoteDraftToSubmission(input: {
       ? draftMetadata.submission as Record<string, unknown>
       : {}
 
-    const { error: repairDraftLocationError } = await supabase
+    const { data: repairedDraft, error: repairDraftLocationError } = await supabase
       .from('submission_drafts')
       .update({
         metadata: {
@@ -357,9 +357,16 @@ export async function promoteDraftToSubmission(input: {
       })
       .eq('id', draftId)
       .eq('user_id', userId)
+      .eq('status', 'draft')
+      .eq('updated_at', draft.updated_at)
+      .select('id')
+      .maybeSingle()
 
     if (repairDraftLocationError) {
       return createErrorResponse(repairDraftLocationError, 'Failed to repair draft location before publish')
+    }
+    if (!repairedDraft) {
+      return NextResponse.json({ error: 'The draft changed before it could be published' }, { status: 409 })
     }
   }
 
