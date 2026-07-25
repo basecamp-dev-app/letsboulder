@@ -173,6 +173,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   )
 
   const lastPointerTimestampRef = useRef(0)
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null)
 
   const handleCanvasPress = useCallback((clientX: number, clientY: number) => {
     const point = getCanvasPoint(clientX, clientY)
@@ -189,15 +190,44 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   }, [addPoint, getCanvasPoint, handleRouteClick, isDrawingEnabled, onRouteSelect])
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (event.button !== 0 || event.altKey) return
+    if (event.button !== 0 || event.altKey) {
+      pressStartRef.current = null
+      return
+    }
     lastPointerTimestampRef.current = Date.now()
-    handleCanvasPress(event.clientX, event.clientY)
+    pressStartRef.current = { x: event.clientX, y: event.clientY }
+  }, [])
+
+  const handlePointerUp = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
+    const start = pressStartRef.current
+    pressStartRef.current = null
+    if (!start) return
+
+    const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y)
+    if (distance <= 8) handleCanvasPress(event.clientX, event.clientY)
   }, [handleCanvasPress])
+
+  const handlePointerCancel = useCallback(() => {
+    pressStartRef.current = null
+  }, [])
 
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
     if (Date.now() - lastPointerTimestampRef.current < 250) return
-    if (event.button !== 0 || event.altKey) return
-    handleCanvasPress(event.clientX, event.clientY)
+    if (event.button !== 0 || event.altKey) {
+      pressStartRef.current = null
+      return
+    }
+    pressStartRef.current = { x: event.clientX, y: event.clientY }
+  }, [])
+
+  const handleMouseUp = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (Date.now() - lastPointerTimestampRef.current < 250) return
+    const start = pressStartRef.current
+    pressStartRef.current = null
+    if (!start) return
+
+    const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y)
+    if (distance <= 8) handleCanvasPress(event.clientX, event.clientY)
   }, [handleCanvasPress])
 
   const handleFinishRoute = useCallback(() => {
@@ -387,7 +417,10 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
           className="absolute z-10"
           style={{ touchAction: 'none' }}
           onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
           onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
         />
 
       {showOverlay ? (
