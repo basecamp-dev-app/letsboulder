@@ -138,6 +138,7 @@ describe('image-page-server raw image fallback', () => {
           grade: '6A',
           description: null,
           route_type: 'boulder',
+          shared_climb_id: 'canonical-climb-id',
         },
       },
     ]
@@ -182,6 +183,7 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.navigationContext.orderedImageIds).toEqual(['215b8180-4727-404d-8fbf-6cb9bd8f5f9a'])
     expect(result.payload?.initialRouteId).toBe('fd88f866-1eac-47a9-97c2-462574a95f55')
     expect(result.payload?.initialClimbId).toBe('f9676bde-fbb2-4d90-a178-dec6cdb903f4')
+    expect(result.payload?.initialRoutes[0]?.effectiveClimbId).toBe('canonical-climb-id')
     expect(result.payload?.heroImage.displayImageId).toBe('215b8180-4727-404d-8fbf-6cb9bd8f5f9a')
     expect(result.payload?.heroImage.src).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/detail.webp')
     expect(result.payload?.mapPins).toEqual([])

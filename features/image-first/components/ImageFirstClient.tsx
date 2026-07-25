@@ -248,7 +248,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     const supabase = createClient()
     const { data, error } = await supabase
       .from('route_lines')
-      .select('id, image_id, climb_id, color, points, image_width, image_height, sequence_order, created_at, climbs (id, name, slug, grade, description, route_type)')
+      .select('id, image_id, climb_id, color, points, image_width, image_height, sequence_order, created_at, climbs (id, name, slug, grade, description, route_type, shared_climb_id)')
       .in('image_id', targets)
       .order('sequence_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
@@ -282,6 +282,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         grade: string | null
         description: string | null
         route_type: string | null
+        shared_climb_id: string | null
       } | Array<{
         id: string
         name: string | null
@@ -289,6 +290,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         grade: string | null
         description: string | null
         route_type: string | null
+        shared_climb_id: string | null
       }> | null
     }>) {
       const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
@@ -297,6 +299,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       grouped[row.image_id]?.push({
         routeId: row.id,
         climbId: row.climb_id,
+        effectiveClimbId: climb.shared_climb_id || row.climb_id,
         imageId: row.image_id,
         climbSlug: climb.slug || null,
         climbName: climb.name || 'Unnamed route',
@@ -362,6 +365,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const activeRouteId = resolvedActiveRouteId
 
   const activeClimbId = activeRouteMeta?.climbId || null
+  const activeEffectiveClimbId = activeRouteMeta?.effectiveClimbId || null
   const activeClimbIdRef = useRef(activeClimbId)
 
   useEffect(() => {
@@ -463,9 +467,9 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     setPendingStarRating(null)
     setPendingNotes('')
     setIsWantToTrySaved(false)
-    setLoadingSelectedClimbState(Boolean(activeClimbId && userPresent))
+    setLoadingSelectedClimbState(Boolean(activeEffectiveClimbId && userPresent))
 
-    if (!activeClimbId || !userPresent) return
+    if (!activeClimbId || !activeEffectiveClimbId || !userPresent) return
 
     const supabase = createClient()
     let cancelled = false
@@ -481,7 +485,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
             .from('user_climbs')
             .select('grade_opinion, star_rating, notes')
             .eq('user_id', userId)
-            .eq('climb_id', activeClimbId)
+            .eq('climb_id', activeEffectiveClimbId)
             .maybeSingle(),
           isClimbSavedByUser(supabase, userId, activeClimbId),
         ])
@@ -508,10 +512,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
     void fetchData()
     return () => { cancelled = true }
-  }, [activeClimbId, userPresent])
+  }, [activeClimbId, activeEffectiveClimbId, userPresent])
 
   useEffect(() => {
-    if (!activeClimbId) {
+    if (!activeEffectiveClimbId) {
       setSelectedClimbRatingSummary(null)
       return
     }
@@ -519,7 +523,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     let cancelled = false
 
     const fetchRatingSummary = async () => {
-      const response = await fetch(`/api/climbs/${encodeURIComponent(activeClimbId)}/star-rating`)
+      const response = await fetch(`/api/climbs/${encodeURIComponent(activeEffectiveClimbId)}/star-rating`)
       if (!response.ok) {
         if (!cancelled) setSelectedClimbRatingSummary(null)
         return
@@ -536,15 +540,15 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
     void fetchRatingSummary()
     return () => { cancelled = true }
-  }, [activeClimbId])
+  }, [activeEffectiveClimbId])
 
   useEffect(() => {
-    if (!activeClimbId) return
+    if (!activeEffectiveClimbId) return
 
     let cancelled = false
 
     const fetchCommunityNotes = async () => {
-      const response = await fetch(`/api/image-first/community-notes?climbId=${encodeURIComponent(activeClimbId)}`)
+      const response = await fetch(`/api/image-first/community-notes?effectiveClimbId=${encodeURIComponent(activeEffectiveClimbId)}`)
       if (!response.ok) {
         if (!cancelled) {
           setCommunityNotesCount(0)
@@ -575,7 +579,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     return () => {
       cancelled = true
     }
-  }, [activeClimbId])
+  }, [activeEffectiveClimbId])
 
   const allRoutesFlat = useMemo(
     () => Object.values(routesByImageId).flat(),

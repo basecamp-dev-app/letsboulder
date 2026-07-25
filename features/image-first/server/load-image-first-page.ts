@@ -118,6 +118,7 @@ interface RouteLineRow {
         grade: string | null
         description: string | null
         route_type: string | null
+        shared_climb_id: string | null
       }
     | Array<{
         id: string
@@ -126,6 +127,7 @@ interface RouteLineRow {
         grade: string | null
         description: string | null
         route_type: string | null
+        shared_climb_id: string | null
       }>
     | null
 }
@@ -251,7 +253,7 @@ export async function getRoutesByImage(displayImageId: string) {
       image_height,
       sequence_order,
       created_at,
-      climbs (id, name, slug, grade, description, route_type)
+      climbs (id, name, slug, grade, description, route_type, shared_climb_id)
     `)
     .eq('image_id', displayImageId)
     .order('sequence_order', { ascending: true, nullsFirst: false })
@@ -385,6 +387,7 @@ export async function buildImageFirstPayload(args: {
     return {
       routeId: row.id,
       climbId: row.climb_id,
+      effectiveClimbId: climb?.shared_climb_id || row.climb_id,
       imageId: image.canonicalId,
       climbSlug: climb?.slug || null,
       climbName: climb?.name || 'Unnamed route',
