@@ -3,7 +3,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import { useImageNavigation } from '@/features/image-first/hooks/use-image-navigation'
 import { ImageFirstCanvasCarousel, ImageFirstDeferredSections, ImageFirstFooterRail } from '@/features/image-first/components/image-first-sections'
@@ -125,6 +125,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const { linkedImageIdByDisplayId } = navigationContext
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const gradePreferences = useGradePreferences()
   const { toasts, addToast, removeToast } = useToast()
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
@@ -750,8 +751,11 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   }, [activeImageMeta, activePrimaryImageId, activeRoutes])
 
   const handleGoToAuth = useCallback(() => {
-    router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/${countryCode}/${cragSlug}/i/${heroImage.displayImageId}`)}`)
-  }, [countryCode, cragSlug, heroImage.displayImageId, pathname, router])
+    const currentPath = pathname || `/${countryCode}/${cragSlug}/i/${heroImage.displayImageId}`
+    const query = searchParams.toString()
+    const returnTo = query ? `${currentPath}?${query}` : currentPath
+    router.push(`/auth?redirect_to=${encodeURIComponent(returnTo)}`)
+  }, [countryCode, cragSlug, heroImage.displayImageId, pathname, router, searchParams])
 
   const handleEditRoute = useCallback(() => {
     if (!activePrimaryImageId || !resolvedActiveRouteId) return

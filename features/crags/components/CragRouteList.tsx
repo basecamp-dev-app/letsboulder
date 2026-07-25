@@ -9,6 +9,7 @@ import type { CragRoute, RoutePreview } from '@/features/crags/lib/crag-page-typ
 import { buildThumbnailUrl } from '@/lib/media/thumbnail-url'
 
 interface CragRouteListProps {
+  cragId: string
   filteredRoutes: CragRoute[]
   routesLoadState: 'idle' | 'loading' | 'loaded' | 'error'
   highlightedRouteIds: Set<string>
@@ -77,6 +78,7 @@ function LoadingRows() {
 }
 
 const CragRouteList = React.memo(function CragRouteList({
+  cragId,
   filteredRoutes,
   routesLoadState,
   highlightedRouteIds,
@@ -137,7 +139,7 @@ const CragRouteList = React.memo(function CragRouteList({
               </div>
             ) : routesCount === 0 ? (
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/submit" prefetch={false} className="rounded-full bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700">
+                <Link href={`/submit?cragId=${encodeURIComponent(cragId)}`} prefetch={false} className="rounded-full bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700">
                   Add the first route
                 </Link>
               </div>
@@ -147,7 +149,6 @@ const CragRouteList = React.memo(function CragRouteList({
       ) : (
         <div role="list" aria-label="Crag routes" className="divide-y divide-stone-100 dark:divide-gray-800">
           {filteredRoutes.map((route, index) => {
-            const destination = getRouteDestination(route)
             const className = `flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50 ${highlightedRouteIds.has(route.id) ? 'bg-teal-50/80 ring-1 ring-inset ring-teal-200 dark:bg-teal-950/20 dark:ring-teal-900' : ''}`
             const preview = routePreviewDisplayByClimbId[route.id]
             const showPreviewSkeleton = !preview && routeTargetsHydrating && !routeTargetsComplete
@@ -180,9 +181,27 @@ const CragRouteList = React.memo(function CragRouteList({
                     {routeTypeLabel ? <span>{routeTypeLabel}</span> : null}
                   </div>
                 </div>
-                <ChevronRight className="size-4 shrink-0 text-stone-400" />
+                {route.hasTopo ? <ChevronRight className="size-4 shrink-0 text-stone-400" /> : null}
               </>
             )
+
+            if (!route.hasTopo) {
+              return (
+                <div key={route.id} className={className}>
+                  {content}
+                  <Link
+                    href={`/submit?cragId=${encodeURIComponent(cragId)}`}
+                    prefetch={false}
+                    className="min-h-11 shrink-0 rounded-full bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                    aria-label={`Add topo for ${routeAccessibleName}`}
+                  >
+                    Add topo
+                  </Link>
+                </div>
+              )
+            }
+
+            const destination = getRouteDestination(route)
 
             return (
               <a key={route.id} aria-label={`Open route ${routeAccessibleName}`} aria-current={highlightedRouteIds.has(route.id) ? 'page' : undefined} href={destination.href} className={className}>

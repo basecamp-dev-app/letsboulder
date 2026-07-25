@@ -1,29 +1,32 @@
 'use client'
 
 import type React from 'react'
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { getSafeRedirect } from '@/lib/safe-redirect'
 import { createClient } from '@/lib/supabase'
 
-export default function SetNamePage() {
+function SetNameContent() {
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = getSafeRedirect(searchParams.get('redirect_to'))
 
   useEffect(() => {
     const checkSession = async () => {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
-        router.push('/auth')
+        router.push(`/auth?redirect_to=${encodeURIComponent(redirectTo)}`)
       }
     }
     checkSession()
-  }, [router])
+  }, [redirectTo, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,7 +59,7 @@ export default function SetNamePage() {
       setError('Failed to save your name. Please try again.')
       setLoading(false)
     } else {
-      router.push('/')
+      router.replace(redirectTo)
     }
   }
 
@@ -113,5 +116,13 @@ export default function SetNamePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SetNamePage() {
+  return (
+    <Suspense fallback={null}>
+      <SetNameContent />
+    </Suspense>
   )
 }

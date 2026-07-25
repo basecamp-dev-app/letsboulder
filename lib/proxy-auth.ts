@@ -2,19 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { env } from '@/lib/env'
 import { reportError } from '@/lib/errors'
-
-const ALLOWED_REDIRECT_PATHS = [
-  '/',
-  '/map',
-  '/logbook',
-  '/gym-admin',
-  '/settings',
-  '/submit',
-  '/upload-climb',
-  '/crag/',
-  '/climb/',
-  '/image/',
-]
+import { getSafeRedirect } from '@/lib/safe-redirect'
 
 const SESSION_REFRESH_PREFIXES = [
   '/settings',
@@ -26,16 +14,6 @@ const SESSION_REFRESH_PREFIXES = [
 function isStateChangingMethod(method: string): boolean {
   const normalized = method.toUpperCase()
   return normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH' || normalized === 'DELETE'
-}
-
-function isAllowedRedirectPath(path: string): boolean {
-  return ALLOWED_REDIRECT_PATHS.some((allowed) => {
-    if (allowed.endsWith('/')) {
-      return path.startsWith(allowed)
-    }
-
-    return path === allowed
-  })
 }
 
 function shouldRefreshSupabaseSession(pathname: string, method: string): boolean {
@@ -86,8 +64,8 @@ export async function applyProxyAuth({ request, requestHeaders, response }: Appl
   const { pathname, searchParams } = request.nextUrl
 
   if (pathname === '/auth') {
-    const redirectTo = searchParams.get('redirect_to')
-    if (redirectTo && isAllowedRedirectPath(redirectTo)) {
+    const redirectTo = getSafeRedirect(searchParams.get('redirect_to'), '')
+    if (redirectTo) {
       nextResponse.cookies.set('redirect_to', redirectTo, {
         path: '/',
         maxAge: 60 * 5,

@@ -14,14 +14,14 @@ const WORLD_DEFAULT_CENTER: [number, number] = [0, 20]
 const WORLD_DEFAULT_ZOOM = 2
 
 function buildPlaceHref(place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | 'type'>) {
-  if (place.type === 'gym' && place.slug) return `/gyms/${place.slug}`
+  if (place.type === 'gym') return null
   if (place.slug && place.country_code) return `/${place.country_code.toLowerCase()}/${place.slug}`
   return `/crag/${place.id}`
 }
 
-function navigateToPlace(router: ReturnType<typeof useRouter>, place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | 'type'>) {
+function navigateToPlace(router: ReturnType<typeof useRouter>, href: string) {
   startTransition(() => {
-    router.push(buildPlaceHref(place))
+    router.push(href)
   })
 }
 
@@ -166,6 +166,7 @@ export default function InteractiveClimbingMap({
 
   const placesById = useMemo(() => new Map(placePins.map((place) => [place.id, place])), [placePins])
   const selectedPlace = selectedPlaceId ? placesById.get(selectedPlaceId) || null : null
+  const selectedPlaceHref = selectedPlace ? buildPlaceHref(selectedPlace) : null
   const pinsGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
     type: 'FeatureCollection',
     features: clusteredPlaces.flatMap((feature) => {
@@ -252,13 +253,19 @@ export default function InteractiveClimbingMap({
                     <span key={label} className="rounded-full bg-stone-100 px-2.5 py-1 dark:bg-white/10">{label}</span>
                   ))}
               </div>
-              <button
-                type="button"
-                onClick={() => navigateToPlace(router, selectedPlace)}
-                className="w-full rounded-2xl bg-stone-950 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-stone-800 dark:bg-amber-300 dark:text-slate-950 dark:hover:bg-amber-200"
-              >
-                View {selectedPlace.type === 'gym' ? 'gym' : 'crag'}
-              </button>
+              {selectedPlaceHref ? (
+                <button
+                  type="button"
+                  onClick={() => navigateToPlace(router, selectedPlaceHref)}
+                  className="w-full rounded-2xl bg-stone-950 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-stone-800 dark:bg-amber-300 dark:text-slate-950 dark:hover:bg-amber-200"
+                >
+                  View crag
+                </button>
+              ) : (
+                <p className="rounded-2xl bg-stone-100 px-4 py-3 text-sm font-semibold text-stone-700 dark:bg-white/10 dark:text-white/75">
+                  Gym guides are coming soon.
+                </p>
+              )}
             </div>
           </div>
         </div>

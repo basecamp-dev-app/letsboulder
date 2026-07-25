@@ -75,6 +75,7 @@ describe('CragRouteList thumbnail priority', () => {
   it('prioritizes the first six route previews on initial render', () => {
     render(
       <CragRouteList
+        cragId="crag-1"
         filteredRoutes={createRoutes(8)}
         routesLoadState="loaded"
         highlightedRouteIds={new Set()}
@@ -109,6 +110,7 @@ describe('CragRouteList thumbnail priority', () => {
   it('promotes a later preview when it nears the viewport', () => {
     render(
       <CragRouteList
+        cragId="crag-1"
         filteredRoutes={createRoutes(8)}
         routesLoadState="loaded"
         highlightedRouteIds={new Set()}
@@ -146,6 +148,7 @@ describe('CragRouteList thumbnail priority', () => {
   it('includes grade and route type in route link names', () => {
     render(
       <CragRouteList
+        cragId="crag-1"
         filteredRoutes={[createRoutes(1)[0]]}
         routesLoadState="loaded"
         highlightedRouteIds={new Set()}
@@ -168,6 +171,7 @@ describe('CragRouteList thumbnail priority', () => {
   it('shows a contribution CTA when the crag has no routes', () => {
     render(
       <CragRouteList
+        cragId="crag-1"
         filteredRoutes={[]}
         routesLoadState="loaded"
         highlightedRouteIds={new Set()}
@@ -185,6 +189,34 @@ describe('CragRouteList thumbnail priority', () => {
     )
 
     expect(screen.getByText('No routes have been added here yet.')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Add the first route' }).getAttribute('href')).toBe('/submit')
+    expect(screen.getByRole('link', { name: 'Add the first route' }).getAttribute('href')).toBe('/submit?cragId=crag-1')
+  })
+
+  it('replaces a no-topo route destination with an add-topo CTA', () => {
+    const route = { ...createRoutes(1)[0], hasTopo: false, topoImageCount: 0 }
+    const getRouteDestination = vi.fn(() => ({ href: '/climb/route-1', ready: true }))
+
+    render(
+      <CragRouteList
+        cragId="crag-1"
+        filteredRoutes={[route]}
+        routesLoadState="loaded"
+        highlightedRouteIds={new Set()}
+        routePreviewDisplayByClimbId={{}}
+        routeTargetsHydrating={false}
+        routeTargetsComplete={true}
+        pinNumberByImageId={new Map()}
+        gradeSystem="french_equivalent"
+        routesCount={1}
+        hasActiveRouteFilters={false}
+        onClearRouteFilters={vi.fn()}
+        onRetryRoutes={vi.fn()}
+        getRouteDestination={getRouteDestination}
+      />
+    )
+
+    expect(screen.queryByRole('link', { name: /Open route/ })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Add topo for Route 1, 6b, Sport' }).getAttribute('href')).toBe('/submit?cragId=crag-1')
+    expect(getRouteDestination).not.toHaveBeenCalled()
   })
 })
