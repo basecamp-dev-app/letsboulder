@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Lock, ArrowLeft } from 'lucide-react'
 import ProfileViewTracker from './components/ProfileViewTracker'
 import PublicLogbookClient from './PublicLogbookClient'
-import type { LogbookClimb, LogbookProfile, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
+import type { LogbookClimb, LogbookLifetimeStats, LogbookProfile, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 import type { Database } from '@/types/database'
 
 export const revalidate = 60
@@ -18,6 +18,7 @@ const PUBLIC_LOGBOOK_PAGE_SIZE = 50
 const PUBLIC_PROGRESS_LOG_LIMIT = 2000
 
 type PublicProfileRow = Pick<Database['public']['Tables']['profiles']['Row'], 'is_public'> & LogbookProfile
+type LogbookLifetimeStatsRow = Database['public']['Functions']['get_logbook_lifetime_stats']['Returns'][number]
 
 interface PublicContributionRow {
   id: string
@@ -115,6 +116,25 @@ async function getPublicProgressLogs(userId: string): Promise<ProgressLogEntry[]
   }
 
   return data as unknown as ProgressLogEntry[]
+}
+
+async function getPublicLifetimeStats(userId: string): Promise<LogbookLifetimeStats> {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase
+    .rpc('get_logbook_lifetime_stats', { p_user_id: userId })
+    .single()
+
+  if (error || !data) {
+    return { totalClimbs: 0, totalFlashes: 0, totalTops: 0, totalTries: 0 }
+  }
+
+  const stats = data as LogbookLifetimeStatsRow
+  return {
+    totalClimbs: stats.total_climbs,
+    totalFlashes: stats.total_flashes,
+    totalTops: stats.total_tops,
+    totalTries: stats.total_tries,
+  }
 }
 
 async function getPublicSubmissions(userId: string): Promise<Submission[]> {
@@ -261,9 +281,10 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
     return <PrivateProfileCard username={profile.username} />
   }
 
-  const [logsResult, progressLogs, submissions] = await Promise.all([
+  const [logsResult, progressLogs, lifetimeStats, submissions] = await Promise.all([
     getPublicLogs(userId),
     getPublicProgressLogs(userId),
+    getPublicLifetimeStats(userId),
     getPublicSubmissions(userId),
   ])
 
@@ -275,6 +296,7 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
         initialPage={{
           logs: logsResult.logs,
           progressLogs,
+          lifetimeStats,
           nextCursor: logsResult.nextCursor,
           profile,
           submissions,

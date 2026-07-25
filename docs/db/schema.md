@@ -368,6 +368,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `get_crags_mapped_count()` | Number of mapped crags |
 | `get_boulders_with_gps_count()` | Boulder count with GPS data |
 | `get_total_climbs_count()` | Total climbs count |
+| `get_logbook_lifetime_stats(p_user_id)` | RLS-aware lifetime logbook counts by style |
 | `get_total_sends_count()` | Total sends count |
 | `get_total_logs_count()` | Total logs count |
 

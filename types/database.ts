@@ -3044,6 +3044,15 @@ export type Database = {
           total_routes_combined: number
         }[]
       }
+      get_logbook_lifetime_stats: {
+        Args: { p_user_id: string }
+        Returns: {
+          total_climbs: number
+          total_flashes: number
+          total_tops: number
+          total_tries: number
+        }[]
+      }
       get_place_contributor_leaderboard: {
         Args: { p_limit?: number; p_page?: number; p_place_id: string }
         Returns: {

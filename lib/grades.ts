@@ -253,7 +253,7 @@ export interface LogEntry {
     crags?: {
       name: string | null
     } | null
-  }
+  } | null
 }
 
 interface MonthlyGradeData {
