@@ -54,6 +54,8 @@ Configure with `wrangler secret put`:
 
 ## Deployment
 
+Production deploys automatically from `.github/workflows/media-worker-deploy.yml` when worker files change. The workflow uses the `Production` GitHub environment.
+
 ```bash
 npx wrangler deploy --env staging
 npx wrangler deploy --env production

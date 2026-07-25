@@ -11,10 +11,12 @@
 
 1. Server validates the private R2 object exists and atomically queues ingest with `queue_media_ingest_job(...)`
 2. The RPC updates `images.processing_status = 'queued'` and inserts or reuses a durable `media_jobs` row
-3. The Cloudflare media worker scheduled handler claims jobs with `claim_media_job(worker_name)`
-4. Worker reads the object from the R2 private bucket (`lb-dev-media-private` / `lb-prod-media-private`)
-5. Worker builds the variant manifest and updates the `images` table with public delivery metadata and status
-6. Worker marks the `media_jobs` row `completed`, retries it with backoff, or marks it `failed`
+3. Server best-effort dispatches the same payload to the Cloudflare Queue for immediate processing
+4. The Queue consumer processes the image and completes the matching durable job
+5. The scheduled handler claims any jobs missed by immediate dispatch with `claim_media_job(worker_name)`
+6. Worker reads the object from the R2 private bucket (`lb-dev-media-private` / `lb-prod-media-private`)
+7. Worker builds the variant manifest and updates the `images` table with public delivery metadata and status
+8. Worker marks the `media_jobs` row `completed`, retries it with backoff, or marks it `failed`
 
 ## Delivery Flow
 

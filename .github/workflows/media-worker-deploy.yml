@@ -1,0 +1,48 @@
+name: Media Worker Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/media-worker/**"
+      - ".github/workflows/media-worker-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-worker-production
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy Media Worker (Production)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.20.0"
+          cache: npm
+          cache-dependency-path: apps/media-worker/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/media-worker
+
+      - name: Typecheck media worker
+        run: npm run check
+        working-directory: apps/media-worker
+
+      - name: Deploy production media worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/media-worker
+          command: deploy --env production
