@@ -3,6 +3,7 @@ import { createErrorResponse, reportError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { isMediaNotReadyError, isMediaPubliclyDeliverable, MEDIA_NOT_READY_RESPONSE } from '@/lib/media/readiness'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { recordSubmissionPublishedEvent } from '@/features/community/lib/contributor-score'
 import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
 
@@ -45,16 +46,19 @@ function resolvePublishedResult(metadata: unknown): PromoteResult | null {
 async function ensureCanonicalCrag(input: {
   supabase: DraftSupabaseClient
   cragId: string | null
-  metadata: unknown
+  draftId: string
+  userId: string
+  latitude: number | null
+  longitude: number | null
 }): Promise<NextResponse | null> {
-  const { supabase, cragId, metadata } = input
+  const { supabase, cragId, draftId, userId, latitude, longitude } = input
   if (!cragId) {
     return NextResponse.json({ error: 'Select a crag before publishing this draft' }, { status: 400 })
   }
 
   const { data: crag, error: cragError } = await supabase
     .from('crags')
-    .select('id, country_code, slug')
+    .select('id, country_code, slug, latitude, longitude')
     .eq('id', cragId)
     .maybeSingle()
 
@@ -68,25 +72,35 @@ async function ensureCanonicalCrag(input: {
 
   if (crag.country_code) return null
 
-  const draftLocation = extractDraftLocation(metadata)
-  const resolvedCountry = await resolveCountryFromCoordinates(supabase, draftLocation.latitude, draftLocation.longitude)
-  const countryCode = resolvedCountry.countryCode
-
-  if (!countryCode) {
+  const repairLatitude = hasValidDraftCoordinate(crag.latitude, crag.longitude) ? crag.latitude : latitude
+  const repairLongitude = hasValidDraftCoordinate(crag.latitude, crag.longitude) ? crag.longitude : longitude
+  if (!hasValidDraftCoordinate(repairLatitude, repairLongitude)) {
     return NextResponse.json({ error: 'Could not resolve the selected crag country before publishing' }, { status: 409 })
   }
 
-  const { error: repairError } = await supabase
-    .from('crags')
-    .update({
-      country_code: countryCode,
-      ...(resolvedCountry.countryId ? { country_id: resolvedCountry.countryId } : {}),
-      ...(resolvedCountry.regionName ? { region_name: resolvedCountry.regionName } : {}),
+  const resolvedCountry = await resolveCountryFromCoordinates(supabase, repairLatitude, repairLongitude)
+  if (!resolvedCountry.countryCode) {
+    return NextResponse.json({ error: 'Could not resolve the selected crag country before publishing' }, { status: 409 })
+  }
+
+  const repairClient = getAdminClientWithAudit('repair draft crag country before publish')
+  const { data: repairedCountryCode, error: repairError } = await repairClient
+    .rpc('repair_submission_draft_crag_country', {
+      p_draft_id: draftId,
+      p_user_id: userId,
+      p_crag_id: cragId,
+      p_latitude: repairLatitude,
+      p_longitude: repairLongitude,
+      p_country_code: resolvedCountry.countryCode,
+      p_country_name: resolvedCountry.countryName,
+      p_region_name: resolvedCountry.regionName,
     })
-    .eq('id', cragId)
 
   if (repairError) {
     return createErrorResponse(repairError, 'Failed to repair publish destination')
+  }
+  if (!repairedCountryCode) {
+    return NextResponse.json({ error: 'Could not resolve the selected crag country before publishing' }, { status: 409 })
   }
 
   return null
@@ -287,22 +301,6 @@ export async function promoteDraftToSubmission(input: {
     return NextResponse.json({ error: 'Only the draft owner can publish this draft' }, { status: 403 })
   }
 
-  const canonicalCragError = await ensureCanonicalCrag({
-    supabase,
-    cragId: draft.crag_id,
-    metadata: draft.metadata,
-  })
-  if (canonicalCragError) return canonicalCragError
-
-  if (draft.status === 'submitted') {
-    const publishedResult = resolvePublishedResult(draft.metadata)
-    if (!publishedResult) {
-      return NextResponse.json({ error: 'Failed to recover published draft destination' }, { status: 500 })
-    }
-
-    return buildPublishedResponse({ supabase, result: publishedResult, userId, runPostPublishEffects: false })
-  }
-
   const { data: draftImages, error: draftImagesError } = await supabase
     .from('submission_draft_images')
     .select('id, display_order, latitude, longitude, route_data, linked_image_id')
@@ -313,6 +311,27 @@ export async function promoteDraftToSubmission(input: {
   }
 
   const draftImageRows = (draftImages || []) as DraftImagePublishRow[]
+
+  if (draft.status === 'submitted') {
+    const draftLocation = resolveEffectiveDraftPublishLocation(draft.metadata, draftImageRows)
+    const canonicalCragError = await ensureCanonicalCrag({
+      supabase,
+      cragId: draft.crag_id,
+      draftId,
+      userId,
+      latitude: draftLocation.latitude,
+      longitude: draftLocation.longitude,
+    })
+    if (canonicalCragError) return canonicalCragError
+
+    const publishedResult = resolvePublishedResult(draft.metadata)
+    if (!publishedResult) {
+      return NextResponse.json({ error: 'Failed to recover published draft destination' }, { status: 500 })
+    }
+
+    return buildPublishedResponse({ supabase, result: publishedResult, userId, runPostPublishEffects: false })
+  }
+
   const linkedImageIds = Array.from(new Set(draftImageRows.flatMap((image) => image.linked_image_id ? [image.linked_image_id] : [])))
   const { data: linkedImages, error: linkedImagesError } = linkedImageIds.length > 0
     ? await supabase
@@ -332,6 +351,16 @@ export async function promoteDraftToSubmission(input: {
   if (!hasValidLocation) {
     return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
   }
+
+  const canonicalCragError = await ensureCanonicalCrag({
+    supabase,
+    cragId: draft.crag_id,
+    draftId,
+    userId,
+    latitude: effectiveDraftLocation.latitude,
+    longitude: effectiveDraftLocation.longitude,
+  })
+  if (canonicalCragError) return canonicalCragError
 
   if (!hasValidDraftCoordinate(draftLocation.latitude, draftLocation.longitude)) {
     const draftMetadata = draft.metadata && typeof draft.metadata === 'object' && !Array.isArray(draft.metadata)

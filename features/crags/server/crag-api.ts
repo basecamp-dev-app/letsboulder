@@ -277,7 +277,7 @@ async function resolveCragCountry(
     }
   }
 
-  if (!countryCode && latitude != null && longitude != null) {
+  if (!countryCode) {
     return {
       countryCode: null,
       countryId: null,
