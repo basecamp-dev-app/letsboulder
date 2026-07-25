@@ -86,7 +86,7 @@ export function useDraftEditorDerivedState(params: UseDraftEditorDerivedStatePar
   }, [activeImageTab, cragCanvasImages])
 
   const stableActiveImageUrl = imageSelection && 'imageUrl' in imageSelection ? imageSelection.imageUrl : ''
-  const activeImageReady = Boolean(activeImageTab?.signedUrl) && activeImageTab?.status !== 'FAILED'
+  const activeImageReady = Boolean(activeImageTab?.signedUrl) && (!activeImageTab?.status || activeImageTab.status === 'READY')
 
   const quickSwitcherImages = useMemo(() => {
     const sourceImages = canvasSource?.kind === 'crag-image' ? mergedCragCanvasImages : mergedManageImages

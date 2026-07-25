@@ -10,16 +10,31 @@ export interface CragImageRow {
   longitude: number | null
   source_image_id: string | null
   linked_image_id: string | null
-  source_image: {
+  linked_image: {
     id: string
-    latitude: number | null
-    longitude: number | null
-    capture_date: string | null
+    processing_status: string
+    moderation_status: string | null
+    visibility: string
+    status: string
   } | Array<{
     id: string
-    latitude: number | null
-    longitude: number | null
-    capture_date: string | null
+    processing_status: string
+    moderation_status: string | null
+    visibility: string
+    status: string
+  }> | null
+  source_image: {
+    id: string
+    processing_status: string
+    moderation_status: string | null
+    visibility: string
+    status: string
+  } | Array<{
+    id: string
+    processing_status: string
+    moderation_status: string | null
+    visibility: string
+    status: string
   }> | null
 }
 

@@ -256,6 +256,9 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `media_jobs` is the durable outbox for active media ingest. Upload completion calls `queue_media_ingest_job(...)` to update `images` and insert/reuse a queued job atomically.
 - `claim_media_job(worker_name text)` is used by the Cloudflare Worker scheduled handler to claim pending ingest work. Cloudflare Queue ingress remains as a compatibility path, but the durable outbox is the source of truth for app-owned uploads.
 - Active ingest runs through `media_jobs` + the Worker in `apps/media-worker`; `images` remains the source of truth.
+- Canonical publishability is `processing_status = 'ready'` and `moderation_status IN ('approved', 'skipped')`. Public delivery or association additionally requires `visibility = 'public'` and legacy `status = 'approved'`.
+- `assert_media_ready_for_publication(image_ids)` locks and validates authoritative `images` rows inside publication transactions. Draft promotion, unified submission creation, route creation, and linked `crag_images` writes fail with detail code `media_not_ready` until every image is publicly deliverable.
+- Transactional guards require publication RPCs to associate existing upload-session image IDs and preserve worker-produced processing, moderation, visibility, and delivery fields.
 
 ### Collaboration Tables
 - Published submissions use wiki-style editing for authenticated users; `submission_collaborators` and `submission_collaborator_invites` remain legacy published-collaboration tables.
@@ -367,6 +370,7 @@ Both `crags` and `places` have a `synced_at TIMESTAMPTZ` column. When a sync ope
 | `is_submission_draft_collaborator(draft_id, user_id)` | RLS helper: check draft collaboration |
 | `append_submission_draft_images_atomic(...)` | Atomic draft image append |
 | `create_submission_routes_atomic(...)` | Atomic route creation |
+| `assert_media_ready_for_publication(image_ids)` | Lock and validate public media readiness |
 | `insert_pin_images_atomic(...)` | Atomic pin image insertion |
 
 ### Grade Management

@@ -1,7 +1,32 @@
+import type { MediaStatusResponse } from '@/lib/media/types'
+
 export const MAX_UPLOADS_PER_TARGET = 20
 export const THUMBNAIL_MAX_WIDTH = 320
 
-export type MediaUploadStatus = 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
+export type MediaUploadStatus = 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'PROCESSING' | 'MODERATING' | 'READY' | 'FAILED'
+
+export const MEDIA_UPLOAD_STATUS_LABELS: Partial<Record<MediaUploadStatus, string>> = {
+  PROCESSING: 'Uploaded, preparing photo',
+  MODERATING: 'Checking photo safety',
+  READY: 'Ready',
+}
+
+export function isMediaUploadPending(status: MediaUploadStatus) {
+  return status === 'QUEUED'
+    || status === 'PREPROCESSING'
+    || status === 'UPLOADING'
+    || status === 'PROCESSING'
+    || status === 'MODERATING'
+}
+
+export function mapMediaUploadStatus(status: MediaStatusResponse): MediaUploadStatus {
+  if (status.processingStatus === 'failed' || status.moderationStatus === 'rejected' || status.moderationStatus === 'error' || status.errorCode) {
+    return 'FAILED'
+  }
+  if (status.processingStatus !== 'ready') return 'PROCESSING'
+  if (status.moderationStatus === 'pending') return 'MODERATING'
+  return 'READY'
+}
 
 export type MediaUploadTarget =
   | { kind: 'draft'; draftId: string }

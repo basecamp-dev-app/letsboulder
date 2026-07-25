@@ -76,4 +76,25 @@ describe('DraftUploadQueue', () => {
     expect(onRetryUpload).toHaveBeenCalledWith('failed-1')
     expect(onRemoveUpload).toHaveBeenCalledWith('failed-1')
   })
+
+  it.each([
+    ['PROCESSING', 'Uploaded, preparing photo'],
+    ['MODERATING', 'Checking photo safety'],
+    ['READY', 'Ready'],
+  ] as const)('shows the %s lifecycle label', (status, label) => {
+    render(
+      <DraftUploadQueue
+        pendingDraftUploads={[createUpload({ status })]}
+        queuePaused={false}
+        draftId="draft-1"
+        hasPendingUploads={() => status !== 'READY'}
+        hasFailedUploads={() => false}
+        onRetryUpload={vi.fn()}
+        onRemoveUpload={vi.fn()}
+        onResumeQueue={vi.fn()}
+      />
+    )
+
+    expect(screen.getAllByText(label).length).toBeGreaterThan(0)
+  })
 })

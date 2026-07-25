@@ -21,6 +21,7 @@ interface DraftAppendImageInput {
   width?: number | null
   height?: number | null
   route_data?: Record<string, unknown>
+  linked_image_id?: string
 }
 
 const draftAppendImageSchema = z.object({
@@ -101,10 +102,47 @@ export async function appendDraftImages(input: {
     }
   }
 
+  const uploadIds = images.flatMap((image) => {
+    const match = image.storage_path.match(/images\/originals\/([0-9a-fA-F-]{36})/)
+    return match?.[1] ? [match[1]] : []
+  })
+  const { data: uploadedRows, error: uploadedRowsError } = uploadIds.length > 0
+    ? await supabase
+      .from('images')
+      .select('id, created_by, original_bucket, original_key, storage_bucket, storage_path')
+      .in('id', uploadIds)
+    : { data: [], error: null }
+
+  if (uploadedRowsError) return createErrorResponse(uploadedRowsError, 'Failed to resolve uploaded images')
+
+  const uploadedByPath = new Map((uploadedRows || []).flatMap((row: {
+    id: string
+    created_by: string | null
+    original_bucket: string | null
+    original_key: string | null
+    storage_bucket: string | null
+    storage_path: string | null
+  }) => {
+    if (row.created_by !== userId) return []
+    const keys = [
+      row.original_bucket && row.original_key ? `${row.original_bucket}/${row.original_key}` : null,
+      row.storage_bucket && row.storage_path ? `${row.storage_bucket}/${row.storage_path}` : null,
+    ].filter((key): key is string => key !== null)
+    return keys.map((key) => [key, row.id] as const)
+  }))
+  const linkedImages = images.map((image) => ({
+    ...image,
+    linked_image_id: uploadedByPath.get(`${image.storage_bucket}/${image.storage_path}`),
+  }))
+
+  if (linkedImages.some((image) => !image.linked_image_id)) {
+    return NextResponse.json({ error: 'Uploaded image record not found' }, { status: 400 })
+  }
+
   const expectedUpdatedAt = expectedUpdatedAtDate.toISOString()
   const { data: appendResultRaw, error: appendError } = await supabase.rpc('append_submission_draft_images_atomic', {
     p_draft_id: draftId,
-    p_images: images,
+    p_images: linkedImages,
     p_expected_updated_at: expectedUpdatedAt,
   })
 

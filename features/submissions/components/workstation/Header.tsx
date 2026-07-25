@@ -1,11 +1,12 @@
 'use client'
 
 import { ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react'
+import type { MediaUploadStatus } from '@/features/media-upload/lib/upload-types'
 
 interface WorkstationHeaderProps {
   activeImageLabel: string
   routeCountLabel: string
-  activeImageStatus?: 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
+  activeImageStatus?: MediaUploadStatus
   activeStatusLabel: string
   extraAction?: React.ReactNode
   addAction?: { loading?: boolean; disabled?: boolean; onClick: () => void }
@@ -29,7 +30,7 @@ export function WorkstationHeader({
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className="truncate text-base font-semibold text-gray-900 dark:text-gray-100">{activeImageLabel}</p>
             <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{routeCountLabel}</span>
-            {activeImageStatus && activeImageStatus !== 'SUCCESS' ? (
+            {activeImageStatus ? (
               <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">{activeStatusLabel}</span>
             ) : null}
           </div>

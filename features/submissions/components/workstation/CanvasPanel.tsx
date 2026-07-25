@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import type { ClimbType } from '@/types/climbing'
 import type { RouteLine } from '@/types/domain'
+import type { MediaUploadStatus } from '@/features/media-upload/lib/upload-types'
 
 interface WorkstationCanvasPanelProps {
   routeCanvasRef?: React.RefObject<UnifiedRouteCanvasRef | null>
   activeImageReady: boolean
-  activeImageStatus?: 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
+  activeImageStatus?: MediaUploadStatus
   activeStatusLabel: string
   activeImageUrl: string
   canvasKey: string

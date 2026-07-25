@@ -58,7 +58,7 @@ export function createAttachUpload({
             draftUpdatedAtRef.current.set(upload.target.draftId, payload.draft.updated_at)
           }
           const attachedRecordId = Array.isArray(payload.draft?.appended_image_ids) ? payload.draft?.appended_image_ids[0] || null : null
-          updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
+          updateUpload(clientId, (current) => ({ ...current, attachedRecordId }))
           const newUpdatedAt = payload.draft?.updated_at || null
           subscribersRef.current.forEach((cb) => {
             try { cb(upload.target, clientId, attachedRecordId, newUpdatedAt) } catch {}
@@ -87,7 +87,7 @@ export function createAttachUpload({
       throw new Error(payload.error || 'Failed to attach upload to crag')
     }
     const attachedRecordId = Array.isArray(payload.images) ? payload.images[0]?.id || null : null
-    updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
+    updateUpload(clientId, (current) => ({ ...current, attachedRecordId }))
     subscribersRef.current.forEach((cb) => {
       try { cb(upload.target, clientId, attachedRecordId) } catch {}
     })

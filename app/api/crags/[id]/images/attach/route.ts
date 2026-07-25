@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+import { isMediaPubliclyDeliverable, MEDIA_NOT_READY_CODE, MEDIA_NOT_READY_RESPONSE } from '@/lib/media/readiness'
 
 import { parseWithSchema } from '@/lib/api-validation'
 
@@ -18,6 +19,10 @@ interface UploadedImageRow {
   height: number | null
   latitude: number | null
   longitude: number | null
+  processing_status: string
+  moderation_status: string | null
+  visibility: string
+  status: string
 }
 
 const attachCragImagesSchema = z.object({
@@ -81,7 +86,7 @@ export async function POST(
     const uploadedImageIds = images.map((image) => image.uploaded_image_id)
     const { data: uploadedRows, error: uploadedError } = await supabase
       .from('images')
-      .select('id, created_by, storage_bucket, storage_path, width, height, latitude, longitude, capture_date')
+      .select('id, created_by, storage_bucket, storage_path, width, height, latitude, longitude, processing_status, moderation_status, visibility, status')
       .in('id', uploadedImageIds)
 
     if (uploadedError) {
@@ -101,6 +106,10 @@ export async function POST(
 
       if (uploaded.created_by !== userId) {
         throw new Error('Unauthorized uploaded image')
+      }
+
+      if (!isMediaPubliclyDeliverable(uploaded)) {
+        throw new Error(MEDIA_NOT_READY_CODE)
       }
 
       if (!uploaded.storage_bucket || !uploaded.storage_path) {
@@ -130,6 +139,9 @@ export async function POST(
 
     return NextResponse.json({ success: true, images: insertedRows || [] }, { status: 201 })
   } catch (error) {
+    if (error instanceof Error && error.message === MEDIA_NOT_READY_CODE) {
+      return NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 })
+    }
     if (error instanceof Error && error.message === 'Unauthorized uploaded image') {
       return NextResponse.json({ error: 'Unauthorized uploaded image' }, { status: 403 })
     }

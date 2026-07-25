@@ -2,17 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
-import { getMediaModerationConfig } from '@/lib/media/config'
+import { toMediaStatusResponse } from '@/lib/media/media-status'
 import { ensurePrivateObjectExists } from '@/lib/media/r2'
 import { parseWithSchema } from '@/lib/api-validation'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
+import type { Database } from '@/types/database'
 
-interface ImageRow {
-  id: string
-  created_by: string | null
-  original_bucket: string | null
-  original_key: string | null
-  processing_status: string | null
-}
+type ImageRow = Pick<Database['public']['Tables']['images']['Row'],
+  'id' | 'created_by' | 'original_bucket' | 'original_key' | 'processing_status' | 'moderation_status' | 'visibility' | 'status'>
 
 const completeUploadSchema = z.object({
   purpose: z.enum(['submission_image', 'draft_image', 'crag_image']).optional(),
@@ -40,7 +37,7 @@ export async function POST(
 
     const { data, error } = await supabase
       .from('images')
-      .select('id, created_by, original_bucket, original_key, processing_status')
+      .select('id, created_by, original_bucket, original_key, processing_status, moderation_status, visibility, status')
       .eq('id', imageId)
       .single()
 
@@ -58,19 +55,12 @@ export async function POST(
     }
 
     if (image.processing_status === 'ready') {
-      return NextResponse.json({
-        success: true,
-        imageId: image.id,
-        status: 'ready',
-      })
+      return NextResponse.json(toMediaStatusResponse(image, null))
     }
 
     await ensurePrivateObjectExists(image.original_key)
 
-    const moderation = getMediaModerationConfig()
-    const autoApprove = !moderation.enabled || moderation.provider === 'disabled'
-
-    const { error: queueError } = await supabase.rpc('queue_media_ingest_job', {
+    const { data: job, error: queueError } = await supabase.rpc('queue_media_ingest_job', {
       p_image_id: image.id,
       p_original_bucket: image.original_bucket,
       p_original_key: image.original_key,
@@ -78,18 +68,36 @@ export async function POST(
       p_purpose: purpose,
       p_triggered_by_user_id: user.id,
       p_trigger: 'upload',
-      p_auto_approve: autoApprove,
+      p_auto_approve: false,
     })
 
     if (queueError) {
       return createErrorResponse(queueError, 'Failed to queue image for ingest')
     }
 
-    return NextResponse.json({
-      success: true,
-      imageId: image.id,
-      status: 'queued',
-    })
+    const admin = getAdminClientWithAudit('Record skipped media moderation after ingest queueing')
+    const { error: moderationStateError } = await admin
+      .from('images')
+      .update({
+        moderation_status: 'skipped',
+        moderation_provider: 'disabled',
+        moderation_error: null,
+        visibility: 'private',
+        status: 'pending',
+      })
+      .eq('id', image.id)
+
+    if (moderationStateError) {
+      return createErrorResponse(moderationStateError, 'Failed to record skipped moderation state')
+    }
+
+    return NextResponse.json(toMediaStatusResponse({
+      id: image.id,
+      processing_status: 'queued',
+      moderation_status: 'skipped',
+      visibility: 'private',
+      status: 'pending',
+    }, job))
   } catch (error) {
     return createErrorResponse(error, 'Failed to finalize upload session')
   }

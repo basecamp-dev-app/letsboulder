@@ -14,6 +14,7 @@ import { useDraftUploadManager } from '@/features/media-upload/hooks/use-draft-u
 import { type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'
+import { isMediaUploadPending } from '@/features/media-upload/lib/upload-types'
 
 interface DraftImageRecord {
   id: string
@@ -117,9 +118,9 @@ export default function DraftIntakeView() {
   useEffect(() => {
     if (phase !== 'uploading' || uploads.length === 0) return
 
-      const allDone = uploads.every((u) => u.status === 'SUCCESS' || u.status === 'FAILED')
+      const allDone = uploads.every((u) => u.status === 'READY' || u.status === 'FAILED')
       if (allDone) {
-        const allSuccess = uploads.every((u) => u.status === 'SUCCESS')
+        const allSuccess = uploads.every((u) => u.status === 'READY')
         setPhase(allSuccess ? 'complete' : 'failed')
       }
   }, [uploads, phase])
@@ -258,10 +259,10 @@ export default function DraftIntakeView() {
     }
   }, [addToast, draftId, draftImages, loadDraftImages, registerDraftUpdatedAt, reordering])
 
-  const successCount = uploads.filter((u) => u.status === 'SUCCESS').length
+  const successCount = uploads.filter((u) => u.status === 'READY').length
   const failedCount = uploads.filter((u) => u.status === 'FAILED').length
   const totalCount = uploads.length
-  const hasInFlightUploads = uploads.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
+  const hasInFlightUploads = uploads.some((upload) => isMediaUploadPending(upload.status))
   const hasAnyImages = galleryImages.length > 0
   const hasAttachedImages = draftImages.length > 0
   const canContinueToEditor = hasAttachedImages && !hasInFlightUploads

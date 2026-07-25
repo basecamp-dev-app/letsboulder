@@ -1,6 +1,6 @@
 'use client'
 
-import type { MediaUploadItem } from '@/features/media-upload/lib/upload-types'
+import { MEDIA_UPLOAD_STATUS_LABELS, type MediaUploadItem } from '@/features/media-upload/lib/upload-types'
 
 interface DraftUploadQueueProps {
   pendingDraftUploads: MediaUploadItem[]
@@ -61,7 +61,7 @@ export function DraftUploadQueue({
         </div>
       ) : null}
       <div className="mt-3 space-y-2">
-        {pendingDraftUploads.filter((upload) => !upload.attachedRecordId).map((upload) => (
+        {pendingDraftUploads.filter((upload) => !upload.attachedRecordId || upload.status !== 'READY').map((upload) => (
           <div key={upload.clientId} className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
             <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800">
               {upload.previewUrl ? (
@@ -80,7 +80,7 @@ export function DraftUploadQueue({
                     ? 'Waiting in queue'
                     : upload.status === 'PREPROCESSING'
                       ? 'Preparing image'
-                      : `Uploading ${upload.progress}%`}
+                      : MEDIA_UPLOAD_STATUS_LABELS[upload.status] || `Uploading ${upload.progress}%`}
               </p>
             </div>
             {upload.status === 'FAILED' ? (
@@ -106,8 +106,12 @@ export function DraftUploadQueue({
                   <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700">
                     <div className="h-2 rounded-full bg-blue-500 transition-all" style={{ width: `${upload.progress}%` }} />
                   </div>
-                ) : upload.status === 'PREPROCESSING' ? (
+                ) : upload.status === 'PREPROCESSING' || upload.status === 'PROCESSING' || upload.status === 'MODERATING' ? (
                   <div className="h-2 rounded-full bg-gradient-to-r from-gray-300 via-gray-400 to-gray-300 dark:from-gray-700 dark:via-gray-500 dark:to-gray-700" />
+                ) : upload.status === 'READY' ? (
+                  <div className="rounded-full bg-green-50 px-2 py-1 text-center text-[11px] font-medium text-green-700 dark:bg-green-950/30 dark:text-green-300">
+                    Ready
+                  </div>
                 ) : (
                   <div className="rounded-full bg-gray-100 px-2 py-1 text-center text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-300">
                     Queued

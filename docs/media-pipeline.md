@@ -23,12 +23,12 @@
 3. CDN (Cloudflare) serves the image from the R2 public bucket at `static.letsboulder.com` (prod) / `static.dev.letsboulder.com` (staging)
 4. Worker `GET /media/<key>` serves public objects; `GET /origin/<key>` serves private originals with auth
 
-## Moderation Flow
+## Moderation State
 
-1. Upload completion records whether moderation is enabled and sets `moderation_status` to `approved` or `pending`
-2. GPS data is extracted client-side before upload and persisted on the `images` row
-3. Durable ingest still queues through `media_jobs`; moderation-enabled worker processing must finalize approval before public delivery
-4. Moderation is optional and disabled environments auto-approve media during upload completion
+1. Automated moderation is disabled; uploads explicitly use `moderation_status = 'skipped'` and `moderation_provider = 'disabled'`
+2. Uploads remain private while durable ingest is queued or processing
+3. The Worker publishes media only after successful processing, while preserving the skipped moderation state
+4. GPS data is extracted client-side before upload and persisted on the `images` row
 
 ## Draft Image Flow
 

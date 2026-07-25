@@ -68,7 +68,7 @@ class LinkedImageGroups {
 }
 
 function toSubmittedStatus(moderationStatus: string | null | undefined): 'pending_review' | 'published' {
-  return moderationStatus === 'approved' ? 'published' : 'pending_review'
+  return moderationStatus === 'approved' || moderationStatus === 'skipped' ? 'published' : 'pending_review'
 }
 
 function pickCragName(value: SubmissionImageRow['crags']): string | null {
@@ -167,7 +167,7 @@ export function groupSubmittedImages(
         contribution_credit_platform: row.contribution_credit_platform || null,
         contribution_credit_handle: row.contribution_credit_handle || null,
         image_ids: [row.id],
-        has_published_image: row.moderation_status === 'approved',
+        has_published_image: row.moderation_status === 'approved' || row.moderation_status === 'skipped',
       })
       continue
     }
@@ -202,7 +202,7 @@ export function groupSubmittedImages(
     if (!existing.image_ids.includes(row.id)) {
       existing.image_ids.push(row.id)
     }
-    if (row.moderation_status === 'approved') {
+    if (row.moderation_status === 'approved' || row.moderation_status === 'skipped') {
       existing.has_published_image = true
     }
   }

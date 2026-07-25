@@ -34,6 +34,7 @@ export interface PreparedRoute {
 }
 
 export interface NewSubmissionImage {
+  uploadedImageId: string
   uploadedBucket: string
   uploadedPath: string
   uploadedUrl?: string

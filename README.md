@@ -72,7 +72,6 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | `R2_SECRET_ACCESS_KEY` | Yes | R2 secret key |
 | `NEXT_PUBLIC_MEDIA_CDN_URL` | Yes | CDN base URL |
 | `CSRF_SECRET` | Prod | JWT signing secret for CSRF tokens |
-| `INTERNAL_MODERATION_SECRET` | Prod | Photo moderation queue secret |
 | `RESEND_API_KEY` | No | Transactional emails (Resend) |
 
 ## Deployment

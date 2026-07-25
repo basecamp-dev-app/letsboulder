@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { extractGpsFromFile } from '@/lib/image-gps'
-import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
+import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, pollMediaUploadStatus, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import { createAttachUpload } from '@/features/media-upload/lib/attach-upload'
 import { enqueueUploads, prepareRetryQueue, removeUploadEntry, resetQueuedUpload } from '@/features/media-upload/lib/media-upload-controller-helpers'
 import { buildPreviewUrl, getImageDimensions, preprocessFile } from '@/features/media-upload/lib/preprocess-image'
 import { pickNextQueueClientId, resetUploadForQueue } from '@/features/media-upload/lib/media-upload-queue-state'
 import { shouldResumeQueuedUploads } from '@/features/media-upload/lib/media-upload-resume-state'
-import { createClientId, ensureFileName, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
+import { createClientId, ensureFileName, mapMediaUploadStatus, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
 
 export interface MediaUploadQueueController {
   uploads: Record<string, MediaUploadItem>
@@ -25,6 +25,24 @@ export interface MediaUploadQueueController {
 }
 
 type UploadStateUpdater = (current: MediaUploadItem) => MediaUploadItem
+
+function waitForLifecyclePoll(signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Upload aborted', 'AbortError'))
+      return
+    }
+    const handleAbort = () => {
+      window.clearTimeout(timeoutId)
+      reject(new DOMException('Upload aborted', 'AbortError'))
+    }
+    const timeoutId = window.setTimeout(() => {
+      signal.removeEventListener('abort', handleAbort)
+      resolve()
+    }, 1000)
+    signal.addEventListener('abort', handleAbort, { once: true })
+  })
+}
 
 export function useMediaUploadQueueController(): MediaUploadQueueController {
   const [uploads, setUploads] = useState<Record<string, MediaUploadItem>>({})
@@ -91,6 +109,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     const abortController = new AbortController()
     activeAbortControllerRef.current = abortController
     let uploadSessionImageId: string | null = null
+    let transferCompleted = false
 
     uploadDebug('process-active-entry-start', {
       clientId: entry.clientId,
@@ -162,20 +181,23 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       })
       updateUpload(entry.clientId, (current) => ({ ...current, progress: 80 }))
 
-      await completeMediaUploadSession(uploadSession.imageId, entry.target.kind === 'draft' ? 'draft_image' : 'crag_image', abortController.signal)
+      const completion = await completeMediaUploadSession(uploadSession.imageId, entry.target.kind === 'draft' ? 'draft_image' : 'crag_image', abortController.signal)
       uploadDebug('upload-session-complete-succeeded', {
         clientId: entry.clientId,
         imageId: uploadSession.imageId,
       })
-      updateUpload(entry.clientId, (current) => ({ ...current, progress: 90 }))
-      await attachUpload(entry.clientId)
-      uploadDebug('attach-upload-succeeded', {
-        clientId: entry.clientId,
-        imageId: uploadSession.imageId,
-      })
-
-      const previewClientId = entry.clientId
-      setTimeout(() => revokePreviewUrl(previewClientId), 10000)
+      updateUpload(entry.clientId, (current) => ({
+        ...current,
+        status: mapMediaUploadStatus(completion),
+        progress: 90,
+      }))
+      if (entry.target.kind === 'draft') {
+        await attachUpload(entry.clientId)
+        uploadDebug('attach-upload-succeeded', {
+          clientId: entry.clientId,
+          imageId: uploadSession.imageId,
+        })
+      }
 
       const nextQueueOrder = queueOrderRef.current.filter((clientId) => clientId !== entry.clientId)
       queueOrderRef.current = nextQueueOrder
@@ -184,6 +206,37 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
         activeClientIdRef.current = null
       }
       setActiveClientId(null)
+      transferCompleted = true
+      startNextUploadRef.current()
+
+      let finalStatus = completion
+      while (mapMediaUploadStatus(finalStatus) !== 'READY' && mapMediaUploadStatus(finalStatus) !== 'FAILED') {
+        if (mapMediaUploadStatus(finalStatus) === 'MODERATING') {
+          await waitForLifecyclePoll(abortController.signal)
+        }
+        finalStatus = await pollMediaUploadStatus(uploadSession.imageId, abortController.signal, (statusResponse) => {
+          updateUpload(entry.clientId, (current) => ({
+            ...current,
+            status: mapMediaUploadStatus(statusResponse),
+          }))
+        })
+      }
+      const finalUploadStatus = mapMediaUploadStatus(finalStatus)
+      if (finalUploadStatus === 'READY' && entry.target.kind === 'crag') {
+        await attachUpload(entry.clientId)
+        uploadDebug('attach-upload-succeeded', {
+          clientId: entry.clientId,
+          imageId: uploadSession.imageId,
+        })
+      }
+      updateUpload(entry.clientId, (current) => ({
+        ...current,
+        status: finalUploadStatus,
+        progress: finalUploadStatus === 'READY' ? 100 : current.progress,
+        error: finalUploadStatus === 'FAILED' ? finalStatus.errorCode || 'Photo processing failed' : null,
+      }))
+      const previewClientId = entry.clientId
+      setTimeout(() => revokePreviewUrl(previewClientId), 10000)
     } catch (error) {
       const isAbortError = error instanceof DOMException ? error.name === 'AbortError' : error instanceof Error && error.name === 'AbortError'
       uploadDebug('process-active-entry-error', {
@@ -194,7 +247,16 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       })
 
       if (isAbortError) {
-        updateUpload(entry.clientId, resetUploadForQueue)
+        if (!transferCompleted) updateUpload(entry.clientId, resetUploadForQueue)
+        return
+      }
+
+      if (transferCompleted) {
+        updateUpload(entry.clientId, (current) => ({
+          ...current,
+          status: 'FAILED',
+          error: error instanceof Error ? error.message : 'Failed to process image',
+        }))
         return
       }
 
@@ -226,8 +288,8 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       abortController.abort()
       if (activeClientIdRef.current === entry.clientId) {
         activeClientIdRef.current = null
+        setActiveClientId(null)
       }
-      setActiveClientId(null)
       startNextUploadRef.current()
     }
   }, [attachUpload, revokePreviewUrl, setQueuePaused, updateUpload])

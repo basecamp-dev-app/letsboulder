@@ -2,13 +2,14 @@
 
 import { GripHorizontal, Loader2, Trash2 } from 'lucide-react'
 import type { DragEvent } from 'react'
+import type { MediaUploadStatus } from '@/features/media-upload/lib/upload-types'
 
 interface WorkstationImage {
   imageId: string
   signedUrl: string
   badgeNumber: number
   isDefault?: boolean
-  status?: 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
+  status?: MediaUploadStatus
   error?: string | null
   progress?: number
   locationMode?: 'shared' | 'custom'
@@ -170,7 +171,11 @@ export function WorkstationImageStrip({
                             ? 'Preparing'
                             : image.status === 'UPLOADING'
                               ? `Up ${image.progress || 0}%`
-                              : 'Ready'}
+                              : image.status === 'PROCESSING'
+                                ? 'Preparing'
+                                : image.status === 'MODERATING'
+                                  ? 'Checking'
+                                  : 'Ready'}
                     </div>
                   )}
                 </div>

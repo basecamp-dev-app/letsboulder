@@ -1,3 +1,5 @@
+import { NextResponse } from 'next/server'
+import { isMediaNotReadyError, isMediaPubliclyDeliverable, MEDIA_NOT_READY_RESPONSE } from '@/lib/media/readiness'
 import type { PreparedRoute, NewSubmissionImage } from '@/features/submissions/server/submissions/submit-route-validation'
 import type { UnifiedSubmissionResult } from '@/features/submissions/server/submissions/submit-shared'
 import type { ExecutorDependencies, RoutePayloadItem } from '@/features/submissions/server/submissions/submit-types'
@@ -17,12 +19,27 @@ export async function executeNewImageSubmission(input: ExecutorDependencies & {
 }) {
   const { supabase, supabaseAdmin, body, validatedNewImages, primaryNewImage, normalizedFaceDirectionsByImage, routePayload, normalizedRouteType, preparedRoutes } = input
 
+  const uploadedImageIds = validatedNewImages.map((image) => image.uploadedImageId)
+  const { data: uploadedRows, error: uploadedError } = await supabase
+    .from('images')
+    .select('id, processing_status, moderation_status, visibility, status')
+    .in('id', uploadedImageIds)
+
+  if (uploadedError) {
+    return { error: input.createErrorResponse(uploadedError, 'Error validating uploaded media') }
+  }
+
+  if ((uploadedRows || []).length !== uploadedImageIds.length || !(uploadedRows || []).every(isMediaPubliclyDeliverable)) {
+    return { error: NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 }) }
+  }
+
   const cleanupUploadedBlobs = validatedNewImages.map((img) => ({
     bucket: img.uploadedBucket,
     path: img.uploadedPath,
   }))
 
   const primaryPayload = {
+    image_id: primaryNewImage.uploadedImageId,
     url: `private://${primaryNewImage.uploadedBucket}/${primaryNewImage.uploadedPath}`,
     storage_bucket: primaryNewImage.uploadedBucket,
     storage_path: primaryNewImage.uploadedPath,
@@ -41,6 +58,7 @@ export async function executeNewImageSubmission(input: ExecutorDependencies & {
     .map((img, index) => ({ img, index }))
     .filter(({ index }) => index !== body.primaryIndex)
     .map(({ img, index }) => ({
+      image_id: img.uploadedImageId,
       url: `private://${img.uploadedBucket}/${img.uploadedPath}`,
       width: img.width,
       height: img.height,
@@ -56,7 +74,12 @@ export async function executeNewImageSubmission(input: ExecutorDependencies & {
     p_route_type: normalizedRouteType || 'sport',
   })
 
-  if (unifiedError) throw unifiedError
+  if (unifiedError) {
+    if (isMediaNotReadyError(unifiedError)) {
+      return { error: NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 }) }
+    }
+    throw unifiedError
+  }
 
   const unifiedResult = (Array.isArray(unifiedData) ? unifiedData[0] : unifiedData) as UnifiedSubmissionResult | null
   if (!unifiedResult?.image_id) throw new Error('Unified submission did not return image_id')

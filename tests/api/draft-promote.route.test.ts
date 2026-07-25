@@ -1,21 +1,8 @@
 import { describe, expect, test, vi } from 'vitest'
 import { createServerClient } from '@supabase/ssr'
 
-const mockServerEnv = vi.hoisted(() => ({
-  INTERNAL_MODERATION_SECRET: 'test-moderation-secret',
-}))
-
-vi.mock('@/lib/env.server', () => ({
-  serverEnv: mockServerEnv,
-  getServerEnv: () => mockServerEnv,
-}))
-
 vi.mock('@/lib/discord', () => ({
   notifyNewSubmission: vi.fn(async () => undefined),
-}))
-
-vi.mock('@/lib/media/config', () => ({
-  getMediaModerationConfig: vi.fn(() => ({ enabled: false })),
 }))
 
 import { promoteDraftToSubmission } from '@/features/submissions/server/drafts/draft-promote'
@@ -30,7 +17,7 @@ function makeThenableResult<T>(result: T) {
   }
 }
 
-function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallbackRouteData?: boolean }) {
+function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallbackRouteData?: boolean; mediaReady?: boolean }) {
   const includeAllImageRoutes = options?.includeAllImageRoutes ?? true
   const includeFallbackRouteData = options?.includeFallbackRouteData ?? false
 
@@ -63,6 +50,7 @@ function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallba
               data: [
                 {
                   id: 'draft-image-1',
+                  linked_image_id: 'image-1',
                   display_order: 0,
                   latitude: 49.45,
                   longitude: -2.55,
@@ -82,7 +70,7 @@ function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallba
                       }
                     : null,
                 },
-                { id: 'draft-image-2', display_order: 1, latitude: 49.46, longitude: -2.54, route_data: null },
+                { id: 'draft-image-2', linked_image_id: 'image-2', display_order: 1, latitude: 49.46, longitude: -2.54, route_data: null },
               ],
               error: null,
             })),
@@ -107,8 +95,13 @@ function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallba
       }
 
       if (table === 'images') {
+        const readyRows = [
+          { id: 'image-1', processing_status: 'ready', moderation_status: 'approved', visibility: 'public', status: 'approved' },
+          { id: 'image-2', processing_status: 'ready', moderation_status: 'skipped', visibility: 'public', status: 'approved' },
+        ].map((row) => options?.mediaReady === false ? { ...row, processing_status: 'processing' } : row)
         return {
           select: vi.fn(() => ({
+            in: vi.fn(async (_column: string, ids: string[]) => ({ data: readyRows.filter((row) => ids.includes(row.id)), error: null })),
             eq: vi.fn(() => ({
               maybeSingle: vi.fn(async () => ({
                 data: {
@@ -164,6 +157,25 @@ function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallba
 }
 
 describe('promoteDraftToSubmission', () => {
+  test('rejects publication until every linked image is publicly deliverable', async () => {
+    const supabase = makeSupabase({ mediaReady: false })
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      code: 'media_not_ready',
+      error: 'Some photos are still being prepared or reviewed.',
+      message: 'Some photos are still being prepared or reviewed.',
+    })
+    expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
+  })
+
   test('sends a Discord notification after publishing a draft', async () => {
     const supabase = makeSupabase()
 
@@ -276,6 +288,7 @@ describe('promoteDraftToSubmission', () => {
               data: [
                 {
                   id: 'draft-image-1',
+                  linked_image_id: 'image-1',
                   display_order: 0,
                   latitude: 49.45,
                   longitude: -2.55,
@@ -293,7 +306,7 @@ describe('promoteDraftToSubmission', () => {
                     }],
                   },
                 },
-                { id: 'draft-image-2', display_order: 1, latitude: 49.46, longitude: -2.54, route_data: null },
+                { id: 'draft-image-2', linked_image_id: 'image-2', display_order: 1, latitude: 49.46, longitude: -2.54, route_data: null },
               ],
               error: null,
             })),
@@ -319,8 +332,13 @@ describe('promoteDraftToSubmission', () => {
       }
 
       if (table === 'images') {
+        const readyRows = [
+          { id: 'image-1', processing_status: 'ready', moderation_status: 'approved', visibility: 'public', status: 'approved' },
+          { id: 'image-2', processing_status: 'ready', moderation_status: 'approved', visibility: 'public', status: 'approved' },
+        ]
         return {
           select: vi.fn(() => ({
+            in: vi.fn(async (_column: string, ids: string[]) => ({ data: readyRows.filter((row) => ids.includes(row.id)), error: null })),
             eq: vi.fn(() => ({
               maybeSingle: vi.fn(async () => ({
                 data: {
@@ -433,6 +451,7 @@ describe('promoteDraftToSubmission', () => {
               data: [
                 {
                   id: 'draft-image-1',
+                  linked_image_id: 'image-1',
                   display_order: 0,
                   latitude: 49.45,
                   longitude: -2.55,
@@ -559,6 +578,7 @@ describe('promoteDraftToSubmission', () => {
               data: [
                 {
                   id: 'draft-image-1',
+                  linked_image_id: 'image-1',
                   display_order: 0,
                   latitude: null,
                   longitude: null,

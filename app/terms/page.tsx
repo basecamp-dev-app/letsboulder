@@ -146,7 +146,7 @@ export default function TermsPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">12. Third-Party Services</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            letsboulder relies on third-party services including Supabase, Vercel, Vercel Analytics, Vercel Speed Insights, Resend, AWS Rekognition, Cloudflare (R2 storage, Workers, CDN), and Sentry. Their services are subject to their own terms and privacy practices.
+            letsboulder relies on third-party services including Supabase, Vercel, Vercel Analytics, Vercel Speed Insights, Resend, Cloudflare (R2 storage, Workers, CDN), and Sentry. Their services are subject to their own terms and privacy practices.
           </p>
         </section>
 

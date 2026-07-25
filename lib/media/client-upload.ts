@@ -1,5 +1,6 @@
 import { csrfFetch } from '@/lib/csrf-client'
 import { uploadDebug } from '@/lib/media/upload-debug'
+import type { MediaStatusResponse } from '@/lib/media/types'
 
 interface UploadSessionRequest {
   purpose: 'submission_image' | 'draft_image' | 'crag_image'
@@ -48,6 +49,7 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
 
 const RETRYABLE_UPLOAD_STATUSES = new Set([408, 409, 425, 429, 500, 502, 503, 504])
 const UPLOAD_RETRY_DELAYS_MS = [500, 1000, 2000, 4000, 8000]
+const STATUS_POLL_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 8000, 8000, 8000]
 
 async function parseJson<T>(response: Response): Promise<T | null> {
   return response.json().catch(() => null)
@@ -238,7 +240,7 @@ export async function uploadFileToMediaSession(uploadUrl: string, uploadHeaders:
   throw lastError || new Error('Upload failed')
 }
 
-export async function completeMediaUploadSession(imageId: string, purpose: UploadPurpose = 'submission_image', signal?: AbortSignal) {
+export async function completeMediaUploadSession(imageId: string, purpose: UploadPurpose = 'submission_image', signal?: AbortSignal): Promise<MediaStatusResponse> {
   const response = await csrfFetch(`/api/media/upload-sessions/${encodeURIComponent(imageId)}/complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -246,9 +248,45 @@ export async function completeMediaUploadSession(imageId: string, purpose: Uploa
     signal,
   })
 
-  const data = await parseJson<{ error?: string }>(response)
-  if (!response.ok) {
+  const data = await parseJson<MediaStatusResponse & { error?: string }>(response)
+  if (!response.ok || !data) {
     throw new Error(data?.error || 'Failed to finalize upload session')
+  }
+
+  return data
+}
+
+export async function getMediaUploadStatus(imageId: string, signal?: AbortSignal): Promise<MediaStatusResponse> {
+  const response = await fetch(`/api/media/upload-sessions/${encodeURIComponent(imageId)}`, { signal })
+  const data = await parseJson<MediaStatusResponse & { error?: string }>(response)
+  if (!response.ok || !data) {
+    throw new Error(data?.error || 'Failed to get upload status')
+  }
+
+  return data
+}
+
+export async function pollMediaUploadStatus(
+  imageId: string,
+  signal?: AbortSignal,
+  onStatus?: (status: MediaStatusResponse) => void
+): Promise<MediaStatusResponse> {
+  let attempt = 0
+  while (true) {
+    try {
+      const status = await getMediaUploadStatus(imageId, signal)
+      onStatus?.(status)
+      const moderationFinished = status.moderationStatus !== 'pending'
+      if (status.processingStatus === 'failed' || (status.processingStatus === 'ready' && moderationFinished)) {
+        return status
+      }
+    } catch (error) {
+      if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) throw error
+    }
+
+    const delayMs = STATUS_POLL_DELAYS_MS[Math.min(attempt, STATUS_POLL_DELAYS_MS.length - 1)]
+    attempt += 1
+    await waitForRetry(delayMs, signal)
   }
 }
 

@@ -11,13 +11,14 @@ import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { RouteEditorRail } from '@/features/route-editor/components/RouteEditorRail'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import type { RouteLine } from '@/types/domain'
+import { MEDIA_UPLOAD_STATUS_LABELS, type MediaUploadStatus } from '@/features/media-upload/lib/upload-types'
 
 interface WorkstationImage {
   imageId: string
   signedUrl: string
   badgeNumber: number
   isDefault?: boolean
-  status?: 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
+  status?: MediaUploadStatus
   error?: string | null
   progress?: number
   locationMode?: 'shared' | 'custom'
@@ -113,7 +114,9 @@ export function SubmissionWorkstation({
       ? 'Compressing and preparing...'
       : activeImageStatus === 'FAILED'
         ? 'Upload failed.'
-        : 'Uploading...'
+        : activeImageStatus
+          ? MEDIA_UPLOAD_STATUS_LABELS[activeImageStatus] || 'Uploading...'
+          : 'Uploading...'
 
   return (
     <div ref={drawingAreaRef} className="mb-1 space-y-3">

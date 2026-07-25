@@ -13,7 +13,13 @@ export type MediaIngestTrigger = 'upload' | 'backfill'
 
 export type MediaModerationStatus = 'pending' | 'approved' | 'rejected' | 'skipped' | 'error'
 
-export type MediaModerationProvider = 'aws_rekognition' | 'disabled'
+export interface MediaStatusResponse {
+  imageId: string
+  processingStatus: 'queued' | 'processing' | 'ready' | 'failed'
+  moderationStatus: MediaModerationStatus
+  retryable: boolean
+  errorCode: string | null
+}
 
 export interface MediaVariantAsset {
   path: string

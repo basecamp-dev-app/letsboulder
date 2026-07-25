@@ -33,8 +33,6 @@ export type MessageBatch<T> = {
 }
 
 export interface Env {
-  ENABLE_MODERATION: string
-  MEDIA_MODERATION_PROVIDER: string
   MEDIA_HOST: string
   R2_ORIGIN_URL: string
   R2_PRIVATE_BUCKET: string
