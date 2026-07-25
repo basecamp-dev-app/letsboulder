@@ -9,10 +9,14 @@ import { isMediaUploadPending, mapMediaUploadStatus, MEDIA_UPLOAD_STATUS_LABELS 
 
 const uploadMocks = vi.hoisted(() => ({
   buildPreviewUrl: vi.fn(),
+  completeMediaUploadSession: vi.fn(),
   createMediaUploadSession: vi.fn(),
+  deleteMediaUploadSession: vi.fn(),
   extractGpsFromFile: vi.fn(),
   getImageDimensions: vi.fn(),
+  pollMediaUploadStatus: vi.fn(),
   preprocessFile: vi.fn(),
+  uploadFileToMediaSession: vi.fn(),
 }))
 
 vi.mock('@/lib/image-gps', () => ({
@@ -20,10 +24,11 @@ vi.mock('@/lib/image-gps', () => ({
 }))
 
 vi.mock('@/lib/media/client-upload', () => ({
-  completeMediaUploadSession: vi.fn(),
+  completeMediaUploadSession: uploadMocks.completeMediaUploadSession,
   createMediaUploadSession: uploadMocks.createMediaUploadSession,
-  deleteMediaUploadSession: vi.fn(),
-  uploadFileToMediaSession: vi.fn(),
+  deleteMediaUploadSession: uploadMocks.deleteMediaUploadSession,
+  pollMediaUploadStatus: uploadMocks.pollMediaUploadStatus,
+  uploadFileToMediaSession: uploadMocks.uploadFileToMediaSession,
 }))
 
 vi.mock('@/lib/media/upload-debug', () => ({
@@ -60,10 +65,15 @@ function createUpload(overrides: Partial<MediaUploadItem> = {}): MediaUploadItem
 
 describe('media upload queue state machine', () => {
   beforeEach(() => {
+    uploadMocks.createMediaUploadSession.mockReset()
     uploadMocks.buildPreviewUrl.mockResolvedValue('')
+    uploadMocks.completeMediaUploadSession.mockResolvedValue({ imageId: 'image-1', processingStatus: 'ready', moderationStatus: 'skipped', retryable: false, errorCode: null })
+    uploadMocks.deleteMediaUploadSession.mockResolvedValue(undefined)
     uploadMocks.extractGpsFromFile.mockResolvedValue(null)
     uploadMocks.getImageDimensions.mockResolvedValue({ width: 1200, height: 900 })
+    uploadMocks.pollMediaUploadStatus.mockResolvedValue({ imageId: 'image-1', processingStatus: 'ready', moderationStatus: 'skipped', retryable: false, errorCode: null })
     uploadMocks.preprocessFile.mockImplementation(async (file: File) => file)
+    uploadMocks.uploadFileToMediaSession.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -137,34 +147,45 @@ describe('media upload queue state machine', () => {
     })).toBeNull()
   })
 
-  it('does not restart a failed upload automatically and allows explicit retry', async () => {
-    vi.useFakeTimers()
-    uploadMocks.createMediaUploadSession.mockRejectedValue(new Error('Failed to create upload session'))
-    const { result } = renderHook(() => useMediaUploadQueueController())
-    const file = new File(['image'], 'test.jpg', { type: 'image/jpeg' })
+  it('continues after one upload fails and allows explicit retry', async () => {
+    uploadMocks.createMediaUploadSession
+      .mockRejectedValueOnce(new Error('Failed to create upload session'))
+      .mockResolvedValue({
+        imageId: 'image-1',
+        objectKey: 'uploads/image-1.jpg',
+        bucket: 'media',
+        uploadUrl: 'https://example.com/upload',
+        uploadMethod: 'PUT',
+        uploadHeaders: {},
+        expiresInSeconds: 300,
+      })
+    const { result, unmount } = renderHook(() => useMediaUploadQueueController())
+    const corruptFile = new File(['bad'], 'corrupt.jpg', { type: 'image/jpeg' })
+    const validFile = new File(['image'], 'valid.jpg', { type: 'image/jpeg' })
 
     act(() => {
-      result.current.queueUploads([file], { kind: 'draft', draftId: 'draft-1' })
-    })
-
-    await vi.waitFor(() => {
-      expect(uploadMocks.createMediaUploadSession).toHaveBeenCalledTimes(1)
-      expect(Object.values(result.current.uploads)[0]?.status).toBe('FAILED')
-      expect(result.current.isPaused).toBe(true)
-    })
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(15_000)
-    })
-    expect(uploadMocks.createMediaUploadSession).toHaveBeenCalledTimes(1)
-
-    const clientId = Object.keys(result.current.uploads)[0]
-    act(() => {
-      result.current.retryUpload(clientId)
+      result.current.queueUploads([corruptFile, validFile], { kind: 'crag', cragId: 'crag-1' })
     })
 
     await vi.waitFor(() => {
       expect(uploadMocks.createMediaUploadSession).toHaveBeenCalledTimes(2)
+      expect(Object.values(result.current.uploads).find((upload) => upload.fileName === 'corrupt.jpg')?.status).toBe('FAILED')
+      expect(Object.values(result.current.uploads).find((upload) => upload.fileName === 'valid.jpg')?.status).toBe('READY')
     })
+
+    expect(result.current.isPaused).toBe(false)
+    expect(result.current.queueOrder).toEqual([])
+
+    const clientId = Object.values(result.current.uploads).find((upload) => upload.fileName === 'corrupt.jpg')?.clientId
+    expect(clientId).toBeDefined()
+    act(() => {
+      result.current.retryUpload(clientId!)
+    })
+
+    await vi.waitFor(() => {
+      expect(uploadMocks.createMediaUploadSession).toHaveBeenCalledTimes(3)
+      expect(result.current.uploads[clientId!]?.status).toBe('READY')
+    })
+    unmount()
   })
 })
