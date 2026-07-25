@@ -3293,6 +3293,19 @@ export type Database = {
         Args: { target_crag_id: string }
         Returns: undefined
       }
+      repair_submission_draft_crag_country: {
+        Args: {
+          p_country_code: string
+          p_country_name?: string
+          p_crag_id: string
+          p_draft_id: string
+          p_latitude: number
+          p_longitude: number
+          p_region_name?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       resolve_missing_topo_bounty: {
         Args: {
           p_image_id: string

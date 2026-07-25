@@ -247,7 +247,8 @@ async function exists(client: Queryable, table: string, id: string): Promise<boo
 beforeAll(async () => {
   const migration = await pool.query(
     `select to_regprocedure('public.promote_draft_to_submission(uuid)') is not null
-       and to_regprocedure('public.delete_empty_crag(uuid,interval)') is not null as installed`,
+       and to_regprocedure('public.delete_empty_crag(uuid,interval)') is not null
+       and to_regprocedure('public.repair_submission_draft_crag_country(uuid,uuid,uuid,double precision,double precision,text,text,text)') is not null as installed`,
   )
   if (!migration.rows[0].installed) throw new Error('Forward publication safety migrations are not installed')
 })
@@ -257,6 +258,134 @@ afterAll(async () => {
 })
 
 describe('forward publication safety migrations', () => {
+  it('repairs a countryless draft crag from persisted image GPS', async () => {
+    await transaction(async (client) => {
+      const userId = await createUser(client)
+      const countryId = randomUUID()
+      const cragId = randomUUID()
+      const draftId = randomUUID()
+      await client.query(
+        `insert into public.countries (id, iso_a2, iso_a3, name, boundary)
+         values ($1, 'XZ', 'XZZ', 'Database Test Country',
+           ST_Multi(ST_GeomFromText('POLYGON((-1 50,1 50,1 52,-1 52,-1 50))', 4326)))`,
+        [countryId],
+      )
+      await client.query(
+        `insert into public.crags (id, name, type, slug)
+         values ($1, 'Countryless crag', 'sport', $2)`,
+        [cragId, `countryless-${cragId}`],
+      )
+      await client.query(
+        `insert into public.submission_drafts (id, user_id, crag_id, metadata)
+         values ($1, $2, $3, '{"submission":{}}'::jsonb)`,
+        [draftId, userId, cragId],
+      )
+      await client.query(
+        `insert into public.submission_draft_images (
+           draft_id, display_order, latitude, longitude, storage_provider,
+           storage_bucket, storage_path, original_bucket, original_key, processing_status
+         ) values ($1, 0, 51.0997358, 0.1870059, 'r2', 'database-tests', $2,
+           'database-tests', $2, 'ready')`,
+        [draftId, `drafts/${draftId}/country-repair.jpg`],
+      )
+
+      const staleLocationError = await rpcError(
+        client,
+        `select public.repair_submission_draft_crag_country(
+           p_draft_id => $1, p_user_id => $2, p_crag_id => $3,
+           p_latitude => 50.5, p_longitude => 0.1870059, p_country_code => 'XZ'
+         )`,
+        [draftId, userId, cragId],
+      )
+      expect(staleLocationError.message).toContain('Draft location changed before crag country repair')
+
+      const repaired = await client.query(
+        `select public.repair_submission_draft_crag_country(
+           p_draft_id => $1, p_user_id => $2, p_crag_id => $3,
+           p_latitude => 51.0997358, p_longitude => 0.1870059, p_country_code => 'XZ',
+           p_country_name => 'Database Test Country', p_region_name => 'Test Region'
+         ) as country_code`,
+        [draftId, userId, cragId],
+      )
+
+      expect(repaired.rows[0].country_code).toBe('XZ')
+      const crag = await client.query('select country_code, country_id from public.crags where id = $1', [cragId])
+      expect(crag.rows[0].country_code).toBe('XZ')
+      expect(crag.rows[0].country_id).toBe(countryId)
+    })
+  })
+
+  it('rejects country repair when the expected draft owner does not match', async () => {
+    await transaction(async (client) => {
+      const ownerId = await createUser(client)
+      const otherUserId = await createUser(client)
+      const cragId = randomUUID()
+      const draftId = randomUUID()
+      await client.query(
+        `insert into public.crags (id, name, type, slug)
+         values ($1, 'Protected countryless crag', 'sport', $2)`,
+        [cragId, `protected-countryless-${cragId}`],
+      )
+      await client.query(
+        `insert into public.submission_drafts (id, user_id, crag_id, metadata)
+         values ($1, $2, $3, '{"submission":{"location":{"latitude":51.1,"longitude":0.18}}}'::jsonb)`,
+        [draftId, ownerId, cragId],
+      )
+
+      const error = await rpcError(
+        client,
+        `select public.repair_submission_draft_crag_country(
+           p_draft_id => $1, p_user_id => $2, p_crag_id => $3,
+           p_latitude => 51.1, p_longitude => 0.18, p_country_code => 'GB'
+         )`,
+        [draftId, otherUserId, cragId],
+      )
+
+      expect(error.message).toContain('Draft owner changed before crag country repair')
+    })
+  })
+
+  it('does not reclassify a populated countryless crag from draft GPS', async () => {
+    await transaction(async (client) => {
+      const userId = await createUser(client)
+      const cragId = randomUUID()
+      const draftId = randomUUID()
+      await client.query(
+        `insert into public.crags (id, name, type, slug)
+         values ($1, 'Populated countryless crag', 'sport', $2)`,
+        [cragId, `populated-countryless-${cragId}`],
+      )
+      await createReadyImage(client, userId, { cragId })
+      await client.query(
+        `insert into public.submission_drafts (id, user_id, crag_id, metadata)
+         values ($1, $2, $3, '{"submission":{"location":{"latitude":51.1,"longitude":0.18}}}'::jsonb)`,
+        [draftId, userId, cragId],
+      )
+
+      const error = await rpcError(
+        client,
+        `select public.repair_submission_draft_crag_country(
+           p_draft_id => $1, p_user_id => $2, p_crag_id => $3,
+           p_latitude => 51.1, p_longitude => 0.18, p_country_code => 'GB'
+         )`,
+        [draftId, userId, cragId],
+      )
+
+      expect(error.message).toContain('Countryless crag with published content requires manual repair')
+    })
+  })
+
+  it('does not grant authenticated callers access to country repair', async () => {
+    const result = await pool.query(
+      `select has_function_privilege(
+         'authenticated',
+         'public.repair_submission_draft_crag_country(uuid,uuid,uuid,double precision,double precision,text,text,text)',
+         'EXECUTE'
+       ) as can_execute`,
+    )
+    expect(result.rows[0].can_execute).toBe(false)
+  })
+
   it('retains a crag with a climb when its final image is removed', async () => {
     await transaction(async (client) => {
       const userId = await createUser(client)
