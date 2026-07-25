@@ -10,7 +10,6 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
 ]
 
 export const EXPLORE_NAV_ITEMS: NavItem[] = [
-  { label: 'Gear', href: '/gear' },
   { label: 'Impact', href: '/impact' },
   { label: 'About', href: '/about' },
   { label: 'Support', href: '/about#support' },
