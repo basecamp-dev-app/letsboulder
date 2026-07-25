@@ -15,7 +15,6 @@
 | dev-logger | Dev-only browser log bridge | No | No |
 | feedback | User feedback submission | No | No |
 | flags | Content flagging (climbs, images) | Yes | Yes |
-| gear | Gear recommendations | No | No |
 | gym-admin | Gym admin operations | Yes | Yes |
 | image-first | Image-first route page support endpoints | No | No |
 | images | Image detail, faces, flags | Optional | Yes |
@@ -82,10 +81,6 @@ Development-only browser log bridge. No authentication or CSRF protection.
 ### flags
 
 Content flagging for climbs and images. Requires authentication to flag content. Uses CSRF protection.
-
-### gear
-
-Gear recommendations endpoint. No authentication or CSRF protection. Public data endpoint.
 
 ### gym-admin
 
@@ -185,10 +180,6 @@ Authentication operations. Currently supports sign out via `/api/auth/signout`. 
 ### feedback
 
 User feedback submission endpoint. No authentication or CSRF protection. Public utility endpoint.
-
-### gear
-
-Gear recommendations endpoint. No authentication or CSRF protection. Public data endpoint.
 
 ### welcome-email
 
