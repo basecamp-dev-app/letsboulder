@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { buildThumbnailUrl } from '@/lib/media/thumbnail-url'
+import { buildImageFirstPath } from '@/lib/routes/image-first-path'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { RouteLineWithImageSchema } from '@/lib/supabase-result-schemas'
 
@@ -129,7 +130,6 @@ async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug
     crag: crag as CragRow,
     climb: climb as ClimbRow,
     bestImage,
-    bestRouteLineId: bestImage?.id || lines[0]?.id || null,
     effectiveClimbId,
     logCount: logCount || 0,
   }
@@ -141,7 +141,7 @@ export async function generateMetadata({ params }: { params: Promise<RouteParams
 
   const countryCode = country.toUpperCase()
 
-  const { crag, climb, bestImage, bestRouteLineId, effectiveClimbId } = await getRoutePageData(countryCode, cragSlug, routeSlug)
+  const { crag, climb, bestImage, effectiveClimbId } = await getRoutePageData(countryCode, cragSlug, routeSlug)
 
   if (!crag) return { title: 'Route Not Found' }
 
@@ -155,7 +155,13 @@ export async function generateMetadata({ params }: { params: Promise<RouteParams
     ? climb.description
     : `Topo, beta, and ascents for ${routeName} (${grade}) at ${crag.name}.`
   const canonicalPath = canonicalImageId
-    ? `/${country.toLowerCase()}/${cragSlug}/i/${canonicalImageId}?route=${encodeURIComponent(bestRouteLineId || '')}&climb=${encodeURIComponent(effectiveClimbId || '')}`
+    ? buildImageFirstPath({
+        countryCode: country,
+        cragSlug,
+        imageId: canonicalImageId,
+        route: routeSlug,
+        climbId: effectiveClimbId,
+      })
     : `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`
   const imageUrl = bestImage?.images?.url ? buildThumbnailUrl(bestImage.images.url, 1200) : '/og.png'
 
@@ -197,13 +203,19 @@ export default async function RoutePage({ params }: { params: Promise<RouteParam
 
   const countryCode = country.toUpperCase()
 
-  const { crag, climb, bestImage: best, bestRouteLineId, effectiveClimbId } = await getRoutePageData(countryCode, cragSlug, routeSlug)
+  const { crag, climb, bestImage: best, effectiveClimbId } = await getRoutePageData(countryCode, cragSlug, routeSlug)
 
   if (!crag) notFound()
 
   if (!climb) notFound()
   if (!best?.image_id) notFound()
-  if (!bestRouteLineId || !effectiveClimbId) notFound()
+  if (!effectiveClimbId) notFound()
 
-  permanentRedirect(`/${country.toLowerCase()}/${cragSlug}/i/${best.image_id}?route=${encodeURIComponent(bestRouteLineId)}&climb=${encodeURIComponent(effectiveClimbId)}`)
+  permanentRedirect(buildImageFirstPath({
+    countryCode: country,
+    cragSlug,
+    imageId: best.image_id,
+    route: routeSlug,
+    climbId: effectiveClimbId,
+  }))
 }

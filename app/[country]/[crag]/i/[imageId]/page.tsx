@@ -7,6 +7,8 @@ import ImageFirstClientLoader from '@/features/image-first/components/ImageFirst
 import { buildImageFirstPayload } from '@/features/image-first/server/load-image-first-page'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
 import NotFound from '@/app/not-found'
+import { buildImageFirstPath } from '@/lib/routes/image-first-path'
+import { SITE_URL } from '@/lib/site'
 
 export const revalidate = 60
 
@@ -62,16 +64,19 @@ function getPageDescription(payload: ImageFirstPayload) {
 }
 
 function getCanonicalPath(payload: ImageFirstPayload) {
-  const params = new URLSearchParams()
-  if (payload.initialRouteSlug || payload.initialRouteId) params.set('route', payload.initialRouteSlug || payload.initialRouteId || '')
-  if (payload.initialClimbId) params.set('climb', payload.initialClimbId)
-  const query = params.toString()
-  return `/${payload.countryCode}/${payload.cragSlug}/i/${payload.heroImage.displayImageId}${query ? `?${query}` : ''}`
+  return buildImageFirstPath({
+    countryCode: payload.countryCode,
+    cragSlug: payload.cragSlug,
+    imageId: payload.heroImage.displayImageId,
+    route: payload.initialRouteSlug || payload.initialRouteId,
+    climbId: payload.initialClimbId,
+  })
 }
 
-function buildJsonLd(payload: ImageFirstPayload) {
+export function buildJsonLd(payload: ImageFirstPayload) {
   const route = getSelectedRoute(payload)
   const canonicalPath = getCanonicalPath(payload)
+  const canonicalUrl = `${SITE_URL}${canonicalPath}`
   const imageObject = {
     '@type': 'ImageObject',
     contentUrl: payload.heroImage.src,
@@ -86,7 +91,7 @@ function buildJsonLd(payload: ImageFirstPayload) {
       '@type': 'WebPage',
       name: getPageTitle(payload),
       description: getPageDescription(payload),
-      url: canonicalPath,
+      url: canonicalUrl,
       primaryImageOfPage: imageObject,
       about: route
         ? {
@@ -100,9 +105,9 @@ function buildJsonLd(payload: ImageFirstPayload) {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
       itemListElement: [
-        { '@type': 'ListItem', position: 1, name: payload.countryCode.toUpperCase(), item: `/${payload.countryCode}` },
-        { '@type': 'ListItem', position: 2, name: payload.cragName, item: `/${payload.countryCode}/${payload.cragSlug}` },
-        { '@type': 'ListItem', position: 3, name: route?.climbName || 'Topo', item: canonicalPath },
+        { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+        { '@type': 'ListItem', position: 2, name: payload.cragName, item: `${SITE_URL}/${payload.countryCode}/${payload.cragSlug}` },
+        { '@type': 'ListItem', position: 3, name: route?.climbName || 'Topo', item: canonicalUrl },
       ],
     },
   ]

@@ -25,7 +25,8 @@ export async function GET() {
         .neq('country_code', ''),
       supabase
         .from('climbs')
-        .select('id, crags!inner(id)', { count: 'exact', head: true })
+        .select('id, crags!inner(id), route_lines!inner(id, images!inner(id))', { count: 'exact', head: true })
+        .is('deleted_at', null)
         .not('slug', 'is', null)
         .neq('slug', '')
         .in('status', ['active', 'approved'])
