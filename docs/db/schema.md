@@ -260,6 +260,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `assert_media_ready_for_publication(image_ids)` locks and validates authoritative `images` rows inside publication transactions. Draft promotion, unified submission creation, route creation, and linked `crag_images` writes fail with detail code `media_not_ready` until every image is publicly deliverable.
 - Transactional guards require publication RPCs to associate existing upload-session image IDs and preserve worker-produced processing, moderation, visibility, and delivery fields.
 - `promote_draft_to_submission` locks the draft first, then draft attachments and routes by ID, authoritative linked images by ID, and finally the crag. It rejects duplicate linked image identities and validates each linked image's owner and storage path, public readiness, and the crag's canonical slug and country code before publishing.
+- `repair_submission_draft_crag_country` is the service-role repair path for a selected crag with no country code. It locks the draft and crag, verifies the expected owner, validates the server-resolved ISO code, and only fills missing canonical country metadata.
 - Promotion changes `draft` to `submitted` with a status compare-and-swap. A repeated call for a submitted draft returns its stored publication result instead of creating another publication; drafts with images but no routes remain valid.
 - `delete_unassociated_upload_image(image_id)` locks the authoritative image and deletes it only when the caller owns it (or is `service_role`) and no content reference remains. Draft links, published associations, routes, gallery links, child images, moderation/collaboration/contribution records, and image comments all make it associated, regardless of processing status. The upload-session DELETE route maps `image_associated` to HTTP 409.
 
@@ -290,6 +291,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 
 **Key security notes:**
 - `promote_draft_to_submission` is `SECURITY DEFINER`, requires the locked draft's owner, and is the only path allowed to transition a draft to `submitted`; direct draft UPDATE policies require both old and new status to remain `draft`.
+- `repair_submission_draft_crag_country` is `SECURITY DEFINER` and executable only by `service_role`; the publish route resolves coordinates through the atlas with a Nominatim fallback before calling it. It is defined in `20260725160200_repair_draft_crag_country.sql`.
 - `handle_submission_draft_promoted` trigger is `SECURITY DEFINER` and fires on draft→submitted status change. The UPDATE policy on `submission_drafts` gates who can trigger this transition.
 - `is_submission_collaborator` and `is_submission_draft_collaborator` are `SECURITY DEFINER` — appropriate for RLS helpers reading `auth.uid()`.
 - The active canonical `promote_draft_to_submission` definition is in `20260725160000_forward_publication_safety.sql`; active atomic deletion definitions are in `20260725160050_atomic_draft_deletion.sql` and `20260725160100_atomic_draft_image_deletion.sql`, with grants and RLS tightened by `20260725160150_draft_deletion_permissions.sql`. Do not use the older archived promotion definition as the current reference.
@@ -374,6 +376,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 |----------|---------|
 | `create_unified_submission(...)` | Atomically create submission with images |
 | `promote_draft_to_submission(draft_id)` | Promote draft to live submission |
+| `repair_submission_draft_crag_country(draft_id, user_id, crag_id, latitude, longitude, country_code, country_name, region_name)` | Service-only fill after validating locked draft/crag identity and persisted coordinates |
 | `delete_submission_draft_atomic(draft_id)` | Atomically delete an editable whole draft and eligible unassociated uploads |
 | `delete_submission_draft_image_atomic(draft_id, draft_image_id, expected_updated_at)` | Atomically delete one draft image and update draft ordering/metadata |
 | `delete_unassociated_upload_image(image_id)` | Delete an owned upload only if it has no content associations |
