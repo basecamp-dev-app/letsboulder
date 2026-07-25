@@ -4,6 +4,7 @@ import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { toMediaStatusResponse } from '@/lib/media/media-status'
 import { ensurePrivateObjectExists } from '@/lib/media/r2'
+import { enqueueMediaWorkerFastPath } from '@/lib/media/worker-enqueue'
 import { parseWithSchema } from '@/lib/api-validation'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import type { Database } from '@/types/database'
@@ -90,6 +91,16 @@ export async function POST(
     if (moderationStateError) {
       return createErrorResponse(moderationStateError, 'Failed to record skipped moderation state')
     }
+
+    await enqueueMediaWorkerFastPath({
+      imageId: image.id,
+      originalBucket: image.original_bucket,
+      originalKey: image.original_key,
+      storageProvider: 'r2',
+      purpose,
+      triggeredByUserId: user.id,
+      trigger: 'upload',
+    })
 
     return NextResponse.json(toMediaStatusResponse({
       id: image.id,

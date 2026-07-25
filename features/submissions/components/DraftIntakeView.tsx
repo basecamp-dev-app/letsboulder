@@ -261,6 +261,7 @@ export default function DraftIntakeView() {
 
   const successCount = uploads.filter((u) => u.status === 'READY').length
   const failedCount = uploads.filter((u) => u.status === 'FAILED').length
+  const processingCount = uploads.filter((u) => u.status === 'PROCESSING' || u.status === 'MODERATING').length
   const totalCount = uploads.length
   const hasInFlightUploads = uploads.some((upload) => isMediaUploadPending(upload.status))
   const hasAnyImages = galleryImages.length > 0
@@ -321,7 +322,8 @@ export default function DraftIntakeView() {
 
                 {totalCount > 0 ? (
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {successCount} of {totalCount} complete
+                    {successCount} ready
+                    {processingCount > 0 && `, ${processingCount} preparing`}
                     {failedCount > 0 && `, ${failedCount} failed`}
                   </p>
                 ) : null}

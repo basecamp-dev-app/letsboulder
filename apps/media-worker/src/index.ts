@@ -224,6 +224,24 @@ async function markMediaJobCompleted(supabase: ReturnType<typeof createSupabaseA
   if (error) throw error
 }
 
+export async function markMediaJobsCompletedByImage(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  imageId: string
+) {
+  const { error } = await supabase
+    .from('media_jobs')
+    .update({
+      status: 'completed',
+      locked_at: null,
+      locked_by: null,
+      last_error: null,
+    })
+    .eq('image_id', imageId)
+    .in('status', ['queued', 'processing'])
+
+  if (error) throw error
+}
+
 async function markMediaJobForRetry(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   job: MediaJobRow,
@@ -496,6 +514,7 @@ export default {
         }
 
         await processJob(parsed.data, env)
+        await markMediaJobsCompletedByImage(createSupabaseAdminClient(env), parsed.data.imageId)
         message.ack()
       } catch (error) {
         console.error('Failed to process media queue message', error)

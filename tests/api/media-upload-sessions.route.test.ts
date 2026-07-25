@@ -38,6 +38,10 @@ vi.mock('@/lib/media/r2', () => ({
   ensurePrivateObjectExists: vi.fn(async () => undefined),
 }))
 
+vi.mock('@/lib/media/worker-enqueue', () => ({
+  enqueueMediaWorkerFastPath: vi.fn(),
+}))
+
 vi.mock('@/lib/env.server', () => ({
   serverEnv: {
     CF_MEDIA_WORKER_URL: 'https://worker.example',
@@ -55,6 +59,7 @@ import { DELETE as deleteUploadSession, GET as getUploadSession } from '@/app/ap
 import { POST as completeUploadSession } from '@/app/api/media/upload-sessions/[imageId]/complete/route'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createPrivateUploadUrl, deleteObject, ensurePrivateObjectExists } from '@/lib/media/r2'
+import { enqueueMediaWorkerFastPath } from '@/lib/media/worker-enqueue'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 
 type MiddlewareResult = Awaited<ReturnType<typeof withApiMiddleware>>
@@ -97,6 +102,7 @@ function makeGetRequest() {
 describe('Media upload session routes', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.mocked(enqueueMediaWorkerFastPath).mockResolvedValue(true)
     vi.mocked(getAdminClientWithAudit).mockReturnValue({
       from: vi.fn(() => ({
         update: vi.fn(() => ({
@@ -450,6 +456,58 @@ describe('Media upload session routes', () => {
       p_trigger: 'upload',
       p_auto_approve: false,
     })
+    expect(enqueueMediaWorkerFastPath).toHaveBeenCalledWith({
+      imageId: 'image-123',
+      originalBucket: 'private-bucket',
+      originalKey: 'originals/image-123.jpg',
+      storageProvider: 'r2',
+      purpose: 'submission_image',
+      triggeredByUserId: 'user-1',
+      trigger: 'upload',
+    })
+  })
+
+  test('complete succeeds when immediate worker dispatch is unavailable', async () => {
+    vi.mocked(enqueueMediaWorkerFastPath).mockResolvedValue(false)
+    const rpc = vi.fn(async () => ({
+      data: { status: 'queued', attempts: 0, max_attempts: 5 },
+      error: null,
+    }))
+    const supabase = {
+      auth: {
+        getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
+      },
+      rpc,
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({
+              data: {
+                id: 'image-123',
+                created_by: 'user-1',
+                original_bucket: 'private-bucket',
+                original_key: 'originals/image-123.jpg',
+                processing_status: 'pending',
+              },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    }
+
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: supabase as never,
+      userId: null,
+    } as unknown as MiddlewareResult)
+
+    const response = await completeUploadSession(makeCompleteRequest({ purpose: 'draft_image' }), {
+      params: Promise.resolve({ imageId: 'image-123' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).processingStatus).toBe('queued')
   })
 
   test('complete always skips moderation', async () => {
