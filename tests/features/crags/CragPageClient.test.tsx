@@ -4,6 +4,7 @@ import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { CragAccessPanel } from '@/features/crags/components/CragAccessPanel'
 import CragPageClient from '@/features/crags/components/CragPageClient'
 
 vi.mock('next/navigation', () => ({
@@ -43,10 +44,10 @@ describe('CragPageClient selected image flow', () => {
             latitude: 51,
             longitude: 0.1,
             region_id: null,
-            description: null,
-            access_notes: null,
-            rock_type: null,
-            type: null,
+            description: 'Sheltered woodland bouldering.',
+            access_notes: 'Park at the lower gate.\nKeep the access road clear.',
+            rock_type: 'Sandstone',
+            type: 'Bouldering',
           }}
           initialImages={[
             {
@@ -115,5 +116,38 @@ describe('CragPageClient selected image flow', () => {
     expect(screen.getByText('Choose an image to inspect the topo or add missing route data.')).toBeTruthy()
     expect(screen.getByRole('link', { name: /open route route 1/i }).getAttribute('href')).toBe('/gb/test-crag/i/image-selected?image=image-selected&route=route-line-1&climb=climb-1')
     expect(screen.getByRole('link', { name: /selected pin image/i }).getAttribute('href')).toBe('/gb/test-crag/i/image-selected?image=image-selected&route=route-line-1&climb=climb-1')
+    expect(screen.getByText('Park at the lower gate. Keep the access road clear.')).toBeTruthy()
+    expect(screen.getByText('Sheltered woodland bouldering.')).toBeTruthy()
+    expect(screen.getByText('Rock: Sandstone')).toBeTruthy()
+    expect(screen.getByText('Climbing: Bouldering')).toBeTruthy()
+
+    const map = screen.getByTestId('crag-map-view')
+    const accessHeading = screen.getByRole('heading', { name: 'Access and conditions' })
+    const communityHeading = screen.getByRole('heading', { name: 'Crag community' })
+
+    expect(map.compareDocumentPosition(accessHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(accessHeading.compareDocumentPosition(communityHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('omits the access panel when no access information is available', () => {
+    render(
+      <CragAccessPanel
+        crag={{
+          id: 'crag-1',
+          name: 'Test Crag',
+          slug: 'test-crag',
+          country_code: 'GB',
+          latitude: 51,
+          longitude: 0.1,
+          region_id: null,
+          description: null,
+          access_notes: null,
+          rock_type: null,
+          type: null,
+        }}
+      />
+    )
+
+    expect(screen.queryByRole('heading', { name: 'Access and conditions' })).toBeNull()
   })
 })

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import CragMapView from '@/features/crags/components/CragMapView'
 import SelectedPinImageTray from '@/features/crags/components/SelectedPinImageTray'
+import { CragAccessPanel } from '@/features/crags/components/CragAccessPanel'
 import CragRouteSection from '@/features/crags/components/CragRouteSection'
 import type { CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
 import { useCragData } from '@/features/crags/hooks/use-crag-data'
@@ -161,6 +162,10 @@ export default function CragPageClient({
       />
 
       <SelectedPinImageTray images={filters.selectedPinImages} />
+
+      <div className="mx-auto max-w-[90rem] px-4 pt-4">
+        <CragAccessPanel crag={crag} />
+      </div>
 
       <CragRouteSection
         crag={crag}
