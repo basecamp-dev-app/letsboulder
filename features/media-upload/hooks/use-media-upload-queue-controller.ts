@@ -26,6 +26,11 @@ export interface MediaUploadQueueController {
 
 type UploadStateUpdater = (current: MediaUploadItem) => MediaUploadItem
 
+function toActionableUploadError(error: unknown) {
+  const message = error instanceof Error && error.message.trim() ? error.message.trim() : 'Failed to upload image'
+  return `${message.replace(/[.!?]+$/, '')}. Retry or delete this upload.`
+}
+
 function waitForLifecyclePoll(signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     if (signal.aborted) {
@@ -255,12 +260,12 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
         updateUpload(entry.clientId, (current) => ({
           ...current,
           status: 'FAILED',
-          error: error instanceof Error ? error.message : 'Failed to process image',
+          error: toActionableUploadError(error),
         }))
         return
       }
 
-      setQueuePaused(true)
+      if (window.navigator.onLine === false) setQueuePaused(true)
 
       if (uploadSessionImageId) {
         await deleteMediaUploadSession(uploadSessionImageId).catch(() => null)
@@ -269,8 +274,11 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       updateUpload(entry.clientId, (current) => ({
         ...current,
         status: 'FAILED',
-        error: error instanceof Error ? error.message : 'Failed to upload image',
+        error: toActionableUploadError(error),
       }))
+      const nextQueueOrder = queueOrderRef.current.filter((clientId) => clientId !== entry.clientId)
+      queueOrderRef.current = nextQueueOrder
+      setQueueOrder(nextQueueOrder)
 
       uploadDebug('upload-marked-failed', { clientId: entry.clientId })
     } finally {
@@ -334,8 +342,11 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     }
 
     if (nextUpload.status === 'FAILED') {
-      uploadDebug('start-next-upload-paused-on-failed-item', { nextClientId })
-      setQueuePaused(true)
+      uploadDebug('start-next-upload-skipped-failed-item', { nextClientId })
+      const nextQueueOrder = queueOrderRef.current.filter((clientId) => clientId !== nextClientId)
+      queueOrderRef.current = nextQueueOrder
+      setQueueOrder(nextQueueOrder)
+      startNextUploadRef.current()
       return
     }
 
@@ -348,7 +359,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     })
     setActiveClientId(nextClientId)
     void processActiveEntry(nextEntry)
-  }, [processActiveEntry, setQueuePaused])
+  }, [processActiveEntry])
 
   startNextUploadRef.current = startNextUpload
 

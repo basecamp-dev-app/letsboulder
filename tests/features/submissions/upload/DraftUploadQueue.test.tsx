@@ -70,11 +70,34 @@ describe('DraftUploadQueue', () => {
     expect(screen.getByText('Attention needed')).toBeInTheDocument()
     expect(screen.getByText('Network error')).toBeInTheDocument()
 
+    expect(screen.getByRole('button', { name: 'Retry' })).toHaveClass('inline-flex', 'min-h-11', 'items-center', 'rounded-lg', 'px-3')
+    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('inline-flex', 'min-h-11', 'items-center', 'rounded-lg', 'px-3')
+
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     await user.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(onRetryUpload).toHaveBeenCalledWith('failed-1')
     expect(onRemoveUpload).toHaveBeenCalledWith('failed-1')
+  })
+
+  it('summarizes failed and continuing uploads', () => {
+    render(
+      <DraftUploadQueue
+        pendingDraftUploads={[
+          createUpload({ clientId: 'failed-1', status: 'FAILED' }),
+          ...Array.from({ length: 4 }, (_, index) => createUpload({ clientId: `queued-${index}` })),
+        ]}
+        queuePaused={false}
+        draftId="draft-1"
+        hasPendingUploads={() => true}
+        hasFailedUploads={() => true}
+        onRetryUpload={vi.fn()}
+        onRemoveUpload={vi.fn()}
+        onResumeQueue={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('1 failed, 4 uploads continuing.')).toBeInTheDocument()
   })
 
   it.each([

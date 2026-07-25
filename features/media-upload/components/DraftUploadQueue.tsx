@@ -1,6 +1,6 @@
 'use client'
 
-import { MEDIA_UPLOAD_STATUS_LABELS, type MediaUploadItem } from '@/features/media-upload/lib/upload-types'
+import { isMediaUploadPending, MEDIA_UPLOAD_STATUS_LABELS, type MediaUploadItem } from '@/features/media-upload/lib/upload-types'
 
 interface DraftUploadQueueProps {
   pendingDraftUploads: MediaUploadItem[]
@@ -25,13 +25,19 @@ export function DraftUploadQueue({
 }: DraftUploadQueueProps) {
   if (pendingDraftUploads.length === 0) return null
 
+  const failedCount = pendingDraftUploads.filter((upload) => upload.status === 'FAILED').length
+  const continuingCount = pendingDraftUploads.filter((upload) => isMediaUploadPending(upload.status)).length
+  const progressSummary = !queuePaused && failedCount > 0 && continuingCount > 0
+    ? `${failedCount} failed, ${continuingCount} upload${continuingCount === 1 ? '' : 's'} continuing.`
+    : 'Photos appear in the gallery as each upload finishes. Failed uploads are skipped — retry or delete them below.'
+
   return (
     <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Background uploads</h2>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Photos appear in the gallery as each upload finishes. Failed uploads are skipped — retry or delete them below.
+            {progressSummary}
           </p>
         </div>
         {queuePaused ? (
@@ -88,14 +94,14 @@ export function DraftUploadQueue({
                 <button
                   type="button"
                   onClick={() => onRetryUpload(upload.clientId)}
-                  className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                  className="inline-flex min-h-11 items-center rounded-lg bg-blue-600 px-3 text-xs font-medium text-white hover:bg-blue-700"
                 >
                   Retry
                 </button>
                 <button
                   type="button"
                   onClick={() => onRemoveUpload(upload.clientId)}
-                  className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                  className="inline-flex min-h-11 items-center rounded-lg border border-gray-300 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
                   Delete
                 </button>
