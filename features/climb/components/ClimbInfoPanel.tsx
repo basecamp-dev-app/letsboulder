@@ -151,8 +151,8 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
   return (
     <div className="relative z-20 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
       <div className="max-w-md mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
               {selectedClimb ? selectedClimb.name : canAddRoutes ? 'This photo needs routes' : 'Select a route'}
             </h1>
@@ -168,75 +168,8 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                 Type: {formatRouteTypeLabel(selectedClimb.route_type)}
               </p>
             ) : null}
-            <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
-              {isFacesLoading ? 'Loading routes...' : `${totalRoutesCombined} route${totalRoutesCombined === 1 ? '' : 's'}`}
-              {totalFaces > 1 ? ` across ${totalFaces} faces` : ''}
-            </p>
-            {selectedClimb ? (
-              <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {selectedClimbRatingSummary
-                  ? selectedClimbRatingSummary.rating_count > 0
-                    ? (
-                        <div className="flex items-center gap-2">
-                          <span>{selectedClimbAverageRating?.toFixed(1) || '0.0'}</span>
-                          <div className="flex items-center gap-0.5" aria-label="Community star rating">
-                            {[1, 2, 3, 4, 5].map((value) => {
-                              const active = value <= selectedClimbRoundedStars
-                              return <Star key={value} className={`w-4 h-4 ${active ? 'fill-amber-400 text-amber-500' : 'text-gray-300 dark:text-gray-600'}`} />
-                            })}
-                          </div>
-                          <span>({selectedClimbRatingSummary.rating_count})</span>
-                        </div>
-                      )
-                    : 'Community rating: No ratings yet'
-                  : 'Community rating: Loading...'}
-              </div>
-            ) : null}
-            {selectedClimb?.description ? <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedClimb.description}</p> : null}
-            {communityNotesCount > 0 ? (
-              <p className="mt-1 text-xs text-purple-700 dark:text-purple-300">
-                {communityNotesCount} user{communityNotesCount === 1 ? '' : 's'} shared route beta
-              </p>
-            ) : null}
-            <div className="mt-3 rounded-2xl border border-blue-200/70 bg-blue-50/70 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
-                {attribution.ownerRoleLabel}
-              </p>
-              <p className="mt-1 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200">
-                Uploaded by{' '}
-                {attribution.ownerProfileId ? (
-                  <Link href={`/logbook/${attribution.ownerProfileId}`} prefetch={false} className="font-medium underline decoration-gray-400 underline-offset-2 hover:text-gray-900 dark:hover:text-white">
-                    {attribution.ownerDisplayLabel}
-                  </Link>
-                ) : (
-                  <span className="font-medium">{attribution.ownerDisplayLabel}</span>
-                )}
-              </p>
-              {attribution.formattedContributionHandle ? (
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                  Contribution credit:{' '}
-                  {attribution.contributionCreditUrl ? (
-                    <a href={attribution.contributionCreditUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-gray-400 underline-offset-2 hover:text-gray-900 dark:hover:text-white">
-                      {attribution.formattedContributionHandle}
-                    </a>
-                  ) : (
-                    <span>{attribution.formattedContributionHandle}</span>
-                  )}
-                </p>
-              ) : null}
-              {attribution.communityEditorsCount > 0 ? (
-                <div className="mt-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
-                    {attribution.communityEditorsRoleLabel}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
-                    Refined by {attribution.communityEditorsCount} contributor{attribution.communityEditorsCount === 1 ? '' : 's'}
-                  </p>
-                </div>
-              ) : null}
-            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {cragPath ? (
               <a href={cragPath} className="inline-flex min-h-11 items-center justify-center px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
                 View crag
@@ -275,11 +208,11 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
         </div>
 
         {loadingSelectedClimbState && selectedClimb ? (
-          <p role="status" className="text-sm text-gray-500 dark:text-gray-400">Loading climb state...</p>
+          <p role="status" className="mt-4 text-sm text-gray-500 dark:text-gray-400">Loading climb state...</p>
         ) : !selectedClimbLogged ? (
-          <div className="space-y-3">
+          <div className="sticky bottom-[calc(var(--app-mobile-footer-offset)+env(safe-area-inset-bottom))] z-30 -mx-4 mt-4 space-y-3 border-t border-gray-200 bg-white/95 p-4 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
             {!userPresent && selectedRouteExists ? (
-              <button onClick={onGoToAuth} className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
+              <button onClick={onGoToAuth} className="min-h-12 w-full rounded-xl bg-gray-700 px-4 py-3 font-medium text-white transition-colors hover:bg-gray-600">
                 Sign in to Log This Climb
               </button>
             ) : (
@@ -293,13 +226,13 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                 </p>
 
                 <div className="grid grid-cols-3 gap-2">
-                  <button onClick={() => onLog('flash')} disabled={logging || !selectedClimb} className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+                  <button onClick={() => onLog('flash')} disabled={logging || !selectedClimb} className="min-h-12 rounded-xl bg-yellow-600 px-4 py-2 font-medium text-white transition-colors hover:bg-yellow-500 disabled:cursor-not-allowed disabled:opacity-50">
                     Flash
                   </button>
-                  <button onClick={() => onLog('top')} disabled={logging || !selectedClimb} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+                  <button onClick={() => onLog('top')} disabled={logging || !selectedClimb} className="min-h-12 rounded-xl bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">
                     Send
                   </button>
-                  <button onClick={() => onLog('try')} disabled={logging || !selectedClimb} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+                  <button onClick={() => onLog('try')} disabled={logging || !selectedClimb} className="min-h-12 rounded-xl bg-gray-700 px-4 py-2 font-medium text-white transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50">
                     Try
                   </button>
                 </div>
@@ -307,6 +240,76 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             )}
           </div>
         ) : null}
+
+        <div className="mt-4">
+          <p className="text-xs text-blue-700 dark:text-blue-300">
+            {isFacesLoading ? 'Loading routes...' : `${totalRoutesCombined} route${totalRoutesCombined === 1 ? '' : 's'}`}
+            {totalFaces > 1 ? ` across ${totalFaces} faces` : ''}
+          </p>
+          {selectedClimb ? (
+            <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {selectedClimbRatingSummary
+                ? selectedClimbRatingSummary.rating_count > 0
+                  ? (
+                      <div className="flex items-center gap-2">
+                        <span>{selectedClimbAverageRating?.toFixed(1) || '0.0'}</span>
+                        <div className="flex items-center gap-0.5" aria-label="Community star rating">
+                          {[1, 2, 3, 4, 5].map((value) => {
+                            const active = value <= selectedClimbRoundedStars
+                            return <Star key={value} className={`w-4 h-4 ${active ? 'fill-amber-400 text-amber-500' : 'text-gray-300 dark:text-gray-600'}`} />
+                          })}
+                        </div>
+                        <span>({selectedClimbRatingSummary.rating_count})</span>
+                      </div>
+                    )
+                  : 'Community rating: No ratings yet'
+                : 'Community rating: Loading...'}
+            </div>
+          ) : null}
+          {selectedClimb?.description ? <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedClimb.description}</p> : null}
+          {communityNotesCount > 0 ? (
+            <p className="mt-1 text-xs text-purple-700 dark:text-purple-300">
+              {communityNotesCount} user{communityNotesCount === 1 ? '' : 's'} shared route beta
+            </p>
+          ) : null}
+          <div className="mt-3 rounded-2xl border border-blue-200/70 bg-blue-50/70 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+              {attribution.ownerRoleLabel}
+            </p>
+            <p className="mt-1 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200">
+              Uploaded by{' '}
+              {attribution.ownerProfileId ? (
+                <Link href={`/logbook/${attribution.ownerProfileId}`} prefetch={false} className="font-medium underline decoration-gray-400 underline-offset-2 hover:text-gray-900 dark:hover:text-white">
+                  {attribution.ownerDisplayLabel}
+                </Link>
+              ) : (
+                <span className="font-medium">{attribution.ownerDisplayLabel}</span>
+              )}
+            </p>
+            {attribution.formattedContributionHandle ? (
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                Contribution credit:{' '}
+                {attribution.contributionCreditUrl ? (
+                  <a href={attribution.contributionCreditUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-gray-400 underline-offset-2 hover:text-gray-900 dark:hover:text-white">
+                    {attribution.formattedContributionHandle}
+                  </a>
+                ) : (
+                  <span>{attribution.formattedContributionHandle}</span>
+                )}
+              </p>
+            ) : null}
+            {attribution.communityEditorsCount > 0 ? (
+              <div className="mt-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                  {attribution.communityEditorsRoleLabel}
+                </p>
+                <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                  Refined by {attribution.communityEditorsCount} contributor{attribution.communityEditorsCount === 1 ? '' : 's'}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </div>
 
         {communityNotes.length > 0 ? (
           <div className="mt-4 rounded-2xl border border-purple-200/70 bg-purple-50/70 p-3 dark:border-purple-900/50 dark:bg-purple-950/20">
