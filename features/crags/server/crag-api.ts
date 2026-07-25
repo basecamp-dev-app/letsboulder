@@ -353,7 +353,7 @@ export async function createCrag(request: NextRequest, supabase: RequestSupabase
 
     const slug = await generateCragSlug(supabase, trimmedName, countryResolution.countryCode)
 
-    const { data: createdCrag, error: createError } = await supabase
+    const { data: insertedCrag, error: createError } = await supabase
       .from('crags')
       .insert({
         name: trimmedName,
@@ -375,6 +375,30 @@ export async function createCrag(request: NextRequest, supabase: RequestSupabase
     if (createError) {
       reportError(createError, { message: 'Create crag insert failed' })
       return createErrorResponse(createError, 'Error creating crag')
+    }
+
+    let createdCrag = insertedCrag
+    if (countryResolution.countryCode && !createdCrag.country_code) {
+      const { data: repairedCrag, error: repairCragError } = await supabase
+        .from('crags')
+        .update({
+          country_code: countryResolution.countryCode,
+          country_id: countryResolution.countryId,
+          region_name: countryResolution.regionName,
+        })
+        .eq('id', createdCrag.id)
+        .select('id, name, slug, country_code, latitude, longitude, rock_type, type, region_name, sub_area, created_at')
+        .single()
+
+      if (repairCragError || !repairedCrag?.country_code) {
+        reportError(repairCragError || new Error('Crag country metadata remained empty after repair'), {
+          message: 'Create crag canonical metadata repair failed',
+          extra: { cragId: createdCrag.id, countryCode: countryResolution.countryCode },
+        })
+        return createErrorResponse(repairCragError || new Error('Crag country metadata repair failed'), 'Error creating crag')
+      }
+
+      createdCrag = repairedCrag
     }
 
     if (locationTagId) {

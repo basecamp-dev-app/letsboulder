@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { isMediaNotReadyError, isMediaPubliclyDeliverable, MEDIA_NOT_READY_RESPONSE } from '@/lib/media/readiness'
+import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { recordSubmissionPublishedEvent } from '@/features/community/lib/contributor-score'
 import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
 
@@ -14,6 +15,81 @@ interface PromoteResult {
   climb_ids?: string[]
   route_line_ids?: string[]
   published_at?: string
+}
+
+type DraftSupabaseClient = ReturnType<typeof import('@supabase/ssr').createServerClient>
+
+function normalizeStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.length > 0)
+    : []
+}
+
+function resolvePublishedResult(metadata: unknown): PromoteResult | null {
+  const safeMetadata = normalizeJsonRecord(metadata)
+  const imageId = typeof safeMetadata?.publishedImageId === 'string' ? safeMetadata.publishedImageId : null
+  if (!imageId) return null
+
+  return {
+    success: true,
+    status: 'submitted',
+    image_id: imageId,
+    default_image_id: imageId,
+    image_ids: normalizeStringArray(safeMetadata?.allPublishedImageIds),
+    climb_ids: normalizeStringArray(safeMetadata?.publishedClimbIds),
+    route_line_ids: normalizeStringArray(safeMetadata?.publishedRouteLineIds),
+    published_at: typeof safeMetadata?.publishedAt === 'string' ? safeMetadata.publishedAt : undefined,
+  }
+}
+
+async function ensureCanonicalCrag(input: {
+  supabase: DraftSupabaseClient
+  cragId: string | null
+  metadata: unknown
+}): Promise<NextResponse | null> {
+  const { supabase, cragId, metadata } = input
+  if (!cragId) {
+    return NextResponse.json({ error: 'Select a crag before publishing this draft' }, { status: 400 })
+  }
+
+  const { data: crag, error: cragError } = await supabase
+    .from('crags')
+    .select('id, country_code, slug')
+    .eq('id', cragId)
+    .maybeSingle()
+
+  if (cragError || !crag) {
+    return createErrorResponse(cragError || new Error('Draft crag not found'), 'Failed to validate publish destination')
+  }
+
+  if (!crag.slug) {
+    return NextResponse.json({ error: 'The selected crag is missing its canonical slug' }, { status: 409 })
+  }
+
+  if (crag.country_code) return null
+
+  const draftLocation = extractDraftLocation(metadata)
+  const resolvedCountry = await resolveCountryFromCoordinates(supabase, draftLocation.latitude, draftLocation.longitude)
+  const countryCode = resolvedCountry.countryCode
+
+  if (!countryCode) {
+    return NextResponse.json({ error: 'Could not resolve the selected crag country before publishing' }, { status: 409 })
+  }
+
+  const { error: repairError } = await supabase
+    .from('crags')
+    .update({
+      country_code: countryCode,
+      ...(resolvedCountry.countryId ? { country_id: resolvedCountry.countryId } : {}),
+      ...(resolvedCountry.regionName ? { region_name: resolvedCountry.regionName } : {}),
+    })
+    .eq('id', cragId)
+
+  if (repairError) {
+    return createErrorResponse(repairError, 'Failed to repair publish destination')
+  }
+
+  return null
 }
 
 interface DraftRouteRef {
@@ -86,8 +162,108 @@ function formatDraftImageLabel(image: DraftImagePublishRow): string {
   return `Image ${image.display_order + 1}`
 }
 
+async function buildPublishedResponse(input: {
+  supabase: DraftSupabaseClient
+  result: PromoteResult
+  userId: string
+  runPostPublishEffects?: boolean
+}) {
+  const { supabase, result, userId, runPostPublishEffects = true } = input
+  const defaultImageId = result.default_image_id || result.image_id
+  if (!defaultImageId) {
+    return NextResponse.json({ error: 'Failed to resolve published image' }, { status: 500 })
+  }
+
+  const { data: canonicalImage, error: canonicalImageError } = await supabase
+    .from('images')
+    .select('id, crag_id, crags:crag_id(name, country_code, slug), route_lines(id, climb_id, sequence_order, created_at)')
+    .eq('id', defaultImageId)
+    .maybeSingle()
+
+  if (canonicalImageError || !canonicalImage) {
+    return createErrorResponse(canonicalImageError || new Error('Failed to resolve canonical image path after publish'), 'Failed to resolve publish destination')
+  }
+
+  const crag = Array.isArray(canonicalImage.crags) ? canonicalImage.crags[0] : canonicalImage.crags
+  if (!crag?.country_code || !crag?.slug) {
+    return NextResponse.json({ error: 'Failed to resolve canonical crag path after publish' }, { status: 500 })
+  }
+
+  const cragId = typeof canonicalImage.crag_id === 'string' ? canonicalImage.crag_id : null
+  const climbIds = normalizeStringArray(result.climb_ids)
+  const notificationClimbs = runPostPublishEffects && climbIds.length > 0
+    ? await (async () => {
+      const { data: climbRows } = await supabase
+        .from('climbs')
+        .select('id, name, grade')
+        .in('id', climbIds)
+
+      const climbMap = new Map<string, { id: string; name: string; grade: string }>()
+      for (const row of (climbRows || []) as Array<{ id: string; name: string | null; grade: string }>) {
+        climbMap.set(row.id, {
+          id: row.id,
+          name: row.name || 'Unnamed',
+          grade: row.grade,
+        })
+      }
+
+      return climbIds.map((climbId, index) => climbMap.get(climbId) || {
+        id: climbId,
+        name: `Route ${index + 1}`,
+        grade: 'Unknown',
+      })
+    })()
+    : []
+
+  if (runPostPublishEffects && notificationClimbs.length > 0 && cragId) {
+    const cragName = typeof crag.name === 'string' && crag.name.trim().length > 0 ? crag.name : 'Unknown Crag'
+
+    await notifyNewSubmission(supabase, notificationClimbs, cragName, cragId, userId).catch((error) => {
+      reportError(error, { message: 'Discord notification error' })
+    })
+  }
+
+  const routeLines = Array.isArray(canonicalImage.route_lines) ? canonicalImage.route_lines : []
+  const defaultRoute = routeLines.slice().sort((left: { sequence_order: number | null; created_at: string | null }, right: { sequence_order: number | null; created_at: string | null }) => {
+    const leftSequence = typeof left.sequence_order === 'number' ? left.sequence_order : Number.MAX_SAFE_INTEGER
+    const rightSequence = typeof right.sequence_order === 'number' ? right.sequence_order : Number.MAX_SAFE_INTEGER
+    if (leftSequence !== rightSequence) return leftSequence - rightSequence
+    return String(left.created_at || '').localeCompare(String(right.created_at || ''))
+  })[0] || null
+
+  const canonicalPath = `/${crag.country_code.toLowerCase()}/${crag.slug}/i/${defaultImageId}`
+  const imageIds = normalizeStringArray(result.image_ids)
+
+  if (runPostPublishEffects) {
+    await recordSubmissionPublishedEvent(supabase, {
+      userId,
+      imageId: defaultImageId,
+      sourceId: defaultImageId,
+    }).catch((contributorScoreError) => {
+      reportError(contributorScoreError, { message: 'Contributor score publish event error' })
+    })
+  }
+
+  return NextResponse.json({
+    success: true,
+    status: result.status || 'submitted',
+    published: {
+      defaultImageId,
+      imageId: result.image_id,
+      imageIds: imageIds.length > 0 ? imageIds : [defaultImageId],
+      climbIds,
+      routeLineIds: normalizeStringArray(result.route_line_ids),
+      publishedAt: result.published_at || null,
+      canonicalPath,
+      countryCode: crag.country_code.toLowerCase(),
+      cragSlug: crag.slug,
+      defaultRouteId: defaultRoute?.id || null,
+    },
+  })
+}
+
 export async function promoteDraftToSubmission(input: {
-  supabase: ReturnType<typeof import('@supabase/ssr').createServerClient>
+  supabase: DraftSupabaseClient
   request: Request
   draftId: string
   userId: string
@@ -95,7 +271,7 @@ export async function promoteDraftToSubmission(input: {
   const { supabase, draftId, userId } = input
   const { data: draft, error: draftError } = await supabase
     .from('submission_drafts')
-    .select('id, user_id, metadata')
+    .select('id, user_id, crag_id, status, metadata')
     .eq('id', draftId)
     .maybeSingle()
 
@@ -109,6 +285,22 @@ export async function promoteDraftToSubmission(input: {
 
   if (draft.user_id !== userId) {
     return NextResponse.json({ error: 'Only the draft owner can publish this draft' }, { status: 403 })
+  }
+
+  const canonicalCragError = await ensureCanonicalCrag({
+    supabase,
+    cragId: draft.crag_id,
+    metadata: draft.metadata,
+  })
+  if (canonicalCragError) return canonicalCragError
+
+  if (draft.status === 'submitted') {
+    const publishedResult = resolvePublishedResult(draft.metadata)
+    if (!publishedResult) {
+      return NextResponse.json({ error: 'Failed to recover published draft destination' }, { status: 500 })
+    }
+
+    return buildPublishedResponse({ supabase, result: publishedResult, userId, runPostPublishEffects: false })
   }
 
   const { data: draftImages, error: draftImagesError } = await supabase
@@ -271,92 +463,5 @@ export async function promoteDraftToSubmission(input: {
     return NextResponse.json({ error: 'Failed to publish draft' }, { status: 500 })
   }
 
-  const defaultImageId = result.default_image_id || result.image_id
-  const { data: canonicalImage, error: canonicalImageError } = await supabase
-    .from('images')
-    .select('id, crag_id, crags(name, country_code, slug), route_lines(id, climb_id, sequence_order, created_at)')
-    .eq('id', defaultImageId)
-    .maybeSingle()
-
-  if (canonicalImageError || !canonicalImage) {
-    return createErrorResponse(canonicalImageError || new Error('Failed to resolve canonical image path after publish'), 'Failed to resolve publish destination')
-  }
-
-  const crag = Array.isArray(canonicalImage.crags) ? canonicalImage.crags[0] : canonicalImage.crags
-  if (!crag?.country_code || !crag?.slug) {
-    return NextResponse.json({ error: 'Failed to resolve canonical crag path after publish' }, { status: 500 })
-  }
-
-  const cragId = typeof canonicalImage.crag_id === 'string' ? canonicalImage.crag_id : null
-
-  const climbIds = Array.isArray(result.climb_ids)
-    ? result.climb_ids.filter((climbId): climbId is string => typeof climbId === 'string' && climbId.length > 0)
-    : []
-
-  const notificationClimbs = climbIds.length > 0
-    ? await (async () => {
-      const { data: climbRows } = await supabase
-        .from('climbs')
-        .select('id, name, grade')
-        .in('id', climbIds)
-
-      const climbMap = new Map<string, { id: string; name: string; grade: string }>()
-      for (const row of (climbRows || []) as Array<{ id: string; name: string | null; grade: string }>) {
-        climbMap.set(row.id, {
-          id: row.id,
-          name: row.name || 'Unnamed',
-          grade: row.grade,
-        })
-      }
-
-      return climbIds.map((climbId, index) => climbMap.get(climbId) || {
-        id: climbId,
-        name: `Route ${index + 1}`,
-        grade: 'Unknown',
-      })
-    })()
-    : []
-
-  if (notificationClimbs.length > 0 && cragId) {
-    const cragName = typeof crag.name === 'string' && crag.name.trim().length > 0 ? crag.name : 'Unknown Crag'
-
-    await notifyNewSubmission(supabase, notificationClimbs, cragName, cragId, userId).catch((error) => {
-      reportError(error, { message: 'Discord notification error' })
-    })
-  }
-
-  const routeLines = Array.isArray(canonicalImage.route_lines) ? canonicalImage.route_lines : []
-  const defaultRoute = routeLines.slice().sort((left: { sequence_order: number | null; created_at: string | null }, right: { sequence_order: number | null; created_at: string | null }) => {
-    const leftSequence = typeof left.sequence_order === 'number' ? left.sequence_order : Number.MAX_SAFE_INTEGER
-    const rightSequence = typeof right.sequence_order === 'number' ? right.sequence_order : Number.MAX_SAFE_INTEGER
-    if (leftSequence !== rightSequence) return leftSequence - rightSequence
-    return String(left.created_at || '').localeCompare(String(right.created_at || ''))
-  })[0] || null
-
-  const canonicalPath = `/${crag.country_code.toLowerCase()}/${crag.slug}/i/${defaultImageId}`
-
-  await recordSubmissionPublishedEvent(supabase, {
-    userId,
-    imageId: defaultImageId,
-    sourceId: defaultImageId,
-  }).catch((contributorScoreError) => {
-    reportError(contributorScoreError, { message: 'Contributor score publish event error' })
-  })
-
-  return NextResponse.json({
-    success: true,
-    status: result.status || 'submitted',
-    published: {
-      defaultImageId,
-      imageId: result.image_id,
-      imageIds: Array.isArray(result.image_ids) ? result.image_ids : (result.image_id ? [result.image_id] : []),
-      climbIds: Array.isArray(result.climb_ids) ? result.climb_ids : [],
-      routeLineIds: Array.isArray(result.route_line_ids) ? result.route_line_ids : [],
-      publishedAt: result.published_at || null,
-      canonicalPath,
-      countryCode: crag.country_code.toLowerCase(),
-      cragSlug: crag.slug,
-      defaultRouteId: defaultRoute?.id || null,
-    },
-  })
+  return buildPublishedResponse({ supabase, result, userId })
 }
