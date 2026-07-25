@@ -71,6 +71,7 @@ interface ClimbInfoPanelProps {
   communityNotesExpanded: boolean
   savingFeedback: boolean
   logging: boolean
+  loggingOnline: boolean
   savingWantToTry: boolean
   loadingSelectedClimbState: boolean
   userPresent: boolean
@@ -123,6 +124,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     communityNotesExpanded,
     savingFeedback,
     logging,
+    loggingOnline,
     savingWantToTry,
     loadingSelectedClimbState,
     userPresent,
@@ -218,7 +220,9 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             ) : (
               <>
                 <p className="text-gray-400 text-sm">
-                  {selectedRouteExists
+                  {!loggingOnline && selectedRouteExists
+                    ? 'Logging requires a connection.'
+                    : selectedRouteExists
                     ? 'Route selected - choose an option below'
                     : canAddRoutes
                       ? 'No routes have been added to this image yet.'
@@ -226,13 +230,13 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                 </p>
 
                 <div className="grid grid-cols-3 gap-2">
-                  <button onClick={() => onLog('flash')} disabled={logging || !selectedClimb} className="min-h-12 rounded-xl bg-yellow-600 px-4 py-2 font-medium text-white transition-colors hover:bg-yellow-500 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button onClick={() => onLog('flash')} disabled={logging || !loggingOnline || !selectedClimb} className="min-h-12 rounded-xl bg-yellow-600 px-4 py-2 font-medium text-white transition-colors hover:bg-yellow-500 disabled:cursor-not-allowed disabled:opacity-50">
                     Flash
                   </button>
-                  <button onClick={() => onLog('top')} disabled={logging || !selectedClimb} className="min-h-12 rounded-xl bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button onClick={() => onLog('top')} disabled={logging || !loggingOnline || !selectedClimb} className="min-h-12 rounded-xl bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">
                     Send
                   </button>
-                  <button onClick={() => onLog('try')} disabled={logging || !selectedClimb} className="min-h-12 rounded-xl bg-gray-700 px-4 py-2 font-medium text-white transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button onClick={() => onLog('try')} disabled={logging || !loggingOnline || !selectedClimb} className="min-h-12 rounded-xl bg-gray-700 px-4 py-2 font-medium text-white transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50">
                     Try
                   </button>
                 </div>

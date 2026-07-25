@@ -15,6 +15,7 @@ const logRoutesSchema = z.object({
   climbIds: z.array(z.string().trim().min(1)).min(1, 'climbIds array is required'),
   style: z.enum(['flash', 'top', 'try'], { error: 'Invalid style' }).default('top'),
   notes: z.string().trim().max(500, 'Notes must be under 500 characters').optional(),
+  climbedOn: z.iso.date({ error: 'Invalid climbed date' }),
 })
 
 interface LogRoutesResult {
@@ -25,9 +26,10 @@ interface LogRoutesResult {
 export async function logRoutesAction(
   climbIds: string[],
   style: LogStyle = 'top',
-  notes?: string
+  notes: string | undefined,
+  climbedOn: string
 ): Promise<ActionResult<LogRoutesResult>> {
-  const validation = validateActionInput(logRoutesSchema, { climbIds, style, notes })
+  const validation = validateActionInput(logRoutesSchema, { climbIds, style, notes, climbedOn })
   if (!validation.success) return fail<LogRoutesResult>(validation.result.error || 'Invalid request data', validation.result.status || 400)
 
   const auth = await getActionAuth()
@@ -40,7 +42,7 @@ export async function logRoutesAction(
   }
 
   const userId = auth.data.userId
-  const { climbIds: validatedClimbIds, style: validatedStyle } = validation.data
+  const { climbedOn: validatedClimbedOn, climbIds: validatedClimbIds, style: validatedStyle } = validation.data
 
   const supabase = await getServerClient()
   const effectiveClimbIds = Array.from(
@@ -60,7 +62,7 @@ export async function logRoutesAction(
     user_id: userId,
     climb_id: climbId,
     style: validatedStyle,
-    date_climbed: now.toISOString().split('T')[0],
+    date_climbed: validatedClimbedOn,
     created_at: now.toISOString(),
     notes: validation.data.notes || null,
   }))
