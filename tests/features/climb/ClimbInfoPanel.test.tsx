@@ -311,4 +311,32 @@ describe('ClimbInfoPanel', () => {
     expect(screen.getByRole('button', { name: 'Loading...' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Flash' })).toBeNull()
   })
+
+  it('places sticky logging controls before route details and logs each ascent style', async () => {
+    const user = userEvent.setup()
+    const onLog = vi.fn()
+    renderPanel({
+      selectedClimb: {
+        id: 'climb-1',
+        name: 'Pebble Wrestle',
+        grade: '6B',
+        route_type: 'boulder',
+        description: 'Start low and move left.',
+      },
+      selectedRouteExists: true,
+      canAddRoutes: false,
+      totalRoutesCombined: 1,
+      onLog,
+    })
+
+    const flashButton = screen.getByRole('button', { name: 'Flash' })
+    const routeCount = screen.getByText('1 route')
+    expect(flashButton.compareDocumentPosition(routeCount) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(flashButton.parentElement?.parentElement).toHaveClass('sticky')
+
+    await user.click(flashButton)
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await user.click(screen.getByRole('button', { name: 'Try' }))
+    expect(onLog.mock.calls).toEqual([['flash'], ['top'], ['try']])
+  })
 })
