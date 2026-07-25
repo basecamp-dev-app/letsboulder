@@ -18,7 +18,7 @@ import FlagClimbModal from '@/components/FlagClimbModal'
 import { saveClimbFeedbackAction } from '@/features/climb/actions/save-climb-feedback'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/lib/grades/preferences'
 import { logRoutesAction } from '@/features/logbook/actions/log-routes'
-import { ownLogbookSubmissionsQueryKey, ownLogbookSummaryQueryKey } from '@/features/logbook/lib/queries'
+import { ownLogbookLogsQueryKeyPrefix, ownLogbookSubmissionsQueryKey, ownLogbookSummaryQueryKey } from '@/features/logbook/lib/queries'
 import { saveClimbAction } from '@/features/saved/actions/save-climb'
 import { unsaveClimbAction } from '@/features/saved/actions/unsave-climb'
 import { isClimbSavedByUser } from '@/features/saved/lib/queries'
@@ -817,6 +817,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ownLogbookSummaryQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ownLogbookLogsQueryKeyPrefix }),
         queryClient.invalidateQueries({ queryKey: ownLogbookSubmissionsQueryKey }),
       ])
 

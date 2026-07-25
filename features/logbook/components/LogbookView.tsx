@@ -15,6 +15,7 @@ import {
   getRecentLogbookLogs,
   type OwnerSubmissionCounts,
   type LogbookClimb,
+  type LogbookLifetimeStats,
   type LogbookProfile,
   type ProgressLogEntry,
 } from '@/features/logbook/lib/logbook-view'
@@ -33,6 +34,7 @@ interface LogbookViewProps {
   isOwnProfile: boolean
   logs: LogbookClimb[]
   progressLogs?: ProgressLogEntry[]
+  lifetimeStats?: LogbookLifetimeStats
   profile?: LogbookProfile
   submissions: Submission[]
   submissionCounts?: OwnerSubmissionCounts
@@ -59,6 +61,7 @@ export default function LogbookView({
   isOwnProfile,
   logs,
   progressLogs,
+  lifetimeStats,
   profile,
   submissions,
   submissionCounts,
@@ -92,7 +95,8 @@ export default function LogbookView({
     element.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [isSubmissionsExpanded, searchParams])
 
-  const stats = useMemo(() => getLogbookStats(logs), [logs])
+  const statsSource = progressLogs ?? logs
+  const stats = useMemo(() => getLogbookStats(statsSource, lifetimeStats), [statsSource, lifetimeStats])
   const lowestGrade = getLogbookLowestGrade(stats)
   const recentLogs = useMemo(() => getRecentLogbookLogs(logs), [logs])
   const resolvedSubmissionCounts = useMemo(() => submissionCounts ?? getOwnerSubmissionCounts(submissions), [submissionCounts, submissions])
@@ -205,7 +209,7 @@ export default function LogbookView({
         />
       ) : null}
 
-      {!isOwnProfile && hasMoreLogs && (
+      {hasMoreLogs && (
         <div className="px-4 py-6 text-center">
           <button
             onClick={() => {

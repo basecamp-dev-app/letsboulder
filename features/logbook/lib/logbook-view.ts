@@ -38,6 +38,13 @@ export interface ProgressLogEntry {
   } | null
 }
 
+export interface LogbookLifetimeStats {
+  totalClimbs: number
+  totalFlashes: number
+  totalTops: number
+  totalTries: number
+}
+
 export interface LogbookProfile {
   id: string
   username: string
@@ -83,9 +90,22 @@ export const statusStyles: Record<string, string> = {
   try: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200',
 }
 
-export function getLogbookStats(logs: LogbookClimb[]): LogbookStats | null {
-  if (logs.length === 0) return null
-  return calculateStats(logs)
+export function getLogbookStats(
+  logs: LogEntry[],
+  lifetimeStats?: LogbookLifetimeStats,
+): LogbookStats | null {
+  if (logs.length === 0 && !lifetimeStats?.totalClimbs) return null
+
+  const stats = calculateStats(logs)
+  if (!lifetimeStats) return stats
+
+  return {
+    ...stats,
+    totalClimbs: lifetimeStats.totalClimbs,
+    totalFlashes: lifetimeStats.totalFlashes,
+    totalTops: lifetimeStats.totalTops,
+    totalTries: lifetimeStats.totalTries,
+  }
 }
 
 export function getLogbookLowestGrade(stats: LogbookStats | null): string {
@@ -93,7 +113,7 @@ export function getLogbookLowestGrade(stats: LogbookStats | null): string {
 }
 
 export function getRecentLogbookLogs(logs: LogbookClimb[]): LogbookClimb[] {
-  return logs.slice(0, 20)
+  return logs
 }
 
 export function getOwnerSubmissionCounts(submissions: Submission[]): OwnerSubmissionCounts {

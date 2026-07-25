@@ -1,18 +1,21 @@
 'use client'
 
 import { startTransition, useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import type { User } from '@supabase/supabase-js'
 import { useRouter, useSearchParams } from 'next/navigation'
 import LogbookView from '@/features/logbook/components/LogbookView'
 import { useToast } from '@/features/logbook/components/Toast'
 import {
   fetchOwnLogbookSubmissions,
+  fetchOwnLogbookPage,
   fetchOwnLogbookSummary,
+  ownLogbookLogsQueryKey,
   ownLogbookSubmissionsQueryKey,
   ownLogbookSummaryQueryKey,
   type OwnLogbookData,
 } from '@/features/logbook/lib/queries'
+import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
 import { deleteLogAction } from '@/features/logbook/actions/delete-log'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
@@ -27,6 +30,8 @@ interface LogbookClientProps {
   user: User
   initialData?: OwnLogbookData
 }
+
+const LOGBOOK_PAGE_SIZE = 24
 
 export default function LogbookClient({ user, initialData }: LogbookClientProps) {
   return <LogbookContent user={user} initialData={initialData} />
@@ -43,6 +48,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
         user,
         logs: initialData.logs,
         progressLogs: initialData.progressLogs,
+        lifetimeStats: initialData.lifetimeStats,
         profile: initialData.profile,
         savedClimbs: initialData.savedClimbs,
         savedCrags: initialData.savedCrags,
@@ -65,13 +71,27 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
     gcTime: 30 * 60 * 1000,
   })
 
+  const logsQuery = useInfiniteQuery({
+    queryKey: ownLogbookLogsQueryKey(user.id),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => fetchOwnLogbookPage(user.id, pageParam, LOGBOOK_PAGE_SIZE),
+    initialData: initialData
+      ? { pages: [initialData.logs], pageParams: [0] }
+      : undefined,
+    getNextPageParam: (lastPage, pages) => (
+      lastPage.length === LOGBOOK_PAGE_SIZE ? pages.length : undefined
+    ),
+    gcTime: 30 * 60 * 1000,
+  })
+
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
   const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null)
   const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null)
 
-  const logs = data?.logs ?? initialData?.logs ?? []
+  const logs = logsQuery.data?.pages.flat() ?? data?.logs ?? initialData?.logs ?? []
   const progressLogs = data?.progressLogs ?? initialData?.progressLogs ?? logs
+  const lifetimeStats = data?.lifetimeStats ?? initialData?.lifetimeStats
   const profile = data?.profile ?? initialData?.profile ?? undefined
   const savedClimbs = useMemo(() => data?.savedClimbs ?? initialData?.savedClimbs ?? [], [data?.savedClimbs, initialData?.savedClimbs])
   const savedCrags = useMemo(() => data?.savedCrags ?? initialData?.savedCrags ?? [], [data?.savedCrags, initialData?.savedCrags])
@@ -95,18 +115,39 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
 
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId)
-    const previousLogs = logs
+    const previousSummary = queryClient.getQueryData<OwnLogbookData>(ownLogbookSummaryQueryKey)
+    const previousLogPages = queryClient.getQueryData<InfiniteData<LogbookClimb[], number>>(ownLogbookLogsQueryKey(user.id))
+    const deletedLog = logs.find((log) => log.id === logId)
+
+    queryClient.setQueryData<InfiniteData<LogbookClimb[], number>>(ownLogbookLogsQueryKey(user.id), (current) => current
+      ? { ...current, pages: current.pages.map((page) => page.filter((log) => log.id !== logId)) }
+      : current)
     updateOwnLogbookData((current) => ({
       ...current,
       logs: current.logs.filter((log) => log.id !== logId),
+      progressLogs: current.progressLogs.filter((log) => log.id !== logId),
+      lifetimeStats: deletedLog
+        ? {
+            ...current.lifetimeStats,
+            totalClimbs: Math.max(0, current.lifetimeStats.totalClimbs - 1),
+            totalFlashes: Math.max(0, current.lifetimeStats.totalFlashes - (deletedLog.style === 'flash' ? 1 : 0)),
+            totalTops: Math.max(0, current.lifetimeStats.totalTops - (deletedLog.style === 'top' ? 1 : 0)),
+            totalTries: Math.max(0, current.lifetimeStats.totalTries - (deletedLog.style === 'try' ? 1 : 0)),
+          }
+        : current.lifetimeStats,
     }))
 
     try {
       const result = await deleteLogAction(logId)
       if (!result.success) throw new Error(result.error)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ownLogbookSummaryQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ownLogbookLogsQueryKey(user.id) }),
+      ])
       addToast('Climb removed from logbook', 'success')
     } catch {
-      updateOwnLogbookData((current) => ({ ...current, logs: previousLogs }))
+      queryClient.setQueryData(ownLogbookSummaryQueryKey, previousSummary)
+      queryClient.setQueryData(ownLogbookLogsQueryKey(user.id), previousLogPages)
       addToast('Failed to remove climb', 'error')
     } finally {
       setDeletingId(null)
@@ -264,14 +305,15 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
       isOwnProfile={true}
       logs={logs}
       progressLogs={progressLogs}
+      lifetimeStats={lifetimeStats}
       profile={profile}
       submissions={submissions}
       submissionCounts={submissionCounts}
       initialSubmissionsExpanded={isSubmissionsExpanded}
       savedClimbs={savedClimbs}
       savedCrags={savedCrags}
-      hasMoreLogs={false}
-      isLoadingMoreLogs={false}
+      hasMoreLogs={Boolean(logsQuery.hasNextPage)}
+      isLoadingMoreLogs={logsQuery.isFetchingNextPage}
       deletingId={deletingId}
       deletingDraftId={deletingDraftId}
       deletingSubmissionId={deletingSubmissionId}
@@ -281,7 +323,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
       onPublishDraft={handlePublishDraft}
       onDeleteSubmission={handleDeleteSubmission}
       onExpandSubmissions={() => setIsSubmissionsExpanded(true)}
-      onLoadMoreLogs={() => {}}
+      onLoadMoreLogs={() => void logsQuery.fetchNextPage()}
     />
   )
 }

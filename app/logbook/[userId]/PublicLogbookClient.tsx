@@ -50,6 +50,7 @@ export default function PublicLogbookClient({ userId, initialPage }: PublicLogbo
 
   const logs = flattenPublicLogbookPages(data)
   const progressLogs = data?.pages[0]?.progressLogs ?? initialPage.progressLogs ?? logs
+  const lifetimeStats = data?.pages[0]?.lifetimeStats ?? initialPage.lifetimeStats
   const profile = (data?.pages[0]?.profile ?? initialPage.profile) as LogbookProfile | undefined
   const submissions = (data?.pages[0]?.submissions ?? initialPage.submissions ?? []) as Submission[]
 
@@ -72,6 +73,7 @@ export default function PublicLogbookClient({ userId, initialPage }: PublicLogbo
         isOwnProfile={false}
         logs={logs}
         progressLogs={progressLogs}
+        lifetimeStats={lifetimeStats}
         profile={profile}
         submissions={submissions}
         savedClimbs={[]}

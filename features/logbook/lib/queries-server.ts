@@ -4,8 +4,9 @@ import { getGradePoints } from '@/lib/grades'
 import { selectPreferredDraftPreviewImage, type DraftPreviewImageRef } from '@/features/submissions/lib/draft-preview'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 import type { Submission } from '@/types/submissions'
+import type { Database } from '@/types/database'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
-import type { LogbookClimb, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
+import type { LogbookClimb, LogbookLifetimeStats, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 import { fetchSavedClimbs, fetchSavedCrags } from '@/features/saved/lib/queries'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 
@@ -37,6 +38,8 @@ interface RawProgressLogRow {
     grade: string
   } | null
 }
+
+type LogbookLifetimeStatsRow = Database['public']['Functions']['get_logbook_lifetime_stats']['Returns'][number]
 
 interface LogbookProfile {
   id: string
@@ -93,6 +96,7 @@ export interface OwnLogbookData {
   user: User | null
   logs: LogbookClimb[]
   progressLogs: ProgressLogEntry[]
+  lifetimeStats: LogbookLifetimeStats
   profile: LogbookProfile | null
   savedClimbs: SavedClimb[]
   savedCrags: SavedCrag[]
@@ -108,6 +112,7 @@ export interface ServerLogbookSummary {
   user: User
   logs: LogbookClimb[]
   progressLogs: ProgressLogEntry[]
+  lifetimeStats: LogbookLifetimeStats
   profile: LogbookProfile | null
 }
 
@@ -176,13 +181,14 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
   const profileData = profileRes.data
   const profileError = profileRes.error
 
-  const [logsRes, progressLogsRes] = await Promise.all([
+  const [logsRes, progressLogsRes, lifetimeStatsRes] = await Promise.all([
     timeServerStep('fetchServerLogbookLogsAndProfile', 'recent-logs', async () =>
       supabase
         .from('user_climbs')
         .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(INITIAL_LOGBOOK_LOG_LIMIT)
     ),
     timeServerStep('fetchServerLogbookLogsAndProfile', 'progress-logs', async () =>
@@ -193,11 +199,16 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
         .order('created_at', { ascending: false })
         .limit(PROGRESS_LOG_LIMIT)
     ),
+    timeServerStep('fetchServerLogbookLogsAndProfile', 'lifetime-stats', async () =>
+      supabase.rpc('get_logbook_lifetime_stats', { p_user_id: userId }).single()
+    ),
   ])
   const logsData = logsRes.data
   const logsError = logsRes.error
   const progressLogsData = progressLogsRes.data
   const progressLogsError = progressLogsRes.error
+  const lifetimeStatsData = lifetimeStatsRes.data as LogbookLifetimeStatsRow | null
+  const lifetimeStatsError = lifetimeStatsRes.error
 
   if (profileError && profileError.code !== 'PGRST116') {
     throw profileError
@@ -209,6 +220,10 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
 
   if (progressLogsError) {
     throw progressLogsError
+  }
+
+  if (lifetimeStatsError) {
+    throw lifetimeStatsError
   }
 
   const logsWithCrags = ((logsData || []) as unknown as RawLogbookRow[]).map((log) => {
@@ -265,17 +280,24 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
     supabase,
     logs: logsWithUrls,
     progressLogs: (progressLogsData || []) as unknown as RawProgressLogRow[] as ProgressLogEntry[],
+    lifetimeStats: {
+      totalClimbs: lifetimeStatsData?.total_climbs ?? 0,
+      totalFlashes: lifetimeStatsData?.total_flashes ?? 0,
+      totalTops: lifetimeStatsData?.total_tops ?? 0,
+      totalTries: lifetimeStatsData?.total_tries ?? 0,
+    },
     profile: (profileData || null) as LogbookProfile | null,
   }
 }
 
 export async function fetchServerLogbookSummary(user: User): Promise<ServerLogbookSummary> {
-  const { logs, progressLogs, profile } = await fetchServerLogbookLogsAndProfile(user.id)
+  const { logs, progressLogs, lifetimeStats, profile } = await fetchServerLogbookLogsAndProfile(user.id)
 
   return {
     user,
     logs,
     progressLogs,
+    lifetimeStats,
     profile,
   }
 }
@@ -315,7 +337,7 @@ export async function fetchServerLogbookSubmissions(user: User): Promise<Submiss
 
 export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData> {
   const timing = startServerTiming('fetchServerLogbookData')
-  const { logs, progressLogs, profile } = await timeServerStep('fetchServerLogbookData', 'logs-and-profile', () => fetchServerLogbookLogsAndProfile(user.id))
+  const { logs, progressLogs, lifetimeStats, profile } = await timeServerStep('fetchServerLogbookData', 'logs-and-profile', () => fetchServerLogbookLogsAndProfile(user.id))
   const submissions = await timeServerStep('fetchServerLogbookData', 'submissions', () => fetchServerLogbookSubmissions(user))
   const supabase = await getServerClient()
   const [savedClimbs, savedCrags] = await Promise.all([
@@ -335,6 +357,7 @@ export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData
     user,
     logs,
     progressLogs,
+    lifetimeStats,
     profile,
     savedClimbs,
     savedCrags,
