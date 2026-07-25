@@ -259,6 +259,9 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - Canonical publishability is `processing_status = 'ready'` and `moderation_status IN ('approved', 'skipped')`. Public delivery or association additionally requires `visibility = 'public'` and legacy `status = 'approved'`.
 - `assert_media_ready_for_publication(image_ids)` locks and validates authoritative `images` rows inside publication transactions. Draft promotion, unified submission creation, route creation, and linked `crag_images` writes fail with detail code `media_not_ready` until every image is publicly deliverable.
 - Transactional guards require publication RPCs to associate existing upload-session image IDs and preserve worker-produced processing, moderation, visibility, and delivery fields.
+- `promote_draft_to_submission` locks the draft first, then draft attachments and routes by ID, authoritative linked images by ID, and finally the crag. It rejects duplicate linked image identities and validates each linked image's owner and storage path, public readiness, and the crag's canonical slug and country code before publishing.
+- Promotion changes `draft` to `submitted` with a status compare-and-swap. A repeated call for a submitted draft returns its stored publication result instead of creating another publication; drafts with images but no routes remain valid.
+- `delete_unassociated_upload_image(image_id)` locks the authoritative image and deletes it only when the caller owns it (or is `service_role`) and no content reference remains. Draft links, published associations, routes, gallery links, child images, moderation/collaboration/contribution records, and image comments all make it associated, regardless of processing status. The upload-session DELETE route maps `image_associated` to HTTP 409.
 
 ### Collaboration Tables
 - Published submissions use wiki-style editing for authenticated users; `submission_collaborators` and `submission_collaborator_invites` remain legacy published-collaboration tables.
@@ -274,8 +277,8 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 
 | Table | SELECT | INSERT | UPDATE | DELETE |
 |---|---|---|---|---|
-| `submission_drafts` | owner or collaborator | owner only (policy) + RPC | owner or collaborator (draft status) | owner only |
-| `submission_draft_images` | owner or collaborator | owner or collaborator (draft status) | owner or collaborator (draft status) | owner only (draft status) |
+| `submission_drafts` | owner or collaborator | owner only (policy) + RPC | owner or collaborator (draft status) | RPC only |
+| `submission_draft_images` | owner or collaborator | owner or collaborator (draft status) | owner or collaborator (draft status) | RPC only |
 | `submission_draft_routes` | owner or collaborator | owner or collaborator (draft status, FOR ALL) | owner or collaborator (draft status, FOR ALL) | owner or collaborator (draft status, FOR ALL) |
 | `submission_collaborators` | self or owner | owner only | (none — RPC only) | owner or self |
 | `submission_collaborator_invites` | owner | owner only | (none — RPC only) | owner only |
@@ -283,13 +286,15 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 | `submission_draft_collaborator_invites` | owner | owner only (draft status) | (none — RPC only) | owner only |
 | `submission_contributors` | authenticated | service / helper only | service / helper only | service / helper only |
 | `submission_edit_history` | authenticated | service / helper only | service / helper only | service / helper only |
-| `images` | existing + collaborator read | existing | existing | existing |
+| `images` | existing + collaborator read | existing | existing | admin policy or guarded RPC |
 
 **Key security notes:**
-- `promote_draft_to_submission` is `SECURITY DEFINER` and bypasses RLS, but gates via `user_can_edit_submission_draft()` before proceeding.
+- `promote_draft_to_submission` is `SECURITY DEFINER`, requires the locked draft's owner, and is the only path allowed to transition a draft to `submitted`; direct draft UPDATE policies require both old and new status to remain `draft`.
 - `handle_submission_draft_promoted` trigger is `SECURITY DEFINER` and fires on draft→submitted status change. The UPDATE policy on `submission_drafts` gates who can trigger this transition.
 - `is_submission_collaborator` and `is_submission_draft_collaborator` are `SECURITY DEFINER` — appropriate for RLS helpers reading `auth.uid()`.
-- `promote_draft_to_submission` has been redefined 18+ times across migrations. The canonical version is in `20260343000000_add_submission_draft_routes.sql` which reads from `submission_draft_routes` table (not legacy `route_data` JSONB).
+- The active canonical `promote_draft_to_submission` definition is in `20260725160000_forward_publication_safety.sql`; active atomic deletion definitions are in `20260725160050_atomic_draft_deletion.sql` and `20260725160100_atomic_draft_image_deletion.sql`, with grants and RLS tightened by `20260725160150_draft_deletion_permissions.sql`. Do not use the older archived promotion definition as the current reference.
+- `delete_submission_draft_atomic` deletes an editable owner draft and conditionally unreferenced owner uploads in one transaction. `delete_submission_draft_image_atomic` locks the draft, validates the expected timestamp, locks all attachments and the linked image, then atomically deletes one attachment, compacts ordering and metadata, and conditionally deletes the now-unreferenced upload.
+- Direct owner DELETE policies are removed from `images`, `submission_drafts`, and `submission_draft_images`. Destructive owner operations must use the guarded RPCs; the separate image admin policy remains available for explicit administration.
 
 ### Triggers
 | Trigger | Table | Purpose |
@@ -316,6 +321,14 @@ The `crags_sync_to_places_after_write` and `places_sync_to_crags_after_write` tr
 - **Guard 2:** `synced_at` comparison — skips sync if row was just updated by the other trigger (prevents indirect loops)
 
 Both `crags` and `places` have a `synced_at TIMESTAMPTZ` column. When a sync operation completes, it sets `synced_at = NOW()`. The receiving trigger detects this change and returns early, breaking the loop.
+
+Non-delete synchronization remains bidirectional. Delete synchronization is intentionally one-way: deleting a `crags` row removes its paired `places` projection, while deleting a `places` row never deletes the source crag.
+
+### Empty Crag Cleanup
+- A crag is empty only when no row references either the crag directly (`images`, `climbs`, `submission_drafts`, `crag_images`, `sectors`, `crag_reports`, `climb_flags`, `crag_location_tags`, `saved_crags`, `contribution_events`, `contribution_bounties`, or polymorphic crag `comments`) or its paired place (`climbs`, `images`, `community_place_follows`, `community_posts`, `gym_floor_plans`, `gym_memberships`, `gym_routes`, `contribution_events`, `contribution_bounties`, or `user_place_contributor_scores`).
+- Cleanup requires `created_at` to be older than the grace period, which defaults to one hour. The image recompute trigger explicitly uses the same one-hour grace after reassignment or deletion.
+- `delete_empty_crag` locks the crag and paired place parent rows, locks polymorphic comments against concurrent inserts, checks the complete predicate, and repeats that predicate in the final DELETE. `delete_empty_crags` processes eligible IDs in deterministic UUID order and delegates each final decision to the single-row function.
+- Both cleanup RPCs are executable only by `service_role`; `anon` and `authenticated` cannot invoke them directly. The invoking image trigger is `SECURITY DEFINER`.
 
 ### Auth Tables
 - **System tables:** Use RPC functions with `SECURITY DEFINER` for `auth.users` queries
@@ -361,6 +374,9 @@ Both `crags` and `places` have a `synced_at TIMESTAMPTZ` column. When a sync ope
 |----------|---------|
 | `create_unified_submission(...)` | Atomically create submission with images |
 | `promote_draft_to_submission(draft_id)` | Promote draft to live submission |
+| `delete_submission_draft_atomic(draft_id)` | Atomically delete an editable whole draft and eligible unassociated uploads |
+| `delete_submission_draft_image_atomic(draft_id, draft_image_id, expected_updated_at)` | Atomically delete one draft image and update draft ordering/metadata |
+| `delete_unassociated_upload_image(image_id)` | Delete an owned upload only if it has no content associations |
 | `sync_submission_draft_routes(draft_id, draft_image_id, routes)` | Replace the durable draft route set for one image |
 | `user_can_edit_submission_draft(draft_id, user_id)` | Permission check for draft editing |
 | `handle_submission_draft_promoted(...)` | Trigger handler for draft promotion |
@@ -390,8 +406,8 @@ Both `crags` and `places` have a `synced_at TIMESTAMPTZ` column. When a sync ope
 | `recompute_crag_location(p_crag_id)` | Recompute crag centroid from climbs/images |
 | `refresh_crag_type_from_climbs(p_crag_id)` | Refresh crag type from child climbs |
 | `increment_crag_report_count(p_crag_id)` | Increment crag report counter |
-| `delete_empty_crag(p_crag_id)` | Delete crag with no climbs/images |
-| `delete_empty_crags()` | Batch delete empty crags |
+| `delete_empty_crag(p_crag_id, grace_period)` | Delete one strictly empty crag after the grace period |
+| `delete_empty_crags(grace_period)` | Deterministically batch-delete strictly empty crags after the grace period |
 
 ### Notifications
 | Function | Purpose |
@@ -441,6 +457,7 @@ supabase db push --linked
 - **NEVER** use `DROP TABLE`, `TRUNCATE`, or `DELETE` in migrations
 - Use `CREATE OR REPLACE` for functions instead of `DROP` + `CREATE`
 - Review all migrations with `git diff supabase/migrations/`
+- Safety migrations are forward-only; they define behavior for future operations and do not repair historical data unless a migration explicitly says so.
 
 ---
 

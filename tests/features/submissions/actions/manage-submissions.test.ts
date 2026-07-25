@@ -11,6 +11,7 @@ vi.mock('@/lib/supabase-server', async () => {
 
   return {
     getServerClient: vi.fn().mockResolvedValue({
+      rpc: vi.fn().mockResolvedValue({ data: { success: true, cleanup: [] }, error: null }),
       from: vi.fn().mockImplementation(() => ({
         select: vi.fn().mockImplementation(() => ({
           eq: vi.fn().mockImplementation(() => ({
@@ -125,6 +126,10 @@ vi.mock('@/lib/media/draft-storage', () => ({
   cleanupDraftStorageObjects: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('@/lib/supabase-admin', () => ({
+  getAdminClientWithAudit: vi.fn(() => ({ storage: true })),
+}))
+
 vi.mock('@/features/submissions/server/drafts/draft-route-helpers', () => ({
   normalizeCreateImages: vi.fn(),
   buildUploadSignature: vi.fn(),
@@ -132,6 +137,9 @@ vi.mock('@/features/submissions/server/drafts/draft-route-helpers', () => ({
 }))
 
 import { getActionAuth } from '@/lib/actions/action-auth'
+import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
+import { getServerClient } from '@/lib/supabase-server'
 import { normalizeCreateImages, buildUploadSignature, validateDraftImageOwnership } from '@/features/submissions/server/drafts/draft-route-helpers'
 
 const mockGetActionAuth = getActionAuth as ReturnType<typeof vi.fn>
@@ -222,107 +230,56 @@ describe('deleteSubmissionDraftAction', () => {
     expect(result.status).toBe(400)
   })
 
-  test('rejects when draft not found', async () => {
+  test.each([
+    ['not_found', 404, 'Draft not found'],
+    ['permission_denied', 403, 'Forbidden'],
+    ['draft_not_editable', 409, 'Only draft submissions can be deleted'],
+    ['draft_conflict', 409, 'The draft changed while it was being deleted'],
+  ])('maps RPC detail %s to status %s', async (details, status, error) => {
     mockGetActionAuth.mockResolvedValue({ success: true, data: { userId: 'user-123' } })
-    const { getServerClient } = await import('@/lib/supabase-server')
     const mockSupabase = await getServerClient()
-    mockSupabase.from = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } }),
-        }),
-      }),
+    const rpc = mockSupabase.rpc as unknown as ReturnType<typeof vi.fn>
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: error, details },
     })
 
     const result = await deleteSubmissionDraftAction('draft-123')
     expect(result.success).toBe(false)
-    expect(result.status).toBe(404)
-    expect(result.error).toBe('Draft not found')
-  })
-
-  test('rejects when user does not own draft', async () => {
-    mockGetActionAuth.mockResolvedValue({ success: true, data: { userId: 'user-123' } })
-    const { getServerClient } = await import('@/lib/supabase-server')
-    const mockSupabase = await getServerClient()
-    mockSupabase.from = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: { id: 'draft-123', user_id: 'different-user', status: 'draft' },
-            error: null,
-          }),
-        }),
-      }),
+    expect(result.status).toBe(status)
+    expect(result.error).toBe(error)
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('delete_submission_draft_atomic', {
+      p_draft_id: 'draft-123',
     })
-
-    const result = await deleteSubmissionDraftAction('draft-123')
-    expect(result.success).toBe(false)
-    expect(result.status).toBe(403)
-    expect(result.error).toBe('Forbidden')
+    expect(cleanupDraftStorageObjects).not.toHaveBeenCalled()
   })
 
-  test('rejects when draft is not in draft status', async () => {
+  test('deletes through the atomic RPC and cleans returned storage rows afterward', async () => {
     mockGetActionAuth.mockResolvedValue({ success: true, data: { userId: 'user-123' } })
-    const { getServerClient } = await import('@/lib/supabase-server')
     const mockSupabase = await getServerClient()
-    mockSupabase.from = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: { id: 'draft-123', user_id: 'user-123', status: 'published' },
-            error: null,
-          }),
-        }),
-      }),
-    })
-
-    const result = await deleteSubmissionDraftAction('draft-123')
-    expect(result.success).toBe(false)
-    expect(result.status).toBe(400)
-    expect(result.error).toBe('Only draft submissions can be deleted')
-  })
-
-  test('deletes draft successfully', async () => {
-    mockGetActionAuth.mockResolvedValue({ success: true, data: { userId: 'user-123' } })
-    const { getServerClient } = await import('@/lib/supabase-server')
-    const mockSupabase = await getServerClient()
-
-    mockSupabase.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'submission_drafts') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { id: 'draft-123', user_id: 'user-123', status: 'draft' },
-                error: null,
-              }),
-            }),
-          }),
-          delete: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({
-                  data: { id: 'draft-123' },
-                  error: null,
-                }),
-              }),
-            }),
-          }),
-        }
-      }
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
-        }),
-      }
+    const rpc = mockSupabase.rpc as unknown as ReturnType<typeof vi.fn>
+    const cleanup = [{
+      storage_provider: 'r2',
+      storage_bucket: 'private-bucket',
+      storage_path: 'drafts/draft-123/image.jpg',
+    }]
+    rpc.mockResolvedValueOnce({
+      data: { success: true, cleanup },
+      error: null,
     })
 
     const result = await deleteSubmissionDraftAction('draft-123')
     expect(result.success).toBe(true)
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('delete_submission_draft_atomic', {
+      p_draft_id: 'draft-123',
+    })
+    expect(cleanupDraftStorageObjects).toHaveBeenCalledWith(
+      vi.mocked(getAdminClientWithAudit).mock.results[0].value,
+      cleanup
+    )
+    expect(rpc.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(cleanupDraftStorageObjects).mock.invocationCallOrder[0]
+    )
   })
 })
 

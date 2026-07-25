@@ -13,6 +13,7 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['./tests/vitest.setup.ts'],
     include: ['tests/**/*.test.ts'],
+    exclude: ['tests/database/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

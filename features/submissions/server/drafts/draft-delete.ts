@@ -2,12 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
-import type { Database } from '@/types/database'
-
-type DraftStorageRow = Pick<
-  Database['public']['Tables']['submission_draft_images']['Row'],
-  'storage_provider' | 'storage_bucket' | 'storage_path'
->
+import { getRpcErrorDetail, isRecord, parseStorageCleanupRows } from '@/lib/media/deletion-rpc'
 
 export async function deleteDraft(
   id: string,
@@ -17,55 +12,35 @@ export async function deleteDraft(
     return NextResponse.json({ error: 'Draft ID is required' }, { status: 400 })
   }
 
-  const { supabase, userId } = middlewareResult
-  const storageClient = getAdminClientWithAudit('delete draft storage cleanup')
+  const { supabase } = middlewareResult
 
   try {
-    const { data: draft, error: draftError } = await supabase
-      .from('submission_drafts')
-      .select('id, user_id, status')
-      .eq('id', id)
-      .single()
-
-    if (draftError || !draft) {
-      return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
-    }
-
-    if (draft.user_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    if (draft.status !== 'draft') {
-      return NextResponse.json({ error: 'Only draft submissions can be deleted' }, { status: 400 })
-    }
-
-    const { data: draftImages, error: draftImagesError } = await supabase
-      .from('submission_draft_images')
-      .select('storage_provider, storage_bucket, storage_path')
-      .eq('draft_id', id)
-
-    if (draftImagesError) {
-      return createErrorResponse(draftImagesError, 'Failed to read draft image storage paths')
-    }
-
-    const draftStorageRows = (draftImages || []) as DraftStorageRow[]
-
-    const { data: deletedDraft, error: deleteError } = await supabase
-      .from('submission_drafts')
-      .delete()
-      .eq('id', id)
-      .select('id')
-      .maybeSingle()
+    const { data, error: deleteError } = await supabase.rpc('delete_submission_draft_atomic', {
+      p_draft_id: id,
+    })
 
     if (deleteError) {
+      const detail = getRpcErrorDetail(deleteError)
+      if (detail === 'not_found') return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+      if (detail === 'permission_denied') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      if (detail === 'draft_not_editable') {
+        return NextResponse.json({ error: 'Only draft submissions can be deleted' }, { status: 409 })
+      }
+      if (detail === 'draft_conflict') {
+        return NextResponse.json({ error: 'The draft changed while it was being deleted' }, { status: 409 })
+      }
       return createErrorResponse(deleteError, 'Failed to delete submission draft')
     }
 
-    if (!deletedDraft) {
-      return NextResponse.json({ error: 'Failed to delete submission draft' }, { status: 500 })
+    if (!isRecord(data)) {
+      return createErrorResponse(new Error('Invalid draft deletion response'), 'Failed to delete submission draft')
     }
 
-    await cleanupDraftStorageObjects(storageClient, draftStorageRows)
+    const cleanupRows = parseStorageCleanupRows(data.cleanup)
+    if (cleanupRows.length > 0) {
+      const storageClient = getAdminClientWithAudit('delete draft storage cleanup')
+      await cleanupDraftStorageObjects(storageClient, cleanupRows)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
