@@ -5,6 +5,18 @@ vi.mock('@/lib/discord', () => ({
   notifyNewSubmission: vi.fn(async () => undefined),
 }))
 
+vi.mock('@/lib/location/resolve-country', () => ({
+  resolveCountryFromCoordinates: vi.fn(async () => ({
+    countryId: 'country-1',
+    countryCode: 'GG',
+    countryName: 'Guernsey',
+    regionName: 'Northern Europe',
+    unRegionName: 'Europe',
+    continentName: 'Europe',
+    source: 'database',
+  })),
+}))
+
 import { promoteDraftToSubmission } from '@/features/submissions/server/drafts/draft-promote'
 import { notifyNewSubmission } from '@/lib/discord'
 
@@ -17,7 +29,14 @@ function makeThenableResult<T>(result: T) {
   }
 }
 
-function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallbackRouteData?: boolean; mediaReady?: boolean }) {
+function makeSupabase(options?: {
+  includeAllImageRoutes?: boolean
+  includeFallbackRouteData?: boolean
+  mediaReady?: boolean
+  draftStatus?: 'draft' | 'submitted'
+  cragCountryCode?: string | null
+  onCragUpdate?: (payload: Record<string, unknown>) => void
+}) {
   const includeAllImageRoutes = options?.includeAllImageRoutes ?? true
   const includeFallbackRouteData = options?.includeFallbackRouteData ?? false
 
@@ -31,9 +50,18 @@ function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallba
                 data: {
                   id: 'draft-1',
                   user_id: 'user-1',
+                  crag_id: 'crag-1',
+                  status: options?.draftStatus || 'draft',
                   metadata: {
                     navigation: { defaultImageId: 'draft-image-1' },
-                    submission: { location: { latitude: 49.45, longitude: -2.55 } },
+                    submission: { location: { latitude: 49.45, longitude: -2.55, countryCode: 'GG' } },
+                    ...(options?.draftStatus === 'submitted' ? {
+                      publishedImageId: 'image-1',
+                      allPublishedImageIds: ['image-1'],
+                      publishedClimbIds: ['climb-1'],
+                      publishedRouteLineIds: ['route-line-1'],
+                      publishedAt: '2026-03-01T00:00:00Z',
+                    } : {}),
                   },
                 },
                 error: null,
@@ -75,6 +103,26 @@ function makeSupabase(options?: { includeAllImageRoutes?: boolean; includeFallba
               error: null,
             })),
           })),
+        }
+      }
+
+      if (table === 'crags') {
+        const repairedCountryCode = options?.cragCountryCode === null ? 'GG' : (options?.cragCountryCode || 'GG')
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: { id: 'crag-1', country_code: options?.cragCountryCode === undefined ? 'GG' : options.cragCountryCode, slug: 'hidden-crag' },
+                error: null,
+              })),
+            })),
+          })),
+          update: vi.fn((payload: Record<string, unknown>) => {
+            options?.onCragUpdate?.(payload)
+            return {
+              eq: vi.fn(async () => ({ data: { id: 'crag-1', country_code: repairedCountryCode }, error: null })),
+            }
+          }),
         }
       }
 
@@ -197,6 +245,30 @@ describe('promoteDraftToSubmission', () => {
     )
   })
 
+  test('recovers an already-published draft and repairs missing crag country metadata without promoting twice', async () => {
+    vi.mocked(notifyNewSubmission).mockClear()
+    const onCragUpdate = vi.fn()
+    const supabase = makeSupabase({ draftStatus: 'submitted', cragCountryCode: null, onCragUpdate })
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({
+      published: expect.objectContaining({
+        defaultImageId: 'image-1',
+        canonicalPath: '/gg/hidden-crag/i/image-1',
+      }),
+    }))
+    expect(onCragUpdate).toHaveBeenCalledWith(expect.objectContaining({ country_code: 'GG', country_id: 'country-1' }))
+    expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
+    expect(vi.mocked(notifyNewSubmission)).not.toHaveBeenCalled()
+  })
+
   test('publishes image-only drafts when some images have no durable draft routes', async () => {
     const supabase = makeSupabase({ includeAllImageRoutes: false })
 
@@ -259,8 +331,9 @@ describe('promoteDraftToSubmission', () => {
   test('repairs missing durable routes from image route_data before publishing', async () => {
     const supabase = makeSupabase({ includeAllImageRoutes: false, includeFallbackRouteData: true })
     let draftRouteReadCount = 0
+    const originalFrom = supabase.from
 
-    supabase.from = vi.fn((table: string) => {
+    ;(supabase.from as unknown) = vi.fn((table: string) => {
       if (table === 'submission_drafts') {
         return {
           select: vi.fn(() => ({
@@ -269,6 +342,8 @@ describe('promoteDraftToSubmission', () => {
                 data: {
                   id: 'draft-1',
                   user_id: 'user-1',
+                  crag_id: 'crag-1',
+                  status: 'draft',
                   metadata: {
                     navigation: { defaultImageId: 'draft-image-1' },
                     submission: { location: { latitude: 49.45, longitude: -2.55 } },
@@ -369,7 +444,7 @@ describe('promoteDraftToSubmission', () => {
         }
       }
 
-      throw new Error(`Unexpected table: ${table}`)
+      return originalFrom(table)
     })
 
     ;(supabase.rpc as unknown) = vi.fn(async (fnName: string, args?: Record<string, unknown>) => {
@@ -431,6 +506,8 @@ describe('promoteDraftToSubmission', () => {
                 data: {
                   id: 'draft-1',
                   user_id: 'user-1',
+                  crag_id: 'crag-1',
+                  status: 'draft',
                   metadata: {
                     navigation: { defaultImageId: 'draft-image-1' },
                     submission: {},
@@ -555,6 +632,8 @@ describe('promoteDraftToSubmission', () => {
                 data: {
                   id: 'draft-1',
                   user_id: 'user-1',
+                  crag_id: 'crag-1',
+                  status: 'draft',
                   metadata: {
                     version: 2,
                     navigation: { defaultImageId: 'draft-image-1' },

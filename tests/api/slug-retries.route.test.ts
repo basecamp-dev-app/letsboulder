@@ -231,6 +231,7 @@ describe('Slug retry routes', () => {
 
   test('crags route computes a suffixed slug when the base slug is already used', async () => {
     const insertPayloads: Array<{ slug: string }> = []
+    const updatePayloads: Array<{ country_code: string | null }> = []
 
     vi.mocked(withApiMiddleware).mockResolvedValue({
       ok: true,
@@ -266,7 +267,7 @@ describe('Slug retry routes', () => {
                         id: 'crag-1',
                         name: 'Smith Rock',
                         slug: payload.slug,
-                        country_code: 'US',
+                        country_code: null,
                         latitude: 44.36,
                         longitude: -121.14,
                         rock_type: 'tuff',
@@ -276,6 +277,31 @@ describe('Slug retry routes', () => {
                         created_at: new Date().toISOString(),
                       },
                       error: null,
+                    })),
+                  })),
+                }
+              }),
+              update: vi.fn((payload: { country_code: string | null }) => {
+                updatePayloads.push(payload)
+                return {
+                  eq: vi.fn(() => ({
+                    select: vi.fn(() => ({
+                      single: vi.fn(async () => ({
+                        data: {
+                          id: 'crag-1',
+                          name: 'Smith Rock',
+                          slug: 'smith-rock-2',
+                          country_code: payload.country_code,
+                          latitude: 44.36,
+                          longitude: -121.14,
+                          rock_type: 'tuff',
+                          type: 'sport',
+                          region_name: 'Oregon',
+                          sub_area: null,
+                          created_at: new Date().toISOString(),
+                        },
+                        error: null,
+                      })),
                     })),
                   })),
                 }
@@ -322,7 +348,11 @@ describe('Slug retry routes', () => {
     expect(insertPayloads).toEqual([
       expect.objectContaining({ slug: 'smith-rock-2', country_code: 'US' }),
     ])
+    expect(updatePayloads).toEqual([
+      expect.objectContaining({ country_code: 'US' }),
+    ])
     expect(json.slug).toBe('smith-rock-2')
+    expect(json.country_code).toBe('US')
   })
 
   test('crags route accepts null optional fields during creation', async () => {
