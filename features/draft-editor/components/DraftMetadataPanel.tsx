@@ -122,8 +122,8 @@ export function DraftMetadataPanel({
           <div className="mb-3">
             <CragSelector
               selectedCragId={cragId}
-              latitude={selectedCrag ? selectedCrag.latitude : (latitude ? parseFloat(latitude) : null)}
-              longitude={selectedCrag ? selectedCrag.longitude : (longitude ? parseFloat(longitude) : null)}
+              latitude={selectedCrag ? selectedCrag.latitude : (effectiveMarkerPosition?.[0] ?? (latitude ? parseFloat(latitude) : null))}
+              longitude={selectedCrag ? selectedCrag.longitude : (effectiveMarkerPosition?.[1] ?? (longitude ? parseFloat(longitude) : null))}
               onSelect={(crag) => {
                 onSelectCrag({
                   id: crag.id,

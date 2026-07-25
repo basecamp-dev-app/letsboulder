@@ -1,5 +1,9 @@
-import { describe, expect, test, vi } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { createServerClient } from '@supabase/ssr'
+
+const { adminRpcMock } = vi.hoisted(() => ({
+  adminRpcMock: vi.fn(),
+}))
 
 vi.mock('@/lib/discord', () => ({
   notifyNewSubmission: vi.fn(async () => undefined),
@@ -7,18 +11,23 @@ vi.mock('@/lib/discord', () => ({
 
 vi.mock('@/lib/location/resolve-country', () => ({
   resolveCountryFromCoordinates: vi.fn(async () => ({
-    countryId: 'country-1',
+    countryId: null,
     countryCode: 'GG',
     countryName: 'Guernsey',
     regionName: 'Northern Europe',
-    unRegionName: 'Europe',
-    continentName: 'Europe',
-    source: 'database',
+    unRegionName: null,
+    continentName: null,
+    source: 'nominatim',
   })),
+}))
+
+vi.mock('@/lib/supabase-admin', () => ({
+  getAdminClientWithAudit: () => ({ rpc: adminRpcMock }),
 }))
 
 import { promoteDraftToSubmission } from '@/features/submissions/server/drafts/draft-promote'
 import { notifyNewSubmission } from '@/lib/discord'
+import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 
 function makeThenableResult<T>(result: T) {
   return {
@@ -35,7 +44,7 @@ function makeSupabase(options?: {
   mediaReady?: boolean
   draftStatus?: 'draft' | 'submitted'
   cragCountryCode?: string | null
-  onCragUpdate?: (payload: Record<string, unknown>) => void
+  draftHasLocation?: boolean
 }) {
   const includeAllImageRoutes = options?.includeAllImageRoutes ?? true
   const includeFallbackRouteData = options?.includeFallbackRouteData ?? false
@@ -44,6 +53,19 @@ function makeSupabase(options?: {
     from: vi.fn((table: string) => {
       if (table === 'submission_drafts') {
         return {
+          update: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    select: vi.fn(() => ({
+                      maybeSingle: vi.fn(async () => ({ data: { id: 'draft-1' }, error: null })),
+                    })),
+                  })),
+                })),
+              })),
+            })),
+          })),
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               maybeSingle: vi.fn(async () => ({
@@ -55,7 +77,9 @@ function makeSupabase(options?: {
                   updated_at: '2026-03-01T00:00:00Z',
                   metadata: {
                     navigation: { defaultImageId: 'draft-image-1' },
-                    submission: { location: { latitude: 49.45, longitude: -2.55, countryCode: 'GG' } },
+                    submission: options?.draftHasLocation === false
+                      ? {}
+                      : { location: { latitude: 49.45, longitude: -2.55, countryCode: 'GG' } },
                     ...(options?.draftStatus === 'submitted' ? {
                       publishedImageId: 'image-1',
                       allPublishedImageIds: ['image-1'],
@@ -108,7 +132,6 @@ function makeSupabase(options?: {
       }
 
       if (table === 'crags') {
-        const repairedCountryCode = options?.cragCountryCode === null ? 'GG' : (options?.cragCountryCode || 'GG')
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
@@ -118,12 +141,6 @@ function makeSupabase(options?: {
               })),
             })),
           })),
-          update: vi.fn((payload: Record<string, unknown>) => {
-            options?.onCragUpdate?.(payload)
-            return {
-              eq: vi.fn(async () => ({ data: { id: 'crag-1', country_code: repairedCountryCode }, error: null })),
-            }
-          }),
         }
       }
 
@@ -206,6 +223,11 @@ function makeSupabase(options?: {
 }
 
 describe('promoteDraftToSubmission', () => {
+  beforeEach(() => {
+    adminRpcMock.mockReset()
+    adminRpcMock.mockResolvedValue({ data: 'GG', error: null })
+  })
+
   test('rejects publication until every linked image is publicly deliverable', async () => {
     const supabase = makeSupabase({ mediaReady: false })
 
@@ -248,8 +270,7 @@ describe('promoteDraftToSubmission', () => {
 
   test('recovers an already-published draft and repairs missing crag country metadata without promoting twice', async () => {
     vi.mocked(notifyNewSubmission).mockClear()
-    const onCragUpdate = vi.fn()
-    const supabase = makeSupabase({ draftStatus: 'submitted', cragCountryCode: null, onCragUpdate })
+    const supabase = makeSupabase({ draftStatus: 'submitted', cragCountryCode: null })
 
     const response = await promoteDraftToSubmission({
       supabase: supabase as unknown as ReturnType<typeof createServerClient>,
@@ -265,9 +286,64 @@ describe('promoteDraftToSubmission', () => {
         canonicalPath: '/gg/hidden-crag/i/image-1',
       }),
     }))
-    expect(onCragUpdate).toHaveBeenCalledWith(expect.objectContaining({ country_code: 'GG', country_id: 'country-1' }))
+    expect(adminRpcMock).toHaveBeenCalledWith('repair_submission_draft_crag_country', {
+      p_draft_id: 'draft-1',
+      p_user_id: 'user-1',
+      p_crag_id: 'crag-1',
+      p_latitude: 49.45,
+      p_longitude: -2.55,
+      p_country_code: 'GG',
+      p_country_name: 'Guernsey',
+      p_region_name: 'Northern Europe',
+    })
     expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
     expect(vi.mocked(notifyNewSubmission)).not.toHaveBeenCalled()
+  })
+
+  test('repairs a countryless crag when only draft-image GPS is persisted', async () => {
+    const supabase = makeSupabase({ cragCountryCode: null, draftHasLocation: false })
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(200)
+    expect(vi.mocked(resolveCountryFromCoordinates)).toHaveBeenCalledWith(supabase, 49.45, -2.55)
+    expect(adminRpcMock).toHaveBeenCalledWith('repair_submission_draft_crag_country', {
+      p_draft_id: 'draft-1',
+      p_user_id: 'user-1',
+      p_crag_id: 'crag-1',
+      p_latitude: 49.45,
+      p_longitude: -2.55,
+      p_country_code: 'GG',
+      p_country_name: 'Guernsey',
+      p_region_name: 'Northern Europe',
+    })
+    expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
+  })
+
+  test('recovers a submitted countryless crag using persisted draft-image GPS', async () => {
+    const supabase = makeSupabase({ draftStatus: 'submitted', cragCountryCode: null, draftHasLocation: false })
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(200)
+    expect(vi.mocked(resolveCountryFromCoordinates)).toHaveBeenCalledWith(supabase, 49.45, -2.55)
+    expect(adminRpcMock).toHaveBeenCalledWith('repair_submission_draft_crag_country', expect.objectContaining({
+      p_draft_id: 'draft-1',
+      p_crag_id: 'crag-1',
+      p_latitude: 49.45,
+      p_longitude: -2.55,
+    }))
+    expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
   })
 
   test('publishes image-only drafts when some images have no durable draft routes', async () => {
