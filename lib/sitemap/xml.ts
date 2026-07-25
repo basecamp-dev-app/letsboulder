@@ -1,7 +1,7 @@
 import { env } from '@/lib/env'
 import { SITE_URL } from '@/lib/site'
 
-export const SITEMAP_PAGE_SIZE = 45_000
+export const SITEMAP_PAGE_SIZE = 1_000
 
 export interface SitemapEntry {
   url: string
