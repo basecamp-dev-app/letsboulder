@@ -45,6 +45,7 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ClimbInfoPan
     communityNotesExpanded: false,
     savingFeedback: false,
     logging: false,
+    loggingOnline: true,
     savingWantToTry: false,
     loadingSelectedClimbState: false,
     userPresent: true,
@@ -198,6 +199,7 @@ describe('ClimbInfoPanel', () => {
       communityNotesExpanded: false,
       savingFeedback: false,
       logging: false,
+      loggingOnline: true,
       savingWantToTry: false,
       loadingSelectedClimbState: false,
       userPresent: true,
@@ -266,6 +268,7 @@ describe('ClimbInfoPanel', () => {
       communityNotesExpanded: false,
       savingFeedback: false,
       logging: false,
+      loggingOnline: true,
       savingWantToTry: false,
       loadingSelectedClimbState: false,
       userPresent: true,
@@ -338,5 +341,25 @@ describe('ClimbInfoPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Send' }))
     await user.click(screen.getByRole('button', { name: 'Try' }))
     expect(onLog.mock.calls).toEqual([['flash'], ['top'], ['try']])
+  })
+
+  it('disables logging controls and explains when logging is offline', () => {
+    renderPanel({
+      selectedClimb: {
+        id: 'climb-1',
+        name: 'Pebble Wrestle',
+        grade: '6B',
+        route_type: 'boulder',
+        description: null,
+      },
+      selectedRouteExists: true,
+      canAddRoutes: false,
+      loggingOnline: false,
+    })
+
+    expect(screen.getByText('Logging requires a connection.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Flash' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Try' })).toBeDisabled()
   })
 })

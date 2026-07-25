@@ -142,6 +142,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [pendingNotes, setPendingNotes] = useState('')
   const [savingFeedback, setSavingFeedback] = useState(false)
   const [logging, setLogging] = useState(false)
+  const [isOnline, setIsOnline] = useState<boolean | null>(null)
   const [savingWantToTry, setSavingWantToTry] = useState(false)
   const [loadingSelectedClimbState, setLoadingSelectedClimbState] = useState(false)
   const [downloadingPost, setDownloadingPost] = useState(false)
@@ -233,6 +234,18 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     })
 
     return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const updateOnlineStatus = () => setIsOnline(window.navigator.onLine !== false)
+    updateOnlineStatus()
+
+    window.addEventListener('online', updateOnlineStatus)
+    window.addEventListener('offline', updateOnlineStatus)
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus)
+      window.removeEventListener('offline', updateOnlineStatus)
+    }
   }, [])
 
   const fetchRoutesForImageIds = useCallback(async (imageIds: string[]) => {
@@ -780,16 +793,14 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   }, [])
 
   const handleLog = useCallback(async (style: 'flash' | 'top' | 'try', notes?: string) => {
-    if (!activeClimbId || !userPresent) return false
+    if (!activeClimbId || !userPresent || isOnline !== true) return false
 
     const targetClimbId = activeClimbId
+    const climbedOn = new Date().toLocaleDateString('en-CA')
     setLogging(true)
     try {
-      const result = await logRoutesAction([targetClimbId], style, notes || undefined)
-      if (!result.success) {
-        addToast('Failed to log climb', 'error')
-        return false
-      }
+      const result = await logRoutesAction([targetClimbId], style, notes || undefined, climbedOn)
+      if (!result.success) throw new Error(result.error)
 
       if (activeClimbIdRef.current !== targetClimbId) {
         addToast('Climb logged', 'success')
@@ -807,10 +818,13 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       setNotesDialogOpen(true)
       addToast(`Logged as ${style === 'flash' ? 'Flash' : style === 'top' ? 'Top' : 'Try'}`, 'success')
       return true
+    } catch {
+      addToast('Could not log this climb. Check your signal and retry.', 'error')
+      return false
     } finally {
       setLogging(false)
     }
-  }, [activeClimbId, addToast, queryClient, selectedClimbLog?.notes, userPresent])
+  }, [activeClimbId, addToast, isOnline, queryClient, selectedClimbLog?.notes, userPresent])
 
   const applySavedFeedback = useCallback((payload: {
     updatedGrade?: string
@@ -1097,6 +1111,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         communityNotesExpanded={communityNotesExpanded}
         savingFeedback={savingFeedback}
         logging={logging}
+        loggingOnline={isOnline === true}
         savingWantToTry={savingWantToTry}
         loadingSelectedClimbState={loadingSelectedClimbState}
         userPresent={userPresent || !hasHydratedAuth}
