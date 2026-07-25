@@ -144,7 +144,7 @@ describe('UnifiedRouteCanvas', () => {
     expect(screen.getByText('Failed to load image')).toBeInTheDocument()
   })
 
-  it('forwards selection clicks to onRouteSelect', async () => {
+  it('forwards selection taps to onRouteSelect', async () => {
     const onRouteSelect = vi.fn()
     mockHandleRouteClick.mockReturnValue('route-1')
 
@@ -152,11 +152,28 @@ describe('UnifiedRouteCanvas', () => {
 
     loadCanvasImage()
     fireEvent.pointerDown(document.querySelector('canvas') as HTMLCanvasElement, { button: 0, clientX: 50, clientY: 75 })
+    expect(onRouteSelect).not.toHaveBeenCalled()
+    fireEvent.pointerUp(document.querySelector('canvas') as HTMLCanvasElement, { clientX: 54, clientY: 78 })
 
     expect(onRouteSelect).toHaveBeenCalledWith('route-1')
     await waitFor(() => {
       expect(mockDrawRoutes).toHaveBeenCalled()
     })
+  })
+
+  it('does not select a route after a swipe-sized gesture', () => {
+    const onRouteSelect = vi.fn()
+    mockHandleRouteClick.mockReturnValue('route-1')
+
+    render(<UnifiedRouteCanvas mode="browse" imageUrl="/wall.jpg" routes={[createRoute()]} onRouteSelect={onRouteSelect} />)
+
+    loadCanvasImage()
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 50, clientY: 75 })
+    fireEvent.pointerUp(canvas, { clientX: 70, clientY: 75 })
+
+    expect(mockHandleRouteClick).not.toHaveBeenCalled()
+    expect(onRouteSelect).not.toHaveBeenCalled()
   })
 
   it('adds drawing points when drawing mode is enabled', () => {
@@ -166,6 +183,7 @@ describe('UnifiedRouteCanvas', () => {
 
     loadCanvasImage()
     fireEvent.pointerDown(document.querySelector('canvas') as HTMLCanvasElement, { button: 0, clientX: 90, clientY: 120 })
+    fireEvent.pointerUp(document.querySelector('canvas') as HTMLCanvasElement, { clientX: 90, clientY: 120 })
 
     expect(mockAddPoint).toHaveBeenCalledWith({ x: 0.3125, y: 0.3125 })
   })
