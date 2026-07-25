@@ -102,7 +102,7 @@ describe('DraftIntakeView', () => {
   it('creates a draft and queues uploads after image selection', async () => {
     const user = userEvent.setup()
 
-    render(<DraftIntakeView />)
+    render(<DraftIntakeView cragId="crag-1" />)
 
     const input = document.querySelector('input[type="file"]')
     expect(input).not.toBeNull()
@@ -111,6 +111,7 @@ describe('DraftIntakeView', () => {
 
     await waitFor(() => {
       expect(mockCreateSubmissionDraftAction).toHaveBeenCalled()
+      expect(mockCreateSubmissionDraftAction).toHaveBeenCalledWith(expect.objectContaining({ cragId: 'crag-1' }))
       expect(mockRegisterDraftUpdatedAt).toHaveBeenCalledWith('draft-1', '2026-04-04T00:00:00.000Z')
       expect(mockQueueDraftUploads).toHaveBeenCalledWith([expect.objectContaining({ name: 'one.jpg' })], 'draft-1')
     })

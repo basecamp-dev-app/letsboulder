@@ -175,6 +175,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
 
       <section>
         <CragRouteList
+          cragId={cragId}
           filteredRoutes={filteredRoutes}
           routesLoadState={routesLoadState}
           highlightedRouteIds={highlightedRouteIds}
@@ -192,6 +193,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
       </section>
 
       <CragSearchDialog
+        cragId={cragId}
         open={searchModalOpen}
         onOpenChange={onSearchModalOpenChange}
         searchQuery={searchQuery}

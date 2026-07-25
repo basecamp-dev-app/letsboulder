@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { ChevronRight, X } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeSystem } from '@/lib/grades'
@@ -10,6 +11,7 @@ import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui
 import type { CragRoute } from '@/features/crags/lib/crag-page-types'
 
 interface CragSearchDialogProps {
+  cragId: string
   open: boolean
   onOpenChange: (open: boolean) => void
   searchQuery: string
@@ -21,6 +23,7 @@ interface CragSearchDialogProps {
 }
 
 const CragSearchDialog = React.memo(function CragSearchDialog({
+  cragId,
   open,
   onOpenChange,
   searchQuery,
@@ -50,13 +53,25 @@ const CragSearchDialog = React.memo(function CragSearchDialog({
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Routes</p>
               <div role="list" aria-label="Matching routes" className="space-y-2">
                 {searchQuery.trim().length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">Search routes in this crag by name, grade, or type.</p> : searchModalResults.length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">No routes matched &quot;{searchQuery.trim()}&quot; in this crag.</p> : searchModalResults.map((route) => {
-                  const destination = getRouteDestination(route)
                   const content = (
                     <>
                       <span>{route.name} <span className="text-stone-500">{formatGradeForDisplay(route.grade, gradeSystem)}</span></span>
-                      <ChevronRight className="size-4 text-stone-400" />
+                      {route.hasTopo ? <ChevronRight className="size-4 text-stone-400" /> : null}
                     </>
                   )
+
+                  if (!route.hasTopo) {
+                    return (
+                      <div key={route.id} className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 px-3 py-2 text-sm dark:border-gray-700">
+                        {content}
+                        <Link href={`/submit?cragId=${encodeURIComponent(cragId)}`} prefetch={false} className="min-h-11 shrink-0 rounded-full bg-blue-600 px-3 py-2 font-semibold text-white hover:bg-blue-700">
+                          Add topo
+                        </Link>
+                      </div>
+                    )
+                  }
+
+                  const destination = getRouteDestination(route)
 
                   return (
                     <a key={route.id} href={destination.href} className="flex items-center justify-between rounded-xl border border-stone-200 px-3 py-2 text-sm hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">

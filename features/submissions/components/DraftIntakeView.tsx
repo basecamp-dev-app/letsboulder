@@ -50,7 +50,7 @@ interface DraftCreateResponse {
 
 type UploadPhase = 'idle' | 'creating' | 'uploading' | 'complete' | 'failed'
 
-export default function DraftIntakeView() {
+export default function DraftIntakeView({ cragId = null }: { cragId?: string | null }) {
   const router = useRouter()
   const { toasts, addToast, removeToast } = useToast()
   const { queueDraftUploads, registerDraftUpdatedAt, getUploadsForDraft, resumeQueue, retryUpload, removeUpload } = useDraftUploadManager()
@@ -173,6 +173,7 @@ export default function DraftIntakeView() {
     try {
       const result = await createSubmissionDraftAction({
         images: [],
+        cragId,
         metadata: {
           primaryIndex: 0,
           intake: {
@@ -202,7 +203,7 @@ export default function DraftIntakeView() {
       addToast(message, 'error')
       setPhase('idle')
     }
-  }, [addToast, draftId, queueDraftUploads, registerDraftUpdatedAt])
+  }, [addToast, cragId, draftId, queueDraftUploads, registerDraftUpdatedAt])
 
   const handleReorder = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event

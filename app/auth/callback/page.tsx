@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { SupabaseClient, User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { reportError } from '@/lib/errors'
+import { getSafeRedirect } from '@/lib/safe-redirect'
 
 async function syncProfileFields(supabase: SupabaseClient, userId: string, profileData: Record<string, unknown>) {
   const { data: updatedRows, error: updateError } = await supabase
@@ -98,20 +99,6 @@ function AuthCallbackContent() {
   const [loadingStep, setLoadingStep] = useState('Signing you in')
   const attemptCountRef = useRef(0)
 
-  const validateRedirect = (path: string | null): string => {
-    const allowedPaths = ['/', '/map', '/logbook', '/settings', '/submit', '/image/', '/climb/', '/crag/']
-
-    if (!path) return '/'
-
-    if (/^(https?:)?\/\//i.test(path) || path.includes('..') || path.includes('//')) {
-      return '/'
-    }
-
-    const isAllowed = allowedPaths.some(allowed => path === allowed || path.startsWith(allowed + '/'))
-
-    return isAllowed ? path : '/'
-  }
-
   const getRedirectLabel = (path: string): string => {
     if (path === '/logbook' || path.startsWith('/logbook/')) return 'your logbook'
     if (path === '/submit' || path.startsWith('/submit/')) return 'your submission'
@@ -166,6 +153,7 @@ function AuthCallbackContent() {
   const completeAuth = useCallback(async () => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    const redirectTo = getSafeRedirect(searchParams.get('redirect_to'))
 
     setLoadingStep('Creating your profile')
 
@@ -183,7 +171,7 @@ function AuthCallbackContent() {
       const hasPublicName = Boolean(activeProfile?.display_name?.trim() || activeProfile?.first_name?.trim())
 
       if (!hasPublicName) {
-        router.push('/auth/set-name')
+        router.push(`/auth/set-name?redirect_to=${encodeURIComponent(redirectTo)}`)
         return
       }
 
@@ -197,7 +185,6 @@ function AuthCallbackContent() {
       }).catch((err) => reportError(err, { message: 'Failed to send welcome email' }))
     }
 
-    const redirectTo = validateRedirect(searchParams.get('redirect_to'))
     setLoadingStep(`Taking you back to ${getRedirectLabel(redirectTo)}`)
     setStatus('success')
     router.push(redirectTo)
