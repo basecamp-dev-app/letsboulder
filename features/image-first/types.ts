@@ -3,6 +3,7 @@ import type { RoutePoint } from '@/types/domain'
 export interface ImageFirstRouteLine {
   routeId: string
   climbId: string
+  effectiveClimbId: string
   imageId: string
   climbSlug: string | null
   climbName: string

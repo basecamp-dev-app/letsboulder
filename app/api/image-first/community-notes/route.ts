@@ -3,14 +3,14 @@ import { loadRoutePageCommunityNotes } from '@/features/image-first/server/load-
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const climbId = searchParams.get('climbId')
+  const effectiveClimbId = searchParams.get('effectiveClimbId')
 
-  if (!climbId) {
-    return NextResponse.json({ error: 'Missing climbId' }, { status: 400 })
+  if (!effectiveClimbId) {
+    return NextResponse.json({ error: 'Missing effectiveClimbId' }, { status: 400 })
   }
 
   try {
-    const notes = await loadRoutePageCommunityNotes(climbId)
+    const notes = await loadRoutePageCommunityNotes(effectiveClimbId)
     return NextResponse.json({ notes })
   } catch {
     return NextResponse.json({ error: 'Failed to load community notes' }, { status: 500 })

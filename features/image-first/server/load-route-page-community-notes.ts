@@ -16,12 +16,12 @@ interface UserClimbNoteRow {
   created_at: string | null
 }
 
-export async function loadRoutePageCommunityNotes(climbId: string): Promise<RoutePageCommunityNote[]> {
+export async function loadRoutePageCommunityNotes(effectiveClimbId: string): Promise<RoutePageCommunityNote[]> {
   const supabase = getUnauthenticatedClient()
   const { data, error } = await supabase
     .from('user_climbs')
     .select('user_id, notes, created_at')
-    .eq('climb_id', climbId)
+    .eq('climb_id', effectiveClimbId)
     .not('notes', 'is', null)
     .order('created_at', { ascending: false })
     .limit(COMMUNITY_NOTE_LIMIT)
