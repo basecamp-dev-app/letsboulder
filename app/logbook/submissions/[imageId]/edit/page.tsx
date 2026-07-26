@@ -207,6 +207,7 @@ export default function EditSubmittedRoutesPage() {
           routes: newRoutes.map((route) => ({
             name: route.climb?.name || 'Unnamed',
             grade: route.climb?.grade || '6A',
+            climbType: route.climb?.route_type || 'boulder',
             description: route.climb?.description ?? null,
             points: route.points,
             sequenceOrder: route.sequence_order,

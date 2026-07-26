@@ -38,6 +38,18 @@ describe('fetchOwnSubmissions', () => {
                           crags: { name: 'Test Crag', slug: 'test-crag', country_code: 'GB' },
                           route_lines: [],
                         },
+                        {
+                          id: 'image-only',
+                          url: 'https://example.com/image-only.jpg',
+                          created_at: '2026-04-08T11:00:00Z',
+                          submission_id: 'submission-2',
+                          moderation_status: 'approved',
+                          is_anonymous_submission: false,
+                          contribution_credit_platform: null,
+                          contribution_credit_handle: null,
+                          crags: { name: 'Photo Crag', slug: 'photo-crag', country_code: 'GB' },
+                          route_lines: [],
+                        },
                       ],
                       error: null,
                     })),
@@ -82,14 +94,20 @@ describe('fetchOwnSubmissions', () => {
 
     const submissions = await fetchOwnSubmissions(supabase as unknown as SupabaseClient, 'user-1', fetch)
 
-    expect(submissions).toHaveLength(1)
-    expect(submissions[0]).toMatchObject({
+    expect(submissions).toHaveLength(2)
+    expect(submissions.find((submission) => submission.id === 'submission-1')).toMatchObject({
       id: 'submission-1',
       canonical_image_id: 'canonical-image',
       route_image_id: 'face-image',
       route_line_id: 'route-line-1',
       climb_id: 'climb-1',
       route_lines_count: 2,
+    })
+    expect(submissions.find((submission) => submission.id === 'submission-2')).toMatchObject({
+      canonical_image_id: 'image-only',
+      crag_name: 'Photo Crag',
+      route_lines_count: 0,
+      image_count: 1,
     })
   })
 

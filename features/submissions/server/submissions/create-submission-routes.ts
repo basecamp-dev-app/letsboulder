@@ -60,9 +60,9 @@ export async function createSubmissionRoutes(
     return Math.max(maxOrder, typeof line.sequence_order === 'number' ? line.sequence_order : 0)
   }, -1) + 1
 
-  let resolvedRouteType: (typeof VALID_ROUTE_TYPES)[number] = 'sport'
+  let fallbackRouteType: (typeof VALID_ROUTE_TYPES)[number] = 'sport'
   if (submittedRouteType) {
-    resolvedRouteType = submittedRouteType
+    fallbackRouteType = submittedRouteType
   } else {
     const { data: existingImageRouteLines } = await supabase
       .from('route_lines')
@@ -78,7 +78,7 @@ export async function createSubmissionRoutes(
     }
 
     if (existingTypes.size === 1) {
-      resolvedRouteType = [...existingTypes][0]
+      fallbackRouteType = [...existingTypes][0]
     }
   }
 
@@ -94,7 +94,7 @@ export async function createSubmissionRoutes(
       slug: image.crag_id ? makeUniqueSlug(trimmedName || `Route ${routeNumber}`, usedRouteSlugs) : null,
       grade: route.grade,
       description: route.description?.trim() || null,
-      route_type: resolvedRouteType,
+      route_type: route.climbType || fallbackRouteType,
       status: 'approved' as const,
       user_id: ownerId,
       crag_id: image.crag_id,

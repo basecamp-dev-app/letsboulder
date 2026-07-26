@@ -7,8 +7,8 @@ Draft-based workflow for creating and publishing route submissions.
 1. Create draft → `submission_drafts` row
 2. Upload images → presigned URL → R2 → `submission_draft_images` rows
 3. Draw routes (optional before publish) → stored as durable `submission_draft_routes` rows and synced per image
-4. Promote → `promote_draft` RPC publishes the draft into the live image records and any draft routes that already exist
-5. Images go through media pipeline for processing
+4. Media processing makes the uploaded image publicly deliverable
+5. Promote → `promote_draft_to_submission` RPC associates the images with the guide and publishes any draft routes that already exist
 6. Community can verify routes (3+ votes)
 
 ## Components
@@ -49,7 +49,7 @@ Draft-based workflow for creating and publishing route submissions.
 - `/api/submissions/drafts/[id]` — draft metadata/image ordering backed by `features/submissions/server/drafts/*`
 - `/api/submissions/drafts/[id]/images` — draft image append/conflict handling backed by `features/submissions/server/drafts/*`
 - `/api/submissions/drafts/[id]/routes` — draft route read + image-scoped bulk sync backed by `features/submissions/server/drafts/*`
-- `/api/submissions/drafts/[id]/promote` — draft publish flow backed by `features/submissions/server/drafts/*`
+- `/api/submissions/drafts/[id]/publish` — draft publish flow backed by `features/submissions/server/drafts/*`
 - `/api/submissions/drafts/[id]/collaborators` — draft collaborator/invite management backed by `features/submissions/server/drafts/*`
 - `/api/submissions/drafts/collaborate/[token]` — invite-claim redirect flow backed by `features/submissions/server/drafts/*`
 - `/api/uploads/signed-url/` — presigned upload URLs
@@ -58,7 +58,7 @@ Draft-based workflow for creating and publishing route submissions.
 ## RPC Functions
 
 - `create_unified_submission` — atomically create submission with images
-- `promote_draft` — promote draft to live submission
+- `promote_draft_to_submission` — promote draft to a live image-only or route-bearing submission
 - `user_can_edit_submission_draft` — permission check
 
 ## Collaboration

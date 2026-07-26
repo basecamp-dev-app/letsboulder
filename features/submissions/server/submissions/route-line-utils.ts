@@ -14,6 +14,7 @@ export interface EditableRoutePayload {
 export interface NewRoutePayload {
   name: string
   grade: string
+  climbType?: (typeof VALID_ROUTE_TYPES)[number]
   description?: string
   points: RoutePoint[]
   sequenceOrder: number
@@ -97,6 +98,9 @@ export function normalizeNewRoutes(value: unknown): NewRoutePayload[] | null {
     const route = item as Partial<NewRoutePayload>
     if (typeof route.name !== 'string') return null
     if (typeof route.grade !== 'string') return null
+    const climbTypeValue = (item as { climbType?: unknown }).climbType
+    const climbType = typeof climbTypeValue === 'string' ? normalizeRouteType(climbTypeValue) : null
+    if (climbTypeValue !== undefined && !climbType) return null
     if (route.description !== undefined && route.description !== null && typeof route.description !== 'string') return null
     if (!Array.isArray(route.points) || route.points.length < 2 || !route.points.every(isValidPoint)) return null
     if (typeof route.sequenceOrder !== 'number' || !Number.isFinite(route.sequenceOrder)) return null
@@ -106,6 +110,7 @@ export function normalizeNewRoutes(value: unknown): NewRoutePayload[] | null {
     routes.push({
       name: route.name,
       grade: route.grade,
+      climbType: climbType || undefined,
       description: route.description,
       points: route.points,
       sequenceOrder: route.sequenceOrder,
