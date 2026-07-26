@@ -102,7 +102,6 @@ export default function CragPageClient({
   })
 
   const actions = useCragPageActions({
-    id,
     initialCrag,
   })
   const [isSaved, setIsSaved] = useState(initialIsSaved)
