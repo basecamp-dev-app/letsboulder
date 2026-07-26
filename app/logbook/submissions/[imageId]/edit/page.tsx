@@ -33,6 +33,7 @@ import {
   replaceDraftRoutesWithPublishedRoutes,
 } from '@/features/submissions/submission-editor/lib/published-route-editor-state'
 import { usePublishedRouteEditorSync } from '@/features/submissions/submission-editor/hooks/use-published-route-editor-sync'
+import { useUnsavedChangesWarning } from '@/features/editor/hooks/use-unsaved-changes-warning'
 
 interface CreatedPublishedRoutePayload {
   id: string
@@ -97,6 +98,15 @@ export default function EditSubmittedRoutesPage() {
     setRoutes: state.setRoutes,
   })))
   const requestedRouteId = searchParams.get('route')
+  const hasPendingChanges = location.imageMetadataDirty
+    || location.cragMetadataDirty
+    || editor.creditDirty
+    || editor.anonymityDirty
+    || !areSerializedRoutesEqual(
+      serializeStoredRoutes(editor.editedRoutes),
+      serializeStoredRoutes(editor.initialEditedRoutes)
+    )
+  useUnsavedChangesWarning(hasPendingChanges)
   usePublishedRouteEditorSync({
     activeImageId: editor.activeImageId,
     editedRoutes: editor.editedRoutes,
@@ -245,6 +255,16 @@ export default function EditSubmittedRoutesPage() {
       editor.setEditedRoutes(reconciledRoutes)
       setRoutes(reconciledRoutes)
       editor.setInitialEditedRoutes(reconciledRoutes)
+      location.setInitialLatitude(location.latitude)
+      location.setInitialLongitude(location.longitude)
+      location.setInitialCragName(location.cragName)
+      location.setInitialRegionTag(location.regionTag)
+      location.setInitialSubArea(location.subArea)
+      location.setInitialFaceDirections(location.faceDirections)
+      location.setInitialLocationMode(location.locationMode)
+      editor.setInitialCreditPlatform(editor.creditPlatform)
+      editor.setInitialCreditHandle(editor.creditHandle)
+      editor.setInitialIsAnonymousSubmission(editor.isAnonymousSubmission)
 
       editor.setSuccess('Submission changes saved')
     } catch (error) {
@@ -262,7 +282,7 @@ export default function EditSubmittedRoutesPage() {
     <div className="min-h-screen bg-white dark:bg-gray-950">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div className="mx-auto max-w-6xl px-4 py-4">
-        <SubmissionToolbar hasPendingChanges={location.imageMetadataDirty || location.cragMetadataDirty || editor.creditDirty || editor.anonymityDirty || !areSerializedRoutesEqual(serializeStoredRoutes(editor.editedRoutes), serializeStoredRoutes(editor.initialEditedRoutes))} savingAllChanges={savingAllChanges} onSaveAllChanges={() => { void handleSaveAllChanges() }} />
+        <SubmissionToolbar hasPendingChanges={hasPendingChanges} savingAllChanges={savingAllChanges} onSaveAllChanges={() => { void handleSaveAllChanges() }} />
         {editor.error ? <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">{editor.error}</div> : null}
         {editor.success ? <div className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">{editor.success}</div> : null}
         <SubmissionLocationPanel atlasSync={atlasSync} canEditCragMetadata={location.canEditCragMetadata} cragName={location.cragName} onCragNameChange={(value) => { location.setCragName(value); editor.setCragName(value) }} regionTag={location.regionTag} onRegionTagChange={(value) => { location.setRegionTag(value); editor.setRegionTag(value) }} subArea={location.subArea} onSubAreaChange={(value) => { location.setSubArea(value); editor.setSubArea(value) }} latitude={location.latitude} onLatitudeChange={(value) => { location.setLatitude(value); editor.setLatitude(value) }} longitude={location.longitude} onLongitudeChange={(value) => { location.setLongitude(value); editor.setLongitude(value) }} searchQuery={location.searchQuery} onSearchQueryChange={location.setSearchQuery} onSearchLocation={() => { void location.handleSearchLocation() }} searchingLocation={location.searchingLocation} locationSearchError={location.locationSearchError} />
