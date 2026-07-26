@@ -34,6 +34,12 @@ let upstashMissingWarningLogged = false
 let redisClient: unknown | null = null
 const upstashLimiters = new Map<string, UpstashRatelimitInstance>()
 
+interface InMemoryBucket {
+  count: number
+  resetAt: number
+}
+const inMemoryFallback = new Map<string, InMemoryBucket>()
+
 async function getUpstashDeps(): Promise<UpstashDeps | null> {
   if (!upstashDepsPromise) {
     upstashDepsPromise = Promise.all([
@@ -62,10 +68,41 @@ async function getUpstashDeps(): Promise<UpstashDeps | null> {
   return upstashDepsPromise
 }
 
-function getLimiterConfig(rateLimitBucket: RateLimitBucket): { tokens: number; window: string; prefix: string } {
+function getLimiterConfig(rateLimitBucket: RateLimitBucket): { tokens: number; window: string; prefix: string; fallbackMode: 'local-bucket' | 'fail-open' } {
   const tierKey = PROXY_BUCKET_TO_TIER[rateLimitBucket]
   const tier = RATE_LIMIT_TIERS[tierKey]
-  return { tokens: tier.tokens, window: tier.window, prefix: tier.prefix }
+  return { tokens: tier.tokens, window: tier.window, prefix: tier.prefix, fallbackMode: tier.fallbackMode }
+}
+
+function parseWindowMs(window: string): number {
+  const match = window.match(/^(\d+)\s*(s|m|h)$/i)
+  if (!match) return 60_000
+  const value = parseInt(match[1], 10)
+  const unit = match[2].toLowerCase()
+  if (unit === 's') return value * 1000
+  if (unit === 'm') return value * 60 * 1000
+  if (unit === 'h') return value * 60 * 60 * 1000
+  return 60_000
+}
+
+function applyInMemoryRateLimit(identifier: string, config: { tokens: number; window: string; prefix: string }): { success: boolean; limit: number; remaining: number; reset: number } {
+  const now = Date.now()
+  const windowMs = parseWindowMs(config.window)
+  const key = `${config.prefix}:${identifier}`
+  let bucket = inMemoryFallback.get(key)
+
+  if (!bucket || now > bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + windowMs }
+    inMemoryFallback.set(key, bucket)
+  }
+
+  bucket.count++
+  return {
+    success: bucket.count <= config.tokens,
+    limit: config.tokens,
+    remaining: Math.max(0, config.tokens - bucket.count),
+    reset: bucket.resetAt,
+  }
 }
 
 function getOrCreateLimiter(
@@ -111,6 +148,10 @@ function getClientIp(request: NextRequest): string {
 function isStateChangingMethod(method: string): boolean {
   const normalized = method.toUpperCase()
   return normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH' || normalized === 'DELETE'
+}
+
+function isWriteBucket(bucket: RateLimitBucket): boolean {
+  return bucket === 'write' || bucket === 'submissions' || bucket === 'signed_urls' || bucket === 'upload_session_create' || bucket === 'upload_session_complete'
 }
 
 function getApiBucket(pathname: string, method: string): RateLimitBucket | null {
@@ -163,13 +204,37 @@ export async function applyProxyRateLimit(request: NextRequest): Promise<NextRes
 
   const url = process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.UPSTASH_REDIS_REST_TOKEN
-  if (!url || !token) return null
+
+  const bucketIsWrite = isWriteBucket(rateLimitBucket)
+  const config = getLimiterConfig(rateLimitBucket)
+  const ip = getClientIp(request)
+  const identifier = `${config.prefix}:${ip}`
 
   try {
     const deps = await getUpstashDeps()
-    if (!deps) return null
 
-    const ip = getClientIp(request)
+    if (!deps || !url || !token) {
+      if (bucketIsWrite) {
+        const result = applyInMemoryRateLimit(identifier, config)
+        if (!result.success) {
+          return NextResponse.json(
+            { error: 'Rate limit exceeded. Please try again later.' },
+            {
+              status: 429,
+              headers: {
+                'Retry-After': String(Math.max(1, Math.ceil((result.reset - Date.now()) / 1000))),
+                'X-RateLimit-Limit': String(result.limit),
+                'X-RateLimit-Remaining': String(result.remaining),
+                'X-RateLimit-Reset': String(Math.ceil(result.reset / 1000)),
+              },
+            }
+          )
+        }
+        return null
+      }
+      return null
+    }
+
     const ratelimit = getOrCreateLimiter(rateLimitBucket, url, token, deps)
     const { success, limit, remaining, reset } = await ratelimit.limit(ip)
 
@@ -188,6 +253,25 @@ export async function applyProxyRateLimit(request: NextRequest): Promise<NextRes
       }
     )
   } catch (error) {
+    if (bucketIsWrite) {
+      const result = applyInMemoryRateLimit(identifier, config)
+      if (!result.success) {
+        return NextResponse.json(
+          { error: 'Rate limit exceeded. Please try again later.' },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(Math.max(1, Math.ceil((result.reset - Date.now()) / 1000))),
+              'X-RateLimit-Limit': String(result.limit),
+              'X-RateLimit-Remaining': String(result.remaining),
+              'X-RateLimit-Reset': String(Math.ceil(result.reset / 1000)),
+            },
+          }
+        )
+      }
+      return null
+    }
+
     reportError(error, { message: 'Upstash rate limiting unavailable in proxy', level: 'warning' })
     return null
   }

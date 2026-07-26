@@ -26,6 +26,7 @@ const sharedEnvSchema = z.object({
     (v) => v === '1',
     z.boolean().default(false),
   ),
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
 })
 
 export type SharedEnv = z.infer<typeof sharedEnvSchema>
