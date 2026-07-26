@@ -67,7 +67,14 @@ vi.mock('@supabase/ssr', () => {
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co'
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'anon-test-key'
-process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-test-key'
+process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-test-key-that-is-at-least-32-chars-long'
+process.env.CSRF_SECRET = process.env.CSRF_SECRET || 'csrf-secret-test-key-that-is-at-least-32-chars'
+process.env.DELETE_ACCOUNT_SECRET = process.env.DELETE_ACCOUNT_SECRET || 'delete-account-secret-test-key-32chars'
+process.env.R2_S3_ENDPOINT = process.env.R2_S3_ENDPOINT || 'https://test.r2.cloudflarestorage.com'
+process.env.R2_PRIVATE_BUCKET = process.env.R2_PRIVATE_BUCKET || 'test-private'
+process.env.R2_PUBLIC_BUCKET = process.env.R2_PUBLIC_BUCKET || 'test-public'
+process.env.R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || 'test-access-key'
+process.env.R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || 'test-secret-key'
 
 Object.defineProperty(globalThis, 'fetch', {
   writable: true,

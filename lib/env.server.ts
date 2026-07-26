@@ -2,9 +2,9 @@ import { z } from 'zod'
 import { getSharedEnv, type SharedEnv } from '@/lib/env'
 
 const serverOnlyEnvSchema = z.object({
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  CSRF_SECRET: z.string().min(1),
-  DELETE_ACCOUNT_SECRET: z.string().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(32),
+  CSRF_SECRET: z.string().min(32),
+  DELETE_ACCOUNT_SECRET: z.string().min(32),
   R2_S3_ENDPOINT: z.string().url(),
   R2_PRIVATE_BUCKET: z.string().min(1),
   R2_PUBLIC_BUCKET: z.string().min(1),
@@ -71,29 +71,34 @@ function getPlaceholderServerEnv(): ServerEnv {
 export function getServerEnv(): ServerEnv {
   if (serverEnvCache) return serverEnvCache
 
-  try {
-    serverEnvCache = {
-      ...getSharedEnv(),
-      ...serverOnlyEnvSchema.parse(process.env),
-    }
-    return serverEnvCache
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      // Validation failed (likely during build), return placeholder
-      // Validation will fail properly at runtime when actually needed
-      serverEnvCache = getPlaceholderServerEnv()
-      return serverEnvCache
+  const parsed = serverOnlyEnvSchema.safeParse(process.env)
+  if (!parsed.success) {
+    if (process.env.NEXT_PHASE === 'phase-production-build') {
+      return getPlaceholderServerEnv()
     }
 
-    throw error
+    const issues = parsed.error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`).join('\n')
+    throw new Error(`Invalid server environment:\n${issues}`)
   }
+
+  serverEnvCache = {
+    ...getSharedEnv(),
+    ...parsed.data,
+  }
+
+  return serverEnvCache
 }
 
 export function validateServerEnv(): void {
   if (process.env.ENABLE_TEST_AUTH_ENDPOINT === 'true' && process.env.VERCEL_ENV === 'production') {
     throw new Error('FATAL: ENABLE_TEST_AUTH_ENDPOINT cannot be enabled in production')
   }
-  getServerEnv()
+  // Force validation - will throw if invalid
+  const parsed = serverOnlyEnvSchema.safeParse(process.env)
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`).join('\n')
+    throw new Error(`Invalid server environment:\n${issues}`)
+  }
 }
 
 export const serverEnv = new Proxy({} as ServerEnv, {

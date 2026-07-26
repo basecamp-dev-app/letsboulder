@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
+import { validateServerEnv } from '@/lib/env.server'
 
 function getSampleRate(value: string | undefined, fallback: number): number {
   const parsed = Number(value)
@@ -19,6 +20,8 @@ Sentry.init({
 })
 
 export function register() {
+  validateServerEnv()
+
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     // Node.js runtime initialization
   }
