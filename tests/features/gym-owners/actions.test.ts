@@ -17,6 +17,18 @@ vi.mock('@/lib/discord', () => ({
   notifyGymOwnerApplication: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('@/lib/turnstile', () => ({
+  verifyTurnstile: vi.fn().mockResolvedValue({ success: true }),
+}))
+
+vi.mock('@/lib/rate-limit', () => ({
+  rateLimit: vi.fn().mockResolvedValue({ success: true }),
+}))
+
+vi.mock('next/headers', () => ({
+  headers: vi.fn().mockResolvedValue(new Headers()),
+}))
+
 describe('Gym Owner Application Validation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -51,13 +63,14 @@ describe('Gym Owner Application Validation', () => {
         role: 'owner',
         facilities: ['sport'],
         website_url: 'http://spam.com',
+        turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
       expect(result.error).toBe('Invalid submission')
     })
 
     test('rejects missing required fields', async () => {
-      const result = await submitGymOwnerApplicationAction({})
+      const result = await submitGymOwnerApplicationAction({ turnstileToken: 'valid-token' })
       expect(result.success).toBe(false)
       expect(result.error).toBe('Invalid input: expected string, received undefined')
     })
@@ -73,6 +86,7 @@ describe('Gym Owner Application Validation', () => {
         contact_email: 'invalid-email',
         role: 'owner',
         facilities: ['sport'],
+        turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
       expect(result.error).toBe('A valid contact_email is required')
@@ -89,6 +103,7 @@ describe('Gym Owner Application Validation', () => {
         contact_email: 'test@example.com',
         role: 'invalid_role',
         facilities: ['sport'],
+        turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
       expect(result.error).toBe('Invalid role')
@@ -105,6 +120,7 @@ describe('Gym Owner Application Validation', () => {
         contact_email: 'test@example.com',
         role: 'owner',
         facilities: [],
+        turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
       expect(result.error).toBe('At least one facility is required')
@@ -121,6 +137,7 @@ describe('Gym Owner Application Validation', () => {
         contact_email: 'test@example.com',
         role: 'owner',
         facilities: ['invalid_facility'],
+        turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
       expect(result.error).toBe('Invalid facility')
@@ -139,6 +156,7 @@ describe('Gym Owner Application Validation', () => {
         role: 'owner',
         facilities: ['sport'],
         additional_comments: longComments,
+        turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
       expect(result.error).toBe('additional_comments must be 2000 characters or less')
@@ -155,6 +173,7 @@ describe('Gym Owner Application Validation', () => {
         contact_email: 'test@example.com',
         role: 'owner',
         facilities: ['sport'],
+        turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(true)
     })
@@ -170,6 +189,7 @@ describe('Gym Owner Application Validation', () => {
         contact_email: 'test@example.com',
         role: 'manager',
         facilities: ['sport', 'SPORT', 'boulder'],
+        turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(true)
     })
@@ -187,6 +207,7 @@ describe('Gym Owner Application Validation', () => {
           contact_email: 'test@example.com',
           role,
           facilities: ['sport'],
+          turnstileToken: 'valid-token',
         })
         expect(result.success).toBe(true)
       }
@@ -205,6 +226,7 @@ describe('Gym Owner Application Validation', () => {
           contact_email: 'test@example.com',
           role: 'owner',
           facilities: [facility],
+          turnstileToken: 'valid-token',
         })
         expect(result.success).toBe(true)
       }
@@ -221,6 +243,7 @@ describe('Gym Owner Application Validation', () => {
         contact_email: '  TEST@EXAMPLE.COM  ',
         role: '  owner  ',
         facilities: [' sport '],
+        turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(true)
     })

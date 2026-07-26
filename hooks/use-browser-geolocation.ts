@@ -19,7 +19,7 @@ export function useBrowserGeolocation(enabled = true) {
     let requestTimer: ReturnType<typeof setTimeout>
 
     if (!navigator.geolocation) {
-      if (process.env.NODE_ENV === 'development') console.warn('Geolocation is not available in this browser.')
+      if (process.env.NODE_ENV === 'development') console.log('Geolocation is not available in this browser.')
       requestTimer = setTimeout(() => {
         if (!cancelled) setStatus('unsupported')
       }, 0)
@@ -34,7 +34,7 @@ export function useBrowserGeolocation(enabled = true) {
             setStatus('success')
           },
           (error) => {
-            if (process.env.NODE_ENV === 'development') console.warn('Geolocation request failed.', error)
+            if (process.env.NODE_ENV === 'development') console.log('Geolocation request failed.', error)
             if (!cancelled) {
               setLocation(null)
               setStatus('error')

@@ -7,7 +7,6 @@ import { useCragSwitcher } from '@/features/crags/hooks/use-crag-switcher'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 
 export interface UseCragPageActionsParams {
-  id: string
   initialCrag: CragPageCrag | null
 }
 
@@ -25,7 +24,6 @@ export interface UseCragPageActionsResult {
 }
 
 export function useCragPageActions({
-  id,
   initialCrag,
 }: UseCragPageActionsParams): UseCragPageActionsResult {
   const [toast, setToast] = useState<string | null>(null)
