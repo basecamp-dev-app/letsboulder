@@ -1,319 +1,166 @@
 # Local Development Setup
 
+This guide sets up letsboulder against the local Supabase stack. Hosted-project access is not required for normal development.
+
 ## Prerequisites
 
-### 1. Install Docker
+- Node.js `20.20.0` (pinned in `.nvmrc`)
+- npm
+- Docker or another Docker-compatible runtime
+
+Use the lockfile-installed Supabase CLI through `npx`; do not install a separate global version.
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y docker.io docker-compose
-sudo systemctl start docker
-sudo usermod -aG docker $USER
-# Log out and back in for group changes to take effect
-```
-
-### 2. Install Supabase CLI (Binary)
-
-Lightweight installation without npm:
-
-```bash
-# Download binary
-curl -L https://github.com/supabase/cli/releases/download/v2.72.7/supabase_linux_amd64.tar.gz -o supabase.tar.gz
-
-# Extract and install
-tar -xzf supabase.tar.gz
-mkdir -p ~/.local/bin
-mv supabase ~/.local/bin/
-rm supabase.tar.gz
-
-# Add to PATH (add to ~/.bashrc or ~/.zshrc for persistence)
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-### 3. Set Up Supabase Access
-
-```bash
-# Get token from https://supabase.com/dashboard/account/tokens
-export SUPABASE_ACCESS_TOKEN=your-token-here
-
-# Login and link to project
-supabase login
-supabase link --project-ref pfleqxztfiddujvylvaz
-```
-
-## Start Local Supabase
-
-```bash
-# Start containers
-supabase start
-
-# Access points:
-# - Studio: http://localhost:54323
-# - DB: postgresql://postgres:postgres@localhost:54322/postgres
-# - API: http://localhost:54321
-# - Mailpit: http://localhost:54324 (email testing)
-```
-
-Note: local Supabase configuration lives in `supabase/config.toml` and should be committed.
-
-## Migrations Are Canonical
-
-All schema changes are defined in `supabase/migrations/*.sql`. See `docs/db/migrations.md` for the full workflow.
-
-Quick reference:
-
-```bash
-supabase start                          # Apply migrations locally
-supabase db push --linked --dry-run     # Preview changes against linked project
-supabase db push --linked               # Apply changes
-```
-
-## Sync Database from Production
-
-### Option A: Full Reset (Recommended for fresh setup)
-
-```bash
-# Reset local database with production schema
-supabase db reset --linked
-```
-
-### Option B: Pull Schema Only
-
-```bash
-# If migration history is out of sync
-supabase migration repair --status reverted <version>
-supabase db pull
-```
-
-## Node.js Version
-
-This project requires **Node.js v20.20.0** (v24 causes bus errors with Next.js 16).
-
-```bash
-# Install and use v20
-nvm install 20
-nvm use 20
-
-# Or pin automatically (project has .nvmrc)
+nvm install
 nvm use
+npm install
+npx supabase --version
 ```
 
-## Set Up Admin Access
+Install Docker using the instructions for your operating system, then verify that the daemon is running:
 
-### Step 1: Create Dev User
+```bash
+docker info
+```
 
-Run in Supabase Studio SQL Editor (http://localhost:54323):
+## First Run
+
+Start Supabase and rebuild the local database from committed migrations:
+
+```bash
+npx supabase start
+npx supabase db reset
+```
+
+The local services normally include:
+
+| Service | URL |
+|---|---|
+| API | `http://127.0.0.1:54321` |
+| PostgreSQL | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+| Studio | `http://127.0.0.1:54323` |
+| Mailpit | `http://127.0.0.1:54324` |
+
+Copy the environment template and replace the Supabase placeholders with the values printed by `npx supabase status`:
+
+```bash
+cp .env.example .env.local
+npx supabase status
+```
+
+Generate local secrets for `CSRF_SECRET` and `DELETE_ACCOUNT_SECRET`. For example:
+
+```bash
+openssl rand -hex 32
+```
+
+R2 credentials are needed to exercise route-photo upload and delivery. Developers without access can run non-media areas of the application, but upload flows will not work end to end.
+
+Generate database types and start Next.js:
+
+```bash
+npx supabase gen types typescript --local > types/database.ts
+npm run dev
+```
+
+Open `http://localhost:3000`. Use the local auth screen and inspect magic links in Mailpit. Do not insert rows directly into `auth.users` or `auth.instances`; Supabase Auth owns those tables.
+
+## Everyday Commands
+
+```bash
+npm run dev
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run test:components
+npm run test:integration
+npm run build
+```
+
+Database work requires a current local stack:
+
+```bash
+npx supabase db reset
+npx supabase gen types typescript --local > types/database.ts
+npm run typecheck
+npm run test:database
+```
+
+See `docs/testing/README.md` for test prerequisites and `docs/db/migrations.md` for the schema-change workflow.
+
+## Admin Access
+
+Create a user through local Supabase Auth, then elevate only its public profile in Studio after replacing the placeholder UUID:
 
 ```sql
--- Create auth user with admin metadata
-INSERT INTO auth.users (id, email, encrypted_password, confirmed_at, raw_app_meta_data, created_at, updated_at)
-VALUES (
-  '25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044',
-  'hello@letsboulder.com',
-  '$2a$06$ha4tARgJzQFxh8i.x4wk1uKTm3gG0H.FS9/XcJBqJOiLSfyT.9RzC', -- 'devpassword123'
-  NOW(),
-  '{"gsyrocks_admin": true}',
-  NOW(),
-  NOW()
-);
-
--- Create profile with admin flag
-INSERT INTO public.profiles (id, email, is_admin, username)
-VALUES ('25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044', 'hello@letsboulder.com', true, 'devadmin')
-ON CONFLICT (id) DO UPDATE SET is_admin = true;
-
--- Create default auth instance
-INSERT INTO auth.instances (id, uuid, raw_base_config, created_at, updated_at)
-VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000', '{}', NOW(), NOW())
-ON CONFLICT (id) DO NOTHING;
-
--- Update user with proper instance
-UPDATE auth.users
-SET instance_id = '00000000-0000-0000-0000-000000000000',
-    aud = 'authenticated',
-    role = 'authenticated'
-WHERE id = '25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044';
+update public.profiles
+set is_admin = true
+where id = '<local-auth-user-id>';
 ```
 
-### Step 2: Sign In
+Never copy the example into a shared or hosted database. Authorization behavior should still be tested through the application and RLS policies.
 
-1. Go to http://localhost:3000/auth
-2. Enter `hello@letsboulder.com`
-3. Check magic link at http://localhost:54324
-4. Click the link to complete sign-in
+## Media Worker
 
-## Development Commands
+The app uploads originals directly to R2 and can notify the Cloudflare Worker through an optional fast path. The durable `media_jobs` outbox remains authoritative.
+
+Worker-backed media testing requires access to the configured R2, Queue, and Supabase resources plus these Worker secrets:
+
+- `INGRESS_SECRET`, matching the app's `CF_MEDIA_WORKER_SECRET`
+- `INTERNAL_ORIGIN_SECRET`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+The Next.js app also needs `CF_MEDIA_WORKER_URL`, `CF_MEDIA_WORKER_SECRET`, and `NEXT_PUBLIC_MEDIA_CDN_URL`. A plain `wrangler dev --env staging` creates a hybrid environment: configured Supabase URLs are hosted, but R2 and Queue bindings are local by default, so it cannot process originals uploaded to hosted staging R2. There is no fully isolated local media stack in this repository.
 
 ```bash
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Run linter
-npm run lint
-
-# Start production server (after build)
-npm run start
+npm --prefix apps/media-worker run check
 ```
 
-## Solo Git Workflow
+Use the deployed development environment for end-to-end media verification. Maintainers should see `apps/media-worker/README.md` and `docs/media-pipeline.md` before running remote Worker commands or deploying changes.
 
-Use a single `main` branch - all changes go directly to main:
+## Hosted Database Deployment
+
+Only maintainers should link or push to a hosted Supabase project. Verify the selected project and always inspect a dry run first:
 
 ```bash
-git checkout main
-git pull origin main
-
-# make changes, test locally, commit
-git push origin main
-
-# CI runs automatically
-# Vercel deploys to production
+npx supabase link --project-ref <project-ref>
+npx supabase db push --linked --dry-run
+npx supabase db push --linked
 ```
 
-git checkout main
-git pull origin main
-git merge dev
-git push origin main
-
-git checkout dev
-git merge main
-git push origin dev
-```
-
-For this project, local app testing happens in Next.js, but media ingest and delivery also depend on the Cloudflare Worker in `apps/media-worker` and Cloudflare R2. Use the `dev` deployment as the final verification step for worker-backed media behavior before promoting to `main`.
+Never use `db reset --linked` as part of local setup.
 
 ## Troubleshooting
 
-### "Database error finding user"
-
-**Cause**: Missing or incorrect `instance_id` in auth.users.
-
-**Fix**:
-```sql
-INSERT INTO auth.instances (id, uuid, raw_base_config, created_at, updated_at)
-VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000', '{}', NOW(), NOW())
-ON CONFLICT (id) DO NOTHING;
-
-UPDATE auth.users SET instance_id = '00000000-0000-0000-0000-000000000000' WHERE email = 'hello@letsboulder.com';
-```
-
-**Restart auth service**:
-```bash
-docker restart supabase_auth_app-v2
-```
-
-### "Bus error" or crash on `npm run dev`
-
-**Cause**: Node.js v24 is incompatible with Next.js 16.
-
-**Fix**:
-```bash
-nvm use 20.20.0
-npm install  # Reinstall dependencies for v20
-npm run dev
-```
-
-### "Not an admin" / Redirected to Home
-
-1. Clear browser state:
-   - Open DevTools (F12) → Application → Local Storage → Clear all
-   - Close all tabs, open fresh incognito window
-
-2. Verify database:
-   ```sql
-   SELECT id, email, is_admin FROM profiles WHERE email = 'hello@letsboulder.com';
-   -- Should show is_admin = true
-   ```
-
-3. Request new magic link:
-   - Go to `/auth?logout=true`
-   - Request new magic link
-
-### Can't connect to local Supabase
+### Local Supabase will not start
 
 ```bash
-# Check containers are running
-docker ps | grep supabase
-
-# Check port bindings
-ss -tlnp | grep 543
-
-# Restart Supabase
-supabase stop
-supabase start
+docker info
+npx supabase status
+npx supabase stop
+npx supabase start
 ```
 
-### View Logs
+Check for another service using ports `54321` through `54324` if startup still fails.
+
+### Next.js crashes or native dependencies fail
+
+Confirm the pinned Node version and reinstall dependencies under it:
 
 ```bash
-# Auth service logs (most common issues)
-docker logs supabase_auth_app-v2 --tail 50
-
-# All Supabase logs
-docker logs supabase_db_app-v2 --tail 50
+nvm use
+rm -rf node_modules
+npm install
 ```
 
-## Environment Variables
+### Authentication email does not arrive
 
-Create `.env.local` in project root:
+Local email is captured by Mailpit at `http://127.0.0.1:54324`; it is not delivered to an external inbox.
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
-SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
+### Media remains queued
 
-NEXT_PUBLIC_DEV_PASSWORD_AUTH=true
-DEV_USER_EMAIL=hello@letsboulder.com
-DEV_USER_PASSWORD=devpassword123
-```
+Confirm the R2 variables, CDN URL, Worker URL/secret mapping, Worker bindings, and `media_jobs` state. Queue dispatch is only a fast path; the scheduled Worker must also be able to reach the configured Supabase project.
 
-Run `supabase start` to get local credentials.
+## Git Workflow
 
-### Rate Limiting (Upstash Redis — Optional)
-
-Rate limiting uses Upstash Redis when configured, but works without it via a **graceful fallback**:
-
-| Tier | Behavior when Upstash is unavailable |
-|---|---|
-| **Critical** (`sensitive`, `strict`, `submissions`) | In-memory sliding window enforced per-process |
-| **All others** | Fail open — requests always allowed (`limit: 9999`) |
-
-**Important:** The in-memory fallback is **not shared across Vercel instances**, so each replica tracks its own counters. For production, configure Upstash to get consistent rate limiting.
-
-To set up Upstash for local development:
-
-1. Create a free database at https://upstash.com
-2. Copy the REST URL and REST Token
-3. Add to `.env.local`:
-
-```bash
-UPSTASH_REDIS_REST_URL=https://your-database.upstash.io
-UPSTASH_REDIS_REST_TOKEN=your-token
-```
-
-A warning is logged on startup when Upstash is not configured. The first time the fallback activates, a warning is also logged to the console.
-
-### Media Pipeline (R2 + Cloudflare Worker)
-
-For local development, run the Cloudflare Worker locally:
-
-1. Start the local worker:
-
-```bash
-cd apps/media-worker
-npx wrangler dev --env staging
-```
-
-2. Add to `.env.local`:
-
-```bash
-# CDN URL (points to local worker)
-NEXT_PUBLIC_MEDIA_CDN_URL=http://localhost:8787
-```
-
-The Worker handles image processing (variant generation) and CDN delivery. In local dev, images uploaded to the app are processed by the local Worker at `http://localhost:8787`.
-
-See [docs/media-pipeline.md](docs/media-pipeline.md) for the full flow.
+Create a feature branch and open a pull request against `main`. See `CONTRIBUTING.md` for the current branch, verification, and review conventions.

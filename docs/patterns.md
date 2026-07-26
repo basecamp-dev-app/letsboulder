@@ -20,43 +20,19 @@ Use this as a reference when adding or changing route drawing, map, media, GPS, 
 ## 1. Route Canvas Drawing
 
 ### Pattern
-```typescript
-'use client'
-import { useRef, useEffect } from 'react'
-import { useRouteDrawing } from '@/features/route-editor/hooks/useRouteDrawing'
-import { useHitTesting } from '@/features/route-editor/hooks/useHitTesting'
-import { useRouteStore } from '@/features/route-editor/store'
-import { drawRoute } from '@/lib/route-renderer'
-
-export default function UnifiedRouteCanvas({ imageId }: { imageId: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const { routes, activeRoute, addPoint, finishRoute } = useRouteDrawing(imageId)
-  const { hitTest } = useHitTesting(canvasRef, routes)
-  const { selectedRouteId, setSelectedRoute } = useRouteStore()
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx) return
-
-    const dpr = window.devicePixelRatio || 1
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr)
-
-    for (const route of routes) {
-      drawRoute(ctx, route, route.id === selectedRouteId)
-    }
-  }, [routes, selectedRouteId])
-
-  return <canvas ref={canvasRef} />
-}
-```
+- `useRouteStore` is the interactive editor state owner. Its canvas slice owns routes, selection, drawing points, mode/tool, and zoom; its editor slice owns the metadata draft and panel intent; its history slice owns undo/redo snapshots.
+- A screen that also owns persisted or saveable routes must synchronize explicitly. `use-published-route-editor-sync.ts` seeds Zustand when the active image or owner snapshot changes, suppresses the resulting echo, and then copies subsequent store edits back to the owner.
+- Compare serialized route content, not array identity, when deciding whether either side changed. This prevents seed/write loops and ignores fields that are not persisted.
+- Call `clearCanvasState()` when switching images or reseeding one editor session. It clears routes, selection, editor draft, and history while preserving mode, interaction tool, and zoom.
+- Call `reset()` when leaving/unmounting the editor. It additionally restores `mode: 'browse'`, `interactionTool: 'select'`, and the identity zoom transform.
+- Do not treat Zustand as durable storage. Draft routes are synchronized through `/api/submissions/drafts/[id]/routes`; published-image edits remain in their screen owner until explicitly saved.
 
 ### Key Files
 - `features/route-editor/components/UnifiedRouteCanvas.tsx` — main canvas component
 - `features/route-editor/hooks/useRouteDrawing.ts` — route drawing state and point management
 - `features/route-editor/hooks/useHitTesting.ts` — hit testing for selecting/editing route points
-- `features/route-editor/store/index.ts` — Zustand store for route selection state
+- `features/route-editor/store/` — composed Zustand canvas, editor, and history slices
+- `features/submissions/submission-editor/hooks/use-published-route-editor-sync.ts` — published editor owner/store synchronization
 - `lib/route-renderer.ts` — canvas rendering (Path2D, DPR-aware)
 - `lib/canvasMath.ts` — coordinate transforms and math utilities
 - `types/domain.ts` — `RoutePoint`, `RouteLine`, `DrawingRoute`, `CanvasDimensions`
@@ -70,118 +46,64 @@ export default function UnifiedRouteCanvas({ imageId }: { imageId: string }) {
 
 ---
 
-## 2. Leaflet Maps
+## 2. MapLibre Maps and Clustering
 
 ### Pattern
-```typescript
-'use client'
-import dynamic from 'next/dynamic'
+- Use `MapLibreVectorMap` for interactive maps and its location-picker/static wrappers for those specialized cases. The primitive owns MapLibre's imperative lifecycle and updates GeoJSON sources when React props change.
+- Resolve the hosted style through `getVectorMapConfig()` and `buildMapLibreStyle()`. The default is OpenFreeMap Liberty; an offline state produces the intentional pins-only style rather than promising an offline basemap.
+- Build separate point and cluster GeoJSON collections outside the primitive. `InteractiveClimbingMap` and `LightweightCragMap` dynamically import Supercluster, query it with the current viewport and integer zoom, and pass expansion zooms to MapLibre.
+- Cluster indexes use `minPoints: 2` and `maxZoom: 16`; the world map uses radius 56 and the dense crag map uses radius 72. Preserve antimeridian handling by querying west/east halves when bounds wrap.
+- Cluster clicks ease to Supercluster's expansion zoom. Pin clicks use the transparent hit-target layers and `selectId`, while visible circles and labels remain presentation layers.
 
-const Map = dynamic(() => import('./ClimbMap'), { ssr: false })
-
-// In ClimbMap component:
-// <MapContainer preferCanvas={true} ... />
-
-export default function Page() {
-  return <Map />
-}
-```
+### Key Files
+- `components/map/MapLibreVectorMap.tsx` — shared MapLibre source, layer, controls, and event lifecycle
+- `components/InteractiveClimbingMap.tsx` — world place pins, network loading, and Supercluster index
+- `components/LightweightCragMap.tsx` — crag image pins, coordinate grouping, and Supercluster index
+- `components/map/MapLibreLocationPicker.tsx` — click/drag location selection
+- `components/map/MapLibreStaticLocationMap.tsx` — non-interactive location preview
+- `lib/map/vector-map-config.ts` and `lib/map/maplibre-style.ts` — hosted/pins-only style resolution
 
 ### Known Edge Cases
-- **SSR:** Leaflet requires `ssr: false` - always use `next/dynamic`
-- **Geolocation:** Handle permission denial gracefully; provide manual location fallback
-- **Tile loading:** Show skeleton/placeholder while tiles load; handle offline mode
-- **Marker density:** Use `preferCanvas: true` in MapContainer options. Handles up to ~500 markers efficiently. For 500+, add Supercluster or Canvas-based rendering
+- **Lifecycle:** Construct and remove the MapLibre instance in an effect; update sources and interactions in later effects instead of recreating the map.
+- **Geolocation:** Request browser location only after user intent, handle denial/unsupported states, and leave map exploration available.
+- **Network loss:** A pins-only render and connection notice are degradation states, not an offline product guarantee.
+- **Static previews:** Disable interaction and clustering where the wrapper requests a static preview.
 
 ---
 
 ## 3. GPS Extraction
 
 ### Pattern
-```typescript
-'use client'
-import exifr from 'exifr'
-import piexif from 'piexifjs'
+- Extract from the original `File` before upload preprocessing. `extractGpsFromFile()` first asks exifr to parse the Blob, then retries from an `ArrayBuffer`.
+- Buffer extraction tries, in order: `exifr.gps`, explicit GPS/XMP tags, structured TIFF/EXIF/GPS/XMP parsing, a full exifr parse, then JPEG-only piexif and manual APP1/TIFF parsers.
+- Normalize decimal, DMS, rational, hemisphere, and common latitude/longitude key variants through `image-gps-coordinate-parser.ts`. Reject non-finite, out-of-range, and `(0, 0)` coordinates.
+- HEIC/HEIF first uses metadata from the original. If absent, convert a preview and best-effort parse that JPEG buffer; conversion failure is surfaced as an image-processing failure.
+- On confirmation, retry original-file extraction once if no GPS was retained. If all extraction fails, continue with `null` and require the user to choose/search for a location.
 
-interface GPSData {
-  lat: number
-  lng: number
-}
-
-interface ExtractResult {
-  blob: Blob
-  gps: GPSData | null
-}
-
-async function extractAndStripGPS(file: File, uploadJpeg: File): Promise<ExtractResult> {
-  const data = await exifr.parse(file, { gps: true })
-  const gps = data?.latitude && data?.longitude
-    ? { lat: data.latitude, lng: data.longitude }
-    : null
-
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => typeof reader.result === 'string'
-      ? resolve(reader.result)
-      : reject(new Error('Failed to read upload image'))
-    reader.onerror = () => reject(new Error('Failed to read upload image'))
-    reader.readAsDataURL(uploadJpeg)
-  })
-
-  const stripped = piexif.remove(dataUrl)
-  const blob = await fetch(stripped).then((response) => response.blob())
-
-  return { blob, gps }
-}
-```
+### Location Precedence
+- The selected/manual draft location in `submission_drafts.metadata.submission.location` is the canonical publish location when valid.
+- If it is missing, publication falls back to the first draft image with valid coordinates and repairs the draft metadata before publishing.
+- Images in `custom` mode must have their own valid coordinates. Images in `shared` mode inherit the effective draft location; shared image rows store null coordinates rather than duplicating the shared point.
+- Publishing fails when no effective location exists or when a custom image lacks its own location.
 
 ### Known Edge Cases
-- **Stripped metadata:** Exifr may fail on images with stripped EXIF data; **fallback to manual location selection**
-- **HEIC files:** Requires separate parsing; use `heic2any` conversion first
-- **Rotation:** Check `Orientation` tag; some images return rotated coordinates
-- **Privacy:** Always strip EXIF data with `piexif` before uploading to S3/Supabase to prevent exposing user's home location
+- **EXIF retention:** The active shared upload queue sends non-HEIC files unchanged, so private originals may retain EXIF. GPS is persisted separately as structured metadata. Public delivery requests metadata stripping, but private originals remain sensitive.
+- **Original handling:** HEIC is converted to JPEG before upload; supported non-HEIC files are uploaded unchanged to private R2. Older compression helpers are not the active `/submit` contract.
+- **Policy:** See [Media Pipeline](media-pipeline.md) for private originals, processing, publication, and delivery policy.
 
 ---
 
 ## 4. HEIC Conversion
 
 ### Pattern
-```typescript
-// workers/heic.worker.ts
-/// <reference lib="webworker" />
-import heic2any from 'heic2any'
-
-self.onmessage = async (e: MessageEvent<File>) => {
-  const result = await heic2any({ blob: e.data, toType: 'image/jpeg' })
-  self.postMessage(result[0])
-}
-
-// lib/heic-converter.ts
-'use client'
-export async function convertHeicToJpegBlob(file: Blob): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('../workers/heic.worker.ts', import.meta.url))
-
-    worker.onmessage = (event: MessageEvent<{ ok: boolean; blob?: Blob; error?: string }>) => {
-      worker.terminate()
-      if (event.data.ok && event.data.blob) resolve(event.data.blob)
-      else reject(new Error(event.data.error || 'HEIC conversion failed'))
-    }
-
-    worker.onerror = () => {
-      worker.terminate()
-      reject(new Error('HEIC worker failed'))
-    }
-
-    worker.postMessage(file)
-  })
-}
-```
+- `convertHeicToJpegBlob()` uses `workers/heic.worker.ts` when Worker support exists.
+- If workers are unavailable, or the worker itself errors, it dynamically imports `heic2any` on the main thread as a compatibility fallback.
+- The result may be one Blob or an array; the converter selects the first Blob and uses JPEG quality 0.9.
 
 ### Known Edge Cases
-- **Resource-intensive:** Conversion is CPU-heavy; **Web Worker is mandatory** - do not run on main thread
-- **Large files:** Downscale to max 2048px before conversion to prevent memory issues
-- **Progressive format:** Some iOS HEIC files use HEVC; fallback to server-side conversion if client fails
+- **Resource-intensive:** Prefer the worker path. The main-thread fallback exists for compatibility and can block on large files.
+- **Limits:** `ImagePicker` accepts at most 20 files per selection. The active shared queue does not enforce the legacy uploader's 20 MB, 1200 px, or 307 KB compression limits.
+- **Failure:** There is no server-side HEIC conversion fallback; ask the user to provide JPEG when client conversion fails.
 
 ---
 
@@ -189,48 +111,26 @@ export async function convertHeicToJpegBlob(file: Blob): Promise<Blob> {
 
 ### Pattern
 ```typescript
-import { getGradeIndex, getGradeDisplay, gradeMappings } from '@/lib/grades'
+import { isValidGrade } from '@/lib/grade-constants'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
-function normalizeGradeInput(input: string): string {
-  const normalized = input.trim().toUpperCase()
-
-  const slashMatch = normalized.match(/^V(\d+)\/(\d+)$/)
-  if (slashMatch) return `V${slashMatch[1]}`
-
-  const plusMatch = normalized.match(/^V(\d+)\+$/)
-  if (plusMatch) return `V${plusMatch[1]}`
-
-  const minusMatch = normalized.match(/^V(\d+)\-$/)
-  if (minusMatch) return `V${String(+minusMatch[1] - 1)}`
-
-  const projectMatch = normalized.match(/^V(\d+)\?$/)
-  if (projectMatch) return `V${projectMatch[1]}`
-
-  return normalized
+const grade = '6C'
+if (isValidGrade(grade)) {
+  const vScale = formatGradeForDisplay(grade, 'v_scale') // 'V5'
+  const french = formatGradeForDisplay(grade, 'french_equivalent') // '7a'
 }
-
-function parseVGrade(input: string): number | null {
-  const normalized = normalizeGradeInput(input)
-  return getGradeIndex(normalized)
-}
-
-const index = parseVGrade('V5+') // → 5
-const index2 = parseVGrade('V4/5') // → 4
-const index3 = parseVGrade('V5?') // → 5
-
-const french = getGradeDisplay(5, 'french_equivalent') // → '7a'
 ```
 
 ### Known Edge Cases
 - **Range grades:** Use `gradeMappings` from `@/lib/grades` as single source of truth for V-Scale <-> Font <-> YDS <-> French <-> British
-- **Nuance handling:** Normalize inputs: V4/5 -> V4, V5+ -> V5, V5- -> V4, V5? -> V5 (project)
-- **Public boundaries:** Use `@/lib/grade-constants` for user-facing valid/selectable grades (`3A-9C+`); `@/lib/grades` may still contain broader internal mappings
+- **Canonical storage:** Store and validate Font grades from `3A` through `9C+`; do not persist display-system strings such as `V5`.
+- **Public boundaries:** Use `@/lib/grade-constants` for validation/order and `@/lib/grade-display` for presentation. `@/lib/grades` owns mappings and score calculations.
 
 ---
 
 ## 6. Media Ingest Pipeline
 
-See [media-pipeline.md](../media-pipeline.md) for the full end-to-end flow.
+See [media-pipeline.md](media-pipeline.md) for the full end-to-end flow.
 
 ### Pattern
 ```typescript
@@ -252,6 +152,7 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - `apps/media-worker/` — Cloudflare Worker for processing
 
 ### Known Edge Cases
+- **Metadata:** Extract location from the original before preprocessing. The active queue preserves non-HEIC bytes and converts HEIC to JPEG, while storing GPS separately in the database.
 - **Public delivery:** Serve ready immutable variants from the CDN hostname, not app-route proxies.
 - **Private originals:** Keep originals in private object storage and use short-lived signed access for draft views.
 - **Cache busting:** Use versioned object paths like `v{asset_version}` instead of query strings.
@@ -269,17 +170,23 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - Use clear connection states when live map data cannot load. Pins-only rendering is a visual degradation, not an offline-availability promise.
 
 ### Key Files
-- `public/sw.js` — temporary retirement worker that clears old letsboulder caches and unregisters itself
+- `components/OfflineRetirementCleanup.tsx` — root-mounted cleanup for old service workers and IndexedDB pack keys
+- `components/ServiceWorkerRegistration.tsx` — registers `/sw.js` only so returning clients receive the retirement worker
+- `public/sw.js` — retirement worker that removes `offline-*` and `runtime-transient-v2` caches, then unregisters itself
 - `components/map/MapLibreVectorMap.tsx` — shared MapLibre primitive for live vector maps
 - `components/map/MapLibreLocationPicker.tsx` — shared click/drag location picker map
 - `components/map/MapLibreStaticLocationMap.tsx` — shared non-interactive location snippet map
 - `lib/map/vector-map-config.ts` — shared resolver for hosted style vs pins-only fallback
 - `lib/map/maplibre-style.ts` — MapLibre style resolver
-- `lib/offline/tiles.ts` — legacy raster tile helpers retained during the retirement window
+- `lib/offline/storage.ts` — legacy pack types/readers plus `clearStoredOfflinePackRecords()` for four retired IndexedDB keys
+- `lib/offline/service-worker-client.ts` — unregisters letsboulder `/sw.js` registrations and removes retired Cache Storage entries
+- `lib/offline/tiles.ts`, `components/OfflineCragMapSnippet.tsx`, and `/api/offline-tiles/**` — legacy raster compatibility artifacts retained during retirement
+- `features/offline/` — shallow cached-page compatibility/fallback code; not a downloadable offline-pack feature
 - `lib/query-persistence.ts` — React Query IndexedDB persistence (12h max age)
 
 ### Known Edge Cases
-- **Cache retirement:** Do not register a new service worker. Keep the tombstone worker available long enough to reach returning clients.
+- **Cache retirement:** Do not add caching/fetch handlers to `/sw.js`. Keep the tombstone registration and root cleanup available long enough to reach returning clients.
+- **Stored data:** Cleanup deletes `offline-climb-packs`, `offline-pack-records`, `offline-climb-manifests`, and `offline-crag-manifests`; it does not delete auth-scoped React Query caches.
 - **Network routes:** Preserve the current screen when a refetch fails and provide retry controls for failed initial loads.
 - **Hosted basemap CSP:** `tiles.openfreemap.org` must remain allowed in `connect-src`, `img-src`, and `font-src`.
 - **Legacy maps:** `/api/offline-tiles` is retirement-only infrastructure and must not be presented as available offline.
@@ -289,99 +196,21 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 ## 8. Community Posts
 
 ### Pattern
-```typescript
-'use server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-import { revalidatePath } from 'next/cache'
+- Use Server Actions in `features/community/actions.ts` for app-owned writes. `createCommunityPostAction()` validates a typed object, resolves auth with `getActionAuth()`, verifies the place, and returns `ActionResult` data rather than throwing for expected failures.
+- Community posts use database fields `author_id`, `place_id`, `type`, `title`, and `body`; do not use the obsolete `user_id`, `post_type`, or `content` interface.
+- Session posts additionally support discipline, grade range, start/end times, RSVP state, and comments. Comments are intentionally limited to session posts.
+- Read surfaces under `/api/community/places/[slug]/**` are public query endpoints. Mutations remain Server Actions, so they do not use `csrfFetch()`.
 
-export async function createPost(formData: FormData) {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-  )
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Unauthorized')
-
-  const content = formData.get('content') as string
-  const placeId = formData.get('place_id') as string
-  const type = formData.get('type') as 'session' | 'conditions' | 'question' | 'update'
-
-  const { error } = await supabase.from('community_posts').insert({
-    user_id: user.id,
-    place_id: placeId,
-    content,
-    post_type: type
-  })
-
-  if (error) throw new Error(error.message)
-
-  revalidatePath(`/community/places/${placeId}`)
-}
-```
-
-```typescript
-// app/community/places/[slug]/components/post-list.tsx
-'use client'
-import { useOptimistic } from 'react'
-import { createPost } from '@/app/actions/create-post'
-
-interface Post {
-  id: string
-  content: string
-  type: string
-  created_at: string
-}
-
-export function PostList({ initialPosts }: { initialPosts: Post[] }) {
-  const [posts, addOptimisticPost] = useOptimistic(
-    initialPosts,
-    (state, newPost: Post) => [...state, { ...newPost, pending: true }]
-  )
-
-  async function handleSubmit(formData: FormData) {
-    const tempPost: Post = {
-      id: `temp-${Date.now()}`,
-      content: formData.get('content') as string,
-      type: formData.get('type') as string,
-      created_at: new Date().toISOString()
-    }
-    addOptimisticPost(tempPost)
-    try {
-      await createPost(formData)
-    } catch {
-      // Optimistic post automatically removed on failure
-    }
-  }
-
-  return (
-    <>
-      {posts.map(post => (
-        <PostCard key={post.id} post={post} />
-      ))}
-      <form action={handleSubmit}>
-        <textarea name="content" />
-        <select name="type">
-          <option value="session">Session</option>
-          <option value="conditions">Conditions</option>
-          <option value="question">Question</option>
-          <option value="update">Update</option>
-        </select>
-        <button type="submit">Post</button>
-      </form>
-    </>
-  )
-}
-```
+### Key Files
+- `features/community/actions.ts` — authenticated post, RSVP, and comment mutations
+- `features/community/server/load-place-community-data.ts` — initial community data
+- `features/community/components/SessionComposer.tsx` and `UpdateComposer.tsx` — current composer contracts
+- `features/community/components/UpcomingFeed.tsx` and `UpdatesFeed.tsx` — feed rendering and client mutations
 
 ### Known Edge Cases
-- **Empty states:** Show helpful prompts for each post type (e.g., "Share today's conditions")
-- **Media:** Compress images to max 1200px width; use WebP with JPEG fallback
-- **Moderation:** Flag posts with keywords; require approval for new crag tags
-- **Optimistic UI:** Use `useOptimistic` for instant feedback on slow 3G/LTE connections
+- **Validation:** Session posts require a valid start time; end time cannot precede it, and discipline must be allowlisted.
+- **Authorization:** Resolve the author server-side and rely on RLS as an additional boundary; never accept an author ID from the client.
+- **Persistence:** Community queries are deliberately excluded from the persisted React Query cache.
 
 ---
 

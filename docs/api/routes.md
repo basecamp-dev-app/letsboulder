@@ -4,46 +4,46 @@
 
 | Route Group | Description | Auth | CSRF |
 | --- | --- | --- | --- |
-| admin | Admin operations (crag management, moderation) | Yes | Yes |
+| admin | Admin gym setup and image/crag management | Yes (admin) | Yes |
 | auth | Authentication operations (sign out) | Yes | Yes |
 | climbs | Individual climb data and operations | Optional | Yes |
-| comments | Comment CRUD for community posts | Yes | Yes |
-| community | Community posts and engagement under places | Optional | Yes |
+| comments | Public comment reads and authenticated comment creation | Optional | Yes |
+| community | Public place-community query endpoints | No | No |
 | corrections | Route correction requests and voting | Yes | Yes |
 | crags | Crag CRUD, search, nearby, pins, reports, images, sectors | Optional | Yes |
-| csrf | CSRF token generation | No | No |
-| dev-logger | Dev-only browser log bridge | No | No |
-| feedback | User feedback submission | No | No |
-| flags | Content flagging (climbs, images) | Yes | Yes |
+| csrf | User-bound CSRF token and cookie issuance | Yes | No |
+| dev-logger | Local-development browser log bridge | Effectively yes | Yes |
+| feedback | Rate-limited user feedback submission | Effectively yes | Yes |
+| flags | Admin flag queue listing and resolution | Yes (admin) | Yes |
 | gym-admin | Gym admin operations | Yes | Yes |
 | image-first | Image-first route page support endpoints | No | No |
-| images | Image detail, faces, flags | Optional | Yes |
-| location-tags | Location tagging | Yes | Yes |
+| images | Image detail, related faces, deletion, and flags | Optional | Yes |
+| location-tags | Public region/sub-area tag search | No | No |
 | locations | Geo detection, reverse geocoding, search | No | No |
 | logbook | User logbook queries | Yes | No |
 | media | Media serving, upload sessions, private media proxy | Optional | Yes |
-| moderation | Content moderation queue | Yes | Yes |
-| notifications | User notifications | Yes | Yes |
-| offline-tiles | Offline map tile serving | No | No |
+| moderation | Admin submission-moderation queue and voting | Yes (admin) | Yes |
+| notifications | Authenticated notification reads | Yes | No |
+| offline-tiles | Retirement-only legacy raster tile proxy | No | No |
 | places | Place management, nearby search, search | Optional | Yes |
 | profile | User profile operations | Yes | Yes |
 | rankings | Rankings data | No | No |
 | regions | Region data | No | No |
-| routes | Route data queries | Optional | Yes |
+| routes | Legacy direct route submission and consensus-grade voting | Optional | Yes |
 | settings | User settings | Yes | Yes |
 | social | Instagram post export | Yes (admin) | Yes |
-| submissions | Draft management, collaboration, image submission | Yes | Yes |
-| test | Test-only endpoints (auth, etc.) | No | No |
+| submissions | Submission creation plus draft lifecycle, media association, collaboration, route sync, and publish | Optional reads; Yes writes | Yes |
+| test | Non-production API-key-gated test auth | Test key | No |
 | uploads | Presigned upload URL generation | Yes | Yes |
 | welcome-email | Welcome email trigger | Yes | Yes |
 
-CSRF applies to mutating requests. Public read endpoints may still live in a route group that also contains authenticated write routes.
+CSRF applies to mutating requests unless explicitly exempted. Because `/api/csrf` issues tokens only to an authenticated cookie session, a route configured with `requireUser: false` but default CSRF is still effectively authenticated for browser mutations. Public read endpoints may live in a group with authenticated writes.
 
 ## Route Group Details
 
 ### admin
 
-Admin operations including crag management and moderation tools. Restricted to authenticated users with admin privileges. Uses CSRF protection.
+Admin operations for gym creation/floor plans/starter routes and moving images between crags. Restricted to authenticated admins; state changes use CSRF protection. The moderation queue is under the separate `moderation` group.
 
 ### climbs
 
@@ -51,15 +51,16 @@ Individual climb data and operations. Read operations are public; write operatio
 
 ### comments
 
-Comment CRUD for community posts. Requires authentication for all operations. Uses CSRF protection.
+Comments on crags, images, and climbs. GET is public and supports target/category pagination; POST requires authentication and CSRF. This is separate from session-post comments, which use community Server Actions.
 
 ### community
 
-Community features organized under places. Read operations are public; write operations require authentication. Uses CSRF protection.
+Public read-only community data organized under places. App-owned post, RSVP, and comment writes use Server Actions in `features/community/actions.ts`, not this route group.
 
 - `community/places/[slug]/posts` — posts for a specific place
 - `community/places/[slug]/rankings` — rankings for a specific place
 - `community/places/[slug]/recent-sends` — recent sends for a specific place
+- `community/places/[slug]/contributors` — contributor leaderboard for a specific place
 - `community/posts/[postId]/engagement` — engagement data for a specific post
 
 ### corrections
@@ -72,15 +73,15 @@ Crag CRUD operations, search, nearby queries, pin data, reports, image managemen
 
 ### csrf
 
-CSRF token generation endpoint. No authentication required. Exempt from CSRF protection itself.
+`GET /api/csrf` requires a Supabase user resolved from request cookies. It returns the signed user-bound token in `{ token }` and sets the same token as an HttpOnly `csrf_token` cookie. It is necessarily exempt from CSRF validation itself; anonymous requests receive 401.
 
 ### dev-logger
 
-Development-only browser log bridge. No authentication or CSRF protection.
+Localhost-only browser log bridge available only in development. Its POST is subject to proxy CSRF enforcement, which also makes it effectively require a cookie-authenticated user capable of obtaining a CSRF token.
 
 ### flags
 
-Content flagging for climbs and images. Requires authentication to flag content. Uses CSRF protection.
+Admin flag queue listing and flag resolution. GET `/api/flags` requires an admin but no CSRF; POST `/api/flags/[id]/resolve` requires admin auth and CSRF. User-facing image/climb flag creation lives under those resource groups.
 
 ### gym-admin
 
@@ -91,14 +92,15 @@ Gym admin operations. Requires authentication with gym admin privileges. Uses CS
 Image-first route page support endpoints. Public read-only endpoints used to progressively enhance the route-page minimap after first paint. No authentication or CSRF protection.
 
 - `image-first/pins` — load image pins for a single crag within supplied map bounds using `cragId`, `north`, `south`, `east`, and `west` query params
+- `image-first/community-notes` — load route-page community notes using `effectiveClimbId`
 
 ### images
 
-Image detail retrieval, face detection, and flagging. Read operations are public; write operations require authentication. Uses CSRF protection.
+Image detail retrieval, related submission-face loading, owner/admin deletion, and flagging. Public reads do not require CSRF; writes require authentication and CSRF.
 
 ### location-tags
 
-Location tagging operations. Requires authentication. Uses CSRF protection.
+Public cached search over region and sub-area tags using `q` and `kind`; read-only and does not require CSRF.
 
 ### locations
 
@@ -110,15 +112,22 @@ User logbook queries. Requires authentication to view personal logbook. No CSRF 
 
 ### media
 
-Media serving, upload session management, and private media proxy. Read operations are public for public media; private media requires authentication. Uses CSRF protection.
+Media compatibility delivery and authenticated upload-session lifecycle:
+
+- `media/[bucket]/[...path]` reads an object only after `canReadObject()` authorizes public or user-private access; ready public variants should normally be served directly by the CDN instead.
+- `media/private?draftId=...&path=...` streams a draft object only to the draft owner or collaborator and returns 404 for unauthorized object access.
+- `media/upload-sessions` creates an authenticated private-R2 upload row and presigned PUT target.
+- `media/upload-sessions/[imageId]` lets the owner poll processing status or atomically delete an unassociated upload.
+- `media/upload-sessions/[imageId]/complete` verifies the private object, queues durable ingest, records moderation as disabled/skipped, and dispatches the worker fast path.
+- Upload-session mutations require CSRF. Status and media GETs do not.
 
 ### moderation
 
-Content moderation queue. Requires authentication with moderator privileges. Uses CSRF protection.
+Admin-only submission moderation. `GET moderation/queue` filters queue items by status and optional `crag_id`; it requires an authenticated admin but no CSRF because it is read-only. `POST moderation/queue/[id]/vote` requires an authenticated admin, CSRF, and the authenticated-write rate limit. Automated media moderation is not provided by this group and is currently disabled/skipped in media ingest.
 
 ### notifications
 
-User notifications. Requires authentication. Uses CSRF protection.
+Authenticated paginated notification reads with optional unread filtering and unread count. This group currently exposes GET only, so it does not require CSRF.
 
 ### offline-tiles
 
@@ -151,7 +160,10 @@ Region data. No authentication or CSRF protection. Public data endpoint.
 
 ### routes
 
-Route data queries. Read operations are public; write operations require authentication. Uses CSRF protection.
+Two legacy/specialized surfaces rather than general route CRUD:
+
+- `GET routes/submit` documents the direct submission payload; `POST` creates one pending climb, requires authentication and CSRF, and enforces five submissions per user per day.
+- `GET routes/[id]/grades` returns public consensus, distribution, and the current user's vote when authenticated; `POST` upserts an authenticated user's valid grade vote with CSRF.
 
 ### settings
 
@@ -159,15 +171,20 @@ User settings management. Requires authentication. Uses CSRF protection.
 
 ### submissions
 
-Draft management, collaboration, image submission, and durable draft route syncing. Requires authentication. Uses CSRF protection.
+Submission and draft workflows. The root GET is public endpoint metadata; root POST accepts new-media, existing-image, or crag-image route submissions and is CSRF-protected. Draft and collaboration data require an authenticated user and enforce owner/collaborator access.
 
 - Route handlers under `app/api/submissions/**` are intentionally thin wrappers.
 - Submission execution lives in `features/submissions/server/submissions/**`.
 - Draft lifecycle and collaboration flows live in `features/submissions/server/drafts/**`.
+- `submissions/drafts/[id]` reads, compare-and-swap patches, or atomically deletes a draft.
+- `submissions/drafts/[id]/images` appends associated upload-session images; the nested image route atomically removes one.
+- `submissions/drafts/[id]/routes` durably synchronizes one image or a batch of image route sets.
+- `submissions/drafts/[id]/publish` validates media readiness, location/route completeness, and promotes the draft.
+- `submissions/drafts/collaborate/[token]` and the legacy `submissions/collaborate/[token]` are GET invite-claim redirects; unauthenticated users are redirected to auth rather than claiming an invite.
 
 ### test
 
-Test-only endpoints for auth and other testing utilities. No authentication or CSRF protection. Not available in production.
+Test-only auth endpoint protected by `TEST_API_KEY` and a secret path segment. The proxy returns 404 when test auth is disabled or when `VERCEL_ENV=production`; it is not Supabase-user authenticated and does not require CSRF.
 
 ### uploads
 
@@ -179,7 +196,7 @@ Authentication operations. Currently supports sign out via `/api/auth/signout`. 
 
 ### feedback
 
-User feedback submission endpoint. No authentication or CSRF protection. Public utility endpoint.
+Rate-limited feedback POST. The handler permits a nullable user internally, but default CSRF validation and authenticated-only token issuance make browser use effectively authenticated. The message and source URL are length-limited before Discord delivery.
 
 ### welcome-email
 

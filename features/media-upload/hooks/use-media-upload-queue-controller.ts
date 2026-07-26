@@ -204,6 +204,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
         })
       }
 
+      // Release serialization after completion/draft attachment; lifecycle polling must not block the next upload.
       const nextQueueOrder = queueOrderRef.current.filter((clientId) => clientId !== entry.clientId)
       queueOrderRef.current = nextQueueOrder
       setQueueOrder(nextQueueOrder)

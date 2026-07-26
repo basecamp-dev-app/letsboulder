@@ -94,6 +94,7 @@ function deriveHeight(sourceWidth: number | null, sourceHeight: number | null, t
   return Math.max(1, Math.round(sourceHeight * (targetWidth / sourceWidth)))
 }
 
+// Invariant: manifest paths are delivery recipes; ingest never writes variant objects.
 function buildVirtualManifest(originalKey: string, sourceWidth: number | null, sourceHeight: number | null) {
   const manifest: Partial<Record<MediaVariantKey, Partial<Record<MediaFormatKey, { path: string; width: number; height: number; contentType: string }>>>> = {}
 

@@ -8,7 +8,7 @@
 
 ## Why
 
-- Rebuilding local should be deterministic (`supabase migration up` / `supabase db reset`).
+- Rebuilding local should be deterministic (`npx supabase db reset`).
 - Dev/prod should match git, not drift over time.
 - Debugging is easier when schema history is visible in PRs.
 
@@ -49,7 +49,7 @@ If prod is the most correct schema, make prod the canonical source of truth and 
 
 Always use `--dry-run` before pushing schema changes to a hosted Supabase project.
 
-## Golden Path (Local -> Dev -> Prod)
+## Golden Path (Local Verification)
 
 This repo assumes you run schema changes through migrations committed in git.
 
@@ -65,25 +65,35 @@ npx supabase --version
 ### 1) Create and test locally
 
 ```bash
-supabase start
+npx supabase start
+npx supabase db reset
+npx supabase gen types typescript --local > types/database.ts
+npm run typecheck
+npm run test:database
 ```
 
-### 2) Deploy schema to dev
+If the schema affects worker queries/contracts or documented behavior, also run:
 
 ```bash
-supabase db push --linked --dry-run
-supabase db push --linked
+npm --prefix apps/media-worker run check
+bash docs/verify.sh
 ```
 
-### 3) Deploy schema to prod
+Commit the migration and regenerated `types/database.ts` together.
+
+## Hosted Deployment (Maintainers Only)
+
+Linked commands are not part of the contributor workflow. A maintainer must deliberately select the intended dev or production project, review the dry-run, and then push:
 
 ```bash
-supabase link --project-ref <prod-ref>
-supabase db push --linked --dry-run
-supabase db push --linked
+npx supabase link --project-ref <project-ref>
+npx supabase db push --linked --dry-run
+npx supabase db push --linked
 ```
 
 ## If `db push` Fails With "Remote migration versions not found"
+
+This hosted-deployment troubleshooting is for maintainers operating on a deliberately linked project.
 
 This usually means the remote migration history table (`supabase_migrations.schema_migrations`) contains versions that are not present in `supabase/migrations`.
 
@@ -98,19 +108,19 @@ This usually means the remote migration history table (`supabase_migrations.sche
 1) Inspect migration history:
 
 ```bash
-supabase migration list --linked
+npx supabase migration list --linked
 ```
 
 2) If remote has versions that do not exist in git, reconstruct them into new migrations (do not delete random history in prod).
 
 ### Emergency (dev only): remove an invalid non-numeric version
 
-If the remote history table contains a non-numeric version (example: `20260120000000_verification_system`), Supabase CLI cannot repair it with `supabase migration repair`.
+If the remote history table contains a non-numeric version (example: `20260120000000_verification_system`), Supabase CLI cannot repair it with `npx supabase migration repair`.
 
 In dev, you can delete the one bad row:
 
 ```bash
-supabase db dump --dry-run --schema supabase_migrations
+npx supabase db dump --dry-run --schema supabase_migrations
 ```
 
 Use the printed `PGHOST/PGPORT/PGUSER/PGDATABASE/PGPASSWORD` env vars and run:
@@ -123,6 +133,6 @@ psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
 Then re-run:
 
 ```bash
-supabase db push --linked --dry-run
-supabase db push --linked
+npx supabase db push --linked --dry-run
+npx supabase db push --linked
 ```

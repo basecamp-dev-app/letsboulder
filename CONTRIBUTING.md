@@ -56,17 +56,22 @@ This project uses conventional commits when practical:
 ## Testing
 
 - Run `npm run lint` before opening a PR
+- Run `npm run typecheck` before opening a PR
+- Run `npm run check:features` when changing feature boundaries
 - Run `npm run check:csrf-fetch` before opening client-side API mutation changes
 - Run `npm run test:unit` for unit tests that cover your change
+- Run `npm run test:components` for React component changes
 - Run `npm run test:integration` for integration coverage when relevant
-- Run Playwright E2E tests with `npx playwright test` when the change touches user flows
+- Install Playwright browsers with `npx playwright install chromium webkit`, then run `npx playwright test` when the change touches user flows
+- Run `npm --prefix apps/media-worker run check` for Worker or media-contract changes
 
 ## Database Changes
 
 - All schema changes go through `supabase/migrations/*.sql`
 - Never edit Supabase dashboard directly
-- Always run `--dry-run` before `db push`
-- Run `supabase gen types` after schema changes to update `types/database.ts`
+- Reset local Supabase and run `npm run test:database` for migrations, RLS, triggers, and RPC changes
+- Regenerate types with `npx supabase gen types typescript --local > types/database.ts`
+- Hosted pushes are maintainer-only; verify the linked project and run `npx supabase db push --linked --dry-run` first
 
 ## PR Verification Checklist
 
@@ -85,6 +90,10 @@ Before opening a PR, verify docs are in sync with code:
 npm run dev              # Development
 npm run build            # Production
 npm run lint             # Lint
+npm run typecheck        # App, tests, scripts, and media contracts
 npm run test:unit        # Unit tests
+npm run test:components  # React component tests
 npm run test:integration # Integration tests
+npm run test:database    # Local Supabase database tests
+bash docs/verify.sh      # Documentation drift checks
 ```

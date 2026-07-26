@@ -40,6 +40,7 @@ export function useEditDraftRouteStoreSync({
   })))
 
   const lastSeededImageIdRef = useRef<string | null>(null)
+  // These snapshots prevent parent/store mirroring from marking our own writes dirty or creating a feedback loop.
   const lastAppliedParentRoutesRef = useRef<RouteEditorSerializableRoute[]>([])
   const lastPushedStoreRoutesRef = useRef<RouteEditorSerializableRoute[]>([])
 

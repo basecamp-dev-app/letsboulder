@@ -23,9 +23,9 @@ letsboulder is open source under the [Apache License 2.0](LICENSE).
 - Next.js 16 (App Router) + React 19 + TypeScript
 - Supabase (PostgreSQL 17 + Auth + PostGIS)
 - Cloudflare Workers + Cloudflare R2 for media ingest and delivery
-- Leaflet + React Leaflet + Supercluster for maps
+- MapLibre GL + OpenFreeMap + Supercluster for maps
 - Tailwind CSS v4 + shadcn/ui
-- Zustand (client state) + TanStack React Query (server state with selective IndexedDB persistence)
+- Zustand (transient route-editor state) + TanStack React Query (server state with selective IndexedDB persistence)
 - Playwright (E2E) + Vitest (unit/integration)
 
 ## Architecture
@@ -44,13 +44,15 @@ See [LOCAL_SETUP.md](LOCAL_SETUP.md) for full local development setup.
 
 ### Prerequisites
 
-- Node.js and npm
-- Supabase CLI
+- Node.js `20.20.0` and npm
 - A Docker-compatible runtime for `supabase start`
 
 ```bash
 npm install
-supabase start
+npx supabase start
+cp .env.example .env.local
+npx supabase db reset
+npx supabase gen types typescript --local > types/database.ts
 npm run dev
 ```
 
@@ -58,20 +60,17 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment Variables
 
-See [`.env.example`](.env.example) for the complete list. Key variables:
+See [`.env.example`](.env.example) for the categorized application, media, integration, and test variables. Minimum local setup uses the credentials printed by `npx supabase status` plus locally generated secrets.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-only) |
-| `R2_S3_ENDPOINT` | Yes | Cloudflare R2 S3 endpoint |
-| `R2_PRIVATE_BUCKET` | Yes | R2 bucket for private originals |
-| `R2_PUBLIC_BUCKET` | Yes | R2 bucket for public variants |
-| `R2_ACCESS_KEY_ID` | Yes | R2 access key |
-| `R2_SECRET_ACCESS_KEY` | Yes | R2 secret key |
-| `NEXT_PUBLIC_MEDIA_CDN_URL` | Yes | CDN base URL |
-| `CSRF_SECRET` | Prod | JWT signing secret for CSRF tokens |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server features | Supabase service role key (server-only) |
+| `CSRF_SECRET` | Yes | JWT signing secret for CSRF tokens |
+| `DELETE_ACCOUNT_SECRET` | Yes | Account deletion token secret |
+| `R2_*` | Media | R2 endpoint, buckets, and presigning credentials |
+| `NEXT_PUBLIC_MEDIA_CDN_URL` | Media | CDN base URL |
 | `RESEND_API_KEY` | No | Transactional emails (Resend) |
 
 ## Deployment
@@ -81,11 +80,11 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | Development | [dev.letsboulder.com](https://dev.letsboulder.com) | `dev` |
 | Production | [letsboulder.com](https://letsboulder.com) | `main` |
 
-**App**: Vercel auto-deploys on push to `dev` and `main`
+**App**: CI triggers the production Vercel deploy hook after successful pushes to `main`. Preview and development deployment behavior is managed in Vercel.
 
 **Media Worker**: Cloudflare Worker deployed via Wrangler (`apps/media-worker/wrangler.toml`)
 
-**Database**: Run `supabase db push --linked` after linking to the respective project
+**Database**: Maintainers verify the linked project and run `npx supabase db push --linked --dry-run` before deployment
 
 ## Contributing
 
@@ -115,6 +114,7 @@ git push -u origin my-change
 ### Reference docs
 
 - [Architecture](docs/architecture.md) — system topology and data flow
+- [Documentation Index](docs/README.md) — source-of-truth and topic map
 - [Database Schema](docs/db/schema.md) — tables, RPCs, grade system, cascade logic
 - [Migrations](docs/db/migrations.md) — migration workflow and safety rules
 - [Patterns](docs/patterns.md) — canvas, maps, GPS, HEIC, offline, media pipeline
@@ -123,3 +123,5 @@ git push -u origin my-change
 - [Testing](docs/testing/) — E2E, unit, and integration test guide
 - [Auth & Security](docs/auth-security.md) — CSRF, rate limiting, auth patterns
 - [Submission Workflow](docs/submission-workflow.md) — draft-to-publish pipeline
+- [Submission Controls](docs/ui/submission-controls.md) — reusable UI contracts
+- [Moderation](docs/moderation.md) — media readiness, reports, and verification systems
