@@ -562,6 +562,10 @@ BEGIN
     );
     IF function_signature LIKE 'public.add_correction_type_value(%' THEN
       EXECUTE format('REVOKE ALL ON FUNCTION %s FROM service_role', function_signature);
+    ELSIF function_signature LIKE 'public.soft_delete_comments_on_target_delete(%' THEN
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM service_role', function_signature);
+    ELSIF function_signature LIKE 'public.touch_media_jobs_updated_at(%' THEN
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM service_role', function_signature);
     ELSE
       EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', function_signature);
     END IF;

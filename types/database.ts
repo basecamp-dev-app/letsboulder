@@ -2939,21 +2939,44 @@ export type Database = {
               total_votes: number
             }[]
           }
+        | {
+            Args: { p_crag_id: string; p_limit?: number; p_offset?: number }
+            Returns: {
+              consensus_grade: string
+              grade: string
+              id: string
+              latitude: number
+              longitude: number
+              name: string
+              route_type: string
+            }[]
+          }
       get_community_contributors_count: { Args: never; Returns: number }
       get_community_photos_count: { Args: never; Returns: number }
       get_consensus_grade: { Args: { climb_id: string }; Returns: string }
-      get_crag_contributor_leaderboard: {
-        Args: { p_crag_id: string; p_limit?: number; p_page?: number }
-        Returns: {
-          accepted_contribution_count: number
-          avatar_url: string
-          contributor_score_total: number
-          rank: number
-          total_users: number
-          user_id: string
-          username: string
-        }[]
-      }
+      get_crag_contributor_leaderboard:
+        | {
+            Args: { p_crag_id: string; p_limit?: number }
+            Returns: {
+              avatar_url: string
+              contribution_count: number
+              display_name: string
+              user_id: string
+              username: string
+            }[]
+          }
+        | {
+            Args: { p_crag_id: string; p_limit?: number; p_page?: number }
+            Returns: {
+              accepted_contribution_count: number
+              avatar_url: string
+              contributor_score_total: number
+              rank: number
+              total_users: number
+              user_id: string
+              username: string
+            }[]
+          }
       get_crag_faces_complete_summary: {
         Args: { p_image_id: string }
         Returns: Json
@@ -3106,18 +3129,29 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      get_place_contributor_leaderboard: {
-        Args: { p_limit?: number; p_page?: number; p_place_id: string }
-        Returns: {
-          accepted_contribution_count: number
-          avatar_url: string
-          contributor_score_total: number
-          rank: number
-          total_users: number
-          user_id: string
-          username: string
-        }[]
-      }
+      get_place_contributor_leaderboard:
+        | {
+            Args: { p_limit?: number; p_place_id: string }
+            Returns: {
+              avatar_url: string
+              contribution_count: number
+              display_name: string
+              user_id: string
+              username: string
+            }[]
+          }
+        | {
+            Args: { p_limit?: number; p_page?: number; p_place_id: string }
+            Returns: {
+              accepted_contribution_count: number
+              avatar_url: string
+              contributor_score_total: number
+              rank: number
+              total_users: number
+              user_id: string
+              username: string
+            }[]
+          }
       get_place_pins: {
         Args: { include_pending?: boolean }
         Returns: {
@@ -3190,10 +3224,17 @@ export type Database = {
       get_total_climbs_count: { Args: never; Returns: number }
       get_total_logs_count: { Args: never; Returns: number }
       get_total_sends_count: { Args: never; Returns: number }
-      get_upload_context: {
-        Args: { search_lat: number; search_lng: number }
-        Returns: Json
-      }
+      get_upload_context:
+        | {
+            Args: {
+              p_crag_id: string
+              p_image_id: string
+              p_storage_bucket: string
+              p_storage_path: string
+            }
+            Returns: Json
+          }
+        | { Args: { search_lat: number; search_lng: number }; Returns: Json }
       get_user_count: { Args: never; Returns: number }
       get_verification_count: { Args: { climb_id: string }; Returns: number }
       get_verified_routes_count: { Args: never; Returns: number }
@@ -3416,6 +3457,10 @@ export type Database = {
       sync_submission_draft_routes: {
         Args: { p_draft_id: string; p_draft_image_id: string; p_routes: Json }
         Returns: Json
+      }
+      update_climb_consensus_safe: {
+        Args: { p_climb_id: string }
+        Returns: undefined
       }
       update_own_profile_submission_credit: {
         Args: { p_handle: string; p_platform: string }
