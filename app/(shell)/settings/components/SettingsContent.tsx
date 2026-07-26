@@ -49,7 +49,7 @@ const TRAD_GRADE_OPTIONS: GradeOption[] = [
 
 export default function SettingsContent({ user }: SettingsContentProps) {
   const { toasts, addToast, removeToast } = useToast()
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: settingsQueryKey,
     queryFn: fetchSettings,
   })
@@ -100,7 +100,21 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [activeTab, setActiveTab] = useState('profile')
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) ?? TABS[0]
 
-  if (loading) {
+  if (isError && !data) {
+    return (
+      <section role="alert" className="mx-auto max-w-xl p-6 text-center">
+        <h1 className="text-xl font-bold">Settings could not be loaded</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your existing settings have not been changed.
+        </p>
+        <Button className="mt-4" onClick={() => void refetch()}>
+          Retry
+        </Button>
+      </section>
+    )
+  }
+
+  if (loading || !data) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-950">
         <div className="px-0">

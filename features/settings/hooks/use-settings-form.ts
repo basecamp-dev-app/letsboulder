@@ -58,7 +58,7 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
 
   useEffect(() => {
     if (!data?.settings) {
-      setLoading(isLoading)
+      setLoading(true)
       return
     }
 

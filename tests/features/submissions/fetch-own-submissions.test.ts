@@ -92,4 +92,23 @@ describe('fetchOwnSubmissions', () => {
       route_lines_count: 2,
     })
   })
+
+  test('throws contribution query errors instead of returning an empty list', async () => {
+    const queryError = new Error('contributions unavailable')
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            or: vi.fn(() => ({
+              order: vi.fn(() => ({
+                limit: vi.fn(async () => ({ data: null, error: queryError })),
+              })),
+            })),
+          })),
+        })),
+      })),
+    }
+
+    await expect(fetchOwnSubmissions(supabase as unknown as SupabaseClient, 'user-1', fetch)).rejects.toBe(queryError)
+  })
 })

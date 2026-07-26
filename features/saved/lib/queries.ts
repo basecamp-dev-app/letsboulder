@@ -52,7 +52,8 @@ export async function fetchSavedClimbs(
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
-  if (error || !data) return []
+  if (error) throw error
+  if (!data) return []
 
   const savedRows = data as SavedClimbRow[]
   const climbIds = Array.from(new Set(savedRows.map((row) => row.climb_id)))
@@ -63,7 +64,8 @@ export async function fetchSavedClimbs(
     .select('id, name, grade, slug, crag_id')
     .in('id', climbIds)
 
-  if (climbsError || !climbsData) return []
+  if (climbsError) throw climbsError
+  if (!climbsData) return []
 
   const climbs = climbsData as ClimbRow[]
   const cragIds = Array.from(new Set(climbs.map((climb) => climb.crag_id).filter((value): value is string => typeof value === 'string')))
@@ -75,10 +77,9 @@ export async function fetchSavedClimbs(
       .select('id, name, slug, country_code, region_name, country')
       .in('id', cragIds)
 
-    if (!cragsError && cragsData) {
-      for (const crag of cragsData as CragRow[]) {
-        cragMap.set(crag.id, crag)
-      }
+    if (cragsError) throw cragsError
+    for (const crag of (cragsData || []) as CragRow[]) {
+      cragMap.set(crag.id, crag)
     }
   }
 
@@ -113,7 +114,8 @@ export async function fetchSavedCrags(
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
-  if (error || !data) return []
+  if (error) throw error
+  if (!data) return []
 
   const savedRows = data as SavedCragRow[]
   const cragIds = Array.from(new Set(savedRows.map((row) => row.crag_id)))
@@ -124,7 +126,8 @@ export async function fetchSavedCrags(
     .select('id, name, slug, country_code, region_name, country')
     .in('id', cragIds)
 
-  if (cragsError || !cragsData) return []
+  if (cragsError) throw cragsError
+  if (!cragsData) return []
 
   const cragMap = new Map((cragsData as CragRow[]).map((crag) => [crag.id, crag]))
 
