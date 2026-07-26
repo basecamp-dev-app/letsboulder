@@ -117,13 +117,15 @@ export interface ServerLogbookSummary {
 }
 
 async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerClient>>, userId: string): Promise<Submission[]> {
-  const { data: draftSubmissions } = await supabase
+  const { data: draftSubmissions, error } = await supabase
     .from('submission_drafts')
     .select('id, created_at, updated_at, crags(name), submission_draft_images(id, storage_bucket, storage_path, display_order, processing_status, route_data), submission_draft_routes(id)')
     .eq('user_id', userId)
     .eq('status', 'draft')
     .order('updated_at', { ascending: false })
     .limit(24)
+
+  if (error) throw error
 
   const draftRows = (draftSubmissions || []) as DraftSubmissionRow[]
 
@@ -313,16 +315,19 @@ export async function fetchServerLogbookSubmissions(user: User): Promise<Submiss
     .order('created_at', { ascending: false })
     .limit(200)
 
+  if (contribError) throw contribError
+
   let publishedSubmissions: Submission[] = []
-  if (!contribError && contributionRows) {
+  if (contributionRows) {
     const imageIds = (contributionRows as ContributionRow[]).map((row) => row.id)
     let links: CragImageLinkRow[] = []
     if (imageIds.length > 0) {
       const idsCsv = imageIds.join(',')
-      const { data: linksData } = await supabase
+      const { data: linksData, error: linksError } = await supabase
         .from('crag_images')
         .select('source_image_id, linked_image_id')
         .or(`linked_image_id.in.(${idsCsv}),source_image_id.in.(${idsCsv})`)
+      if (linksError) throw linksError
       links = (linksData || []) as CragImageLinkRow[]
     }
     publishedSubmissions = groupSubmittedImages(contributionRows as ContributionRow[], links)

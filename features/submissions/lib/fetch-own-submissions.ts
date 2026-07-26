@@ -51,13 +51,15 @@ export async function fetchOwnSubmissions(
     return [...byKey.values()]
   }
 
-  const { data: contributionRows } = await supabase
+  const { data: contributionRows, error: contributionError } = await supabase
     .from('images')
     .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name, slug, country_code), route_lines(id, climb_id)')
     .eq('created_by', userId)
     .or('moderation_status.eq.approved,moderation_status.eq.skipped,moderation_status.eq.pending,moderation_status.is.null')
     .order('created_at', { ascending: false })
     .limit(200)
+
+  if (contributionError) throw contributionError
 
   const groupedPublishedSubmissions = contributionRows
     ? groupSubmittedImages(contributionRows as ImageContributionRow[], [])
@@ -69,6 +71,7 @@ export async function fetchOwnSubmissions(
       .select('id, image_id, climb_id')
       .in('image_id', publishedImageIds)
     : { data: [], error: null }
+  if (publishedRouteLines.error) throw publishedRouteLines.error
   const routeLinesByImageId = new Map<string, PublishedRouteLineRow[]>()
 
   for (const routeLine of (publishedRouteLines.data || []) as PublishedRouteLineRow[]) {
@@ -91,13 +94,15 @@ export async function fetchOwnSubmissions(
     })
     .filter((submission) => submission.route_lines_count > 0)
 
-  const { data: draftSubmissions } = await supabase
+  const { data: draftSubmissions, error: draftError } = await supabase
     .from('submission_drafts')
     .select('id, created_at, updated_at, crags(name), submission_draft_images(storage_bucket, storage_path, route_data, display_order, processing_status), submission_draft_routes(id)')
     .eq('user_id', userId)
     .eq('status', 'draft')
     .order('updated_at', { ascending: false })
     .limit(limit)
+
+  if (draftError) throw draftError
 
   const draftRows = (draftSubmissions || []) as DraftSubmissionRow[]
 

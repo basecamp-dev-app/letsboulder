@@ -56,7 +56,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
       }
     : undefined
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ownLogbookSummaryQueryKey,
     queryFn: () => fetchOwnLogbookSummary(user),
     initialData: hydratedInitialData,
@@ -301,6 +301,9 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
     <LogbookView
       toastListener={<LogbookPaymentToastListener onToast={addToast} />}
       isHydratingSubmissions={isLoading && !!initialData}
+      isLoading={isLoading && !data}
+      isError={isError && !data}
+      onRetry={() => void refetch()}
       userId={user.id}
       isOwnProfile={true}
       logs={logs}

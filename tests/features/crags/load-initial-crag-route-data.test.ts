@@ -31,6 +31,24 @@ function createSelectBuilder(result: QueryResult) {
   return chain
 }
 
+function createRouteIntelligenceRow() {
+  return {
+    id: 'climb-1',
+    name: 'Route 1',
+    grade: '6A',
+    slug: 'route-1',
+    route_type: 'boulder',
+    directions: ['N'],
+    has_topo: true,
+    topo_image_count: 1,
+    rating_avg: 4,
+    rating_count: 1,
+    weighted_rating: 4,
+    send_count: 1,
+    recent_send_count_60d: 1,
+  }
+}
+
 describe('loadInitialCragRouteData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -459,5 +477,95 @@ describe('loadInitialCragRouteData', () => {
     expect(result.initialImages.map((image) => image.id)).toEqual(['image-1', 'image-2'])
     expect(result.initialCriticalImagesComplete).toBe(true)
     expect(result.initialRouteTargetsComplete).toBe(true)
+  })
+
+  it('throws route intelligence errors instead of returning an empty crag', async () => {
+    const queryError = new Error('routes unavailable')
+    const supabase = {
+      rpc: vi.fn(async () => ({ data: null, error: queryError })),
+      from: vi.fn(() => ({ select: vi.fn(() => createSelectBuilder({ data: [] })) })),
+    }
+
+    await expect(loadInitialCragRouteData(supabase as never, 'crag-1')).rejects.toBe(queryError)
+  })
+
+  it('throws initial image errors instead of returning an empty crag', async () => {
+    const queryError = new Error('images unavailable')
+    const supabase = {
+      rpc: vi.fn(async () => ({ data: [], error: null })),
+      from: vi.fn(() => ({ select: vi.fn(() => createSelectBuilder({ error: queryError })) })),
+    }
+
+    await expect(loadInitialCragRouteData(supabase as never, 'crag-1')).rejects.toBe(queryError)
+  })
+
+  it('throws climb identity errors instead of skipping route deduplication', async () => {
+    const queryError = new Error('climb identities unavailable')
+    const supabase = {
+      rpc: vi.fn(async () => ({ data: [createRouteIntelligenceRow()], error: null })),
+      from: vi.fn((table: string) => {
+        if (table === 'images') return { select: vi.fn(() => createSelectBuilder({ data: [] })) }
+        if (table === 'climbs') return { select: vi.fn(() => createSelectBuilder({ error: queryError })) }
+        throw new Error(`Unexpected table: ${table}`)
+      }),
+    }
+
+    await expect(loadInitialCragRouteData(supabase as never, 'crag-1')).rejects.toBe(queryError)
+  })
+
+  it('throws critical route-line count errors instead of reporting zero counts', async () => {
+    const queryError = new Error('route lines unavailable')
+    const supabase = {
+      rpc: vi.fn(async () => ({ data: [createRouteIntelligenceRow()], error: null })),
+      from: vi.fn((table: string) => {
+        if (table === 'images') return { select: vi.fn(() => createSelectBuilder({ data: [] })) }
+        if (table === 'climbs') return { select: vi.fn(() => createSelectBuilder({ data: [{ id: 'climb-1', shared_climb_id: null }] })) }
+        throw new Error(`Unexpected table: ${table}`)
+      }),
+    }
+    const previewSupabase = {
+      from: vi.fn(() => ({ select: vi.fn(() => createSelectBuilder({ error: queryError })) })),
+    }
+    const { getAdminClientWithAudit } = await import('@/lib/supabase-admin')
+    vi.mocked(getAdminClientWithAudit).mockReturnValue(previewSupabase as never)
+    const { fetchCragRoutePreviewsBatched } = await import('@/features/crags/lib/crag-route-targets')
+    vi.mocked(fetchCragRoutePreviewsBatched).mockResolvedValue({
+      nextRouteImageIdsByClimbId: { 'climb-1': ['image-2'] },
+      nextRoutePreviewByClimbId: { 'climb-1': { imageId: 'image-2', imageUrl: 'https://example.com/2.jpg' } },
+      nextDefaultRouteTargetByImageId: {},
+      nextRouteNavigationTargetByClimbId: {},
+    })
+
+    await expect(loadInitialCragRouteData(supabase as never, 'crag-1')).rejects.toBe(queryError)
+  })
+
+  it('throws critical image hydration errors instead of reporting complete images', async () => {
+    const queryError = new Error('critical images unavailable')
+    const supabase = {
+      rpc: vi.fn(async () => ({ data: [createRouteIntelligenceRow()], error: null })),
+      from: vi.fn((table: string) => {
+        if (table === 'images') return { select: vi.fn(() => createSelectBuilder({ data: [] })) }
+        if (table === 'climbs') return { select: vi.fn(() => createSelectBuilder({ data: [{ id: 'climb-1', shared_climb_id: null }] })) }
+        throw new Error(`Unexpected table: ${table}`)
+      }),
+    }
+    const previewSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'route_lines') return { select: vi.fn(() => createSelectBuilder({ data: [] })) }
+        if (table === 'images') return { select: vi.fn(() => createSelectBuilder({ error: queryError })) }
+        throw new Error(`Unexpected preview table: ${table}`)
+      }),
+    }
+    const { getAdminClientWithAudit } = await import('@/lib/supabase-admin')
+    vi.mocked(getAdminClientWithAudit).mockReturnValue(previewSupabase as never)
+    const { fetchCragRoutePreviewsBatched } = await import('@/features/crags/lib/crag-route-targets')
+    vi.mocked(fetchCragRoutePreviewsBatched).mockResolvedValue({
+      nextRouteImageIdsByClimbId: { 'climb-1': ['image-2'] },
+      nextRoutePreviewByClimbId: { 'climb-1': { imageId: 'image-2', imageUrl: 'https://example.com/2.jpg' } },
+      nextDefaultRouteTargetByImageId: {},
+      nextRouteNavigationTargetByClimbId: {},
+    })
+
+    await expect(loadInitialCragRouteData(supabase as never, 'crag-1')).rejects.toBe(queryError)
   })
 })

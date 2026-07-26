@@ -53,7 +53,7 @@ export async function loadInitialCragRouteData(
   requestId?: string,
   selectedImageId?: string | null
 ): Promise<InitialCragRouteData> {
-  const [{ data: routeData }, { data: imageData }] = await Promise.all([
+  const [{ data: routeData, error: routeError }, { data: imageData, error: imageError }] = await Promise.all([
     supabase.rpc('get_crag_route_intelligence', { p_crag_id: cragId }),
     supabase
       .from('images')
@@ -62,17 +62,21 @@ export async function loadInitialCragRouteData(
       .order('created_at', { ascending: false })
       .limit(INITIAL_CRAG_IMAGE_LIMIT),
   ])
+  if (routeError) throw routeError
+  if (imageError) throw imageError
   const baseRoutes = formatCragRoutes(routeData || [])
 
   const climbIds = baseRoutes.map((route) => route.id)
   let effectiveClimbIdByClimbId: Record<string, string> = {}
 
   if (climbIds.length > 0) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('climbs')
       .select('id, shared_climb_id')
       .in('id', climbIds)
       .order('id', { ascending: true })
+
+    if (error) throw error
 
     const effectiveClimbLookup = buildEffectiveClimbLookup((data || []) as ClimbIdentityRow[])
     effectiveClimbIdByClimbId = effectiveClimbLookup.effectiveClimbIdByClimbId
@@ -106,10 +110,12 @@ export async function loadInitialCragRouteData(
     const missingCriticalImageIds = criticalImageIds.filter((imageId) => !imageById.has(imageId))
 
     if (criticalImageIds.length > 0) {
-      const { data: routeLineImageData } = await previewSupabase
+      const { data: routeLineImageData, error } = await previewSupabase
         .from('route_lines')
         .select('image_id')
         .in('image_id', criticalImageIds)
+
+      if (error) throw error
 
       for (const row of (routeLineImageData || []) as RouteLineImageRow[]) {
         if (!row.image_id) continue
@@ -125,10 +131,12 @@ export async function loadInitialCragRouteData(
     }
 
     if (missingCriticalImageIds.length > 0) {
-      const { data: previewImageData } = await previewSupabase
+      const { data: previewImageData, error } = await previewSupabase
         .from('images')
         .select('id, url, latitude, longitude')
         .in('id', missingCriticalImageIds)
+
+      if (error) throw error
 
       for (const image of (previewImageData || []) as ImageRow[]) {
         const hydratedImage = buildInitialImage(image, routeLineCountByImageId.get(image.id) || 0)

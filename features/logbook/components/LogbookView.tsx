@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useGradeSystem } from '@/lib/grades/preferences'
-import { EmptyLogbook, LogEntrySkeleton } from '@/features/logbook/components/LogbookStates'
+import { EmptyLogbook, LogbookSkeleton, LogEntrySkeleton } from '@/features/logbook/components/LogbookStates'
 import { LogbookStatsSection } from '@/features/logbook/components/LogbookStatsSection'
 import {
   getLogbookLowestGrade,
@@ -30,6 +31,9 @@ const DeferredLogbookSubmissions = dynamic(() => import('@/app/(shell)/logbook/D
 interface LogbookViewProps {
   toastListener?: React.ReactNode
   isHydratingSubmissions?: boolean
+  isLoading?: boolean
+  isError?: boolean
+  onRetry?: () => void | Promise<void>
   userId: string
   isOwnProfile: boolean
   logs: LogbookClimb[]
@@ -58,6 +62,9 @@ interface LogbookViewProps {
 export default function LogbookView({
   toastListener,
   isHydratingSubmissions = false,
+  isLoading = false,
+  isError = false,
+  onRetry,
   isOwnProfile,
   logs,
   progressLogs,
@@ -100,6 +107,10 @@ export default function LogbookView({
   const lowestGrade = getLogbookLowestGrade(stats)
   const recentLogs = useMemo(() => getRecentLogbookLogs(logs), [logs])
   const resolvedSubmissionCounts = useMemo(() => submissionCounts ?? getOwnerSubmissionCounts(submissions), [submissionCounts, submissions])
+  const isEmpty = logs.length === 0
+    && resolvedSubmissionCounts.all === 0
+    && savedClimbs.length === 0
+    && savedCrags.length === 0
   const climbUrlMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const log of logs) {
@@ -109,6 +120,28 @@ export default function LogbookView({
     }
     return map
   }, [logs])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-gray-950">
+        {toastListener}
+        <LogbookSkeleton />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-gray-950">
+        {toastListener}
+        <section role="alert" className="mx-auto max-w-xl p-6 text-center">
+          <h1 className="text-xl font-bold">Logbook could not be loaded</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Your logbook data is still safe. Retry to load it again.</p>
+          {onRetry ? <Button className="mt-4" onClick={() => void onRetry()}>Retry</Button> : null}
+        </section>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
@@ -192,8 +225,7 @@ export default function LogbookView({
         </Card>
       )}
 
-      {logs.length === 0 && submissions.length === 0 && savedClimbs.length === 0 && savedCrags.length === 0 ? <EmptyLogbook onGoToMap={() => router.push('/')} /> : null}
-      {logs.length === 0 && (resolvedSubmissionCounts.all === 0) && savedClimbs.length === 0 && savedCrags.length === 0 ? <EmptyLogbook onGoToMap={() => router.push('/')} /> : null}
+      {isEmpty ? <EmptyLogbook onGoToMap={() => router.push('/')} /> : null}
 
           {stats ? (
         <LogbookStatsSection
