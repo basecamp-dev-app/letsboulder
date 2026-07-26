@@ -3,13 +3,22 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { csrfFetch } from '@/hooks/useCsrf'
+
+async function getResponseError(response: Response, fallback: string) {
+  const data: unknown = await response.json().catch(() => null)
+  if (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string') {
+    return data.error
+  }
+  return fallback
+}
 
 function DeleteConfirmContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  const [status, setStatus] = useState<'validating' | 'ready' | 'deleting' | 'success' | 'error'>('validating')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -19,31 +28,54 @@ function DeleteConfirmContent() {
       return
     }
 
-    const deleteAccount = async () => {
+    const controller = new AbortController()
+
+    const validateToken = async () => {
       try {
-        const response = await csrfFetch(`/api/settings/delete?token=${encodeURIComponent(token)}`, {
-          method: 'POST',
+        const response = await fetch(`/api/settings/delete?token=${encodeURIComponent(token)}`, {
+          signal: controller.signal,
         })
 
         if (!response.ok) {
-          const data = await response.json()
-          throw new Error(data.error || 'Failed to delete account')
+          throw new Error(await getResponseError(response, 'Invalid or expired confirmation link'))
         }
 
-        setStatus('success')
-        setTimeout(() => {
-          router.push('/settings/delete-success')
-        }, 2000)
+        setStatus('ready')
       } catch (err) {
+        if (controller.signal.aborted) return
         setStatus('error')
         setError(err instanceof Error ? err.message : 'An error occurred')
       }
     }
 
-    deleteAccount()
-  }, [token, router])
+    void validateToken()
+    return () => controller.abort()
+  }, [token])
 
-  if (status === 'loading') {
+  async function confirmDeletion() {
+    if (!token || status !== 'ready') return
+
+    setStatus('deleting')
+    setError(null)
+
+    try {
+      const response = await csrfFetch(`/api/settings/delete?token=${encodeURIComponent(token)}`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        throw new Error(await getResponseError(response, 'Failed to delete account'))
+      }
+
+      setStatus('success')
+      setTimeout(() => router.push('/settings/delete-success'), 2000)
+    } catch (err) {
+      setStatus('error')
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    }
+  }
+
+  if (status === 'validating' || status === 'deleting') {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
         <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-6 animate-pulse">
@@ -51,8 +83,12 @@ function DeleteConfirmContent() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Deleting Account</h1>
-        <p className="text-gray-500 dark:text-gray-400">Please wait while your account is being deleted...</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+          {status === 'deleting' ? 'Deleting Account' : 'Checking Confirmation Link'}
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400">
+          {status === 'deleting' ? 'Please wait while your account is being deleted...' : 'Please wait while we validate this link...'}
+        </p>
       </div>
     )
   }
@@ -70,6 +106,30 @@ function DeleteConfirmContent() {
           Your account has been permanently deleted. Redirecting to confirmation page...
         </p>
       </div>
+    )
+  }
+
+  if (status === 'ready') {
+    return (
+      <section className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
+        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-6">
+          <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Permanently delete your account?</h1>
+        <p className="text-gray-500 dark:text-gray-400 max-w-md mb-8">
+          This removes your profile and cannot be undone.
+        </p>
+        <div className="flex flex-col-reverse sm:flex-row gap-3">
+          <Button asChild variant="outline">
+            <Link href="/settings">Cancel</Link>
+          </Button>
+          <Button variant="destructive" onClick={() => void confirmDeletion()}>
+            Permanently delete account
+          </Button>
+        </div>
+      </section>
     )
   }
 
