@@ -12,8 +12,12 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/components/map/MapLibreVectorMap', () => ({
-  default: ({ onPinSelect }: { onPinSelect: (id: string) => void }) => (
-    <div>
+  default: ({ onPinSelect, fitBounds, ...props }: {
+    onPinSelect: (id: string) => void
+    fitBounds?: [[number, number], [number, number]] | null
+    'aria-label'?: string
+  }) => (
+    <div role="region" aria-label={props['aria-label']} data-fit-bounds={JSON.stringify(fitBounds)}>
       <button type="button" onClick={() => onPinSelect('gym-1')}>Select gym</button>
       <button type="button" onClick={() => onPinSelect('crag-1')}>Select crag</button>
     </div>
@@ -49,5 +53,32 @@ describe('InteractiveClimbingMap destinations', () => {
     await user.click(screen.getByRole('button', { name: 'View crag' }))
 
     expect(mockPush).toHaveBeenCalledWith('/gg/granite-bay')
+  })
+
+  it('exposes synchronized place controls for keyboard users', async () => {
+    const user = userEvent.setup()
+    render(<InteractiveClimbingMap initialPlacePins={places} />)
+
+    const placeButton = screen.getByRole('button', { name: 'Granite Bay, crag' })
+    expect(placeButton).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(placeButton)
+
+    expect(placeButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: 'Granite Bay' })).toBeInTheDocument()
+  })
+
+  it('labels the map and fits it to the user location', () => {
+    render(
+      <InteractiveClimbingMap
+        initialPlacePins={places}
+        userLocation={{ latitude: 48.86, longitude: 2.36 }}
+      />
+    )
+
+    expect(screen.getByRole('region', { name: 'Climbing locations map' })).toHaveAttribute(
+      'data-fit-bounds',
+      JSON.stringify([[2.36, 48.86], [2.36, 48.86]])
+    )
   })
 })

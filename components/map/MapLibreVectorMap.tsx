@@ -22,6 +22,7 @@ interface LocationPoint {
 }
 
 interface MapLibreVectorMapProps {
+  'aria-label'?: string
   center: MapLibreLngLat
   zoom: number
   minZoom?: number
@@ -70,7 +71,16 @@ function boundsAreSinglePoint(bounds: MapLibreFitBounds) {
   return bounds[0][0] === bounds[1][0] && bounds[0][1] === bounds[1][1]
 }
 
+function fitMapToBounds(map: MapLibreMap, bounds: MapLibreFitBounds, maxZoom: number) {
+  if (boundsAreSinglePoint(bounds)) {
+    map.easeTo({ center: bounds[0], zoom: Math.min(16, maxZoom), duration: 0 })
+    return
+  }
+  map.fitBounds(bounds, { padding: 28, maxZoom: Math.min(16, maxZoom), duration: 0 })
+}
+
 export default function MapLibreVectorMap({
+  'aria-label': ariaLabel,
   center,
   zoom,
   minZoom = 0,
@@ -104,6 +114,14 @@ export default function MapLibreVectorMap({
       properties: {},
     }] : [],
   }), [userLocation])
+  const pinsGeoJsonRef = useRef(pinsGeoJson)
+  const clustersGeoJsonRef = useRef(clustersGeoJson)
+  const userLocationGeoJsonRef = useRef(userLocationGeoJson)
+  const fitBoundsRef = useRef(fitBounds)
+  pinsGeoJsonRef.current = pinsGeoJson
+  clustersGeoJsonRef.current = clustersGeoJson
+  userLocationGeoJsonRef.current = userLocationGeoJson
+  fitBoundsRef.current = fitBounds
 
   useEffect(() => {
     onReadyRef.current = onReady
@@ -140,7 +158,7 @@ export default function MapLibreVectorMap({
     map.on('zoomend', emitViewport)
 
     map.on('load', () => {
-      map.addSource('letsboulder-pins', { type: 'geojson', data: pinsGeoJson })
+      map.addSource('letsboulder-pins', { type: 'geojson', data: pinsGeoJsonRef.current })
       map.addLayer({
         id: 'letsboulder-pin-circles',
         type: 'circle',
@@ -176,7 +194,7 @@ export default function MapLibreVectorMap({
         },
       })
 
-      map.addSource('letsboulder-clusters', { type: 'geojson', data: clustersGeoJson || { type: 'FeatureCollection', features: [] } })
+      map.addSource('letsboulder-clusters', { type: 'geojson', data: clustersGeoJsonRef.current || { type: 'FeatureCollection', features: [] } })
       map.addLayer({
         id: 'letsboulder-cluster-circles',
         type: 'circle',
@@ -212,7 +230,7 @@ export default function MapLibreVectorMap({
         paint: { 'text-color': '#ffffff' },
       })
 
-      map.addSource('letsboulder-user-location', { type: 'geojson', data: userLocationGeoJson })
+      map.addSource('letsboulder-user-location', { type: 'geojson', data: userLocationGeoJsonRef.current })
       map.addLayer({
         id: 'letsboulder-user-location-halo',
         type: 'circle',
@@ -260,6 +278,7 @@ export default function MapLibreVectorMap({
       map.on('mouseleave', 'letsboulder-cluster-hit-targets', () => { map.getCanvas().style.cursor = '' })
 
       readyRef.current = true
+      if (fitBoundsRef.current) fitMapToBounds(map, fitBoundsRef.current, maxZoom)
       emitViewport()
       onReadyRef.current?.()
     })
@@ -307,12 +326,8 @@ export default function MapLibreVectorMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current || !fitBounds) return
-    if (boundsAreSinglePoint(fitBounds)) {
-      map.easeTo({ center: fitBounds[0], zoom: Math.min(16, maxZoom), duration: 0 })
-      return
-    }
-    map.fitBounds(fitBounds, { padding: 28, maxZoom: Math.min(16, maxZoom), duration: 0 })
+    fitMapToBounds(map, fitBounds, maxZoom)
   }, [fitBounds, maxZoom])
 
-  return <div ref={containerRef} className={className} data-testid="maplibre-vector-map" />
+  return <div ref={containerRef} className={className} data-testid="maplibre-vector-map" role="region" aria-label={ariaLabel} />
 }

@@ -80,7 +80,7 @@ export default function LightweightCragMap({
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [isOffline, setIsOffline] = useState(false)
   const lastMapStateRef = useRef<{ zoom: number; bounds: MapBounds } | null>(null)
-  const userLocation = useBrowserGeolocation(showUserLocation)
+  const { location: userLocation } = useBrowserGeolocation(showUserLocation)
 
   const resolvedPins = useMemo(() => {
     if (draftPins || publishedPins) {

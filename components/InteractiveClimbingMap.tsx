@@ -63,6 +63,9 @@ export default function InteractiveClimbingMap({
 
   const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
   const offlineFitBounds = useMemo(() => isOffline ? buildFitBounds(pinFeatures) : null, [isOffline, pinFeatures])
+  const userFitBounds = useMemo<MapLibreFitBounds | null>(() => userLocation
+    ? [[userLocation.longitude, userLocation.latitude], [userLocation.longitude, userLocation.latitude]]
+    : null, [userLocation])
 
   const loadPlacePins = useCallback(async () => {
     if (!isClient || initialPlacePins.length > 0) {
@@ -98,6 +101,12 @@ export default function InteractiveClimbingMap({
   useEffect(() => {
     setIsClient(true)
   }, [])
+
+  useEffect(() => {
+    if (initialPlacePins.length === 0) return
+    setPlacePins(initialPlacePins)
+    setPinLoadState('ready')
+  }, [initialPlacePins])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -211,7 +220,8 @@ export default function InteractiveClimbingMap({
         zoom={WORLD_DEFAULT_ZOOM}
         minZoom={2}
         maxZoom={19}
-        fitBounds={offlineFitBounds}
+        aria-label="Climbing locations map"
+        fitBounds={userFitBounds ?? offlineFitBounds}
         pinsGeoJson={pinsGeoJson}
         clustersGeoJson={clustersGeoJson}
         userLocation={userLocation}
@@ -226,6 +236,22 @@ export default function InteractiveClimbingMap({
           if (placesById.has(id)) setSelectedPlaceId(id)
         }}
       />
+      <aside aria-label="Climbing locations" className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:left-4 focus-within:top-20 focus-within:z-[1001] focus-within:max-h-[calc(100%-6rem)] focus-within:w-72 focus-within:overflow-y-auto focus-within:rounded-2xl focus-within:bg-white/95 focus-within:p-2 focus-within:shadow-2xl focus-within:backdrop-blur-md">
+        <ul className="space-y-1">
+          {placePins.slice(0, 20).map((place) => (
+            <li key={place.id}>
+              <button
+                type="button"
+                onClick={() => setSelectedPlaceId(place.id)}
+                aria-pressed={place.id === selectedPlaceId}
+                className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-stone-800 outline-none hover:bg-stone-100 focus-visible:ring-2 focus-visible:ring-amber-500 aria-pressed:bg-amber-100 aria-pressed:text-amber-950"
+              >
+                {place.name}, {place.type === 'gym' ? 'gym' : 'crag'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </aside>
       {selectedPlace ? (
         <div className="absolute inset-x-4 bottom-[calc(var(--app-mobile-footer-offset,0px)+1rem)] z-[1001] md:inset-x-auto md:bottom-6 md:left-6 md:w-[22rem]">
           <div className="overflow-hidden rounded-3xl border border-white/70 bg-white/95 text-stone-950 shadow-2xl shadow-slate-950/20 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/92 dark:text-white">

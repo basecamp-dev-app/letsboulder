@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import dynamic from 'next/dynamic'
 import MapLoadingShell from '@/components/map/MapLoadingShell'
-import { useBrowserGeolocation } from '@/hooks/use-browser-geolocation'
+import { useBrowserGeolocation, type BrowserGeolocationStatus } from '@/hooks/use-browser-geolocation'
 import { listStoredOfflineMapPins } from '@/lib/offline/storage'
 import type { PlacePin } from '@/lib/map/place-pins'
 import { cn } from '@/lib/utils'
@@ -24,12 +24,20 @@ interface MapViewportProps {
   mode?: 'fullscreen' | 'hero'
   className?: string
   showUserLocation?: boolean
+  onGeolocationStatusChange?: (status: BrowserGeolocationStatus) => void
 }
 
-export default function MapViewport({ initialPlacePins = [], mode = 'fullscreen', className, showUserLocation = false }: MapViewportProps) {
+export default function MapViewport({ initialPlacePins = [], mode = 'fullscreen', className, showUserLocation = false, onGeolocationStatusChange }: MapViewportProps) {
   const [isMapReady, setIsMapReady] = useState(false)
   const [resolvedPlacePins, setResolvedPlacePins] = useState<PlacePin[]>(initialPlacePins)
-  const userLocation = useBrowserGeolocation(showUserLocation)
+  const { location: userLocation, status: geolocationStatus } = useBrowserGeolocation(showUserLocation)
+  const notifyGeolocationStatusChange = useEffectEvent((status: BrowserGeolocationStatus) => {
+    onGeolocationStatusChange?.(status)
+  })
+
+  useEffect(() => {
+    notifyGeolocationStatusChange(geolocationStatus)
+  }, [geolocationStatus])
 
   useEffect(() => {
     if (typeof window === 'undefined' || window.navigator.onLine !== false || initialPlacePins.length > 0) {
