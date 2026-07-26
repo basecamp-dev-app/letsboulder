@@ -259,30 +259,30 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 
 ---
 
-## 7. Vector Maps / Offline Fallback
+## 7. Vector Maps / Network Fallback
 
 ### Pattern
-- Keep the service worker focused on shell/static asset resilience.
+- Keep navigation online-first and rely on normal browser/CDN HTTP caching.
 - Use MapLibre + OpenFreeMap as the foundation for all live maps, picker maps, and static location snippets.
 - Load the hosted OpenFreeMap style via `NEXT_PUBLIC_MAP_STYLE_URL`, defaulting to `https://tiles.openfreemap.org/styles/liberty`.
 - Do not add live third-party raster basemaps, satellite toggles, or separate raster label layers by default.
-- Fall back to pins-only degraded maps when the browser is offline.
+- Use clear connection states when live map data cannot load. Pins-only rendering is a visual degradation, not an offline-availability promise.
 
 ### Key Files
-- `public/sw.js` — service worker for shell/static asset resilience
+- `public/sw.js` — temporary retirement worker that clears old letsboulder caches and unregisters itself
 - `components/map/MapLibreVectorMap.tsx` — shared MapLibre primitive for live vector maps
 - `components/map/MapLibreLocationPicker.tsx` — shared click/drag location picker map
 - `components/map/MapLibreStaticLocationMap.tsx` — shared non-interactive location snippet map
 - `lib/map/vector-map-config.ts` — shared resolver for hosted style vs pins-only fallback
 - `lib/map/maplibre-style.ts` — MapLibre style resolver
-- `lib/offline/tiles.ts` — legacy raster tile URL helpers for saved offline coverage
+- `lib/offline/tiles.ts` — legacy raster tile helpers retained during the retirement window
 - `lib/query-persistence.ts` — React Query IndexedDB persistence (12h max age)
 
 ### Known Edge Cases
-- **Cache invalidation:** Use versioned cache names so shell/build assets rotate cleanly across deploys.
-- **Network-first routes:** App navigations should stay network-first; cached shell/assets are fallback infrastructure, not primary content.
+- **Cache retirement:** Do not register a new service worker. Keep the tombstone worker available long enough to reach returning clients.
+- **Network routes:** Preserve the current screen when a refetch fails and provide retry controls for failed initial loads.
 - **Hosted basemap CSP:** `tiles.openfreemap.org` must remain allowed in `connect-src`, `img-src`, and `font-src`.
-- **Offline maps:** Legacy `/api/offline-tiles` coverage is separate from the vector map foundation. Labels are optional and default off in tile manifests.
+- **Legacy maps:** `/api/offline-tiles` is retirement-only infrastructure and must not be presented as available offline.
 
 ---
 

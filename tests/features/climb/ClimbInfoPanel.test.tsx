@@ -18,8 +18,6 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ClimbInfoPan
     totalFaces: 1,
     isFacesLoading: false,
     cragPath: '/gb/test-crag',
-    isOfflineSaved: false,
-    offlinePackAvailable: false,
     attribution: {
       ownerRoleLabel: 'Original Uploader',
       ownerDisplayLabel: 'Anonymous Contributor',
@@ -53,7 +51,6 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ClimbInfoPan
     gradeSystem: 'font_scale',
     gradeOpinionLabels: { soft: 'Soft', agree: 'Agree', hard: 'Hard' },
     formatRouteTypeLabel: (value: string) => value,
-    onOpenOffline: vi.fn(),
     onEditRoute: vi.fn(),
     onAddRoutes,
     onOpenFlag: vi.fn(),
@@ -100,23 +97,6 @@ describe('ClimbInfoPanel', () => {
     })
 
     expect(screen.getByRole('button', { name: 'Sign in to Log This Climb' })).toBeTruthy()
-  })
-
-  it('hides the offline CTA when offline packs are unavailable', () => {
-    renderPanel({
-      offlinePackAvailable: false,
-    })
-
-    expect(screen.queryByRole('button', { name: 'Save offline' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Saved offline' })).toBeNull()
-  })
-
-  it('shows the offline CTA when offline packs are available', () => {
-    renderPanel({
-      offlinePackAvailable: true,
-    })
-
-    expect(screen.getByRole('button', { name: 'Save offline' })).toBeTruthy()
   })
 
   it('disables route actions until a climb is selected', () => {
@@ -204,8 +184,6 @@ describe('ClimbInfoPanel', () => {
       totalFaces: 1,
       isFacesLoading: false,
       cragPath: '/gb/test-crag',
-      isOfflineSaved: false,
-      offlinePackAvailable: false,
       attribution: {
         ownerRoleLabel: 'Original Uploader',
         ownerDisplayLabel: 'Anonymous Contributor',
@@ -239,7 +217,6 @@ describe('ClimbInfoPanel', () => {
       gradeSystem: 'font_scale',
       gradeOpinionLabels: { soft: 'Soft', agree: 'Agree', hard: 'Hard' },
       formatRouteTypeLabel: (value: string) => value,
-      onOpenOffline: vi.fn(),
       onEditRoute: vi.fn(),
       onAddRoutes: vi.fn(),
       onOpenFlag: vi.fn(),
@@ -273,8 +250,6 @@ describe('ClimbInfoPanel', () => {
       totalFaces: 1,
       isFacesLoading: false,
       cragPath: '/gb/test-crag',
-      isOfflineSaved: false,
-      offlinePackAvailable: false,
       attribution: {
         ownerRoleLabel: 'Original Uploader',
         ownerDisplayLabel: 'Anonymous Contributor',
@@ -308,7 +283,6 @@ describe('ClimbInfoPanel', () => {
       gradeSystem: 'font_scale',
       gradeOpinionLabels: { soft: 'Soft', agree: 'Agree', hard: 'Hard' },
       formatRouteTypeLabel: (value: string) => value,
-      onOpenOffline: vi.fn(),
       onEditRoute: vi.fn(),
       onAddRoutes: vi.fn(),
       onOpenFlag: vi.fn(),

@@ -37,7 +37,6 @@ export default function PlaceContributorsPanel({
       if (!slug) throw new Error('Missing place slug for contributor leaderboard')
       return fetchPlaceContributors(slug, 1, 20)
     },
-    meta: { persist: true },
   })
 
   const entries = data?.leaderboard ?? []

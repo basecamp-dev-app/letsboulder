@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { QueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
-import { createIdbPersister, removeLegacyPersistedQueryCache, removePersistedQueryCache } from '@/lib/query-persistence'
+import { createIdbPersister, isCommunityQueryKey, removeLegacyPersistedQueryCache, removePersistedQueryCache } from '@/lib/query-persistence'
 import { createClient } from '@/lib/supabase'
 
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
@@ -66,7 +66,7 @@ export default function QueryProviders({ children }: { children: ReactNode }) {
         persister,
         maxAge: TWELVE_HOURS_MS,
         dehydrateOptions: {
-          shouldDehydrateQuery: (query) => query.meta?.persist === true,
+          shouldDehydrateQuery: (query) => query.meta?.persist === true && !isCommunityQueryKey(query.queryKey),
         },
       }}
     >

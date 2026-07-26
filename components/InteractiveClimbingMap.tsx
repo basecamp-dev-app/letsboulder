@@ -299,7 +299,7 @@ export default function InteractiveClimbingMap({
       <div className="pointer-events-none absolute bottom-6 left-4 z-[1000] space-y-2 md:left-6">
         {isOffline && pinLoadState === 'ready' ? (
           <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
-            Offline: showing saved pins only.
+            Connection lost. Map updates are unavailable.
           </div>
         ) : null}
         {pinLoadState === 'loading' ? (

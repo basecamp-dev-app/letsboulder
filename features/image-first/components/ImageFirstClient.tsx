@@ -1137,8 +1137,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         totalFaces={navigationContext.orderedImageIds.length}
         isFacesLoading={false}
         cragPath={`/${countryCode}/${cragSlug}`}
-        isOfflineSaved={false}
-        offlinePackAvailable={false}
         attribution={payload.attribution}
         imageLatitude={null}
         imageLongitude={null}
@@ -1164,7 +1162,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         gradeSystem={gradeSystem}
         gradeOpinionLabels={{ soft: 'Soft', agree: 'Agree', hard: 'Hard' }}
         formatRouteTypeLabel={(value) => value}
-        onOpenOffline={() => undefined}
         onEditRoute={handleEditRoute}
         onAddRoutes={handleAddRoutes}
         onOpenFlag={() => setFlagOpen(true)}

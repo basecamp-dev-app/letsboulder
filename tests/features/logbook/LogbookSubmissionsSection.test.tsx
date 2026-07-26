@@ -57,7 +57,7 @@ describe('LogbookSubmissionsSection', () => {
   it('stays collapsed by default and shows the summary message', () => {
     renderSection()
 
-    expect(screen.getByText('Your submissions stay collapsed on entry to keep logbook navigation fast and stable offline.')).toBeInTheDocument()
+    expect(screen.getByText('Your submissions stay collapsed on entry to keep logbook navigation fast and responsive.')).toBeInTheDocument()
     expect(screen.queryByTestId('submission-list')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show submissions' })).toBeInTheDocument()
   })
@@ -87,6 +87,6 @@ describe('LogbookSubmissionsSection', () => {
     })
 
     expect(screen.getByTestId('submission-list')).toHaveTextContent('draft-1,draft-2')
-    expect(screen.queryByText('Your submissions stay collapsed on entry to keep logbook navigation fast and stable offline.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Your submissions stay collapsed on entry to keep logbook navigation fast and responsive.')).not.toBeInTheDocument()
   })
 })

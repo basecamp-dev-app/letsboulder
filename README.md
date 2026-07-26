@@ -15,7 +15,7 @@ letsboulder is open source under the [Apache License 2.0](LICENSE).
 - **Rankings**: Top climbers by grade or sends in the last 60 days
 - **Crag Sectors**: Organize climbs within crags by sector
 - **Gym Support**: Indoor gym floor plans, gym routes, gym memberships, and gym owner applications
-- **Offline / PWA**: Save crags for offline use with cached tiles, media, and route data
+- **Network Resilience**: Clear connection states, retryable uploads, and session-level query caching
 - **Admin Dashboard**: Crag management, flag moderation, gym management, and submission review
 
 ## Tech Stack
@@ -25,7 +25,7 @@ letsboulder is open source under the [Apache License 2.0](LICENSE).
 - Cloudflare Workers + Cloudflare R2 for media ingest and delivery
 - Leaflet + React Leaflet + Supercluster for maps
 - Tailwind CSS v4 + shadcn/ui
-- Zustand (client state) + TanStack React Query (server state with IndexedDB persistence)
+- Zustand (client state) + TanStack React Query (server state with selective IndexedDB persistence)
 - Playwright (E2E) + Vitest (unit/integration)
 
 ## Architecture
@@ -36,7 +36,7 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology.
 - **Database/Auth**: Supabase (PostgreSQL 17 with PostGIS)
 - **Media pipeline**: Cloudflare Worker in `apps/media-worker` backed by R2 buckets
 - **Media delivery**: CDN at `static.letsboulder.com` (prod) / `static.dev.letsboulder.com` (staging)
-- **Offline**: Service worker (`public/sw.js`) with pack-based caching
+- **Network resilience**: Online-first loading with explicit connection and retry states
 
 ## Getting Started
 
@@ -122,5 +122,4 @@ git push -u origin my-change
 - [API Routes](docs/api/routes.md) — route handler reference
 - [Testing](docs/testing/) — E2E, unit, and integration test guide
 - [Auth & Security](docs/auth-security.md) — CSRF, rate limiting, auth patterns
-- [Offline / PWA](docs/offline-pwa.md) — service worker, pack building, cache layers
 - [Submission Workflow](docs/submission-workflow.md) — draft-to-publish pipeline

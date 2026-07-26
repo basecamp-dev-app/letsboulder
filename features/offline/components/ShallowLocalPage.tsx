@@ -37,9 +37,6 @@ export default function ShallowLocalPage({ title, kind, href, subtitle, message 
               <Link href={href}>Retry this route</Link>
             </Button>
             <Button asChild variant="outline" className="rounded-xl">
-              <Link href="/offline/library">Open available locally</Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-xl">
               <Link href="/">Open live map</Link>
             </Button>
           </div>

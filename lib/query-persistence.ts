@@ -18,6 +18,24 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+export function isCommunityQueryKey(queryKey: unknown) {
+  return Array.isArray(queryKey) && queryKey[0] === 'community'
+}
+
+export function removePersistedCommunityQueries(client: PersistedClient): PersistedClient {
+  const queries = client.clientState.queries
+  const retainedQueries = queries.filter((query) => !isCommunityQueryKey(query.queryKey))
+  if (retainedQueries.length === queries.length) return client
+
+  return {
+    ...client,
+    clientState: {
+      ...client.clientState,
+      queries: retainedQueries,
+    },
+  }
+}
+
 export async function readPersistedQueryClient(scope: string): Promise<PersistedClient | undefined> {
   try {
     const cached = await get<PersistedClient>(getQueryCacheKey(scope))
@@ -61,7 +79,18 @@ export function createIdbPersister(scope: string): Persister {
       }
     },
     restoreClient: async () => {
-      return readPersistedQueryClient(scope)
+      const client = await readPersistedQueryClient(scope)
+      if (!client) return undefined
+
+      const migratedClient = removePersistedCommunityQueries(client)
+      if (migratedClient !== client) {
+        try {
+          await set(queryCacheKey, migratedClient)
+        } catch {
+          // The filtered client is still safe to restore when IndexedDB is unavailable.
+        }
+      }
+      return migratedClient
     },
     removeClient: async () => {
       try {

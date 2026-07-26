@@ -15,7 +15,7 @@ export default function CookiePage() {
 
       <div className="prose max-w-none dark:prose-invert">
         <p className="mb-6 text-gray-600 dark:text-gray-400">
-          <strong>Last Updated:</strong> April 2026
+          <strong>Last Updated:</strong> July 2026
         </p>
 
         <section className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900/50">
@@ -24,7 +24,7 @@ export default function CookiePage() {
           </h2>
           <ul className="mb-0 list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
             <li>letsboulder uses cookies and similar technologies to keep you signed in, protect the app, remember settings, and understand product performance.</li>
-            <li>We also use local storage, IndexedDB, and service-worker-managed browser storage for app preferences, CSRF handling, cached content, and offline features.</li>
+            <li>We also use local storage and IndexedDB for app preferences, security helpers, and selected cached app data.</li>
             <li>You can control many cookies through your browser settings.</li>
           </ul>
         </section>
@@ -42,7 +42,7 @@ export default function CookiePage() {
           <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
             <li><strong>Cookies</strong> for authentication, session continuity, CSRF protection, and redirect handling.</li>
             <li><strong>Local storage</strong> for app preferences and client-side security helpers.</li>
-            <li><strong>IndexedDB and offline/browser storage</strong> for cached app data, saved offline packs, and offline functionality.</li>
+            <li><strong>IndexedDB and browser storage</strong> for selected cached app data and app functionality.</li>
             <li><strong>Analytics and monitoring technologies</strong> to help us understand service performance, usage patterns, and reliability.</li>
           </ul>
         </section>
@@ -73,8 +73,8 @@ export default function CookiePage() {
             <li><strong>CSRF cookie and mirrored client token metadata:</strong> used to protect state-changing requests.</li>
             <li><strong>Redirect cookie:</strong> used briefly during some authentication flows.</li>
             <li><strong>Theme and preference storage:</strong> used to remember display and app preferences.</li>
-            <li><strong>IndexedDB records:</strong> used for persisted app data and offline pack metadata.</li>
-            <li><strong>Offline cache storage:</strong> used to support cached content and offline packs through the service worker.</li>
+            <li><strong>IndexedDB records:</strong> used for selected persisted app data.</li>
+            <li><strong>Browser HTTP caches:</strong> managed by your browser according to our response caching headers.</li>
           </ul>
         </section>
 

@@ -1,6 +1,8 @@
 const DISABLED_SERVICE_WORKER_HOSTNAMES = new Set<string>()
 const CHUNK_RELOAD_STORAGE_KEY = 'lb:chunk-reload-at'
 const CHUNK_RELOAD_TTL_MS = 60_000
+const RETIRED_CACHE_PREFIX = 'offline-'
+const RETIRED_TRANSIENT_CACHE = 'runtime-transient-v2'
 
 export const SERVICE_WORKER_URL = '/sw.js'
 
@@ -18,16 +20,34 @@ export function shouldEnableServiceWorker() {
   return getServiceWorkerDisabledReason() === null
 }
 
-export async function clearRegisteredServiceWorkers() {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+export function isRetiredOfflineCacheName(cacheName: string) {
+  return cacheName.startsWith(RETIRED_CACHE_PREFIX) || cacheName === RETIRED_TRANSIENT_CACHE
+}
 
-  const registrations = await navigator.serviceWorker.getRegistrations()
-  await Promise.all(registrations.map((registration) => registration.unregister()))
+function isLetsboulderServiceWorker(registration: ServiceWorkerRegistration) {
+  return [registration.active, registration.waiting, registration.installing].some((worker) => {
+    if (!worker) return false
+
+    try {
+      return new URL(worker.scriptURL).pathname === SERVICE_WORKER_URL
+    } catch {
+      return false
+    }
+  })
+}
+
+export async function clearRegisteredServiceWorkers() {
+  if (typeof window === 'undefined') return
+
+  if ('serviceWorker' in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations()
+    await Promise.all(registrations.filter(isLetsboulderServiceWorker).map((registration) => registration.unregister()))
+  }
 
   if (!('caches' in window)) return
 
   const cacheKeys = await caches.keys()
-  await Promise.all(cacheKeys.map((cacheKey) => caches.delete(cacheKey)))
+  await Promise.all(cacheKeys.filter(isRetiredOfflineCacheName).map((cacheKey) => caches.delete(cacheKey)))
 }
 
 export function shouldReloadForChunkError(value: unknown) {
