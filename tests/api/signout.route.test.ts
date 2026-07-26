@@ -6,12 +6,12 @@ vi.mock('@/lib/csrf', () => ({
 }))
 
 vi.mock('@/lib/supabase-server', () => ({
-  getServerClientFromRequest: vi.fn(),
+  getRouteClient: vi.fn(),
 }))
 
 import { POST } from '@/app/api/auth/signout/route'
 import { validateCsrfToken } from '@/lib/csrf'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getRouteClient } from '@/lib/supabase-server'
 
 describe('POST /api/auth/signout', () => {
   beforeEach(() => {
@@ -26,14 +26,14 @@ describe('POST /api/auth/signout', () => {
 
     expect(response.status).toBe(403)
     expect(json.error).toContain('CSRF')
-    expect(getServerClientFromRequest).not.toHaveBeenCalled()
+    expect(getRouteClient).not.toHaveBeenCalled()
   })
 
   test('signs out and returns success when CSRF validation passes', async () => {
     const signOut = vi.fn(async () => ({ error: null }))
 
     vi.mocked(validateCsrfToken).mockResolvedValue(true)
-    vi.mocked(getServerClientFromRequest).mockReturnValue({
+    vi.mocked(getRouteClient).mockReturnValue({
       auth: { signOut },
     } as never)
 
@@ -48,6 +48,6 @@ describe('POST /api/auth/signout', () => {
     expect(response.status).toBe(200)
     expect(json).toEqual({ success: true, clearAuthCaches: true })
     expect(signOut).toHaveBeenCalledTimes(1)
-    expect(getServerClientFromRequest).toHaveBeenCalledWith(request)
+    expect(getRouteClient).toHaveBeenCalledWith(request, expect.any(Object))
   })
 })
