@@ -28,7 +28,7 @@ vi.mock('@/lib/errors', async () => {
   }
 })
 
-import { POST as confirmDelete } from '@/app/api/settings/delete/route'
+import { GET as validateDelete, POST as confirmDelete } from '@/app/api/settings/delete/route'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { reportError } from '@/lib/errors'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
@@ -49,10 +49,13 @@ type DeleteRpcRow = {
 }
 type DeleteRpcResult = { data: DeleteRpcRow[] | null; error: Error | null }
 
-async function createDeleteToken(deleteRouteUploads: boolean) {
+async function createDeleteToken(
+  deleteRouteUploads: boolean,
+  userId = '11111111-1111-4111-8111-111111111111'
+) {
   return new SignJWT({
     action: 'delete-account',
-    userId: '11111111-1111-4111-8111-111111111111',
+    userId,
     deleteRouteUploads,
   })
     .setProtectedHeader({ alg: 'HS256' })
@@ -66,6 +69,10 @@ function makeDeleteRequest(token: string) {
     method: 'POST',
     headers: { 'x-csrf-token': 'test-csrf-token' },
   })
+}
+
+function makeValidationRequest(token: string) {
+  return new NextRequest(`http://localhost:3000/api/settings/delete?token=${encodeURIComponent(token)}`)
 }
 
 describe('settings delete route', () => {
@@ -133,6 +140,47 @@ describe('settings delete route', () => {
         },
       },
     } as never)
+  })
+
+  test('validates a matching token without deleting account data', async () => {
+    const token = await createDeleteToken(true)
+
+    const response = await validateDelete(makeValidationRequest(token))
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.valid).toBe(true)
+    expect(withApiMiddleware).toHaveBeenCalledWith(expect.any(NextRequest), {
+      requireCsrf: false,
+      rateLimitKey: 'sensitive',
+    })
+    expect(routeUploadList).not.toHaveBeenCalled()
+    expect(avatarList).not.toHaveBeenCalled()
+    expect(rpc).not.toHaveBeenCalled()
+    expect(signOut).not.toHaveBeenCalled()
+    expect(adminDeleteUser).not.toHaveBeenCalled()
+  })
+
+  test('rejects an invalid validation token without deleting account data', async () => {
+    const response = await validateDelete(makeValidationRequest('invalid-token'))
+    const json = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(json.error).toBe('Invalid or expired token')
+    expect(rpc).not.toHaveBeenCalled()
+    expect(adminDeleteUser).not.toHaveBeenCalled()
+  })
+
+  test('rejects a validation token belonging to another user', async () => {
+    const token = await createDeleteToken(false, '22222222-2222-4222-8222-222222222222')
+
+    const response = await validateDelete(makeValidationRequest(token))
+    const json = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(json.error).toBe('Token does not match user')
+    expect(rpc).not.toHaveBeenCalled()
+    expect(adminDeleteUser).not.toHaveBeenCalled()
   })
 
   test('fails when route upload listing fails', async () => {

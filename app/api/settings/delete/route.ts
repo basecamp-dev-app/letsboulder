@@ -85,36 +85,67 @@ const deleteTokenPayloadSchema = z.object({
   deleteRouteUploads: z.boolean(),
 })
 
+async function validateDeleteToken(request: NextRequest, userId: string) {
+  const parsedQuery = parseWithSchema(
+    deleteSettingsQuerySchema,
+    Object.fromEntries(new URL(request.url).searchParams.entries())
+  )
+  if (!parsedQuery.success) return { ok: false as const, response: parsedQuery.response }
+
+  let payload
+  try {
+    const deleteTokenSecret = getDeleteTokenSecret()
+    const { payload: verified } = await jwtVerify(parsedQuery.data.token, deleteTokenSecret)
+    payload = verified
+  } catch (error) {
+    sanitizeError(error, 'Token verification failed')
+    return {
+      ok: false as const,
+      response: NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 }),
+    }
+  }
+
+  const parsedPayload = deleteTokenPayloadSchema.safeParse(payload)
+  if (!parsedPayload.success) {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ error: 'Invalid token purpose' }, { status: 400 }),
+    }
+  }
+
+  if (userId !== parsedPayload.data.userId) {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ error: 'Token does not match user' }, { status: 403 }),
+    }
+  }
+
+  return { ok: true as const, payload: parsedPayload.data }
+}
+
+export async function GET(request: NextRequest) {
+  const middlewareResult = await withApiMiddleware(request, {
+    requireCsrf: false,
+    rateLimitKey: 'sensitive',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
+
+  const validation = await validateDeleteToken(request, middlewareResult.userId)
+  if (!validation.ok) return validation.response
+
+  return NextResponse.json({ valid: true })
+}
+
 export async function POST(request: NextRequest) {
   const middlewareResult = await withApiMiddleware(request, {
     rateLimitKey: 'sensitive',
   })
   if (!middlewareResult.ok) return middlewareResult.response
 
-  const parsedQuery = parseWithSchema(
-    deleteSettingsQuerySchema,
-    Object.fromEntries(new URL(request.url).searchParams.entries())
-  )
-  if (!parsedQuery.success) return parsedQuery.response
+  const validation = await validateDeleteToken(request, middlewareResult.userId)
+  if (!validation.ok) return validation.response
 
-  const { token } = parsedQuery.data
-
-  let payload
-  try {
-    const deleteTokenSecret = getDeleteTokenSecret()
-    const { payload: verified } = await jwtVerify(token, deleteTokenSecret)
-    payload = verified
-  } catch (error) {
-    sanitizeError(error, 'Token verification failed')
-    return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 })
-  }
-
-  const parsedPayload = deleteTokenPayloadSchema.safeParse(payload)
-  if (!parsedPayload.success) {
-    return NextResponse.json({ error: 'Invalid token purpose' }, { status: 400 })
-  }
-
-  const deletePayload = parsedPayload.data
+  const deletePayload = validation.payload
 
   const { supabase, userId } = middlewareResult
 
@@ -124,10 +155,6 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (userId !== deletePayload.userId) {
-      return NextResponse.json({ error: 'Token does not match user' }, { status: 403 })
     }
 
     if (deletePayload.deleteRouteUploads) {
