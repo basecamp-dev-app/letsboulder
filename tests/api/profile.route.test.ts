@@ -25,6 +25,7 @@ const profileSupabaseStub = {
   auth: {
     getUser: vi.fn(async () => ({ data: { user: { email: 'user@example.com' } }, error: null })),
   },
+  rpc: vi.fn(async () => ({ data: { id: 'user-1', email: 'user@example.com' }, error: null })),
   from: vi.fn((table: string) => {
     if (table === 'profiles') {
       return {
@@ -34,11 +35,7 @@ const profileSupabaseStub = {
           })),
         })),
         update: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn(async () => ({ data: { id: 'user-1' }, error: null })),
-            })),
-          })),
+          eq: vi.fn(async () => ({ data: null, error: null })),
         })),
       }
     }
@@ -107,6 +104,7 @@ describe('Profile route validation', () => {
         auth: {
           getUser: vi.fn(async () => ({ data: { user: { email: 'user@example.com' } }, error: null })),
         },
+        rpc: vi.fn(async () => ({ data: { id: 'user-1' }, error: null })),
         from: vi.fn((table: string) => {
           if (table === 'profiles') {
             return {
@@ -116,13 +114,9 @@ describe('Profile route validation', () => {
                 })),
               })),
               update: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  select: vi.fn(() => ({
-                    single: vi.fn(async () => ({
-                      data: null,
-                      error: { code: '23505', message: 'duplicate key value violates unique constraint' },
-                    })),
-                  })),
+                eq: vi.fn(async () => ({
+                  data: null,
+                  error: { code: '23505', message: 'duplicate key value violates unique constraint' },
                 })),
               })),
             }

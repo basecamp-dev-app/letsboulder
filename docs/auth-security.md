@@ -56,12 +56,23 @@ The exact limits live in code and may change without a docs update when operatio
 
 ## Authorization Patterns
 
+**Profile Access:**
+- Direct `profiles` reads expose only `id`, `username`, `display_name`, `avatar_url`, `bio`, `country`, `country_code`, `preferred_grade_system`, `preferred_style`, `is_public`, and `created_at`. RLS further limits rows to public profiles or the caller's own row (`is_public OR id = auth.uid()`).
+- Authenticated callers use identity-bound `get_own_profile()` for their complete row and `is_current_user_admin()` for admin checks. Public profile statistics and leaderboards use `get_visible_profile(user_id)` and `get_top_contributors(limit)`, which return only approved display fields and server-owned totals.
+- Authenticated profile updates are column-granted only for user settings and presentation fields: names, username/display/avatar/bio, gender/country, grade and unit preferences, privacy/theme, default location, dimensions, contribution credit, and `updated_at`. `protect_profile_fields()` rejects changes to identity, email, admin state, climb/point/grade totals, contribution totals/tier, creation/name-policy/TOS timestamps, and welcome-email state.
+- Authenticated users cannot `INSERT` profiles. Profile creation and server-owned fields remain trusted server/auth-trigger responsibilities; client OAuth and name flows only update an existing row.
+
+**Database Function Privileges:**
+- Default privileges for new `public` tables, sequences, and functions are private from API roles. Every exposed object must receive an explicit grant in its creating migration.
+- `SECURITY DEFINER` is not an exposure mechanism: all definers are revoked from `PUBLIC`, `anon`, and `authenticated` first, then only the reviewed API RPCs and RLS helpers are re-granted. Service-role access is explicit; internal trigger/helper functions receive no API grant.
+- `claim_media_job`, `cleanup_orphan_route_uploads`, `delete_account_atomic`, `record_contribution_event`, `open_missing_topo_bounty`, and `resolve_missing_topo_bounty` are service-only. Their app callers must use audited server-side service clients, never browser or ordinary authenticated clients.
+
 **Owner Checks:**
 - Query resource by `user_id` matching authenticated user
 - Use Supabase RLS policies as secondary enforcement layer
 
 **Admin Checks:**
-- Verify admin role from user metadata or dedicated admin table
+- Use identity-bound `is_current_user_admin()`; do not read or trust client-controlled role metadata
 - Gate admin-only routes/actions with role validation before DB operations
 
 **General Rules:**

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: 'Authentication required' }, { status: 401 })
   }
 
-  const adminError = await requireAdminFromSupabase(supabase, userId)
+  const adminError = await requireAdminFromSupabase(supabase)
   if (adminError) return adminError
 
   const searchParams = request.nextUrl.searchParams

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { submitCragFlagAction } from '@/features/moderation/public'
 import { createClient } from '@/lib/supabase'
+import { isCurrentUserAdmin } from '@/lib/profile-rpc'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 
 interface UseCragAdminActionsParams {
@@ -36,14 +37,10 @@ export function useCragAdminActions({ initialCrag }: UseCragAdminActionsParams):
       }
 
       try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_admin')
-          .eq('id', user.id)
-          .single()
+        const { data: isAdmin } = await isCurrentUserAdmin(supabase)
 
         if (ignore) return
-        setIsAdmin(profile?.is_admin === true)
+        setIsAdmin(isAdmin === true)
       } catch {
         if (ignore) return
         setIsAdmin(false)

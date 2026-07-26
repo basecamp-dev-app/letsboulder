@@ -11,6 +11,7 @@ import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-fi
 import { normalizePoints } from '@/lib/canvasMath'
 import type { Database } from '@/types/database'
 import { createClient } from '@/lib/supabase'
+import { isCurrentUserAdmin } from '@/lib/profile-rpc'
 import type { RouteLine, RoutePoint } from '@/types/domain'
 import ClimbInfoPanel from '@/features/climb/components/ClimbInfoPanel'
 import ClimbShareDialog from '@/features/climb/components/ClimbShareDialog'
@@ -40,13 +41,6 @@ interface SelectedPinImageRailProps {
 }
 
 type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']
-
-function isAdminProfile(value: unknown): value is { is_admin: boolean | null } {
-  return typeof value === 'object'
-    && value !== null
-    && 'is_admin' in value
-    && (typeof value.is_admin === 'boolean' || value.is_admin === null)
-}
 
 function toLoggedClimbInfo(row: UserClimbRow | null): { gradeOpinion: 'soft' | 'agree' | 'hard' | null; starRating: number | null; notes: string | null } | null {
   if (!row) return null
@@ -192,14 +186,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       }
 
       try {
-        const response = await fetch('/api/profile')
-        if (!response.ok) {
-          setIsAdmin(false)
-          return
-        }
-
-        const profile: unknown = await response.json()
-        setIsAdmin(isAdminProfile(profile) && profile.is_admin === true)
+        const { data: isAdmin } = await isCurrentUserAdmin(supabase)
+        setIsAdmin(isAdmin === true)
       } catch {
         setIsAdmin(false)
       }

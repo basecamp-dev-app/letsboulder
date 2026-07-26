@@ -4,6 +4,7 @@ import { makeUniqueSlug, fetchUsedSlugs } from '@/lib/slug'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { parseWithSchema } from '@/lib/api-validation'
+import { isCurrentUserAdmin } from '@/lib/profile-rpc'
 
 import type { NextRequest } from 'next/server'
 import type { Database } from '@/types/database'
@@ -82,7 +83,7 @@ async function generatePlaceSlug(supabase: RequestSupabaseClient, name: string, 
   return makeUniqueSlug(name, usedPlaceSlugs)
 }
 
-async function assertGymCreationAllowed(supabase: RequestSupabaseClient, userId: string) {
+async function assertGymCreationAllowed(supabase: RequestSupabaseClient) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -91,13 +92,9 @@ async function assertGymCreationAllowed(supabase: RequestSupabaseClient, userId:
   const appMetadata = (user.app_metadata || {}) as Record<string, unknown>
   const hasGymOwnerClaim = appMetadata.gym_owner === true || appMetadata.gymOwner === true
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', userId)
-    .maybeSingle()
+  const { data: isAdmin } = await isCurrentUserAdmin(supabase)
 
-  if (!hasGymOwnerClaim && profile?.is_admin !== true) {
+  if (!hasGymOwnerClaim && isAdmin !== true) {
     return NextResponse.json({ error: 'Only verified gym-owner accounts can create gyms' }, { status: 403 })
   }
 
@@ -199,7 +196,7 @@ async function insertPlace(
   return NextResponse.json(createdPlace, { status: 201 })
 }
 
-export async function createPlace(request: NextRequest, supabase: RequestSupabaseClient, userId: string) {
+export async function createPlace(request: NextRequest, supabase: RequestSupabaseClient) {
   try {
     const parsedBody = parseWithSchema(createPlaceSchema, await request.json())
     if (!parsedBody.success) return parsedBody.response
@@ -208,7 +205,7 @@ export async function createPlace(request: NextRequest, supabase: RequestSupabas
     const trimmedName = body.name.trim()
 
     if (body.type === 'gym') {
-      const authError = await assertGymCreationAllowed(supabase, userId)
+      const authError = await assertGymCreationAllowed(supabase)
       if (authError) return authError
     }
 

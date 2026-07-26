@@ -40,7 +40,7 @@ async function getImageAttribution(displayImageId: string) {
   const uploaderProfile = typedImage.created_by
     ? await supabase
         .from('profiles')
-        .select('id, username, display_name, first_name, last_name, avatar_url, is_public')
+        .select('id, username, display_name, avatar_url, is_public')
         .eq('id', typedImage.created_by)
         .maybeSingle()
     : { data: null }

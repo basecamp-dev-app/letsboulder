@@ -20,7 +20,7 @@ export async function POST(
     return NextResponse.json({ error: 'Queue ID required' }, { status: 400 })
   }
 
-  const adminError = await requireAdminFromSupabase(supabase, userId)
+  const adminError = await requireAdminFromSupabase(supabase)
   if (adminError) return adminError
 
   return voteOnModerationQueueItem(request, supabase, userId, queueId)

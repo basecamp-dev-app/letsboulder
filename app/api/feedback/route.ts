@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { notifyFeedback } from '@/lib/discord'
 import { reportError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
+import { getOwnProfile } from '@/lib/profile-rpc'
 
 export async function POST(request: NextRequest) {
   const middlewareResult = await withApiMiddleware(request, {
@@ -26,18 +27,17 @@ export async function POST(request: NextRequest) {
     let userName: string | undefined
     let userEmail: string | undefined
     if (userId) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('first_name, last_name, email')
-        .eq('id', userId)
-        .single()
+      const [{ data: profile }, { data: authData }] = await Promise.all([
+        getOwnProfile(supabase),
+        supabase.auth.getUser(),
+      ])
 
       if (profile) {
         const nameParts = [profile.first_name, profile.last_name].filter(Boolean)
         if (nameParts.length > 0) {
           userName = nameParts.join(' ')
         }
-        userEmail = profile.email ?? undefined
+        userEmail = authData.user?.email ?? undefined
       }
     }
 

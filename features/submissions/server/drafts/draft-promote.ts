@@ -249,11 +249,7 @@ async function buildPublishedResponse(input: {
   const imageIds = normalizeStringArray(result.image_ids)
 
   if (runPostPublishEffects) {
-    await recordSubmissionPublishedEvent(supabase, {
-      userId,
-      imageId: defaultImageId,
-      sourceId: defaultImageId,
-    }).catch((contributorScoreError) => {
+    await recordSubmissionPublishedEvent(defaultImageId).catch((contributorScoreError) => {
       reportError(contributorScoreError, { message: 'Contributor score publish event error' })
     })
   }

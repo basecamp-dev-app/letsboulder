@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { Loader2, Flag, Settings, Mountain, LayoutDashboard, Building2 } from 'lucide-react'
+import { isCurrentUserAdmin } from '@/lib/profile-rpc'
 
 export default function AdminLayout({
   children,
@@ -28,18 +29,12 @@ export default function AdminLayout({
         return
       }
 
-      // Check profile table
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
+      const { data: adminFromProfile } = await isCurrentUserAdmin(supabase)
 
       // Check auth metadata as fallback
       const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
 
-      const adminFromProfile = profile?.is_admin === true
-      const isAdmin = adminFromProfile || hasAuthAdmin
+      const isAdmin = adminFromProfile === true || hasAuthAdmin
 
       if (!isAdmin) {
         router.push('/')

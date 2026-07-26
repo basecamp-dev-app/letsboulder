@@ -75,7 +75,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `crags` | Climbing locations with PostGIS geometry, country/region references |
 | `climbs` | Individual routes/problems with grade, name, crag reference |
 | `images` | Route photos with media-pipeline state, moderation, GPS coordinates |
-| `profiles` | User profiles (username, avatar, is_admin) |
+| `profiles` | User profiles; public-safe columns are separated from private and server-owned fields by column grants and RLS |
 | `places` | Unified location entity (crags + gyms) |
 | `sectors` | Sub-areas within crags |
 | `countries` | Country data with ISO codes and PostGIS boundaries |
@@ -271,8 +271,18 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `submission_edit_history` stores field-aware, per-image edit history for published submissions.
 - `submission_draft_collaborators` and `submission_draft_collaborator_invites` continue to enable shared editing on drafts.
 - RLS helper functions: `is_submission_collaborator(image_id, user_id)` and `is_submission_draft_collaborator(draft_id, user_id)`.
-- Wiki helper function: `user_can_wiki_edit_submission(image_id, user_id)`.
+- Wiki helper function: `user_can_wiki_edit_submission(image_id, user_id)`; the supplied user must equal `auth.uid()`.
 - Invite claims: `claim_submission_collaborator_invite(token)` and `claim_submission_draft_collaborator_invite(token)`.
+
+### Profile Access
+- `anon` and `authenticated` can select only the public-safe profile columns (`id`, public names/avatar/bio/location preferences, `is_public`, and `created_at`). The `Read visible profiles` policy returns public rows plus the authenticated caller's own row.
+- `get_own_profile()` returns the full profile only for `auth.uid()`. `is_current_user_admin()` is the identity-bound predicate used by admin RLS and server checks. `get_top_contributors(limit)` and `get_visible_profile(user_id)` expose only approved public display and statistics fields while respecting profile visibility.
+- Authenticated profile updates use an explicit user-editable column allowlist. `profiles_protect_fields` additionally blocks identity, email, admin, aggregate score/statistics, contribution tier/count, creation, policy, TOS, and email-workflow fields.
+- There is no authenticated `INSERT` grant on `profiles`; profile creation is server/auth-trigger owned.
+
+### Contribution Scoring
+- Contribution event and missing-topo bounty writers are service-only. App scoring code uses an audited service client and derives the beneficiary, source identity, acceptance/publication state, place/crag, and fixed score from authoritative `images`, `submission_edit_history`, `climb_corrections`, and `climb_verifications` rows.
+- Client-supplied user IDs, score deltas, and source context are not accepted as scoring authority. `record_contribution_event`, `open_missing_topo_bounty`, and `resolve_missing_topo_bounty` are internal write primitives, not authenticated-user RPCs.
 
 ### RLS Policy Matrix (Submission & Collaboration)
 
@@ -297,6 +307,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - The active canonical `promote_draft_to_submission` definition is in `20260725160000_forward_publication_safety.sql`; active atomic deletion definitions are in `20260725160050_atomic_draft_deletion.sql` and `20260725160100_atomic_draft_image_deletion.sql`, with grants and RLS tightened by `20260725160150_draft_deletion_permissions.sql`. Do not use the older archived promotion definition as the current reference.
 - `delete_submission_draft_atomic` deletes an editable owner draft and conditionally unreferenced owner uploads in one transaction. `delete_submission_draft_image_atomic` locks the draft, validates the expected timestamp, locks all attachments and the linked image, then atomically deletes one attachment, compacts ordering and metadata, and conditionally deletes the now-unreferenced upload.
 - Direct owner DELETE policies are removed from `images`, `submission_drafts`, and `submission_draft_images`. Destructive owner operations must use the guarded RPCs; the separate image admin policy remains available for explicit administration.
+- Published wiki helper and history identities are bound to `auth.uid()`: authenticated callers cannot test or log an edit as another user. Service-role workflows remain the explicit exception.
 
 ### Triggers
 | Trigger | Table | Purpose |
@@ -371,6 +382,8 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `get_logbook_lifetime_stats(p_user_id)` | RLS-aware lifetime logbook counts by style |
 | `get_total_sends_count()` | Total sends count |
 | `get_total_logs_count()` | Total logs count |
+| `get_top_contributors(p_limit)` | Public-safe top contributor rows from public profiles |
+| `get_visible_profile(p_user_id)` | Public-safe profile display and statistics when the profile is visible |
 
 ### Submissions
 | Function | Purpose |
@@ -397,8 +410,8 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | Function | Purpose |
 |----------|---------|
 | `initialize_climb_consensus(p_climb_id)` | Initialize consensus grade for a climb |
-| `initialize_climb_grade_vote(p_climb_id, p_user_id)` | Initialize grade vote for a climb |
-| `insert_grade_vote(p_climb_id, p_user_id, p_grade)` | Insert or update grade vote |
+| `initialize_climb_grade_vote(p_climb_id, p_user_id, p_grade)` | Service-role-only grade-vote initialization with an explicit user; no anon/authenticated grant |
+| `insert_grade_vote(p_climb_id, vote_grade)` | Authenticated/service-role vote upsert bound internally to `auth.uid()`; no anon grant |
 | `sync_climb_grade_from_votes(p_climb_id)` | Recompute climb grade from votes |
 | `add_correction_type_value(p_type, p_value)` | Dynamic correction type enum expansion |
 | `normalize_climb_route_type(p_route_type)` | Normalize route type string |
@@ -424,7 +437,9 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `slugify(p_text)` | Generate URL-safe slug |
 | `get_level(p_grade)` | Get difficulty level from grade |
 | `soft_delete_comment(p_comment_id)` | Soft delete a comment |
-| `cleanup_orphan_route_uploads()` | Clean up orphaned route uploads |
+| `cleanup_orphan_route_uploads(max_age, max_delete)` | Service-only cleanup of orphaned route uploads |
+| `claim_media_job(worker_name)` | Service-only durable media-job claim |
+| `delete_account_atomic(p_user_id, p_email, p_delete_route_uploads)` | Service-only atomic account cleanup |
 | `update_own_profile_submission_credit(...)` | Update profile submission credit |
 | `update_own_submission_anonymity(...)` | Update submission anonymity |
 | `update_own_submission_credit(...)` | Update submission credit |
@@ -471,6 +486,8 @@ npx supabase db push --linked
 - Use `CREATE OR REPLACE` for functions instead of `DROP` + `CREATE`
 - Review all migrations with `git diff supabase/migrations/`
 - Safety migrations are forward-only; they define behavior for future operations and do not repair historical data unless a migration explicitly says so.
+- Default privileges in `public` grant no table, sequence, or function access to `PUBLIC`, `anon`, or `authenticated`. Migrations must explicitly grant each intended API surface.
+- `SECURITY DEFINER` functions start with API execution revoked. Re-grant only reviewed identity-bound RPCs, read-only public RPCs, or RLS helpers; leave trigger/internal helpers private and grant privileged operations only to `service_role`.
 
 ---
 

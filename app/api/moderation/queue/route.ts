@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const adminError = await requireAdminFromSupabase(supabase, userId)
+    const adminError = await requireAdminFromSupabase(supabase)
     if (adminError) return adminError
 
     const rateLimitResult = await rateLimit(request, 'authenticatedWrite', userId)

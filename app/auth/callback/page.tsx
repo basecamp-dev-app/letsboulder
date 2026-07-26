@@ -8,22 +8,15 @@ import { SupabaseClient, User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { reportError } from '@/lib/errors'
 import { getSafeRedirect } from '@/lib/safe-redirect'
+import { getOwnProfile } from '@/lib/profile-rpc'
 
 async function syncProfileFields(supabase: SupabaseClient, userId: string, profileData: Record<string, unknown>) {
-  const { data: updatedRows, error: updateError } = await supabase
+  const { error: updateError } = await supabase
     .from('profiles')
     .update(profileData)
     .eq('id', userId)
-    .select('id')
 
   if (updateError) throw updateError
-  if (updatedRows && updatedRows.length > 0) return
-
-  const { error: insertError } = await supabase
-    .from('profiles')
-    .insert({ id: userId, ...profileData })
-
-  if (insertError) throw insertError
 }
 
 const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<boolean> => {
@@ -35,7 +28,6 @@ const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<b
       first_name: metadata.given_name,
       last_name: metadata.family_name,
       avatar_url: metadata.avatar_url,
-      email: user.email,
     })
     return true
   }
@@ -60,7 +52,6 @@ const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<b
       first_name: firstName,
       last_name: lastName,
       avatar_url: avatarUrl,
-      email: user.email,
     })
     return true
   }
@@ -71,7 +62,6 @@ const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<b
       first_name: nameParts[0] || '',
       last_name: nameParts.slice(1).join(' ') || '',
       avatar_url: metadata.avatar_url,
-      email: user.email,
     })
     return true
   }
@@ -160,14 +150,7 @@ function AuthCallbackContent() {
     if (user) {
       await syncOAuthProfile(supabase, user)
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('first_name, display_name')
-        .eq('id', user.id)
-        .order('updated_at', { ascending: false, nullsFirst: false })
-        .limit(1)
-
-      const activeProfile = profile?.[0]
+      const { data: activeProfile } = await getOwnProfile(supabase)
       const hasPublicName = Boolean(activeProfile?.display_name?.trim() || activeProfile?.first_name?.trim())
 
       if (!hasPublicName) {

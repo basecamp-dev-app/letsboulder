@@ -156,16 +156,7 @@ export async function createSubmissionRoutes(
     })
 
     if (typeof editHistoryId === 'string') {
-      await recordAcceptedWikiContribution(supabase, {
-        userId,
-        imageId,
-        sourceId: editHistoryId,
-        climbId: climb.id,
-        metadata: {
-          edit_kind: 'route_created',
-          climb_id: climb.id,
-        },
-      })
+      await recordAcceptedWikiContribution(editHistoryId)
     }
 
     if (climbs.length > 1) break

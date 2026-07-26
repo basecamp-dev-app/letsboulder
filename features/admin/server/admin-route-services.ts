@@ -82,7 +82,7 @@ export async function listFlags(supabase: RequestSupabaseClient, status: string,
 
     const flaggerIds = [...new Set((flags || []).map((flag) => flag.flagger_id).filter(Boolean))]
     const { data: flaggerProfiles } = flaggerIds.length > 0
-      ? await supabase.from('profiles').select('id, email, username').in('id', flaggerIds)
+      ? await supabase.from('profiles').select('id, username').in('id', flaggerIds)
       : { data: [] }
 
     const profileMap = new Map((flaggerProfiles || []).map((profile) => [profile.id, profile]))
@@ -259,7 +259,7 @@ export async function listModerationQueue(supabase: RequestSupabaseClient, statu
         resolved_at,
         climb:climb_id(id, name, grade, description, image_url),
         crag:crag_id(id, name),
-        submitter:submitter_id(id, email, username, first_name, last_name)
+        submitter:submitter_id(id, username)
       `)
       .eq('status', status)
       .order('created_at', { ascending: false })

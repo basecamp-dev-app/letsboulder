@@ -89,10 +89,7 @@ export const QueueItemSchema = z.object({
   }).nullable(),
   submitter: z.object({
     id: z.string(),
-    email: z.string().nullable(),
     username: z.string().nullable(),
-    first_name: z.string().nullable(),
-    last_name: z.string().nullable(),
   }).nullable(),
 })
 

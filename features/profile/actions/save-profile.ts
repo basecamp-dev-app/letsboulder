@@ -51,21 +51,6 @@ export async function saveProfileAction(input: SaveProfileInput): Promise<Action
   if (gender !== undefined) updateData.gender = gender
 
   const supabase = await getServerClient()
-  const { data: existingProfile } = await supabase
-    .from('profiles')
-    .select('email')
-    .eq('id', auth.data.userId)
-    .single()
-
-  if (!existingProfile?.email) {
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-    if (authUser?.email) {
-      updateData.email = authUser.email
-    }
-  }
-
   const { error: updateError } = await supabase
     .from('profiles')
     .update(updateData)

@@ -168,6 +168,7 @@ describe('Slug retry routes', () => {
       auth: {
         getUser: vi.fn(async () => ({ data: { user: { id: 'admin-1' } }, error: null })),
       },
+      rpc: vi.fn(async () => ({ data: true, error: null })),
       from: vi.fn((table: string) => {
         if (table === 'profiles') {
           return {

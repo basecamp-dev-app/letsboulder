@@ -119,7 +119,7 @@ export async function updateSubmissionRoutes(
 
   const { data: acceptedEditsAfterUpdate } = await supabase
     .from('submission_edit_history')
-    .select('id, after_data')
+    .select('id')
     .eq('image_id', imageId)
     .eq('edited_by', userId)
     .eq('moderation_state', 'accepted')
@@ -130,19 +130,7 @@ export async function updateSubmissionRoutes(
   const newAcceptedEdits = (acceptedEditsAfterUpdate || []).filter((row) => !acceptedEditIdsBeforeUpdate.has(row.id))
 
   for (const edit of newAcceptedEdits) {
-    const afterData = edit.after_data && typeof edit.after_data === 'object'
-      ? edit.after_data as Record<string, unknown>
-      : null
-
-    await recordAcceptedWikiContribution(supabase, {
-      userId,
-      imageId,
-      sourceId: edit.id,
-      climbId: typeof afterData?.climb_id === 'string' ? afterData.climb_id : null,
-      metadata: {
-        edit_kind: 'route_updated',
-      },
-    })
+    await recordAcceptedWikiContribution(edit.id)
   }
 
   const { data: image } = await supabase

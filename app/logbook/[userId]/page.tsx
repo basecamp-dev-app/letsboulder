@@ -45,9 +45,7 @@ const getProfile = cache(async function getProfile(userId: string): Promise<Publ
   const supabase = await getServerClient()
 
   const { data, error } = await supabase
-    .from('profiles')
-    .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade, contributor_score_total, accepted_contribution_count, contributor_tier, is_public, first_name, last_name')
-    .eq('id', userId)
+    .rpc('get_visible_profile', { p_user_id: userId })
     .single()
 
   if (error || !data) {

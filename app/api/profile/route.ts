@@ -5,51 +5,7 @@ import { withApiMiddleware } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { parseWithSchema } from '@/lib/api-validation'
-
-const PROFILE_SELECT_COLUMNS = [
-  'id',
-  'avatar_url',
-  'bio',
-  'contributor_score_total',
-  'accepted_contribution_count',
-  'contributor_tier',
-  'boulder_system',
-  'contribution_credit_handle',
-  'contribution_credit_platform',
-  'country',
-  'country_code',
-  'created_at',
-  'default_location',
-  'default_location_lat',
-  'default_location_lng',
-  'default_location_name',
-  'default_location_zoom',
-  'display_name',
-  'email',
-  'first_name',
-  'gender',
-  'grade_system',
-  'height_cm',
-  'highest_grade',
-  'is_admin',
-  'is_public',
-  'last_name',
-  'name',
-  'name_updated_at',
-  'preferred_grade_system',
-  'preferred_style',
-  'reach_cm',
-  'route_system',
-  'theme_preference',
-  'tos_accepted_at',
-  'total_climbs',
-  'total_points',
-  'trad_system',
-  'units',
-  'updated_at',
-  'username',
-  'welcome_email_sent_at',
-].join(', ')
+import { getOwnProfile } from '@/lib/profile-rpc'
 
 const allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say'] as const
 
@@ -70,11 +26,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select(PROFILE_SELECT_COLUMNS)
-      .eq('id', userId)
-      .single()
+    const { data: profile, error } = await getOwnProfile(supabase)
 
     if (error) {
       return createErrorResponse(error, 'Profile fetch error')
@@ -107,28 +59,10 @@ export async function PUT(request: NextRequest) {
     if (last_name !== undefined) updateData.last_name = last_name.trim()
     if (gender !== undefined) updateData.gender = gender
 
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('email')
-      .eq('id', userId)
-      .single()
-
-    if (!existingProfile?.email) {
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser()
-
-      if (authUser?.email) {
-        updateData.email = authUser.email
-      }
-    }
-
-    const { data: updated, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from('profiles')
       .update(updateData)
       .eq('id', userId)
-      .select(PROFILE_SELECT_COLUMNS)
-      .single()
 
     if (updateError) {
       if (updateError.code === '23505') {
@@ -150,6 +84,9 @@ export async function PUT(request: NextRequest) {
 
       return createErrorResponse(updateError, 'Profile update error')
     }
+
+    const { data: updated, error: profileError } = await getOwnProfile(supabase)
+    if (profileError) return createErrorResponse(profileError, 'Profile fetch error')
 
     return NextResponse.json(updated)
   } catch (error) {

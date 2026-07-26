@@ -13,7 +13,7 @@ interface Flag {
   status: string
   action_taken: string | null
   created_at: string
-  flagger: { id: string; email: string; username: string | null } | null
+  flagger: { id: string; username: string | null } | null
   image: { id: string; url: string } | null
   crag: { id: string; name: string } | null
   climbs: { id: string; name: string; grade: string } | null
@@ -195,7 +195,7 @@ export default function AdminFlagsPage() {
 
                   {flag.flagger && (
                     <p className="text-xs text-gray-500 mb-3">
-                      Flagged by: {flag.flagger.username || flag.flagger.email}
+                      Flagged by: {flag.flagger.username || `User ${flag.flagger.id.slice(0, 8)}`}
                     </p>
                   )}
 
