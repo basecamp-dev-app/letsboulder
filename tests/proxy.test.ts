@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 
 vi.mock('@/lib/csrf', () => ({
   validateCsrfToken: vi.fn(),
@@ -18,12 +18,56 @@ import { validateCsrfToken } from '@/lib/csrf'
 import { applyProxyRateLimit } from '@/lib/proxy-rate-limit'
 import { applyProxyAuth } from '@/lib/proxy-auth'
 
+const ORIGINAL_ENV = process.env
+
 describe('proxy CSRF handling', () => {
   beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV }
     vi.resetAllMocks()
     ;(validateCsrfToken as unknown as { mockResolvedValue: (value: unknown) => unknown }).mockResolvedValue(false)
     ;(applyProxyRateLimit as unknown as { mockResolvedValue: (value: unknown) => unknown }).mockResolvedValue(null)
     ;(applyProxyAuth as unknown as { mockResolvedValue: (value: unknown) => unknown }).mockResolvedValue(Response.json({ ok: true }, { status: 200 }))
+  })
+
+  afterAll(() => {
+    process.env = ORIGINAL_ENV
+  })
+
+  test('blocks test API routes unless explicitly enabled', async () => {
+    const response = await proxy(new NextRequest('https://letsboulder.com/api/test/segment/auth', {
+      method: 'POST',
+    }))
+
+    expect(response.status).toBe(404)
+    expect(validateCsrfToken).not.toHaveBeenCalled()
+    expect(applyProxyAuth).not.toHaveBeenCalled()
+  })
+
+  test('blocks test API routes in production even when enabled', async () => {
+    process.env.ENABLE_TEST_AUTH_ENDPOINT = 'true'
+    process.env.VERCEL_ENV = 'production'
+
+    const response = await proxy(new NextRequest('https://letsboulder.com/api/test/segment/auth', {
+      method: 'POST',
+    }))
+
+    expect(response.status).toBe(404)
+    expect(validateCsrfToken).not.toHaveBeenCalled()
+    expect(applyProxyAuth).not.toHaveBeenCalled()
+  })
+
+  test('allows explicitly enabled test API routes outside production', async () => {
+    process.env.ENABLE_TEST_AUTH_ENDPOINT = 'true'
+    process.env.VERCEL_ENV = 'preview'
+
+    const response = await proxy(new NextRequest('https://preview.letsboulder.com/api/test/segment/auth', {
+      method: 'POST',
+    }))
+
+    expect(response.status).toBe(200)
+    expect(validateCsrfToken).not.toHaveBeenCalled()
+    expect(applyProxyRateLimit).not.toHaveBeenCalled()
+    expect(applyProxyAuth).not.toHaveBeenCalled()
   })
 
   test('allows same-origin server action posts without x-csrf-token', async () => {

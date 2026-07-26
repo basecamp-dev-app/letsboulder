@@ -1,6 +1,5 @@
 import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
-import webpack from 'webpack'
 
 function getMediaCdnRemotePattern(): URL | null {
   const raw = process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.trim()
@@ -147,16 +146,12 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', 'date-fns', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
   },
-  webpack(config, { isServer, dev }) {
-    if (isServer && !dev && process.env.NODE_ENV === 'production') {
-      config.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(
-          /app[/\\]api[/\\]test[/\\]\[segment\]\/auth\/route\.ts/,
-          require.resolve('./app/api/test/[segment]/auth/stub.ts'),
-        ),
-      )
-    }
-    return config
+  turbopack: {
+    resolveAlias: process.env.ENABLE_TEST_AUTH_ENDPOINT === 'true'
+      ? {}
+      : {
+          '@/lib/test-auth-handler': '@/app/api/test/[segment]/auth/stub',
+        },
   },
 }
 
