@@ -34,10 +34,10 @@
 
 ## Draft Image Flow
 
-1. Unpublished images remain in the R2 private bucket
-2. Server generates presigned GET URLs via `createPrivateReadUrl()` in `lib/media/r2.ts` (1 hour TTL)
+1. Originals remain in the R2 private bucket and are read with presigned URLs
+2. Successful ingest writes public variants and marks the authoritative `images` row ready before draft publication
 3. Draft storage logic lives in `lib/media/draft-storage.ts`
-4. On publish, the object moves to the public bucket and becomes available via CDN
+4. Draft publication associates already-deliverable media with the crag and submission; it does not process or move the original
 
 ## HEIC Conversion
 

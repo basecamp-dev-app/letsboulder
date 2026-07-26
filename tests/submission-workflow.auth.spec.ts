@@ -86,7 +86,7 @@ test.describe.serial('Submission workflow', () => {
 
     await page.goto('/submit')
     await expect(page).not.toHaveURL(/\/auth/)
-    await expect(page.getByRole('heading', { name: /Start a new draft/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Add a route topo' })).toBeVisible()
 
     await page.locator('input[type="file"]').setInputFiles([IMAGE_FIXTURE])
     await waitForDraftIntakeUpload(page)
@@ -121,5 +121,50 @@ test.describe.serial('Submission workflow', () => {
     await page.goto('/logbook')
     await expect(page.getByText('Your submissions')).toBeVisible({ timeout: 20000 })
     await expect(page.getByText(cragName)).toBeVisible({ timeout: 20000 })
+  })
+
+  test('@full user can publish photos first and add the first route later', async ({ page }) => {
+    test.setTimeout(180000)
+
+    const timestamp = Date.now()
+    const routeName = `E2E Image First Route ${timestamp}`
+    const cragName = `E2E Image First Crag ${timestamp}`
+
+    await page.goto('/submit')
+    await page.locator('input[type="file"]').setInputFiles([IMAGE_FIXTURE])
+    await waitForDraftIntakeUpload(page)
+    await page.getByRole('button', { name: 'Continue to editor' }).click()
+
+    await expect(page.getByRole('button', { name: 'Publish' })).toBeVisible({ timeout: 20000 })
+    await page.getByLabel('Latitude').fill(TEST_LATITUDE)
+    await page.getByLabel('Longitude').fill(TEST_LONGITUDE)
+    await page.getByRole('button', { name: 'Select crag' }).click()
+    await page.getByRole('button', { name: /\+ Create/i }).first().click()
+    await page.getByPlaceholder('Enter crag name').fill(cragName)
+    await page.getByRole('button', { name: 'Create Crag' }).click()
+    await expect(page.getByText(cragName)).toBeVisible({ timeout: 15000 })
+
+    await page.getByRole('button', { name: 'Publish' }).click()
+    await expect(page).toHaveURL(/\/([a-z]{2})\/.+\/i\/[0-9a-f-]+/i, { timeout: 30000 })
+    const imageId = page.url().match(/\/i\/([0-9a-f-]+)/i)?.[1]
+    expect(imageId).toBeTruthy()
+
+    await page.goto('/logbook')
+    await expect(page.getByText(cragName)).toBeVisible({ timeout: 20000 })
+    const manageLink = page.locator(`a[href="/logbook/submissions/${imageId}/edit"]`)
+    await expect(manageLink).toBeVisible()
+    await manageLink.click()
+
+    const canvas = page.locator('canvas.cursor-crosshair')
+    await drawRoute(page, canvas)
+    await page.getByPlaceholder('Route name').fill(routeName)
+    await page.getByLabel('Type').selectOption('trad')
+    await page.getByRole('button', { name: /^Save$/ }).click()
+    await page.getByRole('button', { name: 'Save all changes' }).click()
+    await expect(page.getByText('Submission changes saved')).toBeVisible({ timeout: 20000 })
+
+    await page.reload()
+    await expect(page.getByPlaceholder('Route name')).toHaveValue(routeName, { timeout: 20000 })
+    await expect(page.getByLabel('Type')).toHaveValue('trad')
   })
 })

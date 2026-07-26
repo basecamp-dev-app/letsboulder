@@ -92,7 +92,6 @@ export async function fetchOwnSubmissions(
         climb_id: firstRouteLine?.climb_id || submission.climb_id || null,
       }
     })
-    .filter((submission) => submission.route_lines_count > 0)
 
   const { data: draftSubmissions, error: draftError } = await supabase
     .from('submission_drafts')
