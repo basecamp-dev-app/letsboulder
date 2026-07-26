@@ -437,7 +437,20 @@ async function handleMedia(request: Request, env: Env, url: URL) {
     const uuid = staticVariantMatch[1]?.replace(/^images\//, '').replace(/\/v1\/$/, '')
     variant = staticVariantMatch[2] ?? null
     width = getVariantWidth(variant)
-    objectKey = `images/originals/${uuid}/original.jpg`
+
+    const supabase = createSupabaseAdminClient(env)
+    const { data: image } = await supabase
+      .from('images')
+      .select('original_key, processing_status, visibility, status, moderation_status')
+      .eq('id', uuid)
+      .single()
+
+    if (!image || image.processing_status !== 'ready' || image.visibility !== 'public' ||
+        image.status !== 'approved' || !['approved', 'skipped'].includes(image.moderation_status ?? '')) {
+      return new Response('Not found', { status: 404 })
+    }
+
+    objectKey = image.original_key
   } else {
     objectKey = pathname
       .split('/')
