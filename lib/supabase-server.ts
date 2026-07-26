@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
-import type { NextRequest } from 'next/server'
+import type { NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 import { reportError } from '@/lib/errors'
 
@@ -34,6 +34,28 @@ export function getServerClientFromRequest(request: NextRequest) {
           return requestCookies.getAll()
         },
         setAll() {},
+      },
+    }
+  )
+}
+
+export function getRouteClient(
+  request: NextRequest,
+  response: NextResponse
+) {
+  return createServerClient(
+    env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookies) {
+          for (const { name, value, options } of cookies) {
+            response.cookies.set(name, value, options)
+          }
+        },
       },
     }
   )
