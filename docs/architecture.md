@@ -1,135 +1,151 @@
-# Architecture — letsboulder.com
+# Architecture - letsboulder.com
 
-Bouldering topo and climbing logbook web app.
-
-This is a maintainer reference for system shape, deployment flow, and module ownership.
+Bouldering topo, route-submission, community, and climbing logbook web app. This document describes deployed responsibilities and state ownership; detailed media and moderation behavior lives in `docs/media-pipeline.md` and `docs/moderation.md`.
 
 ## System Topology
 
-```
-┌─────────────┐     ┌──────────────────┐     ┌──────────────┐
-│   Browser   │────▶│  Next.js (Vercel) │────▶│  Supabase    │
-│             │     │  App Router       │     │  PostgreSQL  │
-│             │     │  Server Actions   │     │  + Auth      │
-│             │     │  Route Handlers   │     │  + PostGIS   │
-└──────┬──────┘     └──────────────────┘     └──────────────┘
-       │
-       │  Image upload / delivery
-       ▼
-┌──────────────────┐     ┌──────────────────┐     ┌──────────────┐
-│  Cloudflare      │────▶│  Cloudflare R2   │────▶│  CDN         │
-│  Worker          │     │  (S3-compatible)  │     │  static.*    │
-│  (media-worker)  │     │  private bucket   │     │  .com        │
-│                  │     │  public bucket    │     │              │
-└──────────────────┘     └──────────────────┘     └──────────────┘
-       │
-       └── Media delivery via static.*.com
+```text
+Browser
+  |-- HTTPS / Server Actions / Route Handlers --> Next.js 16 on Vercel
+  |                                                   |
+  |                                                   +--> Supabase Auth + PostgreSQL/PostGIS
+  |                                                   +--> R2 S3 API (presign/head/delete)
+  |
+  |-- presigned PUT ------------------------------> private R2 originals
+  |-- MapLibre style/tiles -----------------------> OpenFreeMap (or configured style host)
+  `-- static.* image/map requests ----------------> Cloudflare media Worker
+                                                        |-- Image Resizing fetch -> private R2 origin
+                                                        |-- /maps/* -----------> public R2 bucket
+                                                        |-- cron/queue --------> Supabase media_jobs/images
+                                                        `-- optional fast path -> Cloudflare MEDIA_QUEUE
 ```
 
-## Components
+The durable `media_jobs` database outbox is authoritative for media ingest. Cloudflare Queue is an optional low-latency and legacy-backfill transport, not the source of truth.
 
-### Web App (Next.js 16)
+## Runtime Components
 
-- **Location**: Root of repo
-- **Deploy**: Vercel deployment workflow from `main`
-- **Router**: App Router (`app/`) with Server Components and Server Actions
-- **Client State**: feature route editor store (`features/route-editor/store/index.ts`) for route drawing state
-- **Server State**: TanStack React Query with selective IndexedDB persistence for crag and climb state (`lib/query-persistence.ts`)
-- **Images**: Custom Cloudflare image loader (`lib/media/cloudflare-loader.ts`)
+### Web App
 
-### Database (Supabase / PostgreSQL 17)
+- Next.js 16 App Router with React 19 Server Components, Server Actions, and Route Handlers.
+- `app/` owns entrypoints and route composition; product behavior generally lives in `features/`, shared UI in `components/`, and cross-feature platform code in `lib/`.
+- App-owned UI mutations prefer Server Actions. Route Handlers remain appropriate for upload sessions, public/API integration surfaces, service-worker behavior, and endpoints that need explicit HTTP semantics.
+- `lib/media/cloudflare-loader.ts` maps named image widths to the media Worker; it is not evidence of stored image variants.
 
-- **Auth**: Supabase Auth with JWT sessions
-- **Extensions**: PostGIS for geo queries
-- **Key RPCs**: `get_crag_pins`, `get_crag_route_intelligence`, `get_upload_context`, `create_unified_submission`, `queue_media_ingest_job`, `claim_media_job`
-- **Migrations**: `supabase/migrations/*.sql` (canonical source of truth)
-- **Wiki Value Protection**: Deterministic risk scoring for community edits — high-risk non-owner edits are blocked, suspicious edits are flagged, all edits are logged with risk metadata
-- **Types**: Auto-generated in `types/database.ts` via `supabase gen types`
+### Supabase
 
-### Media Pipeline (Cloudflare Worker + R2)
+- PostgreSQL 17 is the authoritative application datastore; PostGIS supports geographic queries.
+- Supabase Auth supplies user identities and signed sessions.
+- Migrations under `supabase/migrations/` are canonical. `types/database.ts` is generated from the schema.
+- Important media/submission RPCs include `queue_media_ingest_job`, `claim_media_job`, `create_unified_submission_atomic`, and `promote_draft_to_submission`.
+- Community protection and moderation records are database state, but their workflows are separate; see `docs/moderation.md`.
 
-- **Worker**: `apps/media-worker/` — queue consumer for image processing
-- **Storage**: R2 private bucket (originals) + R2 public bucket (processed variants)
-- **CDN**: `static.letsboulder.com` (prod) / `static.dev.letsboulder.com` (staging)
-- **Flow**: Client → presigned upload URL → R2 private → Worker queue → R2 public → CDN
-- **Config**: `wrangler.toml` with staging and production environments
+### Media Worker And R2
 
-### Vector Maps (MapLibre + OpenFreeMap)
+- `apps/media-worker/` owns cron and queue ingest handlers plus image, origin, and map delivery routes.
+- Originals remain private. Successful ingest records a virtual manifest and readiness fields; image variants are generated by Cloudflare Image Resizing on demand and cached at delivery.
+- The public R2 bucket backs `/maps/*` and legacy public objects. The active Worker does not write generated image variants there.
+- Environment routes are `static.dev.letsboulder.com` and `static.letsboulder.com`.
 
-- **Renderer**: MapLibre GL in shared live map, picker, and static location components
-- **Basemap**: OpenFreeMap hosted MapLibre style at `https://tiles.openfreemap.org/styles/liberty`
-- **Config**: `NEXT_PUBLIC_MAP_STYLE_URL`, defaulting to the OpenFreeMap Liberty style
-- **Fallback**: Pins-only degraded map mode while offline
+### Vector Maps
 
-### Network Resilience
+- MapLibre GL is the renderer for live maps, location pickers, and static-location views. The app does not use the Mapbox renderer or Mapbox-hosted style as its default.
+- `NEXT_PUBLIC_MAP_STYLE_URL` selects a hosted MapLibre-compatible style. The default is OpenFreeMap Liberty at `https://tiles.openfreemap.org/styles/liberty`.
+- Offline mode is a pins-only degraded view; it does not claim that the hosted basemap is available offline.
+- Public R2 `/maps/*` assets served by the media Worker are a separate storage/delivery concern from the configured OpenFreeMap basemap.
 
-- **Loading model**: Online-first; browser HTTP caching and in-memory query caching handle normal revisits
-- **Connection fallback**: `/offline` explains that maps and climbing information require a connection and offers retry
-- **Uploads**: Failed uploads remain retryable while the upload manager is mounted
-- **Retirement migration**: `public/sw.js` is temporarily a no-fetch tombstone that removes old letsboulder caches and unregisters itself
-- **Query persistence**: Community queries are session-only; selected crag and climb queries remain persisted while hydration performance is measured
+## Authentication And Request Security
 
-## Data Flow
+1. The browser Supabase client persists its session in `localStorage`; server clients use request cookies through `@supabase/ssr`. Each runtime must use its own client.
+2. Server code establishes identity with `supabase.auth.getUser()` rather than trusting browser-supplied IDs or decoded claims alone.
+3. Browser auth changes also scope client query persistence; changing user clears the previous in-memory and persisted query cache.
+4. Mutating Route Handlers use the repository API middleware/CSRF flow: `/api/csrf` returns a signed JWT in its JSON body and stores the same value in an HTTP-only cookie. `csrfFetch` echoes the body token in `x-csrf-token`; the server compares both copies, validates the user binding, and applies route-specific auth/rate limits.
+5. Server Actions establish their own server-side auth context and do not use `csrfFetch`.
+6. `proxy.ts` strips `x-internal-user-id`; no trusted client-header authentication fallback exists.
 
-### Image Upload
+The CSRF cookie is not the Supabase session. See `docs/auth-security.md` for the complete rules.
 
-1. Client requests presigned URL from `/api/uploads/signed-url`
-2. Client uploads directly to R2 private bucket
-3. Worker receives queue message, processes image (resize, variants)
-4. Worker writes processed variants to R2 public bucket
-5. CDN serves variants from `static.*.com`
-6. `images` table tracks processing state
+## State Ownership
+
+| State | Owner | Lifetime / persistence |
+|---|---|---|
+| Users, crags, routes, drafts, media metadata, jobs, reports | Supabase/PostgreSQL | Authoritative durable state |
+| Authentication session | Supabase Auth | Browser `localStorage`; request cookies for server clients |
+| Remote query cache | TanStack React Query | In memory; only queries with `meta.persist = true` are persisted to auth-scoped IndexedDB for up to 12 hours; community queries are excluded |
+| Route drawing/editor history and selection | Feature-owned Zustand store in `features/route-editor/store/` | Client memory for the mounted editor; server/database data remains authoritative |
+| Upload files, queue order, progress, retry/polling state | `MediaUploadManagerProvider` React context/refs | In memory for the mounted submission/edit layout; not durable across reload/unmount |
+| Local form/view state | Owning React component or feature hook | Client memory unless explicitly submitted or cached |
+
+Do not put server truth into Zustand or infer durable upload recovery from React Query persistence.
+
+## Storage Matrix
+
+| Store | Visibility | Contents | Access path |
+|---|---|---|---|
+| Supabase PostgreSQL | RLS/service-role controlled | Product records, media metadata, durable outbox, moderation and verification state | Supabase clients/RPCs |
+| Private R2 bucket | Private | Uploaded originals, which may retain EXIF | Browser presigned PUT; app object checks; Worker binding/private origin |
+| Public R2 bucket | Public through controlled routes | `/maps/*` assets and legacy public objects | Worker `PUBLIC_BUCKET`; not the active image-variant destination |
+| Cloudflare edge cache | Public delivery cache | On-demand resized image responses | `static.*` Worker route and Image Resizing |
+| Browser IndexedDB | Per browser and auth scope | Opt-in non-community React Query cache | Query persister |
+| Browser memory/blob URLs | Page/provider local | Selected upload files, previews, queue state, editor state | React context/hooks/Zustand |
+
+## Primary Data Flows
+
+### Media Upload
+
+1. Authenticated browser creates a session through `POST /api/media/upload-sessions`.
+2. The Route Handler creates a private/pending `images` row and returns a presigned private-R2 PUT.
+3. Browser uploads bytes directly, then calls the upload-session completion Route Handler.
+4. Completion verifies the object and atomically queues durable ingest; optional Worker enqueue is only a best-effort fast path.
+5. Worker queue or cron processing marks the image ready and records virtual delivery paths.
+6. Public requests resize the private original on demand. Draft and crag attachment timing differs as documented in `docs/media-pipeline.md`.
 
 ### Route Submission
 
-1. User creates draft in `submission_drafts`
-2. User uploads images → draft images attached
-3. User draws route lines on images (Canvas API)
-4. User promotes draft → live climb and image records are created
-5. Community verifies routes (3+ votes to confirm)
+- Direct submission supports `new`, `existing`, and `crag_image` image modes through the thin submission Route Handler and feature-owned validation/executors.
+- New-image publication requires each upload-session image to be publicly deliverable, then `create_unified_submission_atomic` creates/associates the image, crag-image, climb, and route-line records transactionally.
+- Existing-image and crag-image modes add route data against an existing eligible image rather than creating a replacement media object.
+- Drafts are durable `submission_drafts` with separately attached image records and optimistic `updated_at` conflict handling. `promote_draft_to_submission` performs publication; attaching an upload to a draft before ingest is ready does not bypass promotion readiness checks.
+- Route geometry is edited with the Canvas-based route editor and feature-owned Zustand state, then persisted through submission/draft operations.
+- Community verification is post-publication: `climb_verifications` reaches community-verified status at three votes. It is not upload moderation or a prerequisite imposed by the media pipeline.
 
-### Authentication
+### Moderation And Reports
 
-1. Supabase Auth issues JWT
-2. Browser stores session in cookies via `@supabase/ssr`
-3. Server Actions verify JWT via `supabase.auth.getUser()`
-4. CSRF protection via JWT tokens in httpOnly cookies (`lib/csrf.ts`)
-5. The `x-internal-user-id` header is stripped by middleware (`proxy.ts`) to prevent spoofing
+Automated media moderation is disabled and no AWS Rekognition integration is active. Media readiness, image/climb flags, crag reports, community route verification, and the legacy `moderation_queue` are independent workflows. See `docs/moderation.md`.
+
+## Network Resilience
+
+- The app is online-first. HTTP caching and React Query handle normal revisits; selected queries opt into IndexedDB persistence.
+- `/offline` provides a degraded connection state. The temporary `public/sw.js` tombstone removes historical caches and unregisters old service workers rather than implementing offline fetch behavior.
+- Upload transfer retries, offline pause, and reconnect/page-lifecycle resume operate only while the upload provider and its in-memory `File` objects remain alive.
 
 ## Module Boundaries
 
-The web app is standardizing on feature-first product boundaries.
+- `app/`: route entrypoints, route-local wrappers, and route-level composition.
+- `features/`: product-domain components, hooks, actions, server orchestration, validation, and types.
+- `components/`: shared shell and reusable UI, especially `components/ui/`.
+- `lib/`: cross-feature technical utilities and platform integrations.
+- `hooks/`: cross-feature generic hooks only; domain hooks belong in their feature.
+- `store/`: shared app-wide stores only; feature state belongs under the owning feature.
 
-- `app/` owns route entrypoints, route-local wrappers, and route-level composition of feature-owned hooks/components. Reusable product logic should not live in `app/`.
-- `features/` owns product-domain code: domain components, hooks, server loaders, actions, types, and feature-local utilities.
-- `components/` owns shared app shell and reusable UI, especially `components/ui/`.
-- `lib/` owns cross-feature technical utilities and platform integrations.
-- `hooks/` should be limited to cross-feature generic hooks; domain hooks should live under their feature.
-- `store/` should only hold shared app-wide stores; feature-specific stores should move under the owning feature.
-- Submission and draft route handlers should stay thin in `app/api/**`; validation, orchestration, and response shaping should live under `features/submissions/server/**`.
-
-### Import Rules
-
-- Do not import reusable logic from `app/**`.
-- Route files in `app/` may import from `features/**`, `components/**`, `lib/**`, `hooks/**`, `store/**`, and `types/**`.
-- Code outside `app/` must not import from `@/app/**`; if something needs to be reused, move it into `features/**` or another shared layer first.
-- New product-domain code should default to `features/<domain>/` rather than the root `components/`, `hooks/`, or `lib/` folders.
+Code outside `app/` must not import reusable logic from `@/app/**`. Submission and draft Route Handlers stay thin; feature server modules own validation, orchestration, and response shaping.
 
 ## Key Files
 
 | File | Purpose |
-|------|---------|
-| `app/layout.tsx` | Root layout, fonts, metadata, theme |
-| `lib/supabase.ts` | Browser Supabase client (singleton) |
-| `lib/supabase-server.ts` | Server Supabase client with cached RPCs |
-| `types/database.ts` | Auto-generated DB types |
-| `lib/csrf.ts` | JWT-based CSRF token system |
-| `lib/rate-limit-config.ts` | Rate limiter configuration and helpers (14 tiers) |
-| `lib/media/r2.ts` | Cloudflare R2 S3 operations |
-| `lib/grades.ts` | Grade conversion engine (3A-9C+) |
-| `public/sw.js` | Temporary service-worker retirement tombstone |
-| `features/route-editor/components/UnifiedRouteCanvas.tsx` | Canvas-based route drawing |
-| `features/route-editor/store/index.ts` | Zustand store for route selection |
-| `features/submissions/server/submissions/` | Submission API validation and mode executors |
-| `features/submissions/server/drafts/` | Draft API orchestration, collaboration, and promotion helpers |
-| `supabase/migrations/` | Database migration history |
+|---|---|
+| `app/layout.tsx` | Root layout and providers |
+| `components/QueryProviders.tsx` | Auth-scoped React Query cache and selective persistence |
+| `lib/supabase.ts` | Browser Supabase client |
+| `lib/supabase-server.ts` | Request/server Supabase clients |
+| `lib/csrf.ts`, `lib/csrf-server.ts` | Route Handler CSRF flow |
+| `lib/rate-limit-config.ts` | Named API rate-limit configuration (14 tiers; operational values remain code-owned) |
+| `app/api/media/upload-sessions/` | Upload session create/status/complete/delete HTTP surface |
+| `lib/media/r2.ts` | App-side R2 presigning and object operations |
+| `apps/media-worker/src/index.ts` | Durable ingest and virtual image/map delivery |
+| `lib/map/vector-map-config.ts` | MapLibre style selection and offline mode |
+| `features/media-upload/` | In-memory client upload queue and attachment lifecycle |
+| `features/route-editor/` | Canvas editor and feature-owned Zustand state |
+| `features/submissions/server/` | Direct submission, draft, collaboration, and promotion orchestration |
+| `features/moderation/actions.ts` | User flags and crag reports |
+| `supabase/migrations/` | Canonical database schema history |
+| `types/database.ts` | Generated Supabase database types |

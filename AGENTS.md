@@ -28,16 +28,34 @@
   - VISUAL_LANGUAGE: Preserve the existing rounded letsboulder visual system. Do not assume a global hard-edge or zero-radius style.
 </component_governance>
 
-- NEVER skip 'supabase gen types' after schema changes; update `types/database.ts` and verify affected app types against the new schema before writing UI code.
+- NEVER skip `npx supabase gen types typescript --local > types/database.ts` after schema changes; reset local first and verify affected app types against the new schema before writing UI code.
 
 ## Build Commands
 
 ```bash
-npm run dev     # Development
-npm run build   # Production
-npm run lint    # Lint
-npm run supabase:doctor  # Verify Supabase CLI
+npm run dev             # Development
+npm run build           # Production
+npm run lint            # Lint
+npm run typecheck       # App, tests, scripts, and media worker
+npm run test:database   # Database tests against reset local Supabase
+bash docs/verify.sh     # Documentation checks
 ```
+
+## Supabase Commands
+
+Use the lockfile-pinned CLI. The canonical schema-change workflow is local:
+
+```bash
+npm install
+npx supabase --version
+npx supabase start
+npx supabase db reset
+npx supabase gen types typescript --local > types/database.ts
+npm run typecheck
+npm run test:database
+```
+
+Run `npm --prefix apps/media-worker run check` when database contracts used by the worker change, and `bash docs/verify.sh` when documentation or documented schema behavior changes. Only maintainers may use linked hosted-project commands; always run `npx supabase db push --linked --dry-run` and verify the project before `npx supabase db push --linked`.
 
 ## Code Style
 
@@ -58,7 +76,6 @@ npm run supabase:doctor  # Verify Supabase CLI
 - **Architecture:** @docs/architecture.md (system topology, data flow)
 - **Media:** @docs/media-pipeline.md (upload, processing, delivery)
 - **Auth:** @docs/auth-security.md (CSRF, rate limiting, auth patterns)
-- **Offline:** @docs/offline-pwa.md (service worker, packs, caching)
 - **Submissions:** @docs/submission-workflow.md (draft-to-publish)
 - **API:** @docs/api/routes.md (route handler reference)
 - **Testing:** @docs/testing/README.md (Vitest, Playwright, CI)
@@ -66,6 +83,6 @@ npm run supabase:doctor  # Verify Supabase CLI
 
 <next_steps>
   - Keep schema.md and patterns.md in sync with code changes
-  - Regenerate `types/database.ts` via `supabase gen types` after any schema change
+  - Reset local and regenerate `types/database.ts` via `npx supabase gen types typescript --local > types/database.ts` after any schema change
   - Prioritize Supabase-generated type migration in `types/database.ts`, `features/submissions/lib/submission-types.ts`, and ranking/community query surfaces.
 </next_steps>

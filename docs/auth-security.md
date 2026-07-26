@@ -5,25 +5,35 @@
 JWT-based token system using `jose` library (`lib/csrf.ts`).
 
 **Token Flow:**
-1. `generateCsrfToken(userId)` creates a signed JWT with `action: 'csrf'` and `sub: userId` claims, expires in 2h
-2. `setCsrfCookie(request, response)` resolves user from request cookies, generates bound token, sets the cookie
-3. Client reads cookie value and sends it in `x-csrf-token` header
-4. `validateCsrfToken(request)` verifies header token matches cookie token, validates JWT signature, then verifies `sub` claim matches the resolved user ID
+1. The authenticated browser calls `GET /api/csrf` with `credentials: 'include'`.
+2. The endpoint resolves the user from the request's Supabase cookies, creates a signed JWT with `action: 'csrf'` and `sub: user.id` claims (2h expiry), returns `{ "token": "..." }` in the JSON body, and sets the same value in the HttpOnly `csrf_token` cookie.
+3. `primeCsrfToken()` keeps the body token in module memory. Browser code cannot and must not read the HttpOnly cookie.
+4. For a state-changing same-origin `/api/**` request, `csrfFetch()` includes cookies and copies the in-memory token into `x-csrf-token`.
+5. `validateCsrfToken()` requires equal header/cookie values, verifies the HMAC signature and `action` claim, resolves the cookie-authenticated user, and requires the JWT `sub` to match that user.
+6. On a CSRF-specific 403, `csrfFetch()` fetches a fresh token and retries once. Anonymous token requests return 401.
 
 **Usage:**
-- Route Handlers that accept mutations must call `validateCsrfToken()` before processing
-- Client-side mutations via Route Handlers use `csrfFetch()` (never for Server Actions)
-- Server Actions handle their own auth context and do not require CSRF tokens
+- Route Handlers that accept mutations use `withApiMiddleware()` or call `validateCsrfToken()` directly. The proxy also enforces CSRF on state-changing API requests except explicit public exceptions such as location detection.
+- Client-side mutations via Route Handlers use `csrfFetch()`; ordinary `fetch()` is appropriate for reads and external URLs.
+- Do not use `csrfFetch()` to invoke Server Actions. A request is exempted as a trusted Server Action only when it has `next-action` and its parsed `Origin` host exactly matches `Host`; the action must still authenticate the user and validate its input.
+- `CSRF_SECRET` is required in every runtime environment. There is no process-derived development fallback; use a non-empty development/test secret locally and a strong independent secret in deployments.
 
 ## Authentication
 
 **Supabase Auth:**
-- Primary auth via `supabase.auth.getUser()` returning JWT session
-- Session tokens stored in cookies managed by `@supabase/ssr`
+- Primary identity validation is `supabase.auth.getUser()`, not unverified user IDs or session payload claims.
+- The browser singleton in `lib/supabase.ts` explicitly persists its Supabase session in `window.localStorage`; that browser-only state supports client Supabase calls and auth-state events.
+- Server Components, Server Actions, Route Handlers, and the proxy create `@supabase/ssr` clients from request/Next cookies only. They cannot see browser localStorage, so the presence of a browser session is not itself proof that a server request is authenticated.
+- Server-side clients do not fall back to bearer headers or internal identity headers. Ensure flows that call protected app endpoints have a cookie-backed session and always resolve the user again on the server.
 
 **Internal Header Stripped:**
 - The `x-internal-user-id` header is explicitly stripped by the middleware proxy (`proxy.ts`) to prevent client-side spoofing.
 - No fallback or trusted-header auth path exists; all requests must authenticate via Supabase Auth.
+
+**Persisted Query Isolation:**
+- React Query persists only queries marked `meta.persist === true`, excludes community queries, and expires restored data after 12 hours.
+- IndexedDB keys are scoped as `letsboulder-query-cache:anon` or `letsboulder-query-cache:<user-id>`.
+- `QueryProviders` clears the in-memory client and deletes the previous scope whenever auth identity changes. Never put user-private persisted data in an anonymous or another user's scope.
 
 ## Rate Limiting
 
@@ -55,7 +65,7 @@ The exact limits live in code and may change without a docs update when operatio
 - Gate admin-only routes/actions with role validation before DB operations
 
 **General Rules:**
-- Server Actions: validate auth inline, throw on failure
+- Server Actions: validate auth in the action; return the feature's typed failure result for expected errors and reserve throws for unexpected failures
 - Route Handlers: validate auth + CSRF before processing
 - Never trust client-supplied user IDs; always resolve from auth context
 
@@ -63,7 +73,7 @@ The exact limits live in code and may change without a docs update when operatio
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `CSRF_SECRET` | Prod only | HMAC secret for CSRF JWT signing. Dev falls back to `dev-csrf-${process.pid}` |
+| `CSRF_SECRET` | Yes | Non-empty HMAC secret for user-bound CSRF JWT signing; required at runtime in development, test, and deployment environments |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key for client |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server only, never expose) |

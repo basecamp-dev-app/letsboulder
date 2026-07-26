@@ -1,59 +1,70 @@
 # Media Pipeline
 
-## Upload Flow
+## Upload And Ingest
 
-1. Client calls server action to create an upload session (`lib/media/upload-session.ts`)
-2. Server generates a presigned PUT URL via `createPrivateUploadUrl()` in `lib/media/r2.ts` (15 min TTL)
-3. Client uploads directly to R2 private bucket using the presigned URL (`lib/media/client-upload.ts`)
-4. Server records the upload metadata in the `images` table
+1. The authenticated client calls the `POST /api/media/upload-sessions` Route Handler. The request identifies a `draft_image`, `crag_image`, or `submission_image` and includes dimensions plus client-extracted capture/GPS data when available.
+2. The Route Handler creates the authoritative `images` row as private/pending and returns a presigned R2 `PUT` URL from `createPrivateUploadUrl()` (`lib/media/r2.ts`, 15-minute TTL).
+3. The browser uploads directly to the private R2 bucket. The app server does not proxy the bytes.
+4. The client calls `POST /api/media/upload-sessions/<imageId>/complete`. The handler verifies ownership and that the private object exists.
+5. `queue_media_ingest_job(...)` atomically changes the image to queued and inserts or reuses a durable `media_jobs` row. This database outbox is the source of truth.
+6. If `CF_MEDIA_WORKER_URL` and `CF_MEDIA_WORKER_SECRET` are configured, completion also best-effort calls Worker `POST /enqueue`. That Cloudflare Queue path reduces latency but is optional; its failure does not invalidate the durable job.
+7. The Worker queue consumer handles the fast path. Its scheduled handler also calls `claim_media_job(worker_name)` to recover and process durable work, with retry/backoff and terminal failure recorded in `media_jobs`.
 
-## Processing Flow
+Originals remain in `lb-dev-media-private` or `lb-prod-media-private`. Ingest currently validates the object and publishes delivery metadata; it does not copy the original or pre-render image files.
 
-1. Server validates the private R2 object exists and atomically queues ingest with `queue_media_ingest_job(...)`
-2. The RPC updates `images.processing_status = 'queued'` and inserts or reuses a durable `media_jobs` row
-3. Server best-effort dispatches the same payload to the Cloudflare Queue for immediate processing
-4. The Queue consumer processes the image and completes the matching durable job
-5. The scheduled handler claims any jobs missed by immediate dispatch with `claim_media_job(worker_name)`
-6. Worker reads the object from the R2 private bucket (`lb-dev-media-private` / `lb-prod-media-private`)
-7. Worker builds the variant manifest and updates the `images` table with public delivery metadata and status
-8. Worker marks the `media_jobs` row `completed`, retries it with backoff, or marks it `failed`
+## Virtual Variants And Delivery
 
-## Delivery Flow
+1. Successful ingest stores a virtual `images.variants` manifest. Paths such as `images/<upload-id>/v1/detail.jpeg` describe delivery requests, not objects written to R2.
+2. The Next.js loader (`lib/media/cloudflare-loader.ts`) selects a named width and builds a URL under `NEXT_PUBLIC_MEDIA_CDN_URL`.
+3. `static.dev.letsboulder.com` or `static.letsboulder.com` routes the request to the media Worker.
+4. The Worker maps either a virtual variant path or an explicit `?variant=...` request back to the private original and invokes Cloudflare Image Resizing through `fetch(..., { cf: { image: ... } })`.
+5. Cloudflare returns and caches the transformed response. No processed image variant is written to the public R2 bucket by the active pipeline.
 
-1. Browser requests an image
-2. Next.js custom image loader (`lib/media/cloudflare-loader.ts`) constructs a CDN URL from `NEXT_PUBLIC_MEDIA_CDN_URL`
-3. CDN (Cloudflare) serves the image from the R2 public bucket at `static.letsboulder.com` (prod) / `static.dev.letsboulder.com` (staging)
-4. Worker `GET /media/<key>` serves public objects; `GET /origin/<key>` serves private originals with auth
+`GET /origin/<key>` is an internal, secret-protected raw-original endpoint. It is not the public image-delivery path.
 
-## Moderation State
+## Public Map Assets
 
-1. Automated moderation is disabled; uploads explicitly use `moderation_status = 'skipped'` and `moderation_provider = 'disabled'`
-2. Uploads remain private while durable ingest is queued or processing
-3. The Worker publishes media only after successful processing, while preserving the skipped moderation state
-4. GPS data is extracted client-side before upload and persisted on the `images` row
+The Worker's `PUBLIC_BUCKET` binding is distinct from image delivery. Requests under `/maps/*` read objects from the public R2 bucket and support CORS, `HEAD`, and byte ranges for map assets. Do not describe that bucket as the destination for generated image variants.
 
-## Draft Image Flow
+## Client Upload Queue
 
-1. Originals remain in the R2 private bucket and are read with presigned URLs
-2. Successful ingest writes public variants and marks the authoritative `images` row ready before draft publication
-3. Draft storage logic lives in `lib/media/draft-storage.ts`
-4. Draft publication associates already-deliverable media with the crag and submission; it does not process or move the original
+`MediaUploadManagerProvider` owns one in-memory, serial queue for the submission/edit layout in which it is mounted. Files, object URLs, progress, retry state, and polling state are not persisted across a full page reload or provider unmount.
+
+The lifecycle is `QUEUED` -> preprocessing -> presigned upload -> completion/queued ingest -> status polling -> `READY` or `FAILED`. Transfer failures can be retried or deleted; an offline failure pauses the queue, and the browser `online`, page visibility, and page-show events resume eligible work while the provider remains mounted.
+
+Attachment timing differs by target:
+
+- Draft uploads attach to `submission_draft_images` immediately after upload completion has durably queued ingest. Draft attachment therefore does not mean media is ready; draft promotion enforces public deliverability.
+- Crag uploads attach through `/api/crags/<cragId>/images/attach` only after polling reports `READY`.
+
+## Metadata And EXIF
+
+- GPS is extracted client-side before upload and stored in explicit `images` columns when extraction succeeds. The upload contract can also persist a supplied capture date, although the current shared queue initializes that field to null.
+- Non-HEIC files are uploaded without a client re-encode, so their private original bytes may retain EXIF. Private originals must therefore be treated as sensitive.
+- HEIC/HEIF is converted to JPEG in a Web Worker (with a main-thread fallback). The source HEIC is not uploaded, and EXIF retention in the converted JPEG is not guaranteed.
+- Public transformed delivery requests set Cloudflare Image Resizing `metadata: 'none'`, which is intended to strip metadata from delivered variants. This repository does not independently verify every Cloudflare format/cache behavior, so do not treat that setting as proof that every delivered response is EXIF-free.
+
+## Moderation Boundary
+
+Media readiness and content moderation are separate concerns. Automated media moderation is disabled: upload and ingest record `moderation_status = 'skipped'` and `moderation_provider = 'disabled'`. The Worker marks media ready/public only after ingest succeeds; user flags, crag reports, route verification, and the legacy moderation queue are documented in `docs/moderation.md`.
 
 ## HEIC Conversion
 
-1. Client detects HEIC/HEIF files via `lib/heic-converter.ts`
-2. Conversion runs in a Web Worker (`workers/heic.worker.ts`) to avoid blocking the main thread
-3. Converted image is uploaded as JPEG to the R2 private bucket
-4. Original HEIC file is discarded client-side
+`features/media-upload/lib/preprocess-image.ts` detects HEIC/HEIF and uses `lib/heic-converter.ts` plus `workers/heic.worker.ts` to produce the JPEG that is uploaded. Other supported files are uploaded unchanged.
 
-## Environment Variables
+## Configuration And Secret Mapping
 
-| Variable | Scope | Description |
+| App / deployment value | Worker value | Purpose |
 |---|---|---|
-| `R2_S3_ENDPOINT` | Server | Cloudflare R2 S3-compatible endpoint |
-| `R2_PRIVATE_BUCKET` | Server | Private bucket name |
-| `R2_PUBLIC_BUCKET` | Server | Public bucket name |
-| `R2_ACCESS_KEY_ID` | Server | R2 access key |
-| `R2_SECRET_ACCESS_KEY` | Server | R2 secret key |
-| `NEXT_PUBLIC_MEDIA_CDN_URL` | Client + Server | CDN base URL for public media |
-| `CF_MEDIA_WORKER_SECRET` | Worker | Optional auth token for legacy direct worker ingress |
+| `R2_S3_ENDPOINT` | R2 bindings are configured in `wrangler.toml` | App-side S3-compatible presigning and object checks |
+| `R2_PRIVATE_BUCKET` | `ORIGINALS_BUCKET`; mirrored by Worker var `R2_PRIVATE_BUCKET` | Private originals |
+| `R2_PUBLIC_BUCKET` | `PUBLIC_BUCKET`; mirrored by Worker var `R2_PUBLIC_BUCKET` | Public map assets and legacy public objects, not generated variants |
+| `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | None; Worker uses R2 bindings | App-side R2 credentials |
+| `NEXT_PUBLIC_MEDIA_CDN_URL` | Worker custom route / `MEDIA_HOST` | Public media base URL |
+| `CF_MEDIA_WORKER_URL` | Worker custom route | Optional fast-path enqueue endpoint |
+| `CF_MEDIA_WORKER_SECRET` | Worker secret `INGRESS_SECRET` | Bearer secret for `POST /enqueue`; both sides must contain the same value |
+| None in the app runtime | Worker secret `INTERNAL_ORIGIN_SECRET` | `X-Internal-Secret` accepted by `GET /origin/*` |
+| None in the app runtime | Worker secret `SUPABASE_SERVICE_ROLE_KEY` | Worker database access; never public |
+| None in the app runtime | Worker var `R2_ORIGIN_URL` | Origin hostname used by Cloudflare Image Resizing to fetch private originals |
+
+The backfill workflow names its GitHub secrets `CF_MEDIA_WORKER_URL` and `CF_MEDIA_WORKER_SECRET`; the latter is supplied to the Worker's `INGRESS_SECRET` check.

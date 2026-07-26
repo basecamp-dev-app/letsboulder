@@ -250,9 +250,9 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 ### Media Pipeline Tables
 - `images` carries media-pipeline state in addition to legacy `url` storage fields.
 - Key columns: `storage_provider`, `original_bucket`, `original_key`, `asset_version`, `variants`, `visibility`, `processing_status`, `checksum_sha256`, `processed_at`, `latitude`, `longitude`.
-- **Legacy column:** `images.submission_id` is an orphan column with no FK constraint. No `submissions` table exists. It is not referenced by any application code and should be ignored.
+- `images.submission_id` is a logical submission-group identifier used by publication, grouping, editing, deletion, and monitoring code. No `submissions` table or FK constraint backs it, so application and RPC code must preserve its grouping invariants explicitly.
 - `submission_draft_images` mirrors the provider-aware original reference.
-- `submission_draft_routes` stores durable draft route geometry and metadata. Route drawing now persists per image via image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
+- `submission_draft_routes` stores durable draft route geometry and metadata. Explicit Save persists dirty images through image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
 - `media_jobs` is the durable outbox for active media ingest. Upload completion calls `queue_media_ingest_job(...)` to update `images` and insert/reuse a queued job atomically.
 - `claim_media_job(worker_name text)` is used by the Cloudflare Worker scheduled handler to claim pending ingest work. Cloudflare Queue ingress remains as a compatibility path, but the durable outbox is the source of truth for app-owned uploads.
 - Active ingest runs through `media_jobs` + the Worker in `apps/media-worker`; `images` remains the source of truth.
@@ -443,21 +443,30 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 ### Workflow (Golden Path)
 
 ```bash
-# Local — apply migrations and seed
-supabase start
+# Install the lockfile-pinned CLI, rebuild local from migrations, and regenerate types
+npm install
+npx supabase start
+npx supabase db reset
+npx supabase gen types typescript --local > types/database.ts
 
-# Dev — dry-run then push
-supabase db push --linked --dry-run
-supabase db push --linked
+# Verify the schema and affected surfaces
+npm run typecheck
+npm run test:database
+npm --prefix apps/media-worker run check
+bash docs/verify.sh
+```
 
-# Prod — dry-run then push (link to prod project first)
-supabase link --project-ref <prod-ref>
-supabase db push --linked --dry-run
-supabase db push --linked
+Linked database commands are maintainer deployment operations, not part of the local development workflow. Maintainers must select the intended hosted project, inspect the dry-run, and only then push:
+
+```bash
+npx supabase link --project-ref <project-ref>
+npx supabase db push --linked --dry-run
+npx supabase db push --linked
 ```
 
 ### Safety Rules
 - **ALWAYS** run `--dry-run` before `db push`
+- Only maintainers may link to or push migrations to hosted projects; verify the project ref before both commands
 - **NEVER** use `DROP TABLE`, `TRUNCATE`, or `DELETE` in migrations
 - Use `CREATE OR REPLACE` for functions instead of `DROP` + `CREATE`
 - Review all migrations with `git diff supabase/migrations/`
@@ -493,16 +502,18 @@ const supabase = createBrowserClient(
 - Never query `auth.users` directly
 
 ### Type Generation
-After any schema change, regenerate types against prod:
+After any schema change, reset the local database and regenerate types from the migrations applied there:
 ```bash
-supabase link --project-ref glxnbxbkedeogtcivpsx
-supabase gen types typescript --linked > types/database.ts
+npx supabase db reset
+npx supabase gen types typescript --local > types/database.ts
+npm run typecheck
+npm run test:database
 ```
 Always verify affected app types against the new schema before writing UI code.
 
 ### Schema Drift Check
-Periodically verify prod matches what migrations produce:
+Maintainers may periodically verify a deliberately linked hosted project matches what migrations produce:
 ```bash
-supabase db diff --linked
+npx supabase db diff --linked
 ```
 Any diff indicates drift — backfill missing migrations immediately.
