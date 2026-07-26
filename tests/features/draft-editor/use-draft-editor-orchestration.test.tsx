@@ -248,6 +248,7 @@ describe('useDraftEditorOrchestration', () => {
     mockUseEditDraftActions.mockReturnValue({
       savingDraft: false,
       publishingDraft: false,
+      hasPendingChanges: false,
       publishAttempted: false,
       publishValidationMessage: null,
       markMetadataDirty: vi.fn(),

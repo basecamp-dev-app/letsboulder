@@ -186,7 +186,7 @@ describe('DraftIntakeView', () => {
 
     render(<DraftIntakeView />)
 
-    fireEvent.drop(screen.getByText('Drop photos or click to select'), {
+    fireEvent.drop(screen.getByText('Choose or drop topo photos'), {
       dataTransfer: {
         files: [createFile('one.jpg', 'image/jpeg')],
       },

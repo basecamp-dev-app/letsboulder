@@ -16,6 +16,7 @@ import { DraftMetadataPanel } from '@/features/draft-editor/components/DraftMeta
 import { DraftDetailsPanel } from '@/features/draft-editor/components/DraftDetailsPanel'
 import { DraftUploadQueue } from '@/features/media-upload/components/DraftUploadQueue'
 import { resolveDraftClimbType } from '@/features/draft-editor/lib/edit-draft-types'
+import { useUnsavedChangesWarning } from '@/features/editor/hooks/use-unsaved-changes-warning'
 
 
 export default function EditDraftPage() {
@@ -37,6 +38,7 @@ export default function EditDraftPage() {
     actions,
     collaboration,
   } = useDraftEditorOrchestration({ draftId, addToast })
+  useUnsavedChangesWarning(actions.hasPendingChanges)
 
   const {
     addImageInputRef,
@@ -62,6 +64,7 @@ export default function EditDraftPage() {
         <DraftToolbar
           savingDraft={actions.savingDraft}
           publishingDraft={actions.publishingDraft}
+          hasPendingChanges={actions.hasPendingChanges}
           hasConflict={!!conflict}
           isOwner={draft.isOwner}
           draftId={draftId}
@@ -223,7 +226,7 @@ export default function EditDraftPage() {
           onShowCragSelector={actions.onShowCragSelector}
           onSelectCrag={actions.onSelectCrag}
           onCreateCrag={actions.onCreateCrag}
-          onSectorChange={state.setSectorId}
+          onSectorChange={actions.onSectorChange}
           onLocationModeChange={actions.onLocationModeChange}
           onLatitudeChange={actions.onLatitudeChange}
           onLongitudeChange={actions.onLongitudeChange}
@@ -245,11 +248,11 @@ export default function EditDraftPage() {
           onShareOpen={() => collaboration.setShareOpen(true)}
           canEditCredit={true}
           isAnonymous={draft.isAnonymousSubmission}
-          onAnonymousChange={draft.setIsAnonymousSubmission}
+          onAnonymousChange={actions.onAnonymousChange}
           creditPlatform={draft.creditPlatform}
-          onCreditPlatformChange={draft.setCreditPlatform}
+          onCreditPlatformChange={actions.onCreditPlatformChange}
           creditHandle={draft.creditHandle}
-          onCreditHandleChange={draft.setCreditHandle}
+          onCreditHandleChange={actions.onCreditHandleChange}
         />
 
         <CollaboratorDialog

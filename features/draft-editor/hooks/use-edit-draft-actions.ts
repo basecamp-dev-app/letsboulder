@@ -91,18 +91,26 @@ export function useEditDraftActions({
   const router = useRouter()
   const [savingDraft, setSavingDraft] = useState(false)
   const [publishingDraft, setPublishingDraft] = useState(false)
+  const [hasPendingChanges, setHasPendingChanges] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
   const saveInFlightRef = useRef(false)
   const locationSyncInFlightRef = useRef(false)
   const dirtyRoutesRef = useRef<Set<string>>(new Set())
   const hasUnsavedMetadataRef = useRef(false)
+  const dirtyVersionRef = useRef(0)
 
   const markRoutesDirty = useCallback((imageIds: string[]) => {
     for (const imageId of imageIds) dirtyRoutesRef.current.add(imageId)
+    if (imageIds.length > 0) {
+      dirtyVersionRef.current += 1
+      setHasPendingChanges(true)
+    }
   }, [])
 
   const markMetadataDirty = useCallback(() => {
     hasUnsavedMetadataRef.current = true
+    dirtyVersionRef.current += 1
+    setHasPendingChanges(true)
   }, [])
 
   const syncDraftRoutes = useCallback(async (resolvedRoutesByImageId: Record<string, DraftRoute[]>) => {
@@ -214,6 +222,7 @@ export function useEditDraftActions({
     if (locationSyncInFlightRef.current) return false
     if (dirtyRoutesRef.current.size === 0 && !hasUnsavedMetadataRef.current && !options?.overrideCragId && !forceMetadataSave) return true
 
+    const savingDirtyVersion = dirtyVersionRef.current
     saveInFlightRef.current = true
     setSavingDraft(true)
     setLocationSyncInFlight?.(true)
@@ -284,8 +293,11 @@ export function useEditDraftActions({
         metadata: { ...fullV2Metadata },
       } : prev)
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
-      for (const imageId of syncedImageIds) dirtyRoutesRef.current.delete(imageId)
-      hasUnsavedMetadataRef.current = false
+      if (dirtyVersionRef.current === savingDirtyVersion) {
+        for (const imageId of syncedImageIds) dirtyRoutesRef.current.delete(imageId)
+        hasUnsavedMetadataRef.current = false
+        setHasPendingChanges(false)
+      }
       setConflict(null)
       setSuccess('Draft saved. Not published to the map.')
       return true
@@ -415,11 +427,15 @@ export function useEditDraftActions({
     setSuccess(null)
     await loadDraft()
     await loadCollaborators()
+    dirtyRoutesRef.current.clear()
+    hasUnsavedMetadataRef.current = false
+    setHasPendingChanges(false)
   }, [loadCollaborators, loadDraft, setConflict, setSuccess])
 
   return {
     savingDraft,
     publishingDraft,
+    hasPendingChanges,
     publishAttempted,
     publishValidationMessage,
     markMetadataDirty,

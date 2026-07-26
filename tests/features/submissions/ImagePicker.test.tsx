@@ -14,10 +14,9 @@ describe('ImagePicker', () => {
 
     render(<ImagePicker onFilesSelected={onFilesSelected} />)
 
-    const input = document.querySelector('input[type="file"]')
-    expect(input).not.toBeNull()
+    const input = screen.getByLabelText('Choose or drop topo photos')
 
-    await user.upload(input as HTMLInputElement, [
+    await user.upload(input, [
       createFile('one.jpg', 'image/jpeg'),
       createFile('two.heic', 'application/octet-stream'),
       createFile('notes.txt', 'text/plain'),
@@ -35,13 +34,23 @@ describe('ImagePicker', () => {
 
     render(<ImagePicker onFilesSelected={onFilesSelected} />)
 
-    fireEvent.drop(screen.getByText('Drop photos or click to select'), {
+    fireEvent.drop(screen.getByText('Choose or drop topo photos'), {
       dataTransfer: {
         files: [createFile('notes.txt', 'text/plain')],
       },
     })
 
     expect(onFilesSelected).not.toHaveBeenCalled()
-    expect(screen.getByText('Select at least one image file.')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Select at least one image file.')
+  })
+
+  it('exposes the file input to keyboard users', () => {
+    render(<ImagePicker onFilesSelected={vi.fn()} />)
+
+    const input = screen.getByLabelText('Choose or drop topo photos')
+    input.focus()
+
+    expect(input).toHaveFocus()
+    expect(input).toHaveAttribute('type', 'file')
   })
 })

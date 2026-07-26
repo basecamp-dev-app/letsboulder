@@ -18,6 +18,7 @@ import { useDraftEditorActions } from '@/features/draft-editor/hooks/use-draft-e
 import { useDraftEditorDerivedState } from '@/features/draft-editor/hooks/use-draft-editor-derived-state'
 import { useDraftCollaborators } from '@/features/collaboration/hooks/use-draft-collaborators'
 import { useDraftLocationMetadata } from '@/features/submissions/editor/location/use-draft-location-metadata'
+import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { useDraftConflictResolution } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
 import { useDraftRouteEditing } from '@/features/draft-editor/hooks/use-draft-route-editing'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
@@ -322,6 +323,7 @@ export function useDraftEditorOrchestration({
   const {
     savingDraft,
     publishingDraft,
+    hasPendingChanges,
     publishAttempted,
     publishValidationMessage,
     markMetadataDirty,
@@ -579,6 +581,7 @@ export function useDraftEditorOrchestration({
     actions: {
       savingDraft,
       publishingDraft,
+      hasPendingChanges,
       publishAttempted,
       publishValidationMessage,
       saveDraft,
@@ -601,11 +604,33 @@ export function useDraftEditorOrchestration({
       onCreateCrag,
       onLocationModeChange,
       onRouteTypeChange,
-      onLatitudeChange: setLatitude,
-      onLongitudeChange: setLongitude,
+      onLatitudeChange: (value: string) => {
+        setLatitude(value)
+        markMetadataDirty()
+      },
+      onLongitudeChange: (value: string) => {
+        setLongitude(value)
+        markMetadataDirty()
+      },
       onCustomGpsChange,
       onMapOpenChange,
       onSearchQueryChange: setSearchQuery,
+      onSectorChange: (value: string | null) => {
+        setSectorId(value)
+        markMetadataDirty()
+      },
+      onAnonymousChange: (value: boolean) => {
+        setIsAnonymousSubmission(value)
+        markMetadataDirty()
+      },
+      onCreditPlatformChange: (value: SubmissionCreditPlatform) => {
+        setCreditPlatform(value)
+        markMetadataDirty()
+      },
+      onCreditHandleChange: (value: string) => {
+        setCreditHandle(value)
+        markMetadataDirty()
+      },
     },
     collaboration: {
       shareOpen,
