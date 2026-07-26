@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from 'react'
 import { submitGymOwnerApplicationAction } from '@/features/gym-owners/actions'
+import Turnstile from '@/components/ui/Turnstile'
 
 type Facility = 'sport' | 'boulder'
 type Role = 'owner' | 'manager' | 'head_setter'
@@ -28,6 +29,7 @@ export default function GymOwnerApplyForm() {
   const [contactEmail, setContactEmail] = useState('')
   const [role, setRole] = useState<Role>('owner')
   const [additionalComments, setAdditionalComments] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitted, setIsSubmitted] = useState(false)
@@ -44,8 +46,9 @@ export default function GymOwnerApplyForm() {
       && contactPhone.trim().length > 0
       && contactEmail.trim().length > 0
       && role.length > 0
+      && turnstileToken.length > 0
     )
-  }, [address, city, contactEmail, contactPhone, country, facilities.length, gymName, isSubmitting, postcodeOrZip, role])
+  }, [address, city, contactEmail, contactPhone, country, facilities.length, gymName, isSubmitting, postcodeOrZip, role, turnstileToken])
 
   function toggleFacility(value: Facility) {
     setFacilities(current => {
@@ -71,6 +74,11 @@ export default function GymOwnerApplyForm() {
       return
     }
 
+    if (!turnstileToken) {
+      setError('Please complete the verification.')
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const result = await submitGymOwnerApplicationAction({
@@ -84,6 +92,7 @@ export default function GymOwnerApplyForm() {
         contact_email: trimmedEmail,
         role,
         additional_comments: additionalComments.trim() || null,
+        turnstileToken,
       })
 
       if (!result.success) {
@@ -261,6 +270,10 @@ export default function GymOwnerApplyForm() {
             className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           />
         </label>
+
+        <div className="mt-4">
+          <Turnstile onVerify={setTurnstileToken} onError={() => setTurnstileToken('')} onExpired={() => setTurnstileToken('')} />
+        </div>
 
         {error ? (
           <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">

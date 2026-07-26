@@ -17,6 +17,7 @@ const serverOnlyEnvSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   UPSTASH_REDIS_REST_URL: z.string().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+  TURNSTILE_SECRET_KEY: z.string().optional(),
   CF_MEDIA_WORKER_URL: z.string().optional(),
   CF_MEDIA_WORKER_SECRET: z.string().optional(),
   VERCEL_ENV: z.string().optional(),
@@ -53,6 +54,7 @@ function getPlaceholderServerEnv(): ServerEnv {
     RESEND_API_KEY: undefined,
     UPSTASH_REDIS_REST_URL: undefined,
     UPSTASH_REDIS_REST_TOKEN: undefined,
+    TURNSTILE_SECRET_KEY: undefined,
     CF_MEDIA_WORKER_URL: undefined,
     CF_MEDIA_WORKER_SECRET: undefined,
     VERCEL_ENV: undefined,
@@ -92,6 +94,15 @@ export function getServerEnv(): ServerEnv {
 export function validateServerEnv(): void {
   if (process.env.ENABLE_TEST_AUTH_ENDPOINT === 'true' && process.env.VERCEL_ENV === 'production') {
     throw new Error('FATAL: ENABLE_TEST_AUTH_ENDPOINT cannot be enabled in production')
+  }
+  // Require Upstash and Turnstile in production
+  if (process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production') {
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('FATAL: UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN required in production')
+    }
+    if (!process.env.TURNSTILE_SECRET_KEY) {
+      throw new Error('FATAL: TURNSTILE_SECRET_KEY required in production')
+    }
   }
   // Force validation - will throw if invalid
   const parsed = serverOnlyEnvSchema.safeParse(process.env)

@@ -1,10 +1,13 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { notifyGymOwnerApplication } from '@/lib/discord'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
+import { rateLimit } from '@/lib/rate-limit'
+import { verifyTurnstile } from '@/lib/turnstile'
 import { z } from 'zod'
 
 type ApplicationRole = 'owner' | 'manager' | 'head_setter'
@@ -22,6 +25,7 @@ interface GymOwnerApplicationInput {
   role?: string
   additional_comments?: string | null
   website_url?: string
+  turnstileToken?: string
 }
 
 const APPLICATION_ROLES = ['owner', 'manager', 'head_setter'] as const
@@ -45,6 +49,7 @@ const gymOwnerApplicationSchema = z.object({
   role: z.string().trim().refine((value) => APPLICATION_ROLES.includes(value as ApplicationRole), 'Invalid role'),
   additional_comments: z.string().trim().max(2000, 'additional_comments must be 2000 characters or less').nullable().optional(),
   website_url: z.string().trim().optional().default(''),
+  turnstileToken: z.string().min(1, 'Turnstile verification required'),
 })
 
 export async function submitGymOwnerApplicationAction(input: GymOwnerApplicationInput): Promise<ActionResult> {
@@ -61,6 +66,29 @@ export async function submitGymOwnerApplicationAction(input: GymOwnerApplication
         website_url: ['Invalid submission'],
       },
     }
+  }
+
+  // Verify Turnstile
+  const turnstileVerification = await verifyTurnstile(validation.data.turnstileToken)
+  if (!turnstileVerification.success) {
+    return { success: false, error: 'Verification failed', status: 403 }
+  }
+
+  // Rate limit using strict tier
+  const actionHeaders = new Headers()
+  const requestHeaders = await headers()
+  requestHeaders.forEach((value: string, key: string) => {
+    actionHeaders.set(key, value)
+  })
+
+  const actionRequest = new Request('http://localhost/server-action', {
+    method: 'POST',
+    headers: actionHeaders,
+  })
+
+  const rateLimitResult = await rateLimit(actionRequest, 'strict')
+  if (!rateLimitResult.success) {
+    return { success: false, error: 'Too many requests', status: 429 }
   }
 
   const {
