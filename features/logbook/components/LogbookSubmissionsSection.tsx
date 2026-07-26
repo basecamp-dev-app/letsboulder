@@ -103,7 +103,7 @@ export function LogbookSubmissionsSection({
         )}
         {!expanded ? (
           <p className="py-2 text-sm text-gray-500 dark:text-gray-400">
-            Your submissions stay collapsed on entry to keep logbook navigation fast and stable offline.
+            Your submissions stay collapsed on entry to keep logbook navigation fast and responsive.
           </p>
         ) : null}
         {isLoading ? (

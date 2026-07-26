@@ -25,7 +25,6 @@ export default function TopThisPlacePanel({
   const { data, isLoading, isError } = useQuery({
     queryKey: communityKeys.recentSends(slug),
     queryFn: () => fetchRecentSends(slug, 10),
-    meta: { persist: true },
   })
 
   const entries: RecentSendEntry[] = data?.recent_sends ?? []

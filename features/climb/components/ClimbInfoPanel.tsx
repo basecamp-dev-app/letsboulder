@@ -52,8 +52,6 @@ interface ClimbInfoPanelProps {
   totalFaces: number
   isFacesLoading: boolean
   cragPath: string | null
-  isOfflineSaved: boolean
-  offlinePackAvailable: boolean
   attribution: AttributionInfo
   imageLatitude: number | null
   imageLongitude: number | null
@@ -79,7 +77,6 @@ interface ClimbInfoPanelProps {
   gradeSystem: GradeSystem
   gradeOpinionLabels: Record<GradeOpinion, string>
   formatRouteTypeLabel: (value: string) => string
-  onOpenOffline: () => void
   onEditRoute: () => void
   onAddRoutes: () => void
   onOpenFlag: () => void
@@ -106,8 +103,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     totalFaces,
     isFacesLoading,
     cragPath,
-    isOfflineSaved,
-    offlinePackAvailable,
     attribution,
     imageLatitude,
     imageLongitude,
@@ -132,7 +127,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     gradeSystem,
     gradeOpinionLabels,
     formatRouteTypeLabel,
-    onOpenOffline,
     onEditRoute,
     onAddRoutes,
     onOpenFlag,
@@ -176,11 +170,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
               <a href={cragPath} className="inline-flex min-h-11 items-center justify-center px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
                 View crag
               </a>
-            ) : null}
-            {offlinePackAvailable ? (
-              <button onClick={onOpenOffline} className="inline-flex min-h-11 items-center justify-center px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
-                {isOfflineSaved ? 'Saved offline' : 'Save offline'}
-              </button>
             ) : null}
             <button
               onClick={userPresent ? onToggleWantToTry : onGoToAuth}

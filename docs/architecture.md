@@ -34,7 +34,7 @@ This is a maintainer reference for system shape, deployment flow, and module own
 - **Deploy**: Vercel deployment workflow from `main`
 - **Router**: App Router (`app/`) with Server Components and Server Actions
 - **Client State**: feature route editor store (`features/route-editor/store/index.ts`) for route drawing state
-- **Server State**: TanStack React Query with IndexedDB persistence (`lib/query-persistence.ts`)
+- **Server State**: TanStack React Query with selective IndexedDB persistence for crag and climb state (`lib/query-persistence.ts`)
 - **Images**: Custom Cloudflare image loader (`lib/media/cloudflare-loader.ts`)
 
 ### Database (Supabase / PostgreSQL 17)
@@ -61,12 +61,13 @@ This is a maintainer reference for system shape, deployment flow, and module own
 - **Config**: `NEXT_PUBLIC_MAP_STYLE_URL`, defaulting to the OpenFreeMap Liberty style
 - **Fallback**: Pins-only degraded map mode while offline
 
-### Service Worker (PWA / Offline)
+### Network Resilience
 
-- **Location**: `public/sw.js`
-- **Caches**: shell, packs, media, tiles, route assets, transient
-- **Pack System**: Save crags/climbs for offline via `SAVE_CRAG_PACK` / `SAVE_CLIMB_PACK` messages
-- **Offline Pages**: `/offline` (dispatcher), `/offline/library` (Downloads and recovery)
+- **Loading model**: Online-first; browser HTTP caching and in-memory query caching handle normal revisits
+- **Connection fallback**: `/offline` explains that maps and climbing information require a connection and offers retry
+- **Uploads**: Failed uploads remain retryable while the upload manager is mounted
+- **Retirement migration**: `public/sw.js` is temporarily a no-fetch tombstone that removes old letsboulder caches and unregisters itself
+- **Query persistence**: Community queries are session-only; selected crag and climb queries remain persisted while hydration performance is measured
 
 ## Data Flow
 
@@ -126,7 +127,7 @@ The web app is standardizing on feature-first product boundaries.
 | `lib/rate-limit-config.ts` | Rate limiter configuration and helpers (14 tiers) |
 | `lib/media/r2.ts` | Cloudflare R2 S3 operations |
 | `lib/grades.ts` | Grade conversion engine (3A-9C+) |
-| `public/sw.js` | Service worker for offline PWA |
+| `public/sw.js` | Temporary service-worker retirement tombstone |
 | `features/route-editor/components/UnifiedRouteCanvas.tsx` | Canvas-based route drawing |
 | `features/route-editor/store/index.ts` | Zustand store for route selection |
 | `features/submissions/server/submissions/` | Submission API validation and mode executors |

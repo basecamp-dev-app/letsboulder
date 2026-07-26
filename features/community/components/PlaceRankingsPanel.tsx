@@ -51,7 +51,6 @@ export default function PlaceRankingsPanel({
 
       return fetchRankings(slug, sortBy, page, 20)
     },
-    meta: { persist: true },
   })
 
   const entries = data?.leaderboard ?? []

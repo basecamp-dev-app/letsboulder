@@ -74,9 +74,6 @@ export default function ShallowLocalCragPage({ cragId, title, href, subtitle }: 
               <Link href={href}>Retry this crag</Link>
             </Button>
             <Button asChild variant="outline" className="rounded-xl">
-              <Link href="/offline/library">Open available locally</Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-xl">
               <Link href="/">Open live map</Link>
             </Button>
           </div>

@@ -73,7 +73,7 @@ export default function PrivacyPage() {
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">3.3 Data Collected Automatically</h3>
           <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
             <li>IP address, browser type, operating system, referral information, timestamps, and request logs.</li>
-            <li>Session identifiers, cookies, CSRF/security tokens, local storage values, IndexedDB records, and service-worker-managed offline cache data.</li>
+            <li>Session identifiers, cookies, CSRF/security tokens, local storage values, IndexedDB records, and browser cache data.</li>
             <li>Limited analytics, performance, and error-monitoring data from tools we use to understand reliability and usage.</li>
           </ul>
         </section>
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
             <li>To process, display, moderate, and store uploaded climbing content.</li>
             <li>To detect abuse, spam, fraud, unsafe uploads, and policy violations.</li>
             <li>To send transactional emails such as sign-in, welcome, and account deletion confirmations.</li>
-            <li>To improve product reliability, performance, usability, and offline functionality.</li>
+            <li>To improve product reliability, performance, usability, and connection handling.</li>
             <li>To comply with legal obligations and resolve disputes.</li>
           </ul>
         </section>
@@ -130,7 +130,7 @@ export default function PrivacyPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">8. Cookies, Local Storage, and Similar Technologies</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            We use cookies and similar technologies for authentication, session continuity, security, storing preferences, analytics, and performance monitoring. We also use local storage, IndexedDB, and service-worker-managed browser storage for app state, CSRF handling, cached content, and offline features.
+            We use cookies and similar technologies for authentication, session continuity, security, storing preferences, analytics, and performance monitoring. We also use local storage, IndexedDB, and normal browser caching for app state, CSRF handling, and selected cached content.
           </p>
           <p className="text-gray-700 dark:text-gray-300">
             For more detail, see our <Link href="/cookies" className="underline">Cookie Policy</Link>. You can also control many cookies through your browser settings.

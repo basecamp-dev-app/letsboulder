@@ -7,6 +7,15 @@ const PACK_RECORDS_KEY = 'offline-pack-records'
 const CLIMB_MANIFESTS_KEY = 'offline-climb-manifests'
 const CRAG_MANIFESTS_KEY = 'offline-crag-manifests'
 
+export async function clearStoredOfflinePackRecords() {
+  await Promise.all([
+    del(LEGACY_CLIMB_PACKS_KEY),
+    del(PACK_RECORDS_KEY),
+    del(CLIMB_MANIFESTS_KEY),
+    del(CRAG_MANIFESTS_KEY),
+  ])
+}
+
 export interface OfflinePackRecord {
   packId: string
   type: 'climb' | 'crag'

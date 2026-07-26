@@ -283,7 +283,7 @@ export default function LightweightCragMap({
         ) : null}
         {isOffline ? (
           <div className="pointer-events-none absolute bottom-3 left-3 rounded-full border border-white/10 bg-slate-950/70 px-3 py-1.5 text-xs text-white/75 shadow-lg backdrop-blur-md">
-            Offline: showing pins only.
+            Connection lost. Map updates are unavailable.
           </div>
         ) : null}
       </div>

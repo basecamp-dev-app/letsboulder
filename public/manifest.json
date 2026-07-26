@@ -1,9 +1,9 @@
 {
   "name": "letsboulder",
   "short_name": "letsboulder",
-  "description": "Offline climbing maps, topos, and saved climbs.",
+  "description": "Discover climbing areas, explore topos, and log your climbs.",
   "id": "/",
-  "start_url": "/launch",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
