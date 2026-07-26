@@ -2,6 +2,7 @@ import { cache } from 'react'
 import { getDisplayName } from '@/lib/profile-helpers'
 import { buildThumbnailUrl } from '@/lib/media/thumbnail-url'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
+import type { Database } from '@/types/database'
 
 const HOME_CRAG_CARD_IMAGE_WIDTH = 828
 
@@ -28,13 +29,15 @@ interface HomeProfileRow {
   id: string
   username: string | null
   display_name: string | null
-  first_name: string | null
-  last_name: string | null
+  first_name?: string | null
+  last_name?: string | null
   avatar_url: string | null
   is_public: boolean | null
   contributor_score_total: number | null
   accepted_contribution_count: number | null
 }
+
+type TopContributorRow = Database['public']['Functions']['get_top_contributors']['Returns'][number]
 
 interface HomeRecentLogRow {
   id: string
@@ -179,7 +182,7 @@ export const fetchHomepageRecentContributors = cache(async function fetchHomepag
 
   const { data: profiles, error: profileError } = await supabase
     .from('profiles')
-    .select('id, username, display_name, first_name, last_name, avatar_url, is_public')
+    .select('id, username, display_name, avatar_url, is_public')
     .in('id', contributorIds)
     .eq('is_public', true)
 
@@ -220,27 +223,19 @@ export const fetchHomepageTopContributors = cache(async function fetchHomepageTo
   const supabase = getUnauthenticatedClient()
 
   const { data, error } = await supabase
-    .from('profiles')
-    .select('id, username, display_name, first_name, last_name, avatar_url, is_public, contributor_score_total, accepted_contribution_count')
-    .eq('is_public', true)
-    .gt('accepted_contribution_count', 0)
-    .order('contributor_score_total', { ascending: false })
-    .order('accepted_contribution_count', { ascending: false })
-    .limit(6)
+    .rpc('get_top_contributors', { p_limit: 6 })
 
   if (error || !data) {
     return []
   }
 
-  return (data as HomeProfileRow[]).map((profile) => ({
-    userId: profile.id,
-    href: `/logbook/${profile.id}`,
+  return (data as TopContributorRow[]).map((profile) => ({
+    userId: profile.user_id,
+    href: `/logbook/${profile.user_id}`,
     displayName: getDisplayName({
-      id: profile.id,
+      id: profile.user_id,
       username: profile.username,
       display_name: profile.display_name,
-      first_name: profile.first_name,
-      last_name: profile.last_name,
       avatar_url: profile.avatar_url,
       is_public: true,
     }),
@@ -273,7 +268,7 @@ export const fetchHomepageRecentClimbLogs = cache(async function fetchHomepageRe
 
   const { data: profileRows, error: profileError } = await supabase
     .from('profiles')
-    .select('id, username, display_name, first_name, last_name, avatar_url, is_public')
+    .select('id, username, display_name, avatar_url, is_public')
     .in('id', userIds)
     .eq('is_public', true)
 

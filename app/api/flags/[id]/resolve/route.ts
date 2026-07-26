@@ -19,7 +19,7 @@ export async function POST(
     return NextResponse.json({ error: 'Flag ID required' }, { status: 400 })
   }
 
-  const adminError = await requireAdminFromSupabase(supabase, userId)
+  const adminError = await requireAdminFromSupabase(supabase)
   if (adminError) return adminError
 
   return resolveFlag(request, supabase, userId, flagId)

@@ -22,13 +22,15 @@ The current `/submit` path creates a private, image-first draft and publishes it
 - Metadata patches, image append/delete, and image ordering use optimistic concurrency via `submission_drafts.updated_at`. A collaborator conflict produces `draft_conflict`; a same-user metadata conflict is retried once, while a different-user conflict asks the editor to reload.
 - Route bulk sync is image-scoped last-write-wins and has no `expected_updated_at`. The explicit save then crosses the draft-level metadata conflict boundary. Upload attachment has its own one-retry conflict loop.
 - Only `submission_drafts.user_id` may publish or delete the draft. Collaborators may edit but cannot publish.
-- Published submissions use authenticated wiki editing governed by `user_can_wiki_edit_submission`. Successful non-owner edits are attributed in `submission_contributors` and logged in `submission_edit_history`; route deletion remains disabled.
+- Published submissions use authenticated wiki editing governed by `user_can_wiki_edit_submission`. The helper requires its user argument to equal `auth.uid()`, and both `log_submission_edit` overloads reject authenticated attempts to attribute history to another user. Successful non-owner edits are attributed in `submission_contributors` and logged in `submission_edit_history`; route deletion remains disabled.
 
 ## Publication
 
 [`publishDraft`](../features/draft-editor/hooks/use-edit-draft-actions.ts) requires finished uploads, a crag, and valid location; it flushes location, forces an explicit save, then calls `POST /api/submissions/drafts/[id]/publish`. [`promoteDraftToSubmission`](../features/submissions/server/drafts/draft-promote.ts) repeats owner/readiness/location checks and invokes `promote_draft_to_submission` atomically.
 
 Publication is direct: there is no pending-review step. The RPC reuses the processed image rows, creates `climbs` with `status = 'approved'`, creates route lines for durable draft routes, and permits image-only submissions. The draft becomes `submitted` and stores its published IDs for idempotent retries.
+
+Contribution scoring is a server-only post-publication/edit effect. The server reloads authoritative image, edit-history, correction, or verification rows to derive the beneficiary and fixed score before invoking service-only contribution and missing-topo bounty writers; request-supplied identities and score context are not trusted.
 
 `sectorId` is currently selected by [`SectorSelector`](../features/submissions/components/SectorSelector.tsx) and saved under draft metadata by [`useEditDraftActions`](../features/draft-editor/hooks/use-edit-draft-actions.ts), but the current promotion RPC does not copy it to `climbs.sector_id` or `crag_images.sector_id`. Do not rely on sector selection surviving publication until that gap is fixed.
 

@@ -8,6 +8,7 @@ import type { Database } from '@/types/database'
 import type { Submission } from '@/types/submissions'
 import { fetchSavedClimbs, fetchSavedCrags } from '@/features/saved/lib/queries'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
+import { getOwnProfile } from '@/lib/profile-rpc'
 
 export interface LogbookProfile {
   id: string
@@ -197,11 +198,7 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
   const supabase = createClient()
 
   const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }, { data: progressLogsData, error: progressLogsError }, { data: lifetimeStatsData, error: lifetimeStatsError }] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade, contributor_score_total, accepted_contribution_count, contributor_tier')
-      .eq('id', userId)
-      .single(),
+    getOwnProfile(supabase),
     supabase
       .from('user_climbs')
       .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')

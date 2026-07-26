@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { validateAndNormalizeVideoUrl } from '@/lib/video-beta'
 import { parseWithSchema } from '@/lib/api-validation'
+import { getOwnProfile } from '@/lib/profile-rpc'
 
 const MAX_TITLE_LENGTH = 120
 const MAX_NOTES_LENGTH = 400
@@ -122,11 +123,7 @@ export async function POST(
       return NextResponse.json({ error: 'Climb not found' }, { status: 404 })
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('gender, height_cm, reach_cm')
-      .eq('id', user.id)
-      .maybeSingle()
+    const { data: profile } = await getOwnProfile(supabase)
 
     const { data: inserted, error: insertError } = await supabase
       .from('climb_video_betas')

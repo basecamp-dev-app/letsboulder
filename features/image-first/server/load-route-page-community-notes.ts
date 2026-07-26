@@ -45,7 +45,7 @@ export async function loadRoutePageCommunityNotes(effectiveClimbId: string): Pro
   const userIds = Array.from(new Set(meaningfulRows.map((row) => row.user_id)))
   const { data: profilesData } = await supabase
     .from('profiles')
-    .select('id, username, display_name, first_name, last_name, avatar_url, is_public')
+    .select('id, username, display_name, avatar_url, is_public')
     .in('id', userIds)
 
   const profileMap = new Map(((profilesData || []) as ProfileRow[]).map((profile) => [profile.id, profile]))

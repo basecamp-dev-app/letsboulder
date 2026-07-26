@@ -88,11 +88,7 @@ export async function POST(
     const isVerified = (verificationCount || 0) >= 3
 
     if (isVerified && typeof verificationRow?.id === 'string') {
-      await recordVerificationAcceptedEvent(supabase, {
-        userId,
-        verificationId: verificationRow.id,
-        climbId,
-      })
+      await recordVerificationAcceptedEvent(verificationRow.id)
     }
 
     return NextResponse.json({

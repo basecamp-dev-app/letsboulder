@@ -9,6 +9,7 @@ import { startServerTiming, timeServerStep } from '@/lib/performance/server-timi
 import type { LogbookClimb, LogbookLifetimeStats, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 import { fetchSavedClimbs, fetchSavedCrags } from '@/features/saved/lib/queries'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
+import { getOwnProfile } from '@/lib/profile-rpc'
 
 interface RawLogbookRow {
   id: string
@@ -174,11 +175,7 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
   const timing = startServerTiming('fetchServerLogbookLogsAndProfile')
 
   const profileRes = await timeServerStep('fetchServerLogbookLogsAndProfile', 'profile', async () =>
-    supabase
-      .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade, contributor_score_total, accepted_contribution_count, contributor_tier')
-      .eq('id', userId)
-      .single()
+    getOwnProfile(supabase)
   )
   const profileData = profileRes.data
   const profileError = profileRes.error

@@ -2,8 +2,8 @@ export interface ProfileRow {
   id: string
   username: string | null
   display_name: string | null
-  first_name: string | null
-  last_name: string | null
+  first_name?: string | null
+  last_name?: string | null
   avatar_url: string | null
   is_public: boolean
 }

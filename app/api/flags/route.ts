@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       return rateLimitResponse
     }
 
-    const adminError = await requireAdminFromSupabase(supabase, userId)
+    const adminError = await requireAdminFromSupabase(supabase)
     if (adminError) return adminError
 
     return listFlags(supabase, status, limit, offset)

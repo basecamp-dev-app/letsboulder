@@ -55,7 +55,7 @@ export async function GET(
 
     const { data: profiles, error: profileError } = await supabase
       .from('profiles')
-      .select('id, username, display_name, first_name, last_name, avatar_url, is_public')
+      .select('id, username, display_name, avatar_url, is_public')
       .in('id', userIds)
       .eq('is_public', true)
 

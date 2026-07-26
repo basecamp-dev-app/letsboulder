@@ -3053,6 +3053,59 @@ export type Database = {
           total_tries: number
         }[]
       }
+      get_own_profile: {
+        Args: never
+        Returns: {
+          accepted_contribution_count: number
+          avatar_url: string | null
+          bio: string | null
+          boulder_system: string | null
+          contribution_credit_handle: string | null
+          contribution_credit_platform: string | null
+          contributor_score_total: number
+          contributor_tier: string | null
+          country: string | null
+          country_code: string | null
+          created_at: string | null
+          default_location: string | null
+          default_location_lat: number | null
+          default_location_lng: number | null
+          default_location_name: string | null
+          default_location_zoom: number | null
+          display_name: string | null
+          email: string | null
+          first_name: string | null
+          gender: string | null
+          grade_system: string | null
+          height_cm: number | null
+          highest_grade: string | null
+          id: string
+          is_admin: boolean | null
+          is_public: boolean | null
+          last_name: string | null
+          name: string | null
+          name_updated_at: string | null
+          preferred_grade_system: string | null
+          preferred_style: string | null
+          reach_cm: number | null
+          route_system: string | null
+          theme_preference: string | null
+          tos_accepted_at: string | null
+          total_climbs: number | null
+          total_points: number | null
+          trad_system: string | null
+          units: string | null
+          updated_at: string | null
+          username: string | null
+          welcome_email_sent_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_place_contributor_leaderboard: {
         Args: { p_limit?: number; p_page?: number; p_place_id: string }
         Returns: {
@@ -3123,6 +3176,17 @@ export type Database = {
           rating_count: number
         }[]
       }
+      get_top_contributors: {
+        Args: { p_limit?: number }
+        Returns: {
+          accepted_contribution_count: number
+          avatar_url: string
+          contributor_score_total: number
+          display_name: string
+          user_id: string
+          username: string
+        }[]
+      }
       get_total_climbs_count: { Args: never; Returns: number }
       get_total_logs_count: { Args: never; Returns: number }
       get_total_sends_count: { Args: never; Returns: number }
@@ -3133,6 +3197,23 @@ export type Database = {
       get_user_count: { Args: never; Returns: number }
       get_verification_count: { Args: { climb_id: string }; Returns: number }
       get_verified_routes_count: { Args: never; Returns: number }
+      get_visible_profile: {
+        Args: { p_user_id: string }
+        Returns: {
+          accepted_contribution_count: number
+          avatar_url: string
+          bio: string
+          contributor_score_total: number
+          contributor_tier: string
+          display_name: string
+          highest_grade: string
+          id: string
+          is_public: boolean
+          total_climbs: number
+          total_points: number
+          username: string
+        }[]
+      }
       image_has_content_references: {
         Args: { p_image_id: string }
         Returns: boolean
@@ -3178,6 +3259,7 @@ export type Database = {
         }
       }
       is_climb_verified: { Args: { climb_id: string }; Returns: boolean }
+      is_current_user_admin: { Args: never; Returns: boolean }
       is_profile_public: { Args: { user_id: string }; Returns: boolean }
       is_submission_collaborator: {
         Args: { p_image_id: string; p_user_id: string }

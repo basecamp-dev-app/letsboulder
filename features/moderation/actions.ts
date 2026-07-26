@@ -7,6 +7,7 @@ import { notifyNewFlag } from '@/lib/discord'
 import { createFlag } from '@/features/moderation/lib/create-flag'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
+import { isCurrentUserAdmin } from '@/lib/profile-rpc'
 import { z } from 'zod'
 
 const VALID_FLAG_TYPES = ['location', 'route_line', 'route_name', 'image_quality', 'wrong_crag', 'other']
@@ -123,8 +124,8 @@ export async function submitCragFlagAction(cragId: string): Promise<ActionResult
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
 
   const supabase = await getServerClient()
-  const { data: profile, error: profileError } = await supabase.from('profiles').select('is_admin').eq('id', auth.data.userId).single()
-  if (profileError || !profile?.is_admin) return { success: false, error: 'Admin access required to flag crags', status: 403 }
+  const { data: isAdmin, error: profileError } = await isCurrentUserAdmin(supabase)
+  if (profileError || !isAdmin) return { success: false, error: 'Admin access required to flag crags', status: 403 }
 
   const { data: crag, error: cragError } = await supabase.from('crags').select('id, name').eq('id', validation.data.cragId).single()
   if (cragError || !crag) return { success: false, error: 'Crag not found', status: 404 }

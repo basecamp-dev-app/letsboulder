@@ -111,7 +111,7 @@ export async function enrichPlaceClimbsWithProfiles(
 
   const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
-    .select('id, username, display_name, first_name, last_name, avatar_url, is_public')
+    .select('id, username, display_name, avatar_url, is_public')
     .eq('is_public', true)
     .in('id', userIds)
 

@@ -8,7 +8,7 @@
 4. The client calls `POST /api/media/upload-sessions/<imageId>/complete`. The handler verifies ownership and that the private object exists.
 5. `queue_media_ingest_job(...)` atomically changes the image to queued and inserts or reuses a durable `media_jobs` row. This database outbox is the source of truth.
 6. If `CF_MEDIA_WORKER_URL` and `CF_MEDIA_WORKER_SECRET` are configured, completion also best-effort calls Worker `POST /enqueue`. That Cloudflare Queue path reduces latency but is optional; its failure does not invalidate the durable job.
-7. The Worker queue consumer handles the fast path. Its scheduled handler also calls `claim_media_job(worker_name)` to recover and process durable work, with retry/backoff and terminal failure recorded in `media_jobs`.
+7. The Worker queue consumer handles the fast path. Its scheduled handler uses its service-role client to call service-only `claim_media_job(worker_name)` and recover durable work, with retry/backoff and terminal failure recorded in `media_jobs`.
 
 Originals remain in `lb-dev-media-private` or `lb-prod-media-private`. Ingest currently validates the object and publishes delivery metadata; it does not copy the original or pre-render image files.
 
@@ -47,6 +47,8 @@ Attachment timing differs by target:
 ## Moderation Boundary
 
 Media readiness and content moderation are separate concerns. Automated media moderation is disabled: upload and ingest record `moderation_status = 'skipped'` and `moderation_provider = 'disabled'`. The Worker marks media ready/public only after ingest succeeds; user flags, crag reports, route verification, and the legacy moderation queue are documented in `docs/moderation.md`.
+
+Media maintenance crosses private storage and job boundaries. `claim_media_job(...)` and `cleanup_orphan_route_uploads(...)` are `SECURITY DEFINER` RPCs executable only by `service_role` and also reject non-service runtime roles; they are never browser/authenticated-user APIs.
 
 ## HEIC Conversion
 

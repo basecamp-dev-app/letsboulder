@@ -14,5 +14,5 @@ export async function POST(request: NextRequest) {
   })
   if (!middlewareResult.ok) return middlewareResult.response
 
-  return createPlace(request, middlewareResult.supabase, middlewareResult.userId)
+  return createPlace(request, middlewareResult.supabase)
 }

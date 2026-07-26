@@ -21,7 +21,7 @@ export async function PUT(
     return NextResponse.json({ error: 'Crag ID required' }, { status: 400 })
   }
 
-  const adminError = await requireAdminFromSupabase(supabase, user.id)
+  const adminError = await requireAdminFromSupabase(supabase)
   if (adminError) return adminError
 
   return updateCrag(request, supabase, user.id, cragId)
@@ -45,7 +45,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Crag ID required' }, { status: 400 })
   }
 
-  const adminError = await requireAdminFromSupabase(supabase, user.id)
+  const adminError = await requireAdminFromSupabase(supabase)
   if (adminError) return adminError
 
   return deleteCrag(supabase, user.id, cragId)

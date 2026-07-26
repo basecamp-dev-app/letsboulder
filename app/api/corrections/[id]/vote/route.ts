@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getUnauthenticatedClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
@@ -200,16 +200,17 @@ export async function POST(
 }
 
 async function applyCorrection(correctionId: string, climbId: string) {
-  const supabase = getUnauthenticatedClient()
+  const supabase = getAdminClientWithAudit('apply community-approved climb correction')
 
   // Get correction details
-  const { data: correction } = await supabase
+  const { data: correction, error: correctionError } = await supabase
     .from('climb_corrections')
-    .select('correction_type, suggested_value, user_id')
+    .select('correction_type, suggested_value')
     .eq('id', correctionId)
     .single()
 
-  if (!correction) return
+  if (correctionError) throw correctionError
+  if (!correction) throw new Error('Approved correction not found')
 
   // Apply correction based on type
   const updateData: Record<string, unknown> = {}
@@ -229,34 +230,31 @@ async function applyCorrection(correctionId: string, climbId: string) {
   }
 
   if (Object.keys(updateData).length > 0) {
-    await supabase
+    const { error } = await supabase
       .from('climbs')
       .update(updateData)
       .eq('id', climbId)
+    if (error) throw error
   }
 
   // Mark correction as approved and reset climb verification
-  await supabase
+  const { error: approvalError } = await supabase
     .from('climb_corrections')
     .update({
       status: 'approved',
       resolved_at: new Date().toISOString()
     })
     .eq('id', correctionId)
+  if (approvalError) throw approvalError
 
   // Reset verification status (needs re-verification after correction)
-  await supabase
+  const { error: resetError } = await supabase
     .from('climbs')
     .update({ status: 'pending' })
     .eq('id', climbId)
+  if (resetError) throw resetError
 
-  if (typeof correction.user_id === 'string') {
-    await recordCorrectionApprovedEvent(supabase, {
-      userId: correction.user_id,
-      correctionId,
-      climbId,
-    })
-  }
+  await recordCorrectionApprovedEvent(correctionId)
 }
 
 export async function DELETE(

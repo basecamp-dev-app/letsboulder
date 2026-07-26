@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 
 import type { NextRequest } from 'next/server'
+import { isCurrentUserAdmin } from '@/lib/profile-rpc'
 
 type RequestSupabaseClient = ReturnType<typeof getServerClientFromRequest>
 
@@ -30,13 +31,9 @@ export async function requireAdmin(request: NextRequest): Promise<AdminRequestRe
     }
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
+  const { data: isAdmin, error: profileError } = await isCurrentUserAdmin(supabase)
 
-  if (profileError || !profile?.is_admin) {
+  if (profileError || !isAdmin) {
     return {
       error: NextResponse.json({ error: 'Admin access required' }, { status: 403 }),
       context: null,
@@ -53,16 +50,11 @@ export async function requireAdmin(request: NextRequest): Promise<AdminRequestRe
 }
 
 export async function requireAdminFromSupabase(
-  supabase: RequestSupabaseClient,
-  userId: string
+  supabase: RequestSupabaseClient
 ): Promise<NextResponse | null> {
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', userId)
-    .single()
+  const { data: isAdmin, error: profileError } = await isCurrentUserAdmin(supabase)
 
-  if (profileError || !profile?.is_admin) {
+  if (profileError || !isAdmin) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 

@@ -48,14 +48,12 @@ function SetNameContent() {
       return
     }
 
-    const { error: upsertError } = await supabase
+    const { error: updateError } = await supabase
       .from('profiles')
-      .upsert({
-        id: user.id,
-        display_name: displayName.trim(),
-      })
+      .update({ display_name: displayName.trim() })
+      .eq('id', user.id)
 
-    if (upsertError) {
+    if (updateError) {
       setError('Failed to save your name. Please try again.')
       setLoading(false)
     } else {
