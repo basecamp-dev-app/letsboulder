@@ -10,6 +10,7 @@ The Playwright authenticated suite uses a test-only endpoint at `/api/test/[segm
 - **Headers**: `x-test-auth: 1` required; `x-internal-test-key` required for non-localhost.
 - **Env gate**: `ENABLE_TEST_AUTH_ENDPOINT=true` must be set or the endpoint returns 404.
 - **Segment gate**: URL segment must match `TEST_AUTH_PATH_SEGMENT` env var.
+- **Production gate**: `VERCEL_ENV=production` always returns 404, even if the endpoint is enabled accidentally.
 
 ## Required Environment Scoping
 
@@ -27,4 +28,5 @@ The Playwright authenticated suite uses a test-only endpoint at `/api/test/[segm
 
 - Public and authenticated Playwright projects run separately.
 - Authenticated runs require `TEST_API_KEY`, `TEST_USER_ID`, `TEST_USER_PASSWORD`, and `TEST_AUTH_PATH_SEGMENT` in CI and on the target app environment.
-- The route handler is excluded from production builds via webpack replacement and blocked by middleware.
+- Builds omit the real handler through a Turbopack alias unless `ENABLE_TEST_AUTH_ENDPOINT=true` is explicitly set at build time.
+- The proxy and route handler both block the endpoint when `VERCEL_ENV=production`.

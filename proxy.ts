@@ -91,6 +91,17 @@ export default async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  if (pathname.startsWith('/api/test/')) {
+    if (
+      process.env.VERCEL_ENV === 'production'
+      || process.env.ENABLE_TEST_AUTH_ENDPOINT !== 'true'
+    ) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
+    return response
+  }
+
   if (shouldSkipMiddleware(pathname, request.method)) {
     return response
   }

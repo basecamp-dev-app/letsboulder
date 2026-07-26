@@ -1,9 +1,6 @@
 {
-  "version": "72c1d140954f",
+  "version": "11642301ed70",
   "assets": [
-    "/_next/static/6i8Cdq4nU-NlnIRjFekSe/_buildManifest.js",
-    "/_next/static/6i8Cdq4nU-NlnIRjFekSe/_clientMiddlewareManifest.js",
-    "/_next/static/6i8Cdq4nU-NlnIRjFekSe/_ssgManifest.js",
     "/_next/static/chunks/0-b2nvka098du.js",
     "/_next/static/chunks/0-i0d7yqc7p1b.css",
     "/_next/static/chunks/0-pb1xqm_drb2.js",
@@ -117,6 +114,9 @@
     "/_next/static/media/bbc41e54d2fcbd21-s.0k4k9394f2q-k.woff2",
     "/_next/static/media/caa3a2e1cccd8315-s.p.09~u27dqhyhd6.woff2",
     "/_next/static/media/fef07dbb0973bf53-s.12tyk43_3sh9u.woff2",
-    "/_next/static/media/heic.worker.02_jz563vvbcu.ts"
+    "/_next/static/media/heic.worker.02_jz563vvbcu.ts",
+    "/_next/static/pz73f0lSKtcPexaf8aghA/_buildManifest.js",
+    "/_next/static/pz73f0lSKtcPexaf8aghA/_clientMiddlewareManifest.js",
+    "/_next/static/pz73f0lSKtcPexaf8aghA/_ssgManifest.js"
   ]
 }

@@ -57,6 +57,17 @@ describe('/api/test/[segment]/auth', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Not found' })
   })
 
+  test('returns 404 in production even when enabled', async () => {
+    process.env.VERCEL_ENV = 'production'
+    process.env.TEST_AUTH_PATH_SEGMENT = TEST_SEGMENT
+    process.env.ENABLE_TEST_AUTH_ENDPOINT = 'true'
+
+    const response = await POST(createRequest({ api_key: 'key', user_id: 'u1' }), createParams())
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({ error: 'Not found' })
+  })
+
   test('returns 404 when ENABLE_TEST_AUTH_ENDPOINT is not set', async () => {
     process.env.TEST_AUTH_PATH_SEGMENT = TEST_SEGMENT
     delete process.env.ENABLE_TEST_AUTH_ENDPOINT
