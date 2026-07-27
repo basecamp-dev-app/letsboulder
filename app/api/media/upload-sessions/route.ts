@@ -5,20 +5,20 @@ import { createErrorResponse, reportError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { getMediaStorageConfig } from '@/lib/media/config'
 import { createPrivateUploadUrl } from '@/lib/media/r2'
-import { buildOriginalObjectKey, normalizeUploadSessionRequest } from '@/lib/media/upload-session'
+import { buildStagingObjectKey, normalizeUploadSessionRequest } from '@/lib/media/upload-session'
 import type { MediaUploadSessionResponse } from '@/lib/media/types'
 import { parseWithSchema } from '@/lib/api-validation'
 
 const uploadSessionSchema = z.object({
   purpose: z.enum(['submission_image', 'draft_image', 'crag_image']),
-  contentType: z.string().min(1),
-  byteSize: z.number(),
-  width: z.number(),
-  height: z.number(),
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic']),
+  byteSize: z.number().int().positive().max(20 * 1024 * 1024),
+  width: z.number().int().positive().max(20_000),
+  height: z.number().int().positive().max(20_000),
   captureDate: z.string().nullable().optional(),
   gpsData: z.object({
-    latitude: z.number(),
-    longitude: z.number(),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
   }).nullable().optional(),
   draftId: z.string().optional(),
   cragId: z.string().optional(),
@@ -51,9 +51,9 @@ export async function POST(request: NextRequest) {
     }
 
     const imageId = randomUUID()
-    const objectKey = buildOriginalObjectKey(imageId, payload)
+    const stagingKey = buildStagingObjectKey(imageId, payload)
     const storage = getMediaStorageConfig()
-    const privateUrl = `private://${storage.privateBucket}/${objectKey}`
+    const privateUrl = `private://${storage.privateBucket}/${stagingKey}`
 
     const insertPayload = {
       id: imageId,
@@ -65,10 +65,10 @@ export async function POST(request: NextRequest) {
       longitude: payload.gpsData?.longitude ?? null,
       capture_date: typeof payload.captureDate === 'string' && payload.captureDate ? payload.captureDate : null,
       storage_bucket: storage.privateBucket,
-      storage_path: objectKey,
+      storage_path: stagingKey,
       storage_provider: 'r2',
       original_bucket: storage.privateBucket,
-      original_key: objectKey,
+      original_key: stagingKey,
       original_mime_type: payload.contentType,
       original_bytes: payload.byteSize,
       original_width: payload.width,
@@ -95,16 +95,16 @@ export async function POST(request: NextRequest) {
           hint: insertError.hint,
           userId: user.id,
           imageId,
-          objectKey,
+          objectKey: stagingKey,
         },
       })
       return createErrorResponse(insertError, 'Failed to create image upload session')
     }
 
-    const uploadTarget = await createPrivateUploadUrl(objectKey, payload.contentType)
+    const uploadTarget = await createPrivateUploadUrl(stagingKey, payload.contentType)
     const response: MediaUploadSessionResponse = {
       imageId,
-      objectKey,
+      objectKey: stagingKey,
       bucket: uploadTarget.bucket,
       uploadUrl: uploadTarget.uploadUrl,
       uploadMethod: 'PUT',

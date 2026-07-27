@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { serverEnv } from '@/lib/env.server'
 import { getMediaStorageConfig } from '@/lib/media/config'
@@ -48,14 +48,65 @@ export async function createPrivateUploadUrl(objectKey: string, contentType: str
   }
 }
 
-export async function ensurePrivateObjectExists(objectKey: string) {
+export async function headPrivateObject(objectKey: string): Promise<{
+  contentLength: number
+  contentType: string
+  etag: string
+}> {
   const storage = getMediaStorageConfig()
   const client = createR2Client()
 
-  await client.send(new HeadObjectCommand({
+  const res = await client.send(new HeadObjectCommand({
     Bucket: storage.privateBucket,
     Key: objectKey,
   }))
+
+  return {
+    contentLength: res.ContentLength ?? 0,
+    contentType: res.ContentType ?? '',
+    etag: res.ETag ?? '',
+  }
+}
+
+export async function getPrivateObjectStream(objectKey: string): Promise<ReadableStream<Uint8Array>> {
+  const storage = getMediaStorageConfig()
+  const client = createR2Client()
+
+  const res = await client.send(new GetObjectCommand({
+    Bucket: storage.privateBucket,
+    Key: objectKey,
+  }))
+
+  if (!res.Body) {
+    throw new Error('Object body is empty')
+  }
+
+  return res.Body.transformToWebStream() as ReadableStream<Uint8Array>
+}
+
+export async function copyPrivateObject(sourceKey: string, destKey: string): Promise<void> {
+  const storage = getMediaStorageConfig()
+  const client = createR2Client()
+
+  await client.send(new CopyObjectCommand({
+    Bucket: storage.privateBucket,
+    CopySource: `${storage.privateBucket}/${sourceKey}`,
+    Key: destKey,
+  }))
+}
+
+export async function deletePrivateObject(objectKey: string): Promise<void> {
+  const storage = getMediaStorageConfig()
+  const client = createR2Client()
+
+  await client.send(new DeleteObjectCommand({
+    Bucket: storage.privateBucket,
+    Key: objectKey,
+  }))
+}
+
+export async function ensurePrivateObjectExists(objectKey: string) {
+  await headPrivateObject(objectKey)
 }
 
 export async function createPrivateReadUrl(bucket: string, objectKey: string, expiresInSeconds = READ_URL_TTL_SECONDS) {
