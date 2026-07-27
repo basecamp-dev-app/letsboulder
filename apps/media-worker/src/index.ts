@@ -202,7 +202,8 @@ async function processJob(job: MediaIngestJobPayload, env: Env) {
   }
 
   await setImageProcessing(supabase, image.id)
-  await finalizeImage(supabase, env, image, job.originalKey)
+  // Use authoritative image row's original_key for manifest, not job payload
+  await finalizeImage(supabase, env, image, image.original_key)
 }
 
 async function claimMediaJob(supabase: ReturnType<typeof createSupabaseAdminClient>, workerName: string) {

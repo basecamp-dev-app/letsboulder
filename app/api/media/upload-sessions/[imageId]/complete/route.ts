@@ -4,9 +4,7 @@ import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { toMediaStatusResponse } from '@/lib/media/media-status'
 import { ensurePrivateObjectExists } from '@/lib/media/r2'
-import { enqueueMediaWorkerFastPath } from '@/lib/media/worker-enqueue'
 import { parseWithSchema } from '@/lib/api-validation'
-import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import type { Database } from '@/types/database'
 
 type ImageRow = Pick<Database['public']['Tables']['images']['Row'],
@@ -76,36 +74,10 @@ export async function POST(
       return createErrorResponse(queueError, 'Failed to queue image for ingest')
     }
 
-    const admin = getAdminClientWithAudit('Record skipped media moderation after ingest queueing')
-    const { error: moderationStateError } = await admin
-      .from('images')
-      .update({
-        moderation_status: 'skipped',
-        moderation_provider: 'disabled',
-        moderation_error: null,
-        visibility: 'private',
-        status: 'pending',
-      })
-      .eq('id', image.id)
-
-    if (moderationStateError) {
-      return createErrorResponse(moderationStateError, 'Failed to record skipped moderation state')
-    }
-
-    await enqueueMediaWorkerFastPath({
-      imageId: image.id,
-      originalBucket: image.original_bucket,
-      originalKey: image.original_key,
-      storageProvider: 'r2',
-      purpose,
-      triggeredByUserId: user.id,
-      trigger: 'upload',
-    })
-
     return NextResponse.json(toMediaStatusResponse({
       id: image.id,
       processing_status: 'queued',
-      moderation_status: 'skipped',
+      moderation_status: 'pending',
       visibility: 'private',
       status: 'pending',
     }, job))
