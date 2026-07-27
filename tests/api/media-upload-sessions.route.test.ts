@@ -41,12 +41,28 @@ vi.mock('@/lib/media/r2', () => ({
     uploadHeaders: { 'content-type': 'image/jpeg' },
     expiresInSeconds: 900,
   })),
-  deleteObject: vi.fn(async () => undefined),
+  headPrivateObject: vi.fn(async () => ({
+    contentLength: 1024,
+    contentType: 'image/jpeg',
+    etag: 'abc123',
+  })),
+  getPrivateObjectStream: vi.fn(async () => new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array([0xff, 0xd8, 0xff])) // JPEG magic bytes
+      controller.close()
+    }
+  })),
+  copyPrivateObject: vi.fn(async () => undefined),
+  deletePrivateObject: vi.fn(async () => undefined),
   ensurePrivateObjectExists: vi.fn(async () => undefined),
+  deleteObject: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/lib/media/upload-session', () => ({
   buildOriginalObjectKey: vi.fn(() => 'originals/image-123.jpg'),
+  buildStagingObjectKey: vi.fn(() => 'images/staging/image-123/abc123/original.jpg'),
+  buildImmutableObjectKey: vi.fn(() => 'images/assets/image-123/sha256hash/original.jpg'),
+  inferExtensionFromMime: vi.fn(() => 'jpg'),
   normalizeUploadSessionRequest: vi.fn((body: unknown) => body),
 }))
 
@@ -54,7 +70,7 @@ import { POST as createUploadSession } from '@/app/api/media/upload-sessions/rou
 import { DELETE as deleteUploadSession, GET as getUploadSession } from '@/app/api/media/upload-sessions/[imageId]/route'
 import { POST as completeUploadSession } from '@/app/api/media/upload-sessions/[imageId]/complete/route'
 import { withApiMiddleware } from '@/lib/csrf-server'
-import { createPrivateUploadUrl, deleteObject, ensurePrivateObjectExists } from '@/lib/media/r2'
+import { createPrivateUploadUrl, headPrivateObject, copyPrivateObject, deletePrivateObject, deleteObject } from '@/lib/media/r2'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 
 type MiddlewareResult = Awaited<ReturnType<typeof withApiMiddleware>>
@@ -197,18 +213,18 @@ describe('Media upload session routes', () => {
       id: 'image-123',
       created_by: 'user-1',
       storage_bucket: 'private-bucket',
-      storage_path: 'originals/image-123.jpg',
+      storage_path: 'images/staging/image-123/abc123/original.jpg',
       visibility: 'private',
       moderation_status: 'skipped',
       moderation_provider: 'disabled',
       processing_status: 'pending',
     }))
-    expect(createPrivateUploadUrl).toHaveBeenCalledWith('originals/image-123.jpg', 'image/jpeg')
+    expect(createPrivateUploadUrl).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg', 'image/jpeg')
     expect(json).toEqual({
       imageId: 'image-123',
-      objectKey: 'originals/image-123.jpg',
+      objectKey: 'images/staging/image-123/abc123/original.jpg',
       bucket: 'private-bucket',
-      uploadUrl: 'https://uploads.example/originals/image-123.jpg',
+      uploadUrl: 'https://uploads.example/images/staging/image-123/abc123/original.jpg',
       uploadMethod: 'PUT',
       uploadHeaders: { 'content-type': 'image/jpeg' },
       expiresInSeconds: 900,
@@ -373,6 +389,8 @@ describe('Media upload session routes', () => {
       data: { status: 'queued', attempts: 0, max_attempts: 5 },
       error: null,
     }))
+    const eq = vi.fn(async () => ({ error: null }))
+    const update = vi.fn(() => ({ eq }))
     const supabase = {
       auth: {
         getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
@@ -391,13 +409,16 @@ describe('Media upload session routes', () => {
                   id: 'image-123',
                   created_by: 'user-1',
                   original_bucket: 'private-bucket',
-                  original_key: 'originals/image-123.jpg',
+                  original_key: 'images/staging/image-123/abc123/original.jpg',
+                  original_mime_type: 'image/jpeg',
+                  original_bytes: 1024,
                   processing_status: 'pending',
                 },
                 error: null,
               })),
             })),
           })),
+          update,
         }
       }),
     }
@@ -414,7 +435,15 @@ describe('Media upload session routes', () => {
     const json = await response.json()
 
     expect(response.status).toBe(200)
-    expect(ensurePrivateObjectExists).toHaveBeenCalledWith('originals/image-123.jpg')
+    expect(headPrivateObject).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg')
+    expect(copyPrivateObject).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg', 'images/assets/image-123/sha256hash/original.jpg')
+    expect(deletePrivateObject).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg')
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      original_key: 'images/assets/image-123/sha256hash/original.jpg',
+      storage_path: 'images/assets/image-123/sha256hash/original.jpg',
+      checksum_sha256: expect.any(String),
+    }))
+    expect(eq).toHaveBeenCalledWith('id', 'image-123')
     expect(json).toEqual({
       imageId: 'image-123',
       processingStatus: 'queued',
@@ -425,7 +454,7 @@ describe('Media upload session routes', () => {
     expect(rpc).toHaveBeenCalledWith('queue_media_ingest_job', {
       p_image_id: 'image-123',
       p_original_bucket: 'private-bucket',
-      p_original_key: 'originals/image-123.jpg',
+      p_original_key: 'images/assets/image-123/sha256hash/original.jpg',
       p_storage_provider: 'r2',
       p_purpose: 'submission_image',
       p_triggered_by_user_id: 'user-1',
@@ -433,11 +462,13 @@ describe('Media upload session routes', () => {
       p_auto_approve: false,
     })
   })
-  test('complete always queues moderation as pending', async () => {
+test('complete always queues moderation as pending', async () => {
     const rpc = vi.fn(async () => ({
       data: { status: 'queued', attempts: 0, max_attempts: 5 },
       error: null,
     }))
+    const eq = vi.fn(async () => ({ error: null }))
+    const update = vi.fn(() => ({ eq }))
     const supabase = {
       auth: {
         getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
@@ -456,13 +487,16 @@ describe('Media upload session routes', () => {
                   id: 'image-123',
                   created_by: 'user-1',
                   original_bucket: 'private-bucket',
-                  original_key: 'originals/image-123.jpg',
+                  original_key: 'images/staging/image-123/abc123/original.jpg',
+                  original_mime_type: 'image/jpeg',
+                  original_bytes: 1024,
                   processing_status: 'pending',
                 },
                 error: null,
               })),
             })),
           })),
+          update,
         }
       }),
     }
@@ -471,7 +505,7 @@ describe('Media upload session routes', () => {
       ok: true,
       supabase: supabase as never,
       userId: null,
-} as unknown as MiddlewareResult)
+    } as unknown as MiddlewareResult)
 
     const response = await completeUploadSession(makeCompleteRequest({ purpose: 'crag_image' }), {
       params: Promise.resolve({ imageId: 'image-123' }),
@@ -500,7 +534,7 @@ describe('Media upload session routes', () => {
                 id: 'image-123',
                 created_by: 'user-1',
                 original_bucket: 'private-bucket',
-                original_key: 'originals/image-123.jpg',
+                original_key: 'images/assets/image-123/sha256hash/original.jpg',
                 processing_status: 'ready',
                 moderation_status: 'skipped',
                 visibility: 'public',
@@ -532,12 +566,14 @@ describe('Media upload session routes', () => {
       retryable: false,
       errorCode: null,
     })
-    expect(ensurePrivateObjectExists).not.toHaveBeenCalled()
+    expect(headPrivateObject).not.toHaveBeenCalled()
     expect(rpc).not.toHaveBeenCalled()
   })
 
   test('complete fails when durable queueing fails', async () => {
     const rpc = vi.fn(async () => ({ data: null, error: new Error('rpc failed') }))
+    const eq = vi.fn(async () => ({ error: null }))
+    const update = vi.fn(() => ({ eq }))
     const supabase = {
       auth: {
         getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
@@ -551,13 +587,16 @@ describe('Media upload session routes', () => {
                 id: 'image-123',
                 created_by: 'user-1',
                 original_bucket: 'private-bucket',
-                original_key: 'originals/image-123.jpg',
+                original_key: 'images/staging/image-123/abc123/original.jpg',
+                original_mime_type: 'image/jpeg',
+                original_bytes: 1024,
                 processing_status: 'pending',
               },
               error: null,
             })),
           })),
         })),
+        update,
       })),
     }
 

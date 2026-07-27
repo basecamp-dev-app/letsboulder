@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import type { MediaUploadPurpose, MediaUploadSessionRequest } from '@/lib/media/types'
 
@@ -9,6 +10,9 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   'image/heic': 'heic',
   'image/heif': 'heif',
 }
+
+const MAX_BYTE_SIZE = 20 * 1024 * 1024
+const MAX_DIMENSION = 20_000
 
 function sanitizeExtension(value: string | null | undefined): string | null {
   if (!value) return null
@@ -50,35 +54,76 @@ export function normalizeUploadSessionRequest(input: unknown): MediaUploadSessio
     throw new Error('Invalid media upload purpose')
   }
 
-  if (typeof candidate.contentType !== 'string' || !candidate.contentType.startsWith('image/')) {
+  const allowedContentTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+  if (typeof candidate.contentType !== 'string' || !allowedContentTypes.includes(candidate.contentType)) {
     throw new Error('Invalid content type')
   }
 
-  if (typeof candidate.byteSize !== 'number' || !Number.isFinite(candidate.byteSize) || candidate.byteSize <= 0) {
+  if (
+    typeof candidate.byteSize !== 'number' ||
+    !Number.isFinite(candidate.byteSize) ||
+    candidate.byteSize <= 0 ||
+    candidate.byteSize > MAX_BYTE_SIZE
+  ) {
     throw new Error('Invalid byte size')
   }
+
+  if (
+    typeof candidate.width !== 'number' ||
+    !Number.isFinite(candidate.width) ||
+    candidate.width <= 0 ||
+    candidate.width > MAX_DIMENSION
+  ) {
+    throw new Error('Invalid width')
+  }
+
+  if (
+    typeof candidate.height !== 'number' ||
+    !Number.isFinite(candidate.height) ||
+    candidate.height <= 0 ||
+    candidate.height > MAX_DIMENSION
+  ) {
+    throw new Error('Invalid height')
+  }
+
+  const gpsData = (() => {
+    const gpsValue = candidate['gpsData']
+    if (!gpsValue || typeof gpsValue !== 'object') return null
+    const gps = gpsValue as Record<string, unknown>
+    if (typeof gps.latitude !== 'number' || typeof gps.longitude !== 'number') return null
+    if (gps.latitude < -90 || gps.latitude > 90 || gps.longitude < -180 || gps.longitude > 180) return null
+    return {
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+    }
+  })()
 
   return {
     purpose: candidate.purpose,
     contentType: candidate.contentType,
     fileName: normalizeFileName(candidate.fileName, candidate.contentType),
     byteSize: candidate.byteSize,
-    gpsData: (() => {
-      const gpsValue = candidate['gpsData']
-      if (!gpsValue || typeof gpsValue !== 'object') return null
-      const gps = gpsValue as Record<string, unknown>
-      if (typeof gps.latitude !== 'number' || typeof gps.longitude !== 'number') return null
-      return {
-        latitude: gps.latitude,
-        longitude: gps.longitude,
-      }
-    })(),
+    gpsData,
     captureDate: typeof candidate['captureDate'] === 'string' && candidate['captureDate'] ? candidate['captureDate'] : null,
-    width: typeof candidate.width === 'number' && Number.isFinite(candidate.width) ? candidate.width : null,
-    height: typeof candidate.height === 'number' && Number.isFinite(candidate.height) ? candidate.height : null,
+    width: candidate.width,
+    height: candidate.height,
     draftId: typeof candidate.draftId === 'string' && candidate.draftId ? candidate.draftId : null,
     cragId: typeof candidate.cragId === 'string' && candidate.cragId ? candidate.cragId : null,
   }
+}
+
+export function buildStagingObjectKey(imageId: string, request: MediaUploadSessionRequest): string {
+  const extension = inferExtension(request.fileName, request.contentType)
+  const uuid = randomUUID()
+  return `images/staging/${imageId}/${uuid}/original.${extension}`
+}
+
+export function buildImmutableObjectKey(imageId: string, sha256: string, extension: string): string {
+  return `images/assets/${imageId}/${sha256}/original.${extension}`
+}
+
+export function inferExtensionFromMime(mimeType: string): string {
+  return MIME_EXTENSION_MAP[mimeType.toLowerCase()] ?? 'jpg'
 }
 
 export function buildOriginalObjectKey(imageId: string, request: MediaUploadSessionRequest): string {

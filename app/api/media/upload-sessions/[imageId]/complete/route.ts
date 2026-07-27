@@ -3,16 +3,84 @@ import { z } from 'zod'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { toMediaStatusResponse } from '@/lib/media/media-status'
-import { ensurePrivateObjectExists } from '@/lib/media/r2'
+import { headPrivateObject, getPrivateObjectStream, copyPrivateObject, deletePrivateObject } from '@/lib/media/r2'
 import { parseWithSchema } from '@/lib/api-validation'
+import { buildImmutableObjectKey, inferExtensionFromMime } from '@/lib/media/upload-session'
 import type { Database } from '@/types/database'
 
 type ImageRow = Pick<Database['public']['Tables']['images']['Row'],
-  'id' | 'created_by' | 'original_bucket' | 'original_key' | 'processing_status' | 'moderation_status' | 'visibility' | 'status'>
+  'id' | 'created_by' | 'original_bucket' | 'original_key' | 'original_mime_type' | 'original_bytes' | 'processing_status' | 'moderation_status' | 'visibility' | 'status'>
 
 const completeUploadSchema = z.object({
   purpose: z.enum(['submission_image', 'draft_image', 'crag_image']).optional(),
 })
+
+const MAGIC_BYTES: Record<string, number[][]> = {
+  'image/jpeg': [[0xff, 0xd8, 0xff]],
+  'image/png': [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+  'image/webp': [[0x52, 0x49, 0x46, 0x46]],
+  'image/heic': [[0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]],
+}
+
+function isValidMagicBytes(bytes: Uint8Array, mimeType: string): boolean {
+  const signatures = MAGIC_BYTES[mimeType]
+  if (!signatures) return true
+
+  for (const sig of signatures) {
+    if (bytes.length >= sig.length) {
+      let match = true
+      for (let i = 0; i < sig.length; i++) {
+        if (bytes[i] !== sig[i]) {
+          match = false
+          break
+        }
+      }
+      if (match) return true
+    }
+  }
+  return false
+}
+
+async function computeSha256AndCheckMagicBytes(
+  stream: ReadableStream<Uint8Array>,
+  mimeType: string
+): Promise<{ sha256: string; validMagic: boolean }> {
+  const reader = stream.getReader()
+  const chunks: Uint8Array[] = []
+  let totalLength = 0
+  let firstChunk: Uint8Array | null = null
+  let validMagic = false
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (value) {
+      if (!firstChunk) {
+        firstChunk = value
+        validMagic = isValidMagicBytes(firstChunk, mimeType)
+      }
+      chunks.push(value)
+      totalLength += value.length
+    }
+  }
+
+  if (!firstChunk || !validMagic) {
+    return { sha256: '', validMagic: false }
+  }
+
+  const combined = new Uint8Array(totalLength)
+  let offset = 0
+  for (const chunk of chunks) {
+    combined.set(chunk, offset)
+    offset += chunk.length
+  }
+
+  const hashBuffer = await crypto.subtle.digest('SHA-256', combined)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+  return { sha256, validMagic: true }
+}
 
 export async function POST(
   request: NextRequest,
@@ -36,7 +104,7 @@ export async function POST(
 
     const { data, error } = await supabase
       .from('images')
-      .select('id, created_by, original_bucket, original_key, processing_status, moderation_status, visibility, status')
+      .select('id, created_by, original_bucket, original_key, original_mime_type, original_bytes, processing_status, moderation_status, visibility, status')
       .eq('id', imageId)
       .single()
 
@@ -57,12 +125,44 @@ export async function POST(
       return NextResponse.json(toMediaStatusResponse(image, null))
     }
 
-    await ensurePrivateObjectExists(image.original_key)
+    const head = await headPrivateObject(image.original_key)
+
+    if (head.contentLength !== image.original_bytes || head.contentType !== image.original_mime_type) {
+      return NextResponse.json({ error: 'Uploaded object mismatch' }, { status: 400 })
+    }
+
+    const stream = await getPrivateObjectStream(image.original_key)
+    const { sha256, validMagic } = await computeSha256AndCheckMagicBytes(stream, image.original_mime_type)
+    
+    if (!validMagic) {
+      return NextResponse.json({ error: 'Invalid image format' }, { status: 400 })
+    }
+
+    const extension = inferExtensionFromMime(image.original_mime_type)
+    const immutableKey = buildImmutableObjectKey(image.id, sha256, extension)
+
+    await copyPrivateObject(image.original_key, immutableKey)
+
+    const { error: updateError } = await supabase
+      .from('images')
+      .update({
+        original_key: immutableKey,
+        storage_path: immutableKey,
+        checksum_sha256: sha256,
+      })
+      .eq('id', imageId)
+
+    if (updateError) {
+      await deletePrivateObject(immutableKey)
+      return createErrorResponse(updateError, 'Failed to update image record')
+    }
+
+    await deletePrivateObject(image.original_key)
 
     const { data: job, error: queueError } = await supabase.rpc('queue_media_ingest_job', {
       p_image_id: image.id,
       p_original_bucket: image.original_bucket,
-      p_original_key: image.original_key,
+      p_original_key: immutableKey,
       p_storage_provider: 'r2',
       p_purpose: purpose,
       p_triggered_by_user_id: user.id,
