@@ -27,3 +27,26 @@ export interface MediaJobRow {
   created_at: string
   updated_at: string
 }
+
+export const mediaDeletionJobSchema = z.object({
+  id: z.string().uuid(),
+  bucket: z.string().min(1),
+  object_key: z.string().min(1),
+  reason: z.enum([
+    'account_deleted',
+    'published_submission_deleted',
+    'admin_image_deleted',
+    'draft_image_deleted',
+    'unassociated_upload_deleted',
+    'image_hard_deleted',
+  ]),
+  source_type: z.enum(['image', 'draft_image']),
+  source_id: z.string().uuid().nullable(),
+  image_id: z.string().uuid().nullable(),
+  status: z.literal('processing'),
+  attempts: z.number().int().nonnegative(),
+  max_attempts: z.number().int().positive(),
+  claim_token: z.string().uuid(),
+})
+
+export type MediaDeletionJobRow = z.infer<typeof mediaDeletionJobSchema>

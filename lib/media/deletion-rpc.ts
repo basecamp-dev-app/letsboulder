@@ -24,6 +24,7 @@ export function parseStorageCleanupRows(value: unknown): DraftStorageCleanupRow[
     }
 
     return [{
+      ...(typeof row.image_id === 'string' ? { image_id: row.image_id } : {}),
       storage_provider: row.storage_provider,
       storage_bucket: row.storage_bucket,
       storage_path: row.storage_path,

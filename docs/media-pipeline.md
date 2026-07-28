@@ -12,6 +12,18 @@
 
 Originals remain in `lb-dev-media-private` or `lb-prod-media-private`. Ingest currently validates the object and publishes delivery metadata; it does not copy the original or pre-render image files.
 
+## Transactional Original Deletion
+
+1. Image tombstones and hard deletes capture the private R2 bucket/key in `media_deletion_jobs` before the authoritative `images` row changes. This covers account, published-submission, linked-draft-image, and unassociated-upload deletion. The trigger insert participates in the same PostgreSQL transaction, so a rollback preserves both the source row and the absence of a deletion job.
+2. Deletion jobs have no cascading foreign key to `images`; hard deletion cannot erase pending cleanup work. A partial unique index permits only one queued/processing job per bucket/key.
+3. The scheduled media Worker claims due jobs with expiring leases and `FOR UPDATE SKIP LOCKED`. Every completion, retry, and permanent-failure transition must present the current claim token, preventing a stale worker from changing a reclaimed job.
+4. The Worker accepts only the configured `R2_PRIVATE_BUCKET`, deletes through `ORIGINALS_BUCKET`, and treats an already-absent object as success. Transient failures use exponential backoff with jitter and at most eight recorded attempts.
+5. Completed and cancelled jobs are retained for 30 days, then pruned in bounded batches. Failed jobs remain available for investigation.
+
+The deletion trigger and request-time accelerator accept only canonical R2 keys namespaced by the authoritative image UUID. Legacy locator-only draft rows cannot safely authorize private-object deletion and remain on the legacy cleanup path. Request handlers retain best-effort R2 deletion as a rollout-safe latency optimization, but failure does not lose the durable job. The outbox currently handles R2 originals only; Supabase Storage objects continue through request-time cleanup. Virtual variants are not separate R2 objects and require no object deletion.
+
+Database-first deployment is still preferred, but mixed-version rollout order is safe because request-time R2 cleanup remains in place and repeated R2 deletion is idempotent.
+
 ## Virtual Variants And Delivery
 
 1. Successful ingest stores a virtual `images.variants` manifest. Paths such as `images/<upload-id>/v1/detail.jpeg` describe delivery requests, not objects written to R2.
@@ -48,7 +60,7 @@ Attachment timing differs by target:
 
 Media readiness and content moderation are separate concerns. Automated media moderation is disabled: upload and ingest record `moderation_status = 'skipped'` and `moderation_provider = 'disabled'`. The Worker marks media ready/public only after ingest succeeds; user flags, crag reports, route verification, and the legacy moderation queue are documented in `docs/moderation.md`.
 
-Media maintenance crosses private storage and job boundaries. `claim_media_job(...)` and `cleanup_orphan_route_uploads(...)` are `SECURITY DEFINER` RPCs executable only by `service_role` and also reject non-service runtime roles; they are never browser/authenticated-user APIs.
+Media maintenance crosses private storage and job boundaries. Ingest claims, deletion-job claims/transitions/pruning, and `cleanup_orphan_route_uploads(...)` are `SECURITY DEFINER` RPCs executable only by `service_role` and also reject non-service runtime roles; they are never browser/authenticated-user APIs.
 
 ## HEIC Conversion
 

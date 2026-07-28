@@ -1703,6 +1703,69 @@ export type Database = {
         }
         Relationships: []
       }
+      media_deletion_jobs: {
+        Row: {
+          attempts: number
+          bucket: string
+          claim_token: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          image_id: string | null
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          object_key: string
+          reason: string
+          run_at: string
+          source_id: string | null
+          source_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          bucket: string
+          claim_token?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          image_id?: string | null
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          object_key: string
+          reason: string
+          run_at?: string
+          source_id?: string | null
+          source_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          bucket?: string
+          claim_token?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          image_id?: string | null
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          object_key?: string
+          reason?: string
+          run_at?: string
+          source_id?: string | null
+          source_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       media_jobs: {
         Row: {
           attempts: number
@@ -2864,6 +2927,35 @@ export type Database = {
         Args: { p_image_ids: string[] }
         Returns: undefined
       }
+      claim_media_deletion_job: {
+        Args: { lease_seconds?: number; worker_name: string }
+        Returns: {
+          attempts: number
+          bucket: string
+          claim_token: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          image_id: string | null
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          object_key: string
+          reason: string
+          run_at: string
+          source_id: string | null
+          source_type: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "media_deletion_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       claim_media_job: {
         Args: { worker_name: string }
         Returns: {
@@ -2903,6 +2995,10 @@ export type Database = {
       climb_is_hard_deletable: {
         Args: { p_climb_id: string }
         Returns: boolean
+      }
+      complete_media_deletion_job: {
+        Args: { p_claim_token: string; p_job_id: string }
+        Returns: undefined
       }
       compute_contributor_tier: {
         Args: { p_accepted_count: number; p_score: number }
@@ -2979,6 +3075,21 @@ export type Database = {
       delete_unassociated_upload_image: {
         Args: { p_image_id: string }
         Returns: Json
+      }
+      enqueue_media_deletion_job: {
+        Args: {
+          p_bucket: string
+          p_image_id?: string
+          p_object_key: string
+          p_reason: string
+          p_source_id: string
+          p_source_type: string
+        }
+        Returns: string
+      }
+      fail_media_deletion_job: {
+        Args: { p_claim_token: string; p_error: string; p_job_id: string }
+        Returns: undefined
       }
       find_region_by_location: {
         Args: { search_lat: number; search_lng: number }
@@ -3441,6 +3552,10 @@ export type Database = {
         Args: { p_draft_id: string }
         Returns: Json
       }
+      prune_media_deletion_jobs: {
+        Args: { max_delete?: number; retention_days?: number }
+        Returns: number
+      }
       queue_media_ingest_job: {
         Args: {
           p_auto_approve?: boolean
@@ -3555,6 +3670,10 @@ export type Database = {
           slug: string
           superseded_from: string
         }[]
+      }
+      retry_media_deletion_job: {
+        Args: { p_claim_token: string; p_error: string; p_job_id: string }
+        Returns: undefined
       }
       save_submission_grade_votes: {
         Args: { p_grades: Json; p_image_id: string }

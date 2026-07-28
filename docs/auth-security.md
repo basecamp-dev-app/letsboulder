@@ -65,7 +65,7 @@ The exact limits live in code and may change without a docs update when operatio
 **Database Function Privileges:**
 - Default privileges for new `public` tables, sequences, and functions are private from API roles. Every exposed object must receive an explicit grant in its creating migration.
 - `SECURITY DEFINER` is not an exposure mechanism: all definers are revoked from `PUBLIC`, `anon`, and `authenticated` first, then only the reviewed API RPCs and RLS helpers are re-granted. Service-role access is explicit; internal trigger/helper functions receive no API grant.
-- `claim_media_job`, `cleanup_orphan_route_uploads`, `delete_account_atomic`, `record_contribution_event`, `open_missing_topo_bounty`, and `resolve_missing_topo_bounty` are service-only. Their app callers must use audited server-side service clients, never browser or ordinary authenticated clients.
+- Media job claims/transitions/pruning, `cleanup_orphan_route_uploads`, `delete_account_atomic`, `record_contribution_event`, `open_missing_topo_bounty`, and `resolve_missing_topo_bounty` are service-only. Their callers must use audited server-side service clients, never browser or ordinary authenticated clients.
 
 **Owner Checks:**
 - Query resource by `user_id` matching authenticated user

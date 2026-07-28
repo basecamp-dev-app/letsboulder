@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
+import { isCanonicalImageObjectKey } from '@/lib/media/deletion-key'
 import { deleteObject } from '@/lib/media/r2'
 import type { Database } from '@/types/database'
 
@@ -66,6 +67,7 @@ export async function deleteSubmission(deps: DeleteSubmissionDeps) {
   if (deleteSubmissionError) return createErrorResponse(deleteSubmissionError, 'Delete submission error')
 
   const storageRows = allImages.map((img) => ({
+    image_id: img.id,
     storage_provider: img.storage_provider,
     storage_bucket: img.storage_bucket,
     storage_path: img.storage_path,
@@ -76,11 +78,12 @@ export async function deleteSubmission(deps: DeleteSubmissionDeps) {
   for (const row of storageRows) {
     const provider = row.storage_provider === 'r2' ? 'r2' : 'supabase'
 
-    if (provider === 'r2' && row.original_bucket && row.original_key) {
+    if (provider === 'r2' && row.original_bucket && row.original_key
+      && isCanonicalImageObjectKey(row.image_id, row.original_key)) {
       try {
         await deleteObject(row.original_bucket, row.original_key)
       } catch {
-        // non-fatal, storage cleanup best-effort
+        // The durable deletion outbox remains authoritative.
       }
     } else if (row.storage_bucket && row.storage_path) {
       try {

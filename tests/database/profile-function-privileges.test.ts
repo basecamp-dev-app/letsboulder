@@ -88,19 +88,29 @@ const RESTRICTED_FUNCTIONS = [
   'add_correction_type_value(text)',
   'add_correction_type_value(text,text)',
   'claim_media_job(text)',
+  'claim_media_deletion_job(text,integer)',
   'cleanup_orphan_route_uploads(interval,integer)',
+  'complete_media_deletion_job(uuid,uuid)',
   'delete_account_atomic(uuid,text,boolean)',
   'initialize_climb_grade_vote(uuid,uuid,character varying)',
+  'fail_media_deletion_job(uuid,uuid,text)',
+  'prune_media_deletion_jobs(integer,integer)',
   'record_contribution_event(uuid,text,integer,text,uuid,uuid,uuid,uuid,uuid,jsonb,text)',
+  'retry_media_deletion_job(uuid,uuid,text)',
   'soft_delete_published_submission(uuid[],uuid)',
 ]
 
 const SERVICE_FUNCTIONS = [
   'claim_media_job(text)',
+  'claim_media_deletion_job(text,integer)',
   'cleanup_orphan_route_uploads(interval,integer)',
+  'complete_media_deletion_job(uuid,uuid)',
   'delete_account_atomic(uuid,text,boolean)',
   'initialize_climb_grade_vote(uuid,uuid,character varying)',
+  'fail_media_deletion_job(uuid,uuid,text)',
+  'prune_media_deletion_jobs(integer,integer)',
   'record_contribution_event(uuid,text,integer,text,uuid,uuid,uuid,uuid,uuid,jsonb,text)',
+  'retry_media_deletion_job(uuid,uuid,text)',
   'soft_delete_published_submission(uuid[],uuid)',
 ]
 

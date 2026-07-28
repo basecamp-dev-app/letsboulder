@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient, type Env, type MessageBatch } from './supabase'
 import { MEDIA_FORMATS, MEDIA_VARIANT_WIDTHS, getVariantWidth, type MediaFormatKey, type MediaVariantKey } from './config'
 import { mediaIngestJobSchema, type MediaIngestJobPayload, type MediaJobRow } from './schema'
+import { drainMediaDeletionOutbox, pruneMediaDeletionOutbox } from './deletion-outbox'
 
 const OUTBOX_WORKER_NAME = 'media-worker-scheduled'
 const OUTBOX_DRAIN_LIMIT = 10
@@ -18,6 +19,7 @@ interface ImageRow {
   height: number | null
   visibility: string | null
   processing_status: string | null
+  status: string | null
 }
 
 function json(data: unknown, init?: ResponseInit) {
@@ -136,12 +138,12 @@ async function handleEnqueue(request: Request, env: Env) {
 async function loadImage(supabase: ReturnType<typeof createSupabaseAdminClient>, imageId: string) {
   const { data, error } = await supabase
     .from('images')
-    .select('id, created_by, original_bucket, original_key, original_width, original_height, original_mime_type, original_bytes, width, height, visibility, processing_status')
+    .select('id, created_by, original_bucket, original_key, original_width, original_height, original_mime_type, original_bytes, width, height, visibility, processing_status, status')
     .eq('id', imageId)
-    .single()
+    .maybeSingle()
 
   if (error) throw error
-  return data as ImageRow
+  return data as ImageRow | null
 }
 
 async function setImageProcessing(supabase: ReturnType<typeof createSupabaseAdminClient>, imageId: string) {
@@ -149,6 +151,7 @@ async function setImageProcessing(supabase: ReturnType<typeof createSupabaseAdmi
     .from('images')
     .update({ processing_status: 'processing' })
     .eq('id', imageId)
+    .neq('status', 'deleted')
 
   if (error) throw error
 }
@@ -180,6 +183,7 @@ async function finalizeImage(
       status: 'approved',
     })
     .eq('id', image.id)
+    .neq('status', 'deleted')
 
   if (error) throw error
 }
@@ -192,6 +196,10 @@ async function processJob(job: MediaIngestJobPayload, env: Env) {
 
   const supabase = createSupabaseAdminClient(env)
   const image = await loadImage(supabase, job.imageId)
+
+  if (!image || image.status === 'deleted') {
+    return
+  }
 
   if (!image.original_key || !image.original_bucket) {
     throw new Error(`Image ${job.imageId} is missing original storage metadata`)
@@ -222,6 +230,7 @@ async function markMediaJobCompleted(supabase: ReturnType<typeof createSupabaseA
       last_error: null,
     })
     .eq('id', jobId)
+    .eq('status', 'processing')
 
   if (error) throw error
 }
@@ -262,6 +271,7 @@ async function markMediaJobForRetry(
         last_error: errorMessage,
       })
       .eq('id', job.id)
+      .eq('status', 'processing')
 
     if (jobError) throw jobError
 
@@ -269,6 +279,7 @@ async function markMediaJobForRetry(
       .from('images')
       .update({ processing_status: 'failed' })
       .eq('id', job.image_id)
+      .neq('status', 'deleted')
 
     if (imageError) throw imageError
     return
@@ -284,6 +295,7 @@ async function markMediaJobForRetry(
       run_at: getRetryRunAt(job.attempts),
     })
     .eq('id', job.id)
+    .eq('status', 'processing')
 
   if (retryError) throw retryError
 }
@@ -303,6 +315,7 @@ async function failMediaJobPermanently(
       last_error: errorMessage,
     })
     .eq('id', job.id)
+    .eq('status', 'processing')
 
   if (jobError) throw jobError
 
@@ -310,6 +323,7 @@ async function failMediaJobPermanently(
     .from('images')
     .update({ processing_status: 'failed' })
     .eq('id', job.image_id)
+    .neq('status', 'deleted')
 
   if (imageError) throw imageError
 }
@@ -543,6 +557,18 @@ export default {
       await drainMediaOutbox(env)
     } catch (error) {
       console.error('Failed to drain media outbox', error)
+    }
+
+    try {
+      await drainMediaDeletionOutbox(env)
+    } catch (error) {
+      console.error('Failed to drain media deletion outbox', error)
+    }
+
+    try {
+      await pruneMediaDeletionOutbox(env)
+    } catch (error) {
+      console.error('Failed to prune media deletion outbox', error)
     }
   },
 } satisfies {
