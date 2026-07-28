@@ -5,10 +5,8 @@ import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { isValidGrade } from '@/lib/grade-constants'
-import { buildConsensusUpdates } from '@/features/grades/lib/grade-votes'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { assessNonOwnerTextRisk, combineRiskAssessments } from '@/features/submissions/server/submissions/wiki-edit-protection'
-import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { getServerClient } from '@/lib/supabase-server'
 import { z } from 'zod'
 
@@ -201,65 +199,25 @@ export async function updateSubmissionCragAction(imageId: string, cragName: stri
   return { success: true, data: { crag: result } }
 }
 
-export async function saveSubmissionGradeVotesAction(imageId: string, grades: Array<{ routeLineId: string; grade: string }>): Promise<ActionResult<{ votesUpdated: number; collaboratorCount: number }>> {
+export async function saveSubmissionGradeVotesAction(imageId: string, grades: Array<{ routeLineId: string; grade: string }>): Promise<ActionResult<{ votesUpdated: number }>> {
   const validation = validateActionInput(submissionGradeVotesSchema, { imageId, grades })
-  if (!validation.success) return fail<{ votesUpdated: number; collaboratorCount: number }>(validation.result.error || 'A valid grades array is required', validation.result.status || 400)
+  if (!validation.success) return fail<{ votesUpdated: number }>(validation.result.error || 'A valid grades array is required', validation.result.status || 400)
 
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  const validatedImageId = validation.data.imageId
-  const validatedGrades = validation.data.grades
 
   const supabase = await getServerClient()
-  const supabaseAdmin = getAdminClientWithAudit('update grade votes')
-  const { data: image, error: imageError } = await supabase.from('images').select('id, created_by').eq('id', validatedImageId).maybeSingle()
-  if (imageError) return { success: false, error: 'Save submission grade votes error', status: 500 }
-  if (!image) return { success: false, error: 'Image not found', status: 404 }
-
-  const ownerId = typeof image.created_by === 'string' ? image.created_by : null
-  if (!ownerId) return { success: false, error: 'This submission is not editable', status: 403 }
-
-  const { data: canEdit, error: canEditError } = await supabase.rpc('user_can_wiki_edit_submission', {
-    p_image_id: validatedImageId,
-    p_user_id: auth.data.userId,
+  const { data: votesUpdated, error: rpcError } = await supabase.rpc('save_submission_grade_votes', {
+    p_image_id: validation.data.imageId,
+    p_grades: validation.data.grades,
   })
-  if (canEditError) return { success: false, error: 'Save submission grade votes error', status: 500 }
-  if (canEdit !== true) return { success: false, error: 'You do not have permission to update route grades for this submission', status: 403 }
-
-  const uniqueRouteLineIds = Array.from(new Set(validatedGrades.map((item) => item.routeLineId)))
-  const { data: routeLines, error: routeLinesError } = await supabase.from('route_lines').select('id, climb_id').eq('image_id', validatedImageId).in('id', uniqueRouteLineIds)
-  if (routeLinesError) return { success: false, error: 'Save submission grade votes error', status: 500 }
-
-  const climbIdByRouteLineId = new Map((routeLines || []).map((routeLine) => [routeLine.id, routeLine.climb_id]))
-  if (climbIdByRouteLineId.size !== uniqueRouteLineIds.length) {
-    return { success: false, error: 'One or more routes are invalid for this submission', status: 400 }
+  if (rpcError) {
+    if (rpcError.code === '42501') return { success: false, error: 'You do not have permission to update route grades for this submission', status: 403 }
+    if (rpcError.code === 'P0002') return { success: false, error: 'Image not found', status: 404 }
+    if (rpcError.code === '22023' || rpcError.code === '22P02') return { success: false, error: rpcError.message, status: 400 }
+    return { success: false, error: 'Save submission grade votes error', status: 500 }
   }
 
-  if (!supabaseAdmin) return { success: false, error: 'Service role key missing', status: 500 }
-
-  const voterUserIds = Array.from(new Set([auth.data.userId, ...(ownerId ? [ownerId] : [])]))
-  const voteRows = validatedGrades.flatMap((item) => {
-    const climbId = climbIdByRouteLineId.get(item.routeLineId)
-    if (!climbId) return []
-    return voterUserIds.map((voterUserId) => ({ climb_id: climbId, user_id: voterUserId, grade: item.grade }))
-  })
-
-  if (voteRows.length > 0) {
-    const { error: upsertError } = await supabaseAdmin.from('grade_votes').upsert(voteRows, { onConflict: 'climb_id,user_id' })
-    if (upsertError) return { success: false, error: 'Save submission grade votes error', status: 500 }
-
-    const uniqueClimbIds = Array.from(new Set(voteRows.map((row) => row.climb_id)))
-    const { data: gradeVoteRows, error: gradeVoteRowsError } = await supabaseAdmin.from('grade_votes').select('climb_id, grade').in('climb_id', uniqueClimbIds)
-    if (gradeVoteRowsError) return { success: false, error: 'Save submission grade votes error', status: 500 }
-
-    const consensusUpdates = buildConsensusUpdates((gradeVoteRows || []) as Array<{ climb_id: string | null; grade: string | null }>)
-
-    if (consensusUpdates.length > 0) {
-      const { error: consensusUpdateError } = await supabaseAdmin.from('climbs').upsert(consensusUpdates, { onConflict: 'id' })
-      if (consensusUpdateError) return { success: false, error: 'Save submission grade votes error', status: 500 }
-    }
-  }
-
-  return { success: true, data: { votesUpdated: voteRows.length, collaboratorCount: voterUserIds.length } }
+  return { success: true, data: { votesUpdated: votesUpdated || 0 } }
 }

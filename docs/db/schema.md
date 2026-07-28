@@ -307,7 +307,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - The active canonical `promote_draft_to_submission` definition is in `20260725160000_forward_publication_safety.sql`; active atomic deletion definitions are in `20260725160050_atomic_draft_deletion.sql` and `20260725160100_atomic_draft_image_deletion.sql`, with grants and RLS tightened by `20260725160150_draft_deletion_permissions.sql`. Do not use the older archived promotion definition as the current reference.
 - `delete_submission_draft_atomic` deletes an editable owner draft and conditionally unreferenced owner uploads in one transaction. `delete_submission_draft_image_atomic` locks the draft, validates the expected timestamp, locks all attachments and the linked image, then atomically deletes one attachment, compacts ordering and metadata, and conditionally deletes the now-unreferenced upload.
 - Direct owner DELETE policies are removed from `images`, `submission_drafts`, and `submission_draft_images`. Destructive owner operations must use the guarded RPCs; the separate image admin policy remains available for explicit administration.
-- Published wiki helper and history identities are bound to `auth.uid()`: authenticated callers cannot test or log an edit as another user. Service-role workflows remain the explicit exception.
+- Published wiki helper, history, and grade-vote identities are bound to `auth.uid()`: authenticated callers cannot test, log an edit, or save a vote as another user. Service-role workflows remain the explicit exception outside the submission grade-vote RPC.
 
 ### Triggers
 | Trigger | Table | Purpose |
@@ -412,6 +412,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `initialize_climb_consensus(p_climb_id)` | Initialize consensus grade for a climb |
 | `initialize_climb_grade_vote(p_climb_id, p_user_id, p_grade)` | Service-role-only grade-vote initialization with an explicit user; no anon/authenticated grant |
 | `insert_grade_vote(p_climb_id, vote_grade)` | Authenticated/service-role vote upsert bound internally to `auth.uid()`; no anon grant |
+| `save_submission_grade_votes(p_image_id, p_grades)` | Authenticated-only atomic submission vote upsert; validates route ownership and always attributes votes to `auth.uid()` |
 | `sync_climb_grade_from_votes(p_climb_id)` | Recompute climb grade from votes |
 | `add_correction_type_value(p_type, p_value)` | Dynamic correction type enum expansion |
 | `normalize_climb_route_type(p_route_type)` | Normalize route type string |

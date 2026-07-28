@@ -41,7 +41,13 @@ describe('createSubmissionRoutes', () => {
       select: vi.fn(async () => ({ data: [{ id: 'climb-1' }, { id: 'climb-2' }], error: null })),
     }))
     const routeLinesInsert = vi.fn(() => ({
-      select: vi.fn(async () => ({ data: [{ id: 'line-1' }, { id: 'line-2' }], error: null })),
+      select: vi.fn(async () => ({
+        data: [
+          { id: 'line-1', climb_id: 'climb-1' },
+          { id: 'line-2', climb_id: 'climb-2' },
+        ],
+        error: null,
+      })),
     }))
     const userClient = {
       from: vi.fn((table: string) => {
@@ -76,13 +82,15 @@ describe('createSubmissionRoutes', () => {
         }
         throw new Error(`Unexpected user table: ${table}`)
       }),
-      rpc: vi.fn(async (name: string) => ({ data: name === 'user_can_wiki_edit_submission' ? true : null, error: null })),
+      rpc: vi.fn(async (name: string) => ({
+        data: name === 'user_can_wiki_edit_submission' ? true : name === 'save_submission_grade_votes' ? 2 : null,
+        error: null,
+      })),
     }
     const adminClient = {
       from: vi.fn((table: string) => {
         if (table === 'climbs') return { insert: climbsInsert }
         if (table === 'route_lines') return { insert: routeLinesInsert }
-        if (table === 'grade_votes') return { upsert: vi.fn(async () => ({ error: null })) }
         if (table === 'images') return { update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })) }
         throw new Error(`Unexpected admin table: ${table}`)
       }),
@@ -100,5 +108,12 @@ describe('createSubmissionRoutes', () => {
       expect.objectContaining({ name: 'Boulder line', route_type: 'boulder' }),
       expect.objectContaining({ name: 'Trad line', route_type: 'trad' }),
     ])
+    expect(userClient.rpc).toHaveBeenCalledWith('save_submission_grade_votes', {
+      p_image_id: 'image-1',
+      p_grades: [
+        { routeLineId: 'line-1', grade: '6A' },
+        { routeLineId: 'line-2', grade: '6B' },
+      ],
+    })
   })
 })

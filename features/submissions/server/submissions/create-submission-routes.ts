@@ -122,18 +122,17 @@ export async function createSubmissionRoutes(
     .select('id, climb_id, points, sequence_order, image_width, image_height, climbs(id, name, grade, status, route_type, description)')
   if (routeLinesError) return createErrorResponse(routeLinesError, 'Create routes error')
 
-  if (!supabaseAdmin) return NextResponse.json({ error: 'Service role key missing' }, { status: 500 })
-
-  const voterUserIds = ownerId ? [ownerId] : []
-
-  const gradeVoteRows = climbs.flatMap((climb: { id: string }, index: number) => {
-    const grade = routes[index]?.grade
-    if (!grade) return []
-    return voterUserIds.map((voterUserId) => ({ climb_id: climb.id, user_id: voterUserId, grade }))
+  const gradeByClimbId = new Map(climbs.map((climb: { id: string }, index: number) => [climb.id, routes[index]?.grade]))
+  const gradeVotePayload = (createdRouteLines || []).flatMap((routeLine) => {
+    const grade = routeLine.climb_id ? gradeByClimbId.get(routeLine.climb_id) : null
+    return grade ? [{ routeLineId: routeLine.id, grade }] : []
   })
 
-  if (gradeVoteRows.length > 0) {
-    const { error: gradeVotesError } = await supabaseAdmin.from('grade_votes').upsert(gradeVoteRows, { onConflict: 'climb_id,user_id' })
+  if (gradeVotePayload.length > 0) {
+    const { error: gradeVotesError } = await supabase.rpc('save_submission_grade_votes', {
+      p_image_id: imageId,
+      p_grades: gradeVotePayload,
+    })
     if (gradeVotesError) return createErrorResponse(gradeVotesError, 'Create routes error')
   }
 
