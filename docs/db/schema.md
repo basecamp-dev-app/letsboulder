@@ -164,6 +164,7 @@ Image rows in `climb_flag_counts` are limited to publicly deliverable images. Au
 |-------|---------|
 | `deletion_requests` | User account deletion workflow with scheduling |
 | `deleted_accounts` | Audit log of deleted user accounts |
+| `media_deletion_jobs` | Service-only transactional outbox for private R2 original deletion |
 
 ### Analytics & Misc Tables
 | Table | Purpose |
@@ -281,7 +282,9 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `submission_draft_images` mirrors the provider-aware original reference.
 - `submission_draft_routes` stores durable draft route geometry and metadata. Explicit Save persists dirty images through image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
 - `media_jobs` is the durable outbox for active media ingest. Upload completion calls `queue_media_ingest_job(...)` to update `images` and insert/reuse a queued job atomically.
+- `media_deletion_jobs` snapshots canonical, image-UUID-namespaced R2 bucket/key coordinates before image tombstones and hard deletes. It intentionally has no FK to `images`, so pending deletion work survives source-row removal; active jobs are unique by bucket/key. The trigger also cancels active ingest jobs so a deleted image cannot be republished by delayed processing.
 - `claim_media_job(worker_name text)` is used by the Cloudflare Worker scheduled handler to claim pending ingest work. Cloudflare Queue ingress remains as a compatibility path, but the durable outbox is the source of truth for app-owned uploads.
+- `claim_media_deletion_job(worker_name, lease_seconds)` reclaims due or expired deletion work with `FOR UPDATE SKIP LOCKED`. Completion/retry/failure RPCs require the current claim token, and completed/cancelled jobs are pruned after 30 days.
 - Active ingest runs through `media_jobs` + the Worker in `apps/media-worker`; `images` remains the source of truth.
 - Canonical publishability is `processing_status = 'ready'` and `moderation_status IN ('approved', 'skipped')`. Public delivery or association additionally requires `visibility = 'public'` and legacy `status = 'approved'`.
 - `assert_media_ready_for_publication(image_ids)` locks and validates authoritative `images` rows inside publication transactions. Draft promotion, unified submission creation, route creation, and linked `crag_images` writes fail with detail code `media_not_ready` until every image is publicly deliverable.
@@ -481,6 +484,11 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `soft_delete_comment(p_comment_id)` | Soft delete a comment |
 | `cleanup_orphan_route_uploads(max_age, max_delete)` | Service-only cleanup of orphaned route uploads |
 | `claim_media_job(worker_name)` | Service-only durable media-job claim |
+| `claim_media_deletion_job(worker_name, lease_seconds)` | Service-only tokenized claim of due or lease-expired R2 deletion work |
+| `complete_media_deletion_job(job_id, claim_token)` | Complete a currently owned media deletion claim |
+| `retry_media_deletion_job(job_id, claim_token, error)` | Requeue or terminally fail a media deletion claim with backoff |
+| `fail_media_deletion_job(job_id, claim_token, error)` | Permanently fail invalid deletion work |
+| `prune_media_deletion_jobs(retention_days, max_delete)` | Bounded service-only pruning of completed/cancelled deletion jobs |
 | `delete_account_atomic(p_user_id, p_email, p_delete_route_uploads)` | Service-only atomic account cleanup |
 | `update_own_profile_submission_credit(...)` | Update profile submission credit |
 | `update_own_submission_anonymity(...)` | Update submission anonymity |

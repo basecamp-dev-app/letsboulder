@@ -22,6 +22,7 @@ type WorkerR2ObjectBody = WorkerR2Object & {
 type WorkerR2Bucket = {
   head(key: string): Promise<WorkerR2Object | null>
   get(key: string, options?: { range?: WorkerR2Range }): Promise<WorkerR2ObjectBody | null>
+  delete(key: string): Promise<void>
 }
 
 export type MessageBatch<T> = {

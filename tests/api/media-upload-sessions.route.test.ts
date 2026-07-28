@@ -264,13 +264,13 @@ describe('Media upload session routes', () => {
     expect(deleteObject).not.toHaveBeenCalled()
   })
 
-  test('delete removes storage only after the atomic RPC deletes an owned unassociated image', async () => {
+  test('delete accelerates durable outbox cleanup after deleting an unassociated image', async () => {
     const supabase = makeDeleteSupabase({
       data: {
         image_id: 'image-123',
         storage_provider: 'r2',
         storage_bucket: 'private-bucket',
-        storage_path: 'originals/image-123.jpg',
+        storage_path: 'images/staging/image-123/session/original.jpg',
       },
       error: null,
     })
@@ -294,7 +294,7 @@ describe('Media upload session routes', () => {
     expect(supabase.rpc).toHaveBeenCalledWith('delete_unassociated_upload_image', {
       p_image_id: 'image-123',
     })
-    expect(deleteObject).toHaveBeenCalledWith('private-bucket', 'originals/image-123.jpg')
+    expect(deleteObject).toHaveBeenCalledWith('private-bucket', 'images/staging/image-123/session/original.jpg')
     expect(supabase.rpc.mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(deleteObject).mock.invocationCallOrder[0]
     )

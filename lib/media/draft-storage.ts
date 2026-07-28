@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateErrorId, reportError } from '@/lib/errors'
+import { isCanonicalImageObjectKey } from '@/lib/media/deletion-key'
 import { deleteObject } from '@/lib/media/r2'
 import type { Database } from '@/types/database'
 
@@ -10,7 +11,7 @@ type DraftImageStorageRow = Pick<
 
 type DraftStorageProvider = DraftImageStorageRow['storage_provider'] | null | undefined
 
-export type DraftStorageCleanupRow = DraftImageStorageRow
+export type DraftStorageCleanupRow = DraftImageStorageRow & { image_id?: string | null }
 
 function resolveProvider(provider: DraftStorageProvider): 'r2' | 'supabase' {
   return provider === 'r2' ? 'r2' : 'supabase'
@@ -41,6 +42,7 @@ export async function cleanupDraftStorageObjects(
     const provider = resolveProvider(image.storage_provider)
 
     if (provider === 'r2') {
+      if (!image.image_id || !isCanonicalImageObjectKey(image.image_id, image.storage_path)) continue
       try {
         await deleteObject(image.storage_bucket, image.storage_path)
       } catch (error) {
@@ -62,12 +64,12 @@ export async function cleanupDraftStorageObjects(
       const { error } = await storageClient.storage.from(bucket).remove(uniquePaths)
       if (error) {
         for (const storagePath of uniquePaths) {
-          logStorageCleanupWarning({ storage_provider: 'supabase', storage_bucket: bucket, storage_path: storagePath }, error)
+          logStorageCleanupWarning({ image_id: null, storage_provider: 'supabase', storage_bucket: bucket, storage_path: storagePath }, error)
         }
       }
     } catch (error) {
       for (const storagePath of uniquePaths) {
-        logStorageCleanupWarning({ storage_provider: 'supabase', storage_bucket: bucket, storage_path: storagePath }, error)
+        logStorageCleanupWarning({ image_id: null, storage_provider: 'supabase', storage_bucket: bucket, storage_path: storagePath }, error)
       }
     }
   }

@@ -1,10 +1,11 @@
 # Media Worker
 
-Cloudflare Worker for durable media readiness, virtual image delivery, and public map-asset delivery.
+Cloudflare Worker for durable media readiness and deletion, virtual image delivery, and public map-asset delivery.
 
 ## Responsibilities
 
 - Drain the durable Supabase `media_jobs` outbox on a schedule and update authoritative `images` readiness state.
+- Drain `media_deletion_jobs` and idempotently remove allowlisted private R2 originals.
 - Consume optional Cloudflare Queue fast-path messages and complete the matching durable jobs.
 - Accept authenticated `POST /enqueue` for the app fast path and legacy backfill tooling.
 - Serve virtual image paths by applying Cloudflare Image Resizing to private originals on demand.
@@ -20,6 +21,8 @@ The Worker does not pre-render or write image variants. `images.variants` is a v
 3. The queue consumer processes immediate messages. The cron trigger runs every two minutes and claims durable jobs that still need work.
 4. Processing verifies the private object, stores virtual delivery metadata, sets moderation to skipped/disabled, and marks the image ready/public.
 5. A queue completion closes queued/processing jobs for the image; scheduled processing records completion, retry/backoff, or terminal failure on its claimed job.
+
+Private-original deletion is a separate scheduled flow. Database triggers validate canonical image-UUID-namespaced keys, transactionally capture bucket/key coordinates before source rows are tombstoned or removed, and cancel active ingest for the image. The Worker claims each job with an expiring claim token, validates the bucket against `R2_PRIVATE_BUCKET`, deletes through `ORIGINALS_BUCKET`, and uses token-protected completion/retry RPCs. Completed jobs are retained for 30 days.
 
 ## Delivery Routes
 
@@ -70,6 +73,7 @@ The Next.js app's R2 access key and secret are used for S3 presigning and are no
 | Path | Purpose |
 |---|---|
 | `src/index.ts` | Fetch, queue, cron, ingest, and delivery handlers |
+| `src/deletion-outbox.ts` | Private-original deletion claim, processing, and retention drain |
 | `src/config.ts` | Named virtual widths and output formats |
 | `src/schema.ts` | Queue payload validation |
 | `src/supabase.ts` | Worker environment contract and Supabase client |
