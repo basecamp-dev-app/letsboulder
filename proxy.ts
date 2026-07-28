@@ -12,6 +12,7 @@ function isStateChangingMethod(method: string): boolean {
 
 function shouldSkipMiddleware(pathname: string, method: string): boolean {
   const normalizedMethod = method.toUpperCase()
+  if (pathname === '/api/crags/pins') return false
 
   const publicReadOnlyPrefixes = [
     '/api/regions',
@@ -26,7 +27,6 @@ function shouldSkipMiddleware(pathname: string, method: string): boolean {
     '/api/gym-admin/gyms',
     '/api/images/search',
     '/api/crags/search',
-    '/api/crags/pins',
     '/api/crags/nearby',
     '/api/community',
     '/api/uploads/signed-url',

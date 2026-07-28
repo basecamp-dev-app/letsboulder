@@ -3,15 +3,18 @@
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, X } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 
-import MapLibreVectorMap, { type MapBounds, type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
+import MapLibreVectorMap, { type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
 import type { BrowserLocationPoint } from '@/hooks/use-browser-geolocation'
 import { reportError } from '@/lib/errors'
-import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult, type PinFeature, type PlacePin } from '@/lib/map/place-pins'
-import { runWhenIdle } from '@/lib/run-when-idle'
+import { normalizePaddedViewport, type MapBounds, type MapViewportQuery } from '@/lib/map/map-bounds'
+import { mapPinsQueryOptions } from '@/lib/map/map-pins-query'
+import { buildPinFeatures, type PinFeature, type PlacePin, type ViewportPinCluster, type ViewportPlacePin } from '@/lib/map/place-pins'
 
 const WORLD_DEFAULT_CENTER: [number, number] = [0, 20]
 const WORLD_DEFAULT_ZOOM = 2
+const WORLD_VIEWPORT = normalizePaddedViewport({ west: -180, south: -85, east: 180, north: 85 }, WORLD_DEFAULT_ZOOM)
 
 function buildPlaceHref(place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | 'type'>) {
   if (place.type === 'gym') return null
@@ -51,15 +54,25 @@ export default function InteractiveClimbingMap({
   userLocation?: BrowserLocationPoint | null
 }) {
   const router = useRouter()
-  const [isClient, setIsClient] = useState(false)
   const [mapLoaded, setMapLoaded] = useState(false)
-  const [placePins, setPlacePins] = useState<PlacePin[]>(initialPlacePins)
-  const [pinLoadState, setPinLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>(initialPlacePins.length > 0 ? 'ready' : 'idle')
-  const [mapZoom, setMapZoom] = useState(WORLD_DEFAULT_ZOOM)
-  const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
-  const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [isOffline, setIsOffline] = useState(false)
-  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
+  const [viewport, setViewport] = useState<MapViewportQuery | null>(null)
+  const [selectedPlace, setSelectedPlace] = useState<PlacePin | null>(null)
+  const [clusterFocus, setClusterFocus] = useState<{ center: [number, number]; zoom: number } | null>(null)
+
+  const pinsQuery = useQuery({
+    ...mapPinsQueryOptions(viewport ?? WORLD_VIEWPORT),
+    enabled: mapLoaded && viewport !== null && !isOffline,
+  })
+  const onlineFeatures = pinsQuery.data?.features
+  const { placePins, clusters } = useMemo(() => {
+    if (!onlineFeatures) return { placePins: initialPlacePins, clusters: [] as ViewportPinCluster[] }
+    return {
+      placePins: onlineFeatures.filter((feature): feature is ViewportPlacePin => !feature.is_cluster),
+      clusters: onlineFeatures.filter((feature): feature is ViewportPinCluster => feature.is_cluster),
+    }
+  }, [initialPlacePins, onlineFeatures])
+  const selectedPlaceId = selectedPlace?.id ?? null
 
   const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
   const offlineFitBounds = useMemo(() => isOffline ? buildFitBounds(pinFeatures) : null, [isOffline, pinFeatures])
@@ -67,46 +80,9 @@ export default function InteractiveClimbingMap({
     ? [[userLocation.longitude, userLocation.latitude], [userLocation.longitude, userLocation.latitude]]
     : null, [userLocation])
 
-  const loadPlacePins = useCallback(async () => {
-    if (!isClient || initialPlacePins.length > 0) {
-      if (initialPlacePins.length > 0) setPinLoadState('ready')
-      return
-    }
-
-    try {
-      setPinLoadState('loading')
-      const pinsResponse = await fetch('/api/crags/pins')
-      if (!pinsResponse.ok) {
-        reportError(new Error('Error fetching place pins'), { message: 'Error fetching place pins', extra: { status: pinsResponse.status } })
-        setPlacePins([])
-        setPinLoadState('error')
-        return
-      }
-
-      const { pins: apiPins } = await pinsResponse.json()
-      setPlacePins((apiPins || []) as PlacePin[])
-      setPinLoadState('ready')
-    } catch (err) {
-      reportError(err instanceof Error ? err : new Error('Error loading place pins'), { message: 'Error loading place pins' })
-      setPlacePins([])
-      setPinLoadState('error')
-    }
-  }, [initialPlacePins.length, isClient])
-
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
-    setMapZoom(state.zoom)
-    setMapBounds(state.bounds)
+    setViewport(normalizePaddedViewport(state.bounds, state.zoom))
   }, [])
-
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-
-  useEffect(() => {
-    if (initialPlacePins.length === 0) return
-    setPlacePins(initialPlacePins)
-    setPinLoadState('ready')
-  }, [initialPlacePins])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -122,66 +98,15 @@ export default function InteractiveClimbingMap({
     }
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-
-    if (pinFeatures.length === 0) {
-      setClusterIndex(null)
-      return
-    }
-
-    void import('supercluster').then((mod) => {
-      if (cancelled) return
-
-      const SuperclusterLib = mod.default
-      const index = new SuperclusterLib({ radius: 56, maxZoom: 16, minZoom: 0, minPoints: 2 }) as ClusterIndex
-      index.load(pinFeatures)
-      setClusterIndex(index)
-    }).catch(() => {
-      if (!cancelled) setClusterIndex(null)
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [pinFeatures])
-
-  useEffect(() => {
-    if (!isClient || !mapLoaded) return
-    return runWhenIdle(() => {
-      void loadPlacePins()
-    }, 150)
-  }, [isClient, loadPlacePins, mapLoaded])
-
-  const clusteredPlaces = useMemo<ClusterResult[]>(() => {
-    if (pinFeatures.length === 0 || !clusterIndex) return pinFeatures
-
-    const zoom = Math.max(0, Math.floor(mapZoom))
-    const worldBounds: [number, number, number, number] = [-180, -85, 180, 85]
-
-    if (!mapBounds) return clusterIndex.getClusters(worldBounds, zoom) as ClusterResult[]
-
-    const north = Math.min(85, mapBounds.north)
-    const south = Math.max(-85, mapBounds.south)
-
-    if (mapBounds.west <= mapBounds.east) {
-      return clusterIndex.getClusters([mapBounds.west, south, mapBounds.east, north], zoom) as ClusterResult[]
-    }
-
-    const westClusters = clusterIndex.getClusters([mapBounds.west, south, 180, north], zoom) as ClusterResult[]
-    const eastClusters = clusterIndex.getClusters([-180, south, mapBounds.east, north], zoom) as ClusterResult[]
-    return [...westClusters, ...eastClusters]
-  }, [clusterIndex, mapBounds, mapZoom, pinFeatures])
-
   const placesById = useMemo(() => new Map(placePins.map((place) => [place.id, place])), [placePins])
-  const selectedPlace = selectedPlaceId ? placesById.get(selectedPlaceId) || null : null
+  const accessiblePlaceLimit = clusters.length > 0 ? 10 : 20
+  const accessibleClusterLimit = 20 - Math.min(placePins.length, accessiblePlaceLimit)
   const selectedPlaceHref = selectedPlace ? buildPlaceHref(selectedPlace) : null
   const pinsGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
     type: 'FeatureCollection',
-    features: clusteredPlaces.flatMap((feature) => {
-      if (isClusterFeature(feature)) return []
+    features: pinFeatures.map((feature) => {
       const place = feature.properties
-      return [{
+      return {
         type: 'Feature' as const,
         geometry: feature.geometry,
         properties: {
@@ -192,25 +117,27 @@ export default function InteractiveClimbingMap({
           placeType: place.type,
           interactive: true,
         },
-      }]
+      }
     }),
-  }), [clusteredPlaces, selectedPlaceId])
+  }), [pinFeatures, selectedPlaceId])
 
   const clustersGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
     type: 'FeatureCollection',
-    features: clusteredPlaces.flatMap((feature) => {
-      if (!isClusterFeature(feature)) return []
-      return [{
+    features: clusters.map((cluster) => ({
         type: 'Feature' as const,
-        geometry: feature.geometry,
+        geometry: { type: 'Point' as const, coordinates: [cluster.longitude, cluster.latitude] },
         properties: {
-          clusterId: feature.properties.cluster_id,
-          pointCount: feature.properties.point_count,
-          expansionZoom: clusterIndex ? Math.min(clusterIndex.getClusterExpansionZoom(feature.properties.cluster_id), 17) : 17,
+          clusterId: cluster.id,
+          pointCount: cluster.point_count,
+          expansionZoom: Math.min((viewport?.zoom ?? WORLD_DEFAULT_ZOOM) + 1, 17),
         },
-      }]
-    }),
-  }), [clusterIndex, clusteredPlaces])
+      })),
+  }), [clusters, viewport?.zoom])
+
+  useEffect(() => {
+    if (!pinsQuery.error) return
+    reportError(pinsQuery.error, { message: 'Error loading viewport map pins' })
+  }, [pinsQuery.error])
 
   return (
     <div className="relative h-full min-h-full w-full">
@@ -222,6 +149,7 @@ export default function InteractiveClimbingMap({
         maxZoom={19}
         aria-label="Climbing locations map"
         fitBounds={userFitBounds ?? offlineFitBounds}
+        focusTarget={clusterFocus}
         pinsGeoJson={pinsGeoJson}
         clustersGeoJson={clustersGeoJson}
         userLocation={userLocation}
@@ -233,20 +161,35 @@ export default function InteractiveClimbingMap({
         }}
         onViewportChange={handleMapStateChange}
         onPinSelect={(id) => {
-          if (placesById.has(id)) setSelectedPlaceId(id)
+          const place = placesById.get(id)
+          if (place) setSelectedPlace(place)
         }}
       />
       <aside aria-label="Climbing locations" className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:left-4 focus-within:top-20 focus-within:z-[1001] focus-within:max-h-[calc(100%-6rem)] focus-within:w-72 focus-within:overflow-y-auto focus-within:rounded-2xl focus-within:bg-white/95 focus-within:p-2 focus-within:shadow-2xl focus-within:backdrop-blur-md">
         <ul className="space-y-1">
-          {placePins.slice(0, 20).map((place) => (
+          {placePins.slice(0, accessiblePlaceLimit).map((place) => (
             <li key={place.id}>
               <button
                 type="button"
-                onClick={() => setSelectedPlaceId(place.id)}
+                onClick={() => setSelectedPlace(place)}
                 aria-pressed={place.id === selectedPlaceId}
                 className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-stone-800 outline-none hover:bg-stone-100 focus-visible:ring-2 focus-visible:ring-amber-500 aria-pressed:bg-amber-100 aria-pressed:text-amber-950"
               >
                 {place.name}, {place.type === 'gym' ? 'gym' : 'crag'}
+              </button>
+            </li>
+          ))}
+          {clusters.slice(0, accessibleClusterLimit).map((cluster) => (
+            <li key={cluster.id}>
+              <button
+                type="button"
+                onClick={() => setClusterFocus({
+                  center: [cluster.longitude, cluster.latitude],
+                  zoom: Math.min((viewport?.zoom ?? WORLD_DEFAULT_ZOOM) + 1, 17),
+                })}
+                className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-stone-800 outline-none hover:bg-stone-100 focus-visible:ring-2 focus-visible:ring-amber-500"
+              >
+                Explore cluster of {cluster.point_count} locations near {cluster.latitude.toFixed(2)}, {cluster.longitude.toFixed(2)}
               </button>
             </li>
           ))}
@@ -264,7 +207,7 @@ export default function InteractiveClimbingMap({
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedPlaceId(null)}
+                onClick={() => setSelectedPlace(null)}
                 className="rounded-full border border-stone-200 bg-white p-2 text-stone-500 shadow-sm transition hover:bg-stone-100 hover:text-stone-900 dark:border-white/10 dark:bg-white/10 dark:text-white/70 dark:hover:bg-white/15 dark:hover:text-white"
                 aria-label="Close selected place"
               >
@@ -297,19 +240,19 @@ export default function InteractiveClimbingMap({
         </div>
       ) : null}
       <div className="pointer-events-none absolute bottom-6 left-4 z-[1000] space-y-2 md:left-6">
-        {isOffline && pinLoadState === 'ready' ? (
-          <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
+        {isOffline ? (
+          <div role="status" className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
             Connection lost. Map updates are unavailable.
           </div>
         ) : null}
-        {pinLoadState === 'loading' ? (
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
+        {!isOffline && pinsQuery.isFetching ? (
+          <div role="status" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
             <Loader2 className="size-3.5 animate-spin" />
             Loading crags...
           </div>
         ) : null}
-        {pinLoadState === 'error' ? (
-          <div className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 shadow-lg backdrop-blur-md">
+        {!isOffline && pinsQuery.isError ? (
+          <div role="alert" className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 shadow-lg backdrop-blur-md">
             Couldn&apos;t load map pins. Header search still works.
           </div>
         ) : null}

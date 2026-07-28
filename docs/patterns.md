@@ -52,13 +52,14 @@ Use this as a reference when adding or changing route drawing, map, media, GPS, 
 ### Pattern
 - Use `MapLibreVectorMap` for interactive maps and its location-picker/static wrappers for those specialized cases. The primitive owns MapLibre's imperative lifecycle and updates GeoJSON sources when React props change.
 - Resolve the hosted style through `getVectorMapConfig()` and `buildMapLibreStyle()`. The default is OpenFreeMap Liberty; an offline state produces the intentional pins-only style rather than promising an offline basemap.
-- Build separate point and cluster GeoJSON collections outside the primitive. `InteractiveClimbingMap` and `LightweightCragMap` dynamically import Supercluster, query it with the current viewport and integer zoom, and pass expansion zooms to MapLibre.
-- Cluster indexes use `minPoints: 2` and `maxZoom: 16`; the world map uses radius 56 and the dense crag map uses radius 72. Preserve antimeridian handling by querying west/east halves when bounds wrap.
-- Cluster clicks ease to Supercluster's expansion zoom. Pin clicks use the transparent hit-target layers and `selectId`, while visible circles and labels remain presentation layers.
+- Build separate point and cluster GeoJSON collections outside the primitive. The world map fetches 25%-padded bounds after a debounced `moveend`; React Query retains the previous viewport while the next request is in flight.
+- The world endpoint returns globally anchored server clusters through zoom 11 and individual places above that threshold. `LightweightCragMap` retains its local radius-72 Supercluster index for bounded crag-image datasets.
+- Preserve antimeridian handling in padded request bounds and database filtering. Cluster clicks advance the server query zoom; pin clicks use the transparent hit-target layers and `selectId`, while visible circles and labels remain presentation layers.
 
 ### Key Files
 - `components/map/MapLibreVectorMap.tsx` — shared MapLibre source, layer, controls, and event lifecycle
-- `components/InteractiveClimbingMap.tsx` — world place pins, network loading, and Supercluster index
+- `components/InteractiveClimbingMap.tsx` — debounced viewport queries and world place/cluster rendering
+- `lib/map/map-bounds.ts` and `lib/map/map-pins-query.ts` — padded query bounds and React Query configuration
 - `components/LightweightCragMap.tsx` — crag image pins, coordinate grouping, and Supercluster index
 - `components/map/MapLibreLocationPicker.tsx` — click/drag location selection
 - `components/map/MapLibreStaticLocationMap.tsx` — non-interactive location preview
@@ -66,6 +67,7 @@ Use this as a reference when adding or changing route drawing, map, media, GPS, 
 
 ### Known Edge Cases
 - **Lifecycle:** Construct and remove the MapLibre instance in an effect; update sources and interactions in later effects instead of recreating the map.
+- **Viewport churn:** Listen to `moveend`, not both `moveend` and `zoomend`; abort superseded requests and retain padded prior data to avoid marker flicker.
 - **Geolocation:** Request browser location only after user intent, handle denial/unsupported states, and leave map exploration available.
 - **Network loss:** A pins-only render and connection notice are degradation states, not an offline product guarantee.
 - **Static previews:** Disable interaction and clustering where the wrapper requests a static preview.

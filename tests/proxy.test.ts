@@ -70,6 +70,16 @@ describe('proxy CSRF handling', () => {
     expect(applyProxyAuth).not.toHaveBeenCalled()
   })
 
+  test('rate limits public viewport map reads', async () => {
+    const request = new NextRequest('https://letsboulder.com/api/crags/pins?north=1&south=0&east=1&west=0&zoom=12')
+
+    const response = await proxy(request)
+
+    expect(response.status).toBe(200)
+    expect(applyProxyRateLimit).toHaveBeenCalledWith(request)
+    expect(applyProxyAuth).toHaveBeenCalledOnce()
+  })
+
   test('allows same-origin server action posts without x-csrf-token', async () => {
     const request = new NextRequest('https://letsboulder.com/submit', {
       method: 'POST',

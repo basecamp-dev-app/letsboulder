@@ -181,6 +181,7 @@ function getApiBucket(pathname: string, method: string): RateLimitBucket | null 
     pathname.startsWith('/api/places/search') ||
     pathname.startsWith('/api/places/nearby') ||
     pathname.startsWith('/api/crags/search') ||
+    pathname.startsWith('/api/crags/pins') ||
     pathname.startsWith('/api/crags/nearby') ||
     pathname.startsWith('/api/regions/search') ||
     pathname.startsWith('/api/locations/search') ||

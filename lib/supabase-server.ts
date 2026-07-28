@@ -3,7 +3,9 @@ import { cookies } from 'next/headers'
 import { cache } from 'react'
 import type { NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
+import type { Database } from '@/types/database'
 
 export async function getServerClient() {
   const cookieStore = await cookies()
@@ -74,6 +76,19 @@ export function getUnauthenticatedClient() {
   )
 }
 
+export function getViewportMapClient() {
+  return createServerClient(
+    env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    serverEnv.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    {
+      cookies: {
+        getAll() { return [] },
+        setAll() {},
+      },
+    }
+  )
+}
+
 export interface PlacePin {
   id: string
   name: string
@@ -86,16 +101,36 @@ export interface PlacePin {
   route_count: number | null
 }
 
-interface PlacePinRow {
+type PlacePinRow = Database['public']['Functions']['get_place_pins']['Returns'][number]
+
+export interface ViewportMapFeature {
   id: string
-  name: string
-  type: 'crag' | 'gym'
-  latitude: number | null
-  longitude: number | null
+  name: string | null
+  type: 'crag' | 'gym' | 'cluster'
+  latitude: number
+  longitude: number
   slug: string | null
   country_code: string | null
   image_count: number | null
   route_count: number | null
+  is_cluster: boolean
+  point_count: number
+}
+
+type GeneratedViewportMapFeatureRow = Database['public']['Functions']['get_viewport_map_features']['Returns'][number]
+type ViewportMapFeatureRow = Omit<GeneratedViewportMapFeatureRow, 'name' | 'slug' | 'country_code' | 'image_count' | 'route_count'> & {
+  name: string | null
+  slug: string | null
+  country_code: string | null
+  image_count: number | null
+  route_count: number | null
+}
+
+interface ViewportRpcClient {
+  rpc(
+    name: 'get_viewport_map_features',
+    args: Database['public']['Functions']['get_viewport_map_features']['Args']
+  ): PromiseLike<{ data: GeneratedViewportMapFeatureRow[] | null; error: unknown }>
 }
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof getServerClient>>
@@ -111,7 +146,7 @@ export async function fetchMapPinsWithClient(
 
     if (error) {
       reportError(error, { message: 'Error fetching map pins' })
-      return []
+      throw error
     }
 
     return ((data || []) as PlacePinRow[])
@@ -119,7 +154,7 @@ export async function fetchMapPinsWithClient(
       .map((row) => ({
         id: row.id,
         name: row.name,
-        type: row.type,
+        type: row.type === 'gym' ? 'gym' : 'crag',
         latitude: Number(row.latitude),
         longitude: Number(row.longitude),
         slug: row.slug,
@@ -129,8 +164,36 @@ export async function fetchMapPinsWithClient(
       }))
   } catch (error) {
     reportError(error, { message: 'Unexpected error fetching map pins' })
-    return []
+    throw error
   }
+}
+
+export async function fetchViewportMapFeaturesWithClient(
+  supabase: ServerSupabaseClient,
+  bounds: { north: number; south: number; east: number; west: number; zoom: number },
+  includePending: boolean
+): Promise<ViewportMapFeature[]> {
+  const client = supabase as unknown as ViewportRpcClient
+  const { data, error } = await client.rpc('get_viewport_map_features', {
+    p_north: bounds.north,
+    p_south: bounds.south,
+    p_east: bounds.east,
+    p_west: bounds.west,
+    p_zoom: bounds.zoom,
+    include_pending: includePending,
+  })
+
+  if (error) throw error
+
+  return ((data || []) as ViewportMapFeatureRow[]).map((row) => ({
+    ...row,
+    type: row.is_cluster ? 'cluster' : row.type === 'gym' ? 'gym' : 'crag',
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+    image_count: row.image_count === null ? null : Number(row.image_count),
+    route_count: row.route_count === null ? null : Number(row.route_count),
+    point_count: Number(row.point_count),
+  }))
 }
 
 export const fetchMapPins = cache(async (): Promise<PlacePin[]> => {
