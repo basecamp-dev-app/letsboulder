@@ -106,18 +106,8 @@ function createCragsClient(namedCrags: unknown[], tagRows: unknown[] = []) {
 }
 
 function createNearbyCragsClient(result: QueryResult) {
-  const builder = {
-    gte: vi.fn(() => builder),
-    lte: vi.fn(() => builder),
-    order: vi.fn(() => builder),
-    limit: vi.fn(() => makeThenableResult(result)),
-  }
-
   return {
-    from: vi.fn((table: string) => {
-      if (table !== 'crags') throw new Error(`Unexpected table ${table}`)
-      return { select: vi.fn(() => builder) }
-    }),
+    rpc: vi.fn(() => Promise.resolve(result)),
   }
 }
 
@@ -243,18 +233,82 @@ describe('Search routes', () => {
   })
 
   test('crags nearby keeps zero coordinates when computing distance', async () => {
-    getServerClientFromRequest.mockReturnValue(createNearbyCragsClient({
+    const client = createNearbyCragsClient({
       data: [
-        { id: 'crag-0', name: 'Origin Crag', latitude: 0, longitude: 0, rock_type: 'granite', type: 'outdoor', country_code: 'gb', region_name: 'Greenwich', sub_area: null },
+        { id: 'crag-0', name: 'Origin Crag', latitude: 0, longitude: 0, rock_type: 'granite', type: 'outdoor', country_code: 'gb', region_name: 'Greenwich', sub_area: null, distance_meters: 0 },
       ],
       error: null,
-    }))
+    })
+    getServerClientFromRequest.mockReturnValue(client)
 
     const response = await getCragNearby(new NextRequest('http://localhost:3000/api/crags/nearby?lat=0&lng=0'))
     const json = await response.json()
 
     expect(response.status).toBe(200)
     expect(json[0]).toEqual(expect.objectContaining({ id: 'crag-0', distance: 0 }))
+    expect(json[0]).not.toHaveProperty('distance_meters')
+    expect(client.rpc).toHaveBeenCalledWith('get_nearby_crags', {
+      p_latitude: 0,
+      p_longitude: 0,
+      p_radius_meters: 10_000,
+      p_limit: 30,
+    })
+  })
+
+  test('crags nearby accepts a custom radius in meters', async () => {
+    const client = createNearbyCragsClient({ data: [], error: null })
+    getServerClientFromRequest.mockReturnValue(client)
+
+    const response = await getCragNearby(new NextRequest(
+      'http://localhost:3000/api/crags/nearby?lat=85&lng=179.9&radiusMeters=25000'
+    ))
+
+    expect(response.status).toBe(200)
+    expect(client.rpc).toHaveBeenCalledWith('get_nearby_crags', {
+      p_latitude: 85,
+      p_longitude: 179.9,
+      p_radius_meters: 25_000,
+      p_limit: 30,
+    })
+  })
+
+  test('crags nearby accepts coordinate range boundaries', async () => {
+    const client = createNearbyCragsClient({ data: [], error: null })
+    getServerClientFromRequest.mockReturnValue(client)
+
+    const response = await getCragNearby(new NextRequest(
+      'http://localhost:3000/api/crags/nearby?lat=-90&lng=180'
+    ))
+
+    expect(response.status).toBe(200)
+    expect(client.rpc).toHaveBeenCalledWith('get_nearby_crags', expect.objectContaining({
+      p_latitude: -90,
+      p_longitude: 180,
+    }))
+  })
+
+  test.each([
+    'lat=&lng=0',
+    'lat=0&lng=',
+    'lat=12north&lng=0',
+    'lat=91&lng=0',
+    'lat=0&lng=-181',
+    'lat=Infinity&lng=0',
+  ])('crags nearby rejects invalid coordinates: %s', async (query) => {
+    const response = await getCragNearby(new NextRequest(`http://localhost:3000/api/crags/nearby?${query}`))
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Valid lat and lng are required' })
+    expect(getServerClientFromRequest).not.toHaveBeenCalled()
+  })
+
+  test.each(['0', '-1', '100001', 'NaN', '10km'])('crags nearby rejects invalid radius: %s', async (radius) => {
+    const response = await getCragNearby(new NextRequest(
+      `http://localhost:3000/api/crags/nearby?lat=0&lng=0&radiusMeters=${radius}`
+    ))
+
+    expect(response.status).toBe(400)
+    expect(getServerClientFromRequest).not.toHaveBeenCalled()
   })
 
   test('crag by id returns normalized crag payload', async () => {

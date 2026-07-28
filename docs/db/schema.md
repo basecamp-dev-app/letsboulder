@@ -396,6 +396,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | Function | Purpose |
 |----------|---------|
 | `get_place_pins(include_pending)` | Map pins for crags and gyms with route/image metadata in one query |
+| `get_nearby_crags(latitude, longitude, radius_meters, limit)` | RLS-aware crags within a metre radius, ordered nearest-first with the spatial index |
 | `get_crag_route_intelligence(p_crag_id)` | Per-route metrics: directions, topo coverage, weighted rating, unique sender counts |
 | `get_upload_context(lat, lng)` | Country/region context from coordinates |
 | `find_region_by_location(lat, lng)` | Find region by GPS coordinates |
@@ -467,6 +468,9 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 both be null or both be present and within valid latitude/longitude ranges.
 `crags.location` is a stored generated `geography(Point, 4326)` derived from
 that pair and has a GiST index for spatial queries.
+`get_nearby_crags` filters that geography with `ST_DWithin` and orders with the
+GiST KNN operator. Its radius defaults to 10 km and is capped at 100 km; callers
+may request at most 30 rows.
 
 | Function | Purpose |
 |----------|---------|
