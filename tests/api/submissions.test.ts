@@ -204,7 +204,7 @@ describe('POST /api/submissions', () => {
     })
 
     const rpcMock = vi.fn(async (fnName: string) => {
-      if (fnName === 'create_submission_routes_atomic') {
+      if (fnName === 'create_submission_routes_service') {
         return {
           data: [{ climb_id: 'climb-1', name: 'Valid Route', grade: '6A' }],
           error: null,

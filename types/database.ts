@@ -1529,6 +1529,7 @@ export type Database = {
           verification_count: number | null
           visibility: string
           width: number | null
+          wiki_revision: number
         }
         Insert: {
           admin_region_name?: string | null
@@ -1585,6 +1586,7 @@ export type Database = {
           verification_count?: number | null
           visibility?: string
           width?: number | null
+          wiki_revision?: number
         }
         Update: {
           admin_region_name?: string | null
@@ -1641,6 +1643,7 @@ export type Database = {
           verification_count?: number | null
           visibility?: string
           width?: number | null
+          wiki_revision?: number
         }
         Relationships: [
           {
@@ -2090,6 +2093,47 @@ export type Database = {
           welcome_email_sent_at?: string | null
         }
         Relationships: []
+      }
+      published_edit_mutations: {
+        Row: {
+          base_revision: number
+          client_mutation_id: string
+          committed_revision: number | null
+          created_at: string
+          editor_id: string
+          image_id: string
+          request_hash: string
+          result: Json | null
+        }
+        Insert: {
+          base_revision: number
+          client_mutation_id: string
+          committed_revision?: number | null
+          created_at?: string
+          editor_id: string
+          image_id: string
+          request_hash: string
+          result?: Json | null
+        }
+        Update: {
+          base_revision?: number
+          client_mutation_id?: string
+          committed_revision?: number | null
+          created_at?: string
+          editor_id?: string
+          image_id?: string
+          request_hash?: string
+          result?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "published_edit_mutations_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       regions: {
         Row: {
@@ -2923,6 +2967,14 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_published_submission_edit: {
+        Args: {
+          p_client_mutation_id: string
+          p_image_id: string
+          p_operations: Json
+        }
+        Returns: Json
+      }
       assert_media_ready_for_publication: {
         Args: { p_image_ids: string[] }
         Returns: undefined
@@ -3021,6 +3073,20 @@ export type Database = {
           p_image_id: string
           p_route_type: string
           p_routes: Json
+        }
+        Returns: {
+          climb_id: string
+          grade: string
+          name: string
+        }[]
+      }
+      create_submission_routes_service: {
+        Args: {
+          p_crag_id: string
+          p_image_id: string
+          p_route_type: string
+          p_routes: Json
+          p_user_id: string
         }
         Returns: {
           climb_id: string
@@ -3814,6 +3880,7 @@ export type Database = {
           verification_count: number | null
           visibility: string
           width: number | null
+          wiki_revision: number
         }
         SetofOptions: {
           from: "*"

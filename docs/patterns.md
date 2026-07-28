@@ -25,7 +25,8 @@ Use this as a reference when adding or changing route drawing, map, media, GPS, 
 - Compare serialized route content, not array identity, when deciding whether either side changed. This prevents seed/write loops and ignores fields that are not persisted.
 - Call `clearCanvasState()` when switching images or reseeding one editor session. It clears routes, selection, editor draft, and history while preserving mode, interaction tool, and zoom.
 - Call `reset()` when leaving/unmounting the editor. It additionally restores `mode: 'browse'`, `interactionTool: 'select'`, and the identity zoom transform.
-- Do not treat Zustand as durable storage. Draft routes are synchronized through `/api/submissions/drafts/[id]/routes`; published-image edits remain in their screen owner until explicitly saved.
+- Do not treat Zustand as durable storage. Draft routes are synchronized through `/api/submissions/drafts/[id]/routes`; published-image edits remain in their screen owner until explicitly saved through `apply_published_submission_edit`.
+- Published saves use one client mutation UUID per stable operation payload. Retry the same payload with the same UUID after an ambiguous failure; a changed payload receives a new UUID. The returned route mappings replace temporary canvas IDs, and `wiki_revision` must be refreshed after every commit or conflict.
 
 ### Key Files
 - `features/route-editor/components/UnifiedRouteCanvas.tsx` — main canvas component

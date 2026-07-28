@@ -217,6 +217,7 @@ export async function submitRoute(request: NextRequest) {
       const existingResult = await executeExistingImageSubmission({
         supabase,
         supabaseAdmin,
+        userId,
         createErrorResponse: submissionErrorResponse,
         imageId,
         cragId: resolvedCragId,

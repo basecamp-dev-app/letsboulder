@@ -279,6 +279,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `images` carries media-pipeline state in addition to legacy `url` storage fields.
 - Key columns: `storage_provider`, `original_bucket`, `original_key`, `asset_version`, `variants`, `visibility`, `processing_status`, `checksum_sha256`, `processed_at`, `latitude`, `longitude`.
 - `images.submission_id` is a logical submission-group identifier used by publication, grouping, editing, deletion, and monitoring code. No `submissions` table or FK constraint backs it, so application and RPC code must preserve its grouping invariants explicitly.
+- `images.wiki_revision` is the optimistic-concurrency token for published image edits. `apply_published_submission_edit` locks the image, requires the caller's `baseRevision` to match, and advances it once per committed mutation.
 - `submission_draft_images` mirrors the provider-aware original reference.
 - `submission_draft_routes` stores durable draft route geometry and metadata. Explicit Save persists dirty images through image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
 - `media_jobs` is the durable outbox for active media ingest. Upload completion calls `queue_media_ingest_job(...)` to update `images` and insert/reuse a queued job atomically.
@@ -299,6 +300,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - Published images may exist before any `route_lines` are added, enabling image-only submissions that receive topo later.
 - `submission_contributors` records successful non-owner published editors.
 - `submission_edit_history` stores field-aware, per-image edit history for published submissions and is retained when an editor account is deleted.
+- `published_edit_mutations` is an internal, RLS-enabled receipt table keyed by `(editor_id, client_mutation_id)`. It stores the canonical request hash, committed revision, and generated route mappings so an ambiguous client retry returns the original result without repeating writes. API roles have no direct table privileges.
 - `submission_draft_collaborators` and `submission_draft_collaborator_invites` continue to enable shared editing on drafts.
 - RLS helper functions: `is_submission_collaborator(image_id, user_id)` and `is_submission_draft_collaborator(draft_id, user_id)`.
 - Wiki helper function: `user_can_wiki_edit_submission(image_id, user_id)`; the supplied user must equal `auth.uid()`, and deleted images or images under deleted crags are rejected.
@@ -327,6 +329,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 | `submission_draft_collaborator_invites` | owner | owner only (draft status) | (none — RPC only) | owner only |
 | `submission_contributors` | authenticated | service / helper only | service / helper only | service / helper only |
 | `submission_edit_history` | authenticated | service / helper only | service / helper only | service / helper only |
+| `published_edit_mutations` | RPC only | RPC only | RPC only | RPC only |
 | `images` | existing + collaborator read | existing | existing | admin policy or guarded RPC |
 | `crags` | active public rows; all rows for admin | authenticated create | existing | empty-row maintenance only |
 | `climbs` | active rows under active crags; all rows for admin | owner create | owner pending fields only | unassociated pending-row maintenance only |
@@ -442,9 +445,11 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `is_submission_collaborator(image_id, user_id)` | RLS helper: check submission collaboration |
 | `is_submission_draft_collaborator(draft_id, user_id)` | RLS helper: check draft collaboration |
 | `append_submission_draft_images_atomic(...)` | Atomic draft image append |
-| `create_submission_routes_atomic(...)` | Atomic route creation |
+| `create_submission_routes_atomic(...)` | Internal legacy route creation primitive with no API-role execution grant |
+| `create_submission_routes_service(user_id, image_id, crag_id, route_type, routes)` | Service-only identity-binding wrapper used by the validated existing-image Route Handler; the supplied user must exist |
 | `assert_media_ready_for_publication(image_ids)` | Lock and validate public media readiness |
 | `insert_pin_images_atomic(...)` | Atomic pin image insertion |
+| `apply_published_submission_edit(image_id, client_mutation_id, operations)` | Authenticated-only atomic and idempotent published image metadata, route create/update, and grade-vote mutation with revision conflict detection and generated ID mappings |
 
 ### Grade Management
 | Function | Purpose |
@@ -452,7 +457,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `initialize_climb_consensus(p_climb_id)` | Initialize consensus grade for a climb |
 | `initialize_climb_grade_vote(p_climb_id, p_user_id, p_grade)` | Service-role-only grade-vote initialization with an explicit user; no anon/authenticated grant |
 | `insert_grade_vote(p_climb_id, vote_grade)` | Authenticated/service-role vote upsert bound internally to `auth.uid()`; no anon grant |
-| `save_submission_grade_votes(p_image_id, p_grades)` | Authenticated-only atomic submission vote upsert; validates route ownership and always attributes votes to `auth.uid()` |
+| `save_submission_grade_votes(p_image_id, p_grades)` | Retired submission vote helper with no API-role execution grant; published editor votes use `apply_published_submission_edit` |
 | `sync_climb_grade_from_votes(p_climb_id)` | Recompute climb grade from votes |
 | `add_correction_type_value(p_type, p_value)` | Dynamic correction type enum expansion |
 | `normalize_climb_route_type(p_route_type)` | Normalize route type string |

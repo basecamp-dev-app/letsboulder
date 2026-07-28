@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
-import { isValidGrade } from '@/lib/grade-constants'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { assessNonOwnerTextRisk, combineRiskAssessments } from '@/features/submissions/server/submissions/wiki-edit-protection'
 import { getServerClient } from '@/lib/supabase-server'
@@ -26,14 +25,6 @@ const submissionCragSchema = z.object({
   cragName: z.string().trim().min(1, 'Invalid payload'),
   regionTag: z.string().trim().min(1, 'Invalid payload'),
   subArea: z.string().nullable().optional(),
-})
-
-const submissionGradeVotesSchema = z.object({
-  imageId: z.string().trim().min(1, 'Image ID is required'),
-  grades: z.array(z.object({
-    routeLineId: z.string().trim().min(1),
-    grade: z.string().refine((value) => isValidGrade(value)),
-  })).min(1, 'A valid grades array is required'),
 })
 
 export async function updateSubmissionCreditAction(imageId: string, platformInput: unknown, handleInput: unknown): Promise<ActionResult<{ credit: { platform: string | null; handle: string | null } }>> {
@@ -197,27 +188,4 @@ export async function updateSubmissionCragAction(imageId: string, cragName: stri
   }
 
   return { success: true, data: { crag: result } }
-}
-
-export async function saveSubmissionGradeVotesAction(imageId: string, grades: Array<{ routeLineId: string; grade: string }>): Promise<ActionResult<{ votesUpdated: number }>> {
-  const validation = validateActionInput(submissionGradeVotesSchema, { imageId, grades })
-  if (!validation.success) return fail<{ votesUpdated: number }>(validation.result.error || 'A valid grades array is required', validation.result.status || 400)
-
-  const auth = await getActionAuth()
-  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
-  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-
-  const supabase = await getServerClient()
-  const { data: votesUpdated, error: rpcError } = await supabase.rpc('save_submission_grade_votes', {
-    p_image_id: validation.data.imageId,
-    p_grades: validation.data.grades,
-  })
-  if (rpcError) {
-    if (rpcError.code === '42501') return { success: false, error: 'You do not have permission to update route grades for this submission', status: 403 }
-    if (rpcError.code === 'P0002') return { success: false, error: 'Image not found', status: 404 }
-    if (rpcError.code === '22023' || rpcError.code === '22P02') return { success: false, error: rpcError.message, status: 400 }
-    return { success: false, error: 'Save submission grade votes error', status: 500 }
-  }
-
-  return { success: true, data: { votesUpdated: votesUpdated || 0 } }
 }

@@ -22,6 +22,7 @@ if (!isLoopback && !allowNonLocal) {
 const pool = new Pool({ connectionString: databaseUrl, max: 2, statement_timeout: 15_000 })
 
 const API_EXECUTABLE_DEFINERS = [
+  'apply_published_submission_edit(uuid,uuid,jsonb)',
   'assert_media_ready_for_publication(uuid[])',
   'claim_submission_collaborator_invite(uuid)',
   'claim_submission_draft_collaborator_invite(uuid)',
@@ -75,10 +76,7 @@ const API_EXECUTABLE_DEFINERS = [
   'update_own_profile_submission_credit(text,text)',
   'update_own_submission_anonymity(uuid,boolean)',
   'update_own_submission_credit(uuid,text,text)',
-  'update_own_submitted_routes(uuid,jsonb)',
   'update_submission_crag_metadata(uuid,text,text,text)',
-  'update_submission_image_metadata(uuid,double precision,double precision,text[])',
-  'update_submission_image_metadata(uuid,double precision,double precision,text[],text)',
   'update_submission_image_order(uuid,jsonb)',
   'user_can_edit_submission_draft(uuid,uuid)',
   'user_can_wiki_edit_submission(uuid,uuid)',
@@ -91,6 +89,8 @@ const RESTRICTED_FUNCTIONS = [
   'claim_media_deletion_job(text,integer)',
   'cleanup_orphan_route_uploads(interval,integer)',
   'complete_media_deletion_job(uuid,uuid)',
+  'create_submission_routes_atomic(uuid,uuid,text,jsonb)',
+  'create_submission_routes_service(uuid,uuid,uuid,text,jsonb)',
   'delete_account_atomic(uuid,text,boolean)',
   'initialize_climb_grade_vote(uuid,uuid,character varying)',
   'fail_media_deletion_job(uuid,uuid,text)',
@@ -98,6 +98,9 @@ const RESTRICTED_FUNCTIONS = [
   'record_contribution_event(uuid,text,integer,text,uuid,uuid,uuid,uuid,uuid,jsonb,text)',
   'retry_media_deletion_job(uuid,uuid,text)',
   'soft_delete_published_submission(uuid[],uuid)',
+  'update_own_submitted_routes(uuid,jsonb)',
+  'update_submission_image_metadata(uuid,double precision,double precision,text[])',
+  'update_submission_image_metadata(uuid,double precision,double precision,text[],text)',
 ]
 
 const SERVICE_FUNCTIONS = [
@@ -105,6 +108,7 @@ const SERVICE_FUNCTIONS = [
   'claim_media_deletion_job(text,integer)',
   'cleanup_orphan_route_uploads(interval,integer)',
   'complete_media_deletion_job(uuid,uuid)',
+  'create_submission_routes_service(uuid,uuid,uuid,text,jsonb)',
   'delete_account_atomic(uuid,text,boolean)',
   'initialize_climb_grade_vote(uuid,uuid,character varying)',
   'fail_media_deletion_job(uuid,uuid,text)',

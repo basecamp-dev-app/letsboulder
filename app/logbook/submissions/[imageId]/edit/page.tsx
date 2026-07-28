@@ -5,12 +5,9 @@ import { useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import {
-  createPublishedSubmissionRoutesAction,
-  updatePublishedSubmissionRoutesAction,
-  updateSubmissionImageMetadataAction,
+  applyPublishedSubmissionEditAction,
 } from '@/features/submissions/actions/editor-write-actions'
 import {
-  saveSubmissionGradeVotesAction,
   updateSubmissionAnonymousAction,
   updateSubmissionCragAction,
   updateSubmissionCreditAction,
@@ -29,41 +26,10 @@ import { SubmissionLocationPanel } from '@/features/submissions/submission-edito
 import { useSubmissionEditorData } from '@/features/submissions/submission-editor/hooks/use-submission-editor-data'
 import { useSubmissionLocationMetadata } from '@/features/submissions/editor/location/use-submission-location-metadata'
 import {
-  normalizePublishedRoute,
-  replaceDraftRoutesWithPublishedRoutes,
+  applyPublishedRouteIdMappings,
 } from '@/features/submissions/submission-editor/lib/published-route-editor-state'
 import { usePublishedRouteEditorSync } from '@/features/submissions/submission-editor/hooks/use-published-route-editor-sync'
 import { useUnsavedChangesWarning } from '@/features/editor/hooks/use-unsaved-changes-warning'
-
-interface CreatedPublishedRoutePayload {
-  id: string
-  climb_id: string
-  points: RouteLine['points']
-  sequence_order: number
-  image_width: number | null
-  image_height: number | null
-  climbs: {
-    id: string
-    name: string | null
-    grade: string
-    status: string
-    route_type: string | null
-    description: string | null
-  } | Array<{
-    id: string
-    name: string | null
-    grade: string
-    status: string
-    route_type: string | null
-    description: string | null
-  }> | null
-}
-
-function readCreatedRoutesPayload(data: unknown): CreatedPublishedRoutePayload[] {
-  if (!data || typeof data !== 'object' || !('routes' in data)) return []
-  const routes = (data as { routes?: unknown }).routes
-  return Array.isArray(routes) ? routes as CreatedPublishedRoutePayload[] : []
-}
 
 export default function EditSubmittedRoutesPage() {
   const searchParams = useSearchParams()
@@ -72,6 +38,7 @@ export default function EditSubmittedRoutesPage() {
   const location = useSubmissionLocationMetadata({ currentUserId: editor.currentUserId, ownerUserId: editor.ownerUserId, cragId: editor.cragId, initialLatitude: editor.initialLatitude, initialLongitude: editor.initialLongitude, initialCragName: editor.initialCragName, initialRegionTag: editor.initialRegionTag, initialSubArea: editor.initialSubArea, initialFaceDirections: editor.initialFaceDirections, initialLocationMode: editor.initialLocationMode })
   const drawingAreaRef = useRef<HTMLDivElement | null>(null)
   const routeCanvasRef = useRef<UnifiedRouteCanvasRef | null>(null)
+  const pendingMutationRef = useRef<{ id: string; operations: string } | null>(null)
   const [savingAllChanges, setSavingAllChanges] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(true)
   const [orientationOpen, setOrientationOpen] = useState(true)
@@ -162,37 +129,6 @@ export default function EditSubmittedRoutesPage() {
       }
 
       const imageMetadataChanged = location.imageMetadataDirty
-      const creditChanged = editor.creditDirty || editor.anonymityDirty
-      if (imageMetadataChanged || creditChanged) {
-        const result = await updateSubmissionImageMetadataAction(editor.activeImageId, {
-          latitude,
-          longitude,
-          faceDirections: location.faceDirections,
-          locationMode: location.locationMode,
-        })
-        if (!result.success) throw new Error(result.error || 'Failed to save image metadata')
-
-        if (editor.creditDirty) {
-          const creditResult = await updateSubmissionCreditAction(editor.activeImageId, editor.creditPlatform, editor.creditHandle)
-          if (!creditResult.success) throw new Error(creditResult.error || 'Failed to save contribution credit')
-        }
-
-        if (editor.anonymityDirty) {
-          const anonymousResult = await updateSubmissionAnonymousAction(editor.activeImageId, editor.isAnonymousSubmission)
-          if (!anonymousResult.success) throw new Error(anonymousResult.error || 'Failed to save anonymity')
-        }
-      }
-
-      if (location.cragMetadataDirty && editor.cragId && location.canEditCragMetadata) {
-        const cragResult = await updateSubmissionCragAction(
-          editor.activeImageId,
-          location.cragName,
-          location.regionTag,
-          location.subArea
-        )
-        if (!cragResult.success) throw new Error(cragResult.error || 'Failed to update crag metadata')
-      }
-
       const newRoutes = editor.editedRoutes.filter(
         (route) => !route.climb_id || route.created_at === 'draft-created'
       )
@@ -200,65 +136,90 @@ export default function EditSubmittedRoutesPage() {
         (route) => route.climb_id && route.created_at !== 'draft-created'
       )
 
+      const routesChanged = !areSerializedRoutesEqual(
+        serializeStoredRoutes(editor.editedRoutes),
+        serializeStoredRoutes(editor.initialEditedRoutes)
+      )
+      const initialGradeByRouteId = new Map(
+        editor.initialEditedRoutes.map((route) => [route.id, route.climb?.grade])
+      )
+      const gradeVotes = existingRoutes
+        .filter((route) => route.id && route.climb?.grade && route.climb.grade !== initialGradeByRouteId.get(route.id))
+        .map((route) => ({ routeLineId: route.id, grade: route.climb?.grade || '6A' }))
+      const operations = {
+        baseRevision: editor.wikiRevision,
+        ...(imageMetadataChanged ? {
+          imageMetadata: {
+            latitude,
+            longitude,
+            faceDirections: location.faceDirections,
+            locationMode: location.locationMode,
+          },
+        } : {}),
+        createRoutes: newRoutes.map((route) => ({
+          clientRouteId: route.id,
+          name: route.climb?.name || 'Unnamed',
+          grade: route.climb?.grade || '6A',
+          climbType: ['sport', 'boulder', 'trad', 'deep-water-solo'].includes(route.climb?.route_type || '')
+            ? route.climb?.route_type
+            : 'boulder',
+          description: route.climb?.description ?? null,
+          points: route.points,
+          sequenceOrder: route.sequence_order,
+          imageWidth: Math.round(route.image_width || 1600),
+          imageHeight: Math.round(route.image_height || 1200),
+        })),
+        updateRoutes: routesChanged ? existingRoutes.map((route) => ({
+          routeLineId: route.id,
+          name: route.climb?.name || 'Unnamed',
+          description: route.climb?.description ?? null,
+          points: route.points,
+          sequenceOrder: route.sequence_order,
+        })) : [],
+        gradeVotes,
+      }
+      const hasCoreChanges = imageMetadataChanged || newRoutes.length > 0 || routesChanged || gradeVotes.length > 0
       let reconciledRoutes = editor.editedRoutes
 
-      if (newRoutes.length > 0) {
-        const result = await createPublishedSubmissionRoutesAction(editor.activeImageId, {
-          routes: newRoutes.map((route) => ({
-            name: route.climb?.name || 'Unnamed',
-            grade: route.climb?.grade || '6A',
-            climbType: route.climb?.route_type || 'boulder',
-            description: route.climb?.description ?? null,
-            points: route.points,
-            sequenceOrder: route.sequence_order,
-            imageWidth: route.image_width,
-            imageHeight: route.image_height,
-          })),
-        })
-        if (!result.success) throw new Error(result.error || 'Failed to create routes')
-
-        const createdRoutes = readCreatedRoutesPayload(result.data)
-          .map((route) => normalizePublishedRoute(route, editor.activeImageId))
-          .filter((route): route is RouteLine => route !== null)
-
-        reconciledRoutes = replaceDraftRoutesWithPublishedRoutes(reconciledRoutes, createdRoutes)
-      }
-
-      if (existingRoutes.length > 0 && !areSerializedRoutesEqual(
-        serializeStoredRoutes(existingRoutes),
-        serializeStoredRoutes(editor.initialEditedRoutes.filter(
-          (r) => r.climb_id && r.created_at !== 'draft-created'
-        ))
-      )) {
-        const result = await updatePublishedSubmissionRoutesAction(editor.activeImageId, {
-          routes: existingRoutes.map((route) => ({
-            id: route.id,
-            name: route.climb?.name || 'Unnamed',
-            description: route.climb?.description ?? null,
-            points: route.points,
-            sequenceOrder: route.sequence_order,
-          })),
-        })
-        if (!result.success) throw new Error(result.error || 'Failed to save routes')
-      }
-
-      if (existingRoutes.length > 0) {
-        const initialGradeByRouteId = new Map(
-          editor.initialEditedRoutes.map((route) => [route.id, route.climb?.grade])
-        )
-        const gradeVotePayload = existingRoutes
-          .filter((route) => route.id && route.climb?.grade && route.climb.grade !== initialGradeByRouteId.get(route.id))
-          .map((route) => ({ routeLineId: route.id, grade: route.climb?.grade || '6A' }))
-
-        if (gradeVotePayload.length > 0) {
-          const gradeVotesResult = await saveSubmissionGradeVotesAction(editor.activeImageId, gradeVotePayload)
-          if (!gradeVotesResult.success) throw new Error(gradeVotesResult.error || 'Failed to save route grades')
+      if (hasCoreChanges) {
+        const serializedOperations = JSON.stringify(operations)
+        if (!pendingMutationRef.current || pendingMutationRef.current.operations !== serializedOperations) {
+          pendingMutationRef.current = { id: crypto.randomUUID(), operations: serializedOperations }
         }
+        const result = await applyPublishedSubmissionEditAction(
+          editor.activeImageId,
+          pendingMutationRef.current.id,
+          operations
+        )
+        if (!result.success || !result.data) throw new Error(result.error || 'Failed to save submission changes')
+
+        reconciledRoutes = applyPublishedRouteIdMappings(editor.editedRoutes, result.data.routeMappings, editor.activeImageId)
+        editor.setEditedRoutes(reconciledRoutes)
+        setRoutes(reconciledRoutes)
+        editor.setInitialEditedRoutes(reconciledRoutes)
+        editor.setWikiRevision(result.data.revision)
+        if (imageMetadataChanged) {
+          location.setInitialLatitude(location.latitude)
+          location.setInitialLongitude(location.longitude)
+          location.setInitialFaceDirections(location.faceDirections)
+          location.setInitialLocationMode(location.locationMode)
+        }
+        pendingMutationRef.current = null
       }
 
-      editor.setEditedRoutes(reconciledRoutes)
-      setRoutes(reconciledRoutes)
-      editor.setInitialEditedRoutes(reconciledRoutes)
+      if (editor.creditDirty) {
+        const creditResult = await updateSubmissionCreditAction(editor.activeImageId, editor.creditPlatform, editor.creditHandle)
+        if (!creditResult.success) throw new Error(creditResult.error || 'Failed to save contribution credit')
+      }
+      if (editor.anonymityDirty) {
+        const anonymousResult = await updateSubmissionAnonymousAction(editor.activeImageId, editor.isAnonymousSubmission)
+        if (!anonymousResult.success) throw new Error(anonymousResult.error || 'Failed to save anonymity')
+      }
+      if (location.cragMetadataDirty && editor.cragId && location.canEditCragMetadata) {
+        const cragResult = await updateSubmissionCragAction(editor.activeImageId, location.cragName, location.regionTag, location.subArea)
+        if (!cragResult.success) throw new Error(cragResult.error || 'Failed to update crag metadata')
+      }
+
       location.setInitialLatitude(location.latitude)
       location.setInitialLongitude(location.longitude)
       location.setInitialCragName(location.cragName)
