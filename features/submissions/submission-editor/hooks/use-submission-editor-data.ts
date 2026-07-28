@@ -51,7 +51,8 @@ interface EditableImageQuery {
   latitude: number | null
   longitude: number | null
   face_directions: string[] | null
-  location_mode?: string | null
+  location_mode: string
+  wiki_revision: number
   crags?: { name: string; region_name: string | null; sub_area: string | null } | Array<{ name: string; region_name: string | null; sub_area: string | null }> | null
   route_lines: ImageRouteLineQuery[] | null
 }
@@ -126,6 +127,7 @@ export function useSubmissionEditorData() {
   const [initialFaceDirections, setInitialFaceDirections] = useState<FaceDirection[]>([])
   const [locationMode, setLocationMode] = useState<'shared' | 'custom'>('custom')
   const [initialLocationMode, setInitialLocationMode] = useState<'shared' | 'custom'>('custom')
+  const [wikiRevision, setWikiRevision] = useState(0)
   const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
   const [creditHandle, setCreditHandle] = useState('')
   const [isAnonymousSubmission, setIsAnonymousSubmission] = useState(false)
@@ -190,7 +192,7 @@ export function useSubmissionEditorData() {
       const user = authData.user
       if (!user) { router.push(`/auth?redirect_to=${encodeURIComponent(buildEditUrl(routeImageId, activeImageId))}`); return }
       setCurrentUserId(user.id)
-      const imageQuery = async (imageId: string) => supabase.from('images').select(`id, url, width, height, created_by, crag_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, latitude, longitude, face_directions, crags:crag_id (name, region_name, sub_area), route_lines ( id, points, sequence_order, image_width, image_height, climbs (id, name, grade, status, route_type, description) )`).eq('id', imageId).maybeSingle()
+      const imageQuery = async (imageId: string) => supabase.from('images').select(`id, url, width, height, created_by, crag_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, latitude, longitude, face_directions, location_mode, wiki_revision, crags:crag_id (name, region_name, sub_area), route_lines ( id, points, sequence_order, image_width, image_height, climbs (id, name, grade, status, route_type, description) )`).eq('id', imageId).maybeSingle()
       const firstAttempt = await imageQuery(activeImageId)
       let data = firstAttempt.data
       let imageError = firstAttempt.error
@@ -225,6 +227,7 @@ export function useSubmissionEditorData() {
       const resolvedLocationMode = submission.location_mode === 'shared' ? 'shared' : 'custom'
       setLocationMode(resolvedLocationMode)
       setInitialLocationMode(resolvedLocationMode)
+      setWikiRevision(submission.wiki_revision)
       const submittedDirections = Array.isArray(submission.face_directions) ? submission.face_directions : []
       const normalizedDirections = FACE_DIRECTIONS.filter((direction: FaceDirection) => submittedDirections.includes(direction))
       const linkedCrag = pickOne(submission.crags)
@@ -352,6 +355,8 @@ export function useSubmissionEditorData() {
     setLocationMode,
     initialLocationMode,
     setInitialLocationMode,
+    wikiRevision,
+    setWikiRevision,
     creditPlatform,
     setCreditPlatform,
     creditHandle,

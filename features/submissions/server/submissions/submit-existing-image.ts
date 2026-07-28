@@ -4,12 +4,13 @@ import type { AtomicSubmissionRouteResult } from '@/features/submissions/server/
 import type { ExecutorDependencies, RoutePayloadItem } from '@/features/submissions/server/submissions/submit-types'
 
 export async function executeExistingImageSubmission(input: ExecutorDependencies & {
+  userId: string
   imageId: string
   cragId: string | null
   routePayload: RoutePayloadItem[]
   normalizedRouteType: string | null
 }) {
-  const { supabase, imageId, cragId, routePayload, normalizedRouteType } = input
+  const { supabase, supabaseAdmin, userId, imageId, cragId, routePayload, normalizedRouteType } = input
   const { data: image, error: imageError } = await supabase
     .from('images')
     .select('processing_status, moderation_status, visibility, status')
@@ -21,7 +22,11 @@ export async function executeExistingImageSubmission(input: ExecutorDependencies
     return { error: NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 }) }
   }
 
-  const { data: climbs, error: atomicError } = await supabase.rpc('create_submission_routes_atomic', {
+  if (!supabaseAdmin) {
+    return { error: NextResponse.json({ error: 'Submission writer is unavailable' }, { status: 500 }) }
+  }
+  const { data: climbs, error: atomicError } = await supabaseAdmin.rpc('create_submission_routes_service', {
+    p_user_id: userId,
     p_image_id: imageId,
     p_crag_id: cragId,
     p_route_type: normalizedRouteType || 'sport',

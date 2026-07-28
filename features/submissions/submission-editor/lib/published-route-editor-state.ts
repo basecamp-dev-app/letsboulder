@@ -57,6 +57,26 @@ export function replaceDraftRoutesWithPublishedRoutes(currentRoutes: RouteLine[]
   return nextRoutes.map((route, index) => route.sequence_order === index ? route : { ...route, sequence_order: index })
 }
 
+export function applyPublishedRouteIdMappings(
+  routes: RouteLine[],
+  mappings: Array<{ clientRouteId: string; routeLineId: string; climbId: string }>,
+  imageId: string
+) {
+  const mappingByClientId = new Map(mappings.map((mapping) => [mapping.clientRouteId, mapping]))
+  return routes.map((route) => {
+    const mapping = mappingByClientId.get(route.id)
+    if (!mapping) return route
+    return {
+      ...route,
+      id: mapping.routeLineId,
+      image_id: imageId,
+      climb_id: mapping.climbId,
+      created_at: new Date().toISOString(),
+      climb: route.climb ? { ...route.climb, id: mapping.climbId } : route.climb,
+    }
+  })
+}
+
 export function removePublishedRoute(routes: RouteLine[], routeLineId: string) {
   return routes
     .filter((route) => route.id !== routeLineId)

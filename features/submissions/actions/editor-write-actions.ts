@@ -1,20 +1,18 @@
 'use server'
+import { z } from 'zod'
+
+import { recordAcceptedWikiContribution } from '@/features/community/lib/contributor-score'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
-import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { getServerClient } from '@/lib/supabase-server'
-import { reportError } from '@/lib/errors'
 import { assertDraftReadAccess, normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
 import { buildDraftConflictResult, mergeDraftMetadata, revalidateSubmissionImagePaths } from '@/features/submissions/actions/editor-write-action-helpers'
 import {
   type DraftPatchImage,
 } from '@/features/submissions/server/drafts/draft-route-shared'
-import { createSubmissionRoutes } from '@/features/submissions/server/submissions/create-submission-routes'
-import { updateSubmissionRoutes } from '@/features/submissions/server/submissions/update-submission-routes'
-import { type SubmissionRouteMutationDeps } from '@/features/submissions/server/submissions/route-line-shared'
-import { FACE_DIRECTIONS, type FaceDirection } from '@/features/submissions/lib/submission-types'
-import { z } from 'zod'
+import { FACE_DIRECTIONS } from '@/features/submissions/lib/submission-types'
+import type { Json } from '@/types/database'
 
 interface DraftPatchBody {
   images: DraftPatchImage[]
@@ -49,45 +47,6 @@ function normalizePatchImages(value: unknown): DraftPatchImage[] | null {
   return normalized.every((item) => item !== null) ? normalized : null
 }
 
-function normalizeImageMetadataPayload(value: unknown) {
-  if (!value || typeof value !== 'object') return null
-  const candidate = value as {
-    latitude?: unknown
-    longitude?: unknown
-    faceDirections?: unknown
-    locationMode?: unknown
-  }
-
-  const latitude = candidate.latitude
-  const longitude = candidate.longitude
-  const faceDirections = candidate.faceDirections
-  const locationMode = candidate.locationMode
-
-  if (!(latitude === null || typeof latitude === 'number')) return null
-  if (!(longitude === null || typeof longitude === 'number')) return null
-  if (!Array.isArray(faceDirections)) return null
-  if (!(locationMode === undefined || locationMode === 'shared' || locationMode === 'custom')) return null
-  if (typeof latitude === 'number' && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) return null
-  if (typeof longitude === 'number' && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) return null
-
-  const normalizedDirections = Array.from(
-    new Set(
-      faceDirections
-        .map((item) => (typeof item === 'string' ? item.toUpperCase() : ''))
-        .filter((item): item is FaceDirection => FACE_DIRECTIONS.includes(item as FaceDirection))
-    )
-  )
-
-  if (normalizedDirections.length !== faceDirections.length) return null
-
-  return {
-    latitude: latitude as number | null,
-    longitude: longitude as number | null,
-    faceDirections: normalizedDirections,
-    locationMode: locationMode === 'shared' ? 'shared' : locationMode === 'custom' ? 'custom' : undefined,
-  }
-}
-
 const draftPatchSchema = z.object({
   draftId: z.string().trim().min(1, 'Draft ID is required'),
   body: z.object({
@@ -108,10 +67,87 @@ const syncDraftRoutesSchema = z.object({
   routes: z.unknown(),
 })
 
-const imageBodySchema = z.object({
-  imageId: z.string().trim().min(1, 'Image ID is required'),
-  body: z.unknown(),
+const routePointSchema = z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })
+const atomicPublishedEditSchema = z.object({
+  imageId: z.uuid(),
+  clientMutationId: z.uuid(),
+  operations: z.object({
+    baseRevision: z.number().int().nonnegative(),
+    imageMetadata: z.object({
+      latitude: z.number().min(-90).max(90).nullable(),
+      longitude: z.number().min(-180).max(180).nullable(),
+      faceDirections: z.array(z.enum(FACE_DIRECTIONS)),
+      locationMode: z.enum(['shared', 'custom']),
+    }).optional(),
+    createRoutes: z.array(z.object({
+      clientRouteId: z.uuid(),
+      name: z.string().trim().min(1).max(200),
+      grade: z.string().trim().min(1),
+      climbType: z.enum(['sport', 'boulder', 'trad', 'deep-water-solo']),
+      description: z.string().trim().max(500).nullable(),
+      points: z.array(routePointSchema).min(2),
+      sequenceOrder: z.number().int().nonnegative(),
+      imageWidth: z.number().int().positive(),
+      imageHeight: z.number().int().positive(),
+    })).default([]),
+    updateRoutes: z.array(z.object({
+      routeLineId: z.uuid(),
+      name: z.string().trim().min(1).max(200),
+      description: z.string().trim().max(500).nullable(),
+      points: z.array(routePointSchema).min(2),
+      sequenceOrder: z.number().int().nonnegative(),
+    })).default([]),
+    gradeVotes: z.array(z.object({
+      routeLineId: z.uuid(),
+      grade: z.string().trim().min(1),
+    })).default([]),
+  }),
 })
+
+export interface PublishedRouteIdMapping {
+  clientRouteId: string
+  routeLineId: string
+  climbId: string
+}
+
+export interface AtomicPublishedEditResult {
+  imageId: string
+  clientMutationId: string
+  revision: number
+  routeMappings: PublishedRouteIdMapping[]
+  historyIds: string[]
+  createdCount: number
+  updatedCount: number
+  votesUpdated: number
+  replayed: boolean
+}
+
+function readAtomicPublishedEditResult(value: unknown): AtomicPublishedEditResult | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const result = value as Record<string, unknown>
+  if (typeof result.imageId !== 'string' || typeof result.clientMutationId !== 'string'
+    || typeof result.revision !== 'number' || !Array.isArray(result.routeMappings)
+    || !Array.isArray(result.historyIds)) return null
+  const routeMappings = result.routeMappings.filter((mapping): mapping is PublishedRouteIdMapping => {
+    if (!mapping || typeof mapping !== 'object' || Array.isArray(mapping)) return false
+    const row = mapping as Record<string, unknown>
+    return typeof row.clientRouteId === 'string' && typeof row.routeLineId === 'string'
+      && typeof row.climbId === 'string'
+  })
+  const historyIds = result.historyIds.filter((id): id is string => typeof id === 'string')
+  if (routeMappings.length !== result.routeMappings.length || historyIds.length !== result.historyIds.length) return null
+  return {
+    imageId: result.imageId,
+    clientMutationId: result.clientMutationId,
+    revision: result.revision,
+    routeMappings,
+    historyIds,
+    createdCount: typeof result.createdCount === 'number' ? result.createdCount : 0,
+    updatedCount: typeof result.updatedCount === 'number' ? result.updatedCount : 0,
+    votesUpdated: typeof result.votesUpdated === 'number' ? result.votesUpdated : 0,
+    replayed: result.replayed === true,
+  }
+}
 
 export async function patchSubmissionDraftAction(draftId: string, body: DraftPatchBody): Promise<ActionResult<{ draft: DraftPatchResult | { updated_at: string } }>> {
   const validation = validateActionInput(draftPatchSchema, { draftId, body })
@@ -274,111 +310,54 @@ export async function syncSubmissionDraftRoutesAction(draftId: string, draftImag
   return { success: true }
 }
 
-export async function createPublishedSubmissionRoutesAction(imageId: string, body: unknown): Promise<ActionResult> {
-  const validation = validateActionInput(imageBodySchema, { imageId, body })
-  if (!validation.success) return validation.result
+export async function applyPublishedSubmissionEditAction(
+  imageId: string,
+  clientMutationId: string,
+  operations: unknown
+): Promise<ActionResult<AtomicPublishedEditResult>> {
+  const validation = validateActionInput(atomicPublishedEditSchema, { imageId, clientMutationId, operations })
+  if (!validation.success) {
+    return fail<AtomicPublishedEditResult>(validation.result.error || 'Invalid published edit', validation.result.status || 400)
+  }
 
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
 
   const supabase = await getServerClient()
-  const supabaseAdmin = getAdminClientWithAudit('create submission route')
-  const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin, userId: auth.data.userId, imageId: validation.data.imageId }
-  const response = await createSubmissionRoutes(deps, validation.data.body)
-  const payload = await response.json().catch(() => ({} as { error?: string }))
-  if (!response.ok) return { success: false, error: payload.error || 'Create routes error', status: response.status }
-  return { success: true, data: payload }
-}
+  const { data, error } = await supabase.rpc('apply_published_submission_edit', {
+    p_image_id: validation.data.imageId,
+    p_client_mutation_id: validation.data.clientMutationId,
+    p_operations: validation.data.operations as Json,
+  })
 
-export async function updatePublishedSubmissionRoutesAction(imageId: string, body: unknown): Promise<ActionResult> {
-  const validation = validateActionInput(imageBodySchema, { imageId, body })
-  if (!validation.success) return validation.result
+  if (error) {
+    if (error.details === 'wiki_revision_conflict' || error.code === '40001') {
+      return { success: false, error: 'This submission changed while you were editing. Reload it before saving again.', status: 409 }
+    }
+    if (error.details === 'mutation_id_conflict') {
+      return { success: false, error: 'This save request changed after it was submitted. Try saving again.', status: 409 }
+    }
+    if (error.code === '42501') return { success: false, error: error.message, status: 403 }
+    if (error.code === '22023') return { success: false, error: error.message, status: 400 }
+    return { success: false, error: 'Failed to save submission changes', status: 500 }
+  }
 
-  const auth = await getActionAuth()
-  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
-  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
+  const result = readAtomicPublishedEditResult(data)
+  if (!result) return { success: false, error: 'Invalid response from published edit transaction', status: 500 }
 
-  const supabase = await getServerClient()
-  const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin: null, userId: auth.data.userId, imageId: validation.data.imageId }
-  const response = await updateSubmissionRoutes(deps, validation.data.body)
-  const payload = await response.json().catch(() => ({} as { error?: string }))
-  if (!response.ok) return { success: false, error: payload.error || 'Update submitted routes error', status: response.status }
-  return { success: true, data: payload }
+  for (const historyId of result.historyIds) {
+    await recordAcceptedWikiContribution(historyId)
+  }
+  await revalidateSubmissionImagePaths(supabase, validation.data.imageId)
+
+  return { success: true, data: result }
 }
 
 export async function deletePublishedSubmissionRouteAction(imageId: string, body: unknown): Promise<ActionResult> {
   void imageId
   void body
   return { success: false, error: 'Community wiki editing is additive only. Deleting published routes is disabled.', status: 403 }
-}
-
-export async function updateSubmissionImageMetadataAction(imageId: string, body: unknown): Promise<ActionResult<{ metadata: Record<string, unknown> }>> {
-  const validation = validateActionInput(imageBodySchema, { imageId, body })
-  if (!validation.success) return fail<{ metadata: Record<string, unknown> }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
-
-  const auth = await getActionAuth()
-  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
-  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-
-  const payload = normalizeImageMetadataPayload(validation.data.body)
-  if (!payload) return { success: false, error: 'Invalid payload', status: 400 }
-
-  const supabase = await getServerClient()
-  const { data: result, error: rpcError } = await supabase.rpc('update_submission_image_metadata', {
-    p_image_id: validation.data.imageId,
-    p_latitude: payload.latitude,
-    p_longitude: payload.longitude,
-    p_face_directions: payload.faceDirections,
-    p_location_mode: payload.locationMode ?? null,
-  })
-
-  if (rpcError) {
-    const message = (rpcError.message || '').toLowerCase()
-    if (message.includes('permission')) return { success: false, error: 'You do not have permission to edit this submission', status: 403 }
-    if (message.includes('latitude') || message.includes('longitude') || message.includes('face direction')) {
-      return { success: false, error: rpcError.message, status: 400 }
-    }
-    return { success: false, error: 'Update submission image metadata error', status: 500 }
-  }
-
-  const { data: directLink } = await supabase.from('crag_images').select('source_image_id').eq('linked_image_id', validation.data.imageId).maybeSingle()
-  const sourceImageId = typeof directLink?.source_image_id === 'string' && directLink.source_image_id ? directLink.source_image_id : validation.data.imageId
-  const relatedImageIds = new Set<string>([sourceImageId])
-  const { data: linkedImages } = await supabase.from('crag_images').select('linked_image_id').eq('source_image_id', sourceImageId)
-
-  for (const link of linkedImages || []) {
-    if (typeof link.linked_image_id === 'string' && link.linked_image_id) {
-      relatedImageIds.add(link.linked_image_id)
-    }
-  }
-
-  if (payload.locationMode === 'shared' && relatedImageIds.size > 1) {
-    const { error: syncCoordsError } = await supabase
-      .from('images')
-      .update({ latitude: null, longitude: null, location_mode: 'shared', last_edited_by: auth.data.userId })
-      .in('id', [...relatedImageIds])
-
-    if (syncCoordsError) {
-      reportError(syncCoordsError, { message: 'Failed to sync linked image coordinates' })
-    }
-  }
-
-  await revalidateSubmissionImagePaths(supabase, validation.data.imageId)
-
-  return {
-    success: true,
-    data: {
-      metadata: result && typeof result === 'object'
-        ? result as Record<string, unknown>
-        : {
-            latitude: payload.locationMode === 'shared' ? null : payload.latitude,
-            longitude: payload.locationMode === 'shared' ? null : payload.longitude,
-            location_mode: payload.locationMode ?? 'custom',
-            face_directions: payload.faceDirections,
-          },
-    },
-  }
 }
 
 export async function reorderSubmissionFacesAction(imageId: string, body: unknown): Promise<ActionResult<{ updatedCount: number }>> {

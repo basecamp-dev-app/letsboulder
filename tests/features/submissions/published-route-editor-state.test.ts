@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  applyPublishedRouteIdMappings,
   haveRouteEdits,
   normalizePublishedRoute,
   removePublishedRoute,
@@ -34,6 +35,21 @@ function createRoute(overrides: Partial<RouteLine> = {}): RouteLine {
 }
 
 describe('published-route-editor-state', () => {
+  test('reconciles a client route ID without losing edited route data', () => {
+    const route = createRoute({ id: 'client-route', climb_id: '', created_at: 'draft-created' })
+    const [reconciled] = applyPublishedRouteIdMappings([route], [{
+      clientRouteId: 'client-route',
+      routeLineId: 'route-line-id',
+      climbId: 'climb-id',
+    }], 'image-1')
+
+    expect(reconciled.id).toBe('route-line-id')
+    expect(reconciled.climb_id).toBe('climb-id')
+    expect(reconciled.image_id).toBe('image-1')
+    expect(reconciled.climb?.id).toBe('climb-id')
+    expect(reconciled.points).toEqual(route.points)
+  })
+
   test('normalizes a created route payload into RouteLine', () => {
     const route = normalizePublishedRoute({
       id: 'route-2',
