@@ -200,6 +200,7 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - Community posts use database fields `author_id`, `place_id`, `type`, `title`, and `body`; do not use the obsolete `user_id`, `post_type`, or `content` interface.
 - Session posts additionally support discipline, grade range, start/end times, RSVP state, and comments. Comments are intentionally limited to session posts.
 - Read surfaces under `/api/community/places/[slug]/**` are public query endpoints. Mutations remain Server Actions, so they do not use `csrfFetch()`.
+- RSVP identities are private. Public totals come from `community_post_rsvp_counts`; query `community_post_rsvps` only for the authenticated viewer's own status or mutation.
 
 ### Key Files
 - `features/community/actions.ts` — authenticated post, RSVP, and comment mutations
@@ -210,6 +211,8 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 ### Known Edge Cases
 - **Validation:** Session posts require a valid start time; end time cannot precede it, and discipline must be allowlisted.
 - **Authorization:** Resolve the author server-side and rely on RLS as an additional boundary; never accept an author ID from the client.
+- **RSVP counts:** Do not calculate totals by selecting all RSVP rows. Direct reads return only the caller's row, so totals must use the sanitized aggregate view.
+- **Image flag counts:** Public aggregate rows include only deliverable images. Use the identity-bound `get_image_pending_flag_count(image_id)` RPC when an authenticated owner or collaborator needs a count for a private image.
 - **Persistence:** Community queries are deliberately excluded from the persisted React Query cache.
 
 ---

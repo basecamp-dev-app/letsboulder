@@ -20,6 +20,8 @@ Authenticated users can submit image/climb flags through Server Actions in `feat
 
 Authenticated users can submit crag reports, which create pending `crag_reports` records. Crag reports are a separate workflow from image/climb flags. The admin-only `submitCragFlagAction` also uses `climb_flags` and should not be confused with the general crag-report action.
 
+Direct report and flag reads are restricted by RLS to the submitting user and administrators authorized by `is_current_user_admin()`. Anonymous callers can read only sanitized counts from `climb_flag_counts` and `crag_report_counts`; these views omit user IDs, comments, reasons, details, resolution identities, and moderator notes.
+
 Neither workflow changes media processing readiness automatically.
 
 ## Route Verification

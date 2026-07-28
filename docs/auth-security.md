@@ -74,6 +74,7 @@ The exact limits live in code and may change without a docs update when operatio
 **Admin Checks:**
 - Use identity-bound `is_current_user_admin()`; do not read or trust client-controlled role metadata
 - Gate admin-only routes/actions with role validation before DB operations
+- Operational RSVP, flag, and report tables expose only owner rows to ordinary authenticated users. Anonymous consumers use sanitized aggregate views that omit identities and moderation text.
 
 **General Rules:**
 - Server Actions: validate auth in the action; return the feature's typed failure result for expected errors and reserve throws for unexpected failures

@@ -43,6 +43,7 @@ const API_EXECUTABLE_DEFINERS = [
   'get_crag_route_targets_page(uuid,integer,integer)',
   'get_crags_mapped_count()',
   'get_effective_climb_id(uuid)',
+  'get_image_pending_flag_count(uuid)',
   'get_own_profile()',
   'get_place_contributor_leaderboard(uuid,integer)',
   'get_place_pins(boolean)',

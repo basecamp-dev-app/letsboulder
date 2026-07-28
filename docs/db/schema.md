@@ -121,6 +121,21 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `crag_reports` | User reports on crags (access, safety, etc.) |
 | `admin_actions` | Admin audit log of moderation actions |
 
+### Operational Data Access
+`community_post_rsvps`, `climb_flags`, and `crag_reports` contain user identities or moderation details. Anonymous callers have no direct table access. Authenticated callers can read their own rows, while administrators can read all rows through the identity-bound `is_current_user_admin()` RLS predicate.
+
+Public totals are available only through sanitized aggregate views:
+
+| View | Public columns |
+|------|----------------|
+| `community_post_rsvp_counts` | Post ID and going/interested counts |
+| `climb_flag_counts` | Target type/ID and total/pending counts |
+| `crag_report_counts` | Crag ID and total/per-status counts |
+
+These views are owned by the non-login, non-bypass `operational_aggregate_reader` role. That role receives column-level access only to grouping keys and statuses and has dedicated RLS policies; it cannot read identities or free-form moderation fields.
+
+Image rows in `climb_flag_counts` are limited to publicly deliverable images. Authenticated callers use `get_image_pending_flag_count(image_id)` for a scalar count on public images, their own private images, or private images shared with them; the RPC returns zero when the image is not visible to the caller.
+
 ### Submission Tables
 | Table | Purpose |
 |-------|---------|
