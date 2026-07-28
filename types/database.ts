@@ -3335,6 +3335,26 @@ export type Database = {
           total_tries: number
         }[]
       }
+      get_nearby_crags: {
+        Args: {
+          p_latitude: number
+          p_limit?: number
+          p_longitude: number
+          p_radius_meters?: number
+        }
+        Returns: {
+          country_code: string
+          distance_meters: number
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          region_name: string
+          rock_type: string
+          sub_area: string
+          type: string
+        }[]
+      }
       get_own_profile: {
         Args: never
         Returns: {
