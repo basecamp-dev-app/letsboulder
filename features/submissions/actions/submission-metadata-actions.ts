@@ -6,6 +6,7 @@ import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { assessNonOwnerTextRisk, combineRiskAssessments } from '@/features/submissions/server/submissions/wiki-edit-protection'
+import { revalidatePublicCrag } from '@/features/crags/server/crag-cache-tags'
 import { getServerClient } from '@/lib/supabase-server'
 import { z } from 'zod'
 
@@ -157,6 +158,7 @@ export async function updateSubmissionCragAction(imageId: string, cragName: stri
   const { data: image } = await supabase.from('images').select('crag_id').eq('id', validation.data.imageId).single()
   revalidatePath('/')
   if (image?.crag_id) {
+    revalidatePublicCrag(image.crag_id)
     const { data: cragData } = await supabase.from('crags').select('slug, country_code').eq('id', image.crag_id).single()
     if (cragData?.slug && cragData?.country_code) {
       revalidatePath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)

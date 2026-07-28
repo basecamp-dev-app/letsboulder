@@ -1,5 +1,5 @@
-import { Metadata } from 'next'
-import { getCragById } from './lib/get-crag-by-id'
+import type { Metadata } from 'next'
+import { getCragById } from '@/features/crags/server/get-crag-by-id'
 
 export const revalidate = 60
 

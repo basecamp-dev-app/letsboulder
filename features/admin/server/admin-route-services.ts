@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { parseWithSchema } from '@/lib/api-validation'
 import { QueueItemSchema, QueueItemVoteSchema, FlagWithRelationsSchema } from '@/lib/supabase-result-schemas'
 import { calculateVoteCounts } from '../lib/vote-utils'
+import { revalidatePublicCrag, revalidatePublicCragSlug } from '@/features/crags/server/crag-cache-tags'
 
 import type { NextRequest } from 'next/server'
 
@@ -47,7 +48,10 @@ interface ClimbRow {
 }
 
 function revalidateCragPath(crag: CragRow | null) {
-  if (!crag?.slug || !crag.country_code) return
+  if (!crag) return
+  revalidatePublicCrag(crag.id)
+  if (!crag.slug || !crag.country_code) return
+  revalidatePublicCragSlug(crag.country_code, crag.slug)
   revalidatePath(`/${crag.country_code.toLowerCase()}/${crag.slug}`)
 }
 
@@ -135,6 +139,10 @@ export async function resolveFlag(request: NextRequest, supabase: RequestSupabas
       return NextResponse.json({ error: 'This flag has already been resolved' }, { status: 400 })
     }
 
+    const { data: affectedCrag } = typedFlag.crag_id
+      ? await supabase.from('crags').select('id, slug, country_code').eq('id', typedFlag.crag_id).maybeSingle()
+      : { data: null }
+
     const resolvedAt = new Date().toISOString()
 
     if (action === 'remove') {
@@ -171,6 +179,14 @@ export async function resolveFlag(request: NextRequest, supabase: RequestSupabas
       .eq('id', flagId)
 
     if (updateError) return createErrorResponse(updateError, 'Error resolving flag')
+
+    if (action === 'remove' && typedFlag.crag_id) {
+      revalidatePublicCrag(typedFlag.crag_id)
+      if (affectedCrag?.slug && affectedCrag.country_code) {
+        revalidatePublicCragSlug(affectedCrag.country_code, affectedCrag.slug)
+        revalidatePath(`/${affectedCrag.country_code.toLowerCase()}/${affectedCrag.slug}`)
+      }
+    }
 
     const climbName = typedFlag.climb?.name || 'Unnamed route'
     const cragName = typedFlag.crag?.name || 'Unknown crag'

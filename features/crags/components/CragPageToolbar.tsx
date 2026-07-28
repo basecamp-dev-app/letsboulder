@@ -19,6 +19,8 @@ interface CragPageToolbarProps {
   cragSwitcherQuery: string
   cragSwitcherOptions: CragSwitcherOption[]
   saveLoading: boolean
+  saveDisabled: boolean
+  savePendingLabel: string
   isSaved: boolean
   hasActiveRouteFilters: boolean
   selectedImageId: string | null
@@ -46,6 +48,8 @@ export default function CragPageToolbar({
   cragSwitcherQuery,
   cragSwitcherOptions,
   saveLoading,
+  saveDisabled,
+  savePendingLabel,
   isSaved,
   hasActiveRouteFilters,
   selectedImageId,
@@ -108,8 +112,8 @@ export default function CragPageToolbar({
             </div>
           ) : null}
         </div>
-        <Button type="button" variant="outline" onClick={onToggleSaveCrag} disabled={saveLoading} aria-label="Save crag" title="Save crag" className={isSaved ? 'min-h-11 rounded-full border-amber-200 bg-amber-50 px-3 text-amber-900 shadow-none hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50' : actionButtonClassName}>
-          <span>{saveLoading ? 'Saving...' : isSaved ? 'Saved crag' : 'Save crag'}</span>
+        <Button type="button" variant="outline" onClick={onToggleSaveCrag} disabled={saveDisabled} aria-label={isSaved ? 'Remove saved crag' : 'Save crag'} aria-pressed={isSaved} title={isSaved ? 'Remove saved crag' : 'Save crag'} className={isSaved ? 'min-h-11 rounded-full border-amber-200 bg-amber-50 px-3 text-amber-900 shadow-none hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50' : actionButtonClassName}>
+          <span>{saveLoading ? savePendingLabel : isSaved ? 'Saved crag' : 'Save crag'}</span>
         </Button>
         <Button type="button" variant="outline" onClick={onOpenSearchModal} aria-label="Search routes" title="Search routes" className={actionButtonClassName}>
           <Search className="size-4" />

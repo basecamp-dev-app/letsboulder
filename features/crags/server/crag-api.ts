@@ -8,6 +8,7 @@ import { getBoundingBoxesForCountry, validateCoordinatesInBoundingBox } from '@/
 import { haversineMeters } from '@/lib/geo/haversine'
 import { parseWithSchema } from '@/lib/api-validation'
 import { findCragDuplicateCandidate } from '@/features/crags/lib/crag-duplicates'
+import { revalidatePublicCrag, revalidatePublicCragSlug } from '@/features/crags/server/crag-cache-tags'
 
 import type { NextRequest } from 'next/server'
 import type { Database } from '@/types/database'
@@ -421,7 +422,9 @@ export async function createCrag(request: NextRequest, supabase: RequestSupabase
     }
 
     revalidatePath('/')
+    revalidatePublicCrag(createdCrag.id)
     if (createdCrag.slug && createdCrag.country_code) {
+      revalidatePublicCragSlug(createdCrag.country_code, createdCrag.slug)
       revalidatePath(`/${createdCrag.country_code.toLowerCase()}/${createdCrag.slug}`)
     }
 
@@ -586,7 +589,9 @@ export async function updateCrag(request: NextRequest, supabase: RequestSupabase
     })
 
     revalidatePath('/')
+    revalidatePublicCrag(cragId)
     if (existingCrag.slug && existingCrag.country_code) {
+      revalidatePublicCragSlug(existingCrag.country_code, existingCrag.slug)
       revalidatePath(`/${existingCrag.country_code.toLowerCase()}/${existingCrag.slug}`)
     }
 
@@ -622,7 +627,9 @@ export async function deleteCrag(request: NextRequest, supabase: RequestSupabase
     if (!deletedCrag) return NextResponse.json({ error: 'Crag not found' }, { status: 404 })
 
     revalidatePath('/')
+    revalidatePublicCrag(cragId)
     if (crag.slug && crag.country_code) {
+      revalidatePublicCragSlug(crag.country_code, crag.slug)
       revalidatePath(`/${crag.country_code.toLowerCase()}/${crag.slug}`)
     }
 

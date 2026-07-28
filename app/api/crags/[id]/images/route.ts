@@ -6,6 +6,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { z } from 'zod'
 import { parseWithSchema } from '@/lib/api-validation'
 import { loadCragImages } from '@/features/crags/server'
+import { revalidatePublicCrag } from '@/features/crags/server/crag-cache-tags'
 
 export const runtime = 'nodejs'
 
@@ -267,6 +268,7 @@ export async function POST(
         throw insertError
       }
 
+      revalidatePublicCrag(cragId)
       return NextResponse.json({ success: true, images: insertedRows || [] }, { status: 201 })
     } catch (uploadOrInsertError) {
       if (uploadedPaths.length > 0) {

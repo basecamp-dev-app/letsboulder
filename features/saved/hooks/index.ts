@@ -1,2 +1,1 @@
-// Barrel for saved feature hooks
-export {}
+export { getSavedCragQueryKey, useSavedCrag } from '@/features/saved/hooks/use-saved-crag'

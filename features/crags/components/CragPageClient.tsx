@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import CragMapView from '@/features/crags/components/CragMapView'
 import SelectedPinImageTray from '@/features/crags/components/SelectedPinImageTray'
 import { CragAccessPanel } from '@/features/crags/components/CragAccessPanel'
@@ -11,10 +12,7 @@ import { useCragPageFilters } from '@/features/crags/hooks/use-crag-page-filters
 import { useCragPageActions } from '@/features/crags/hooks/use-crag-page-actions'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
-import { createClient } from '@/lib/supabase'
-import { saveCragAction } from '@/features/saved/actions/save-crag'
-import { unsaveCragAction } from '@/features/saved/actions/unsave-crag'
-import { useRouter } from 'next/navigation'
+import { useSavedCrag } from '@/features/saved/hooks/use-saved-crag'
 
 interface CragPageClientProps {
   id: string
@@ -32,7 +30,17 @@ interface CragPageClientProps {
   initialPayloadLoadedAt?: number
   communityPlace?: CommunityPlaceInfo | null
   initialSelectedImageId?: string | null
-  initialIsSaved?: boolean
+}
+
+function SelectedImageSearchParam({ onChange }: { onChange: (imageId: string | null) => void }) {
+  const searchParams = useSearchParams()
+  const imageId = searchParams.get('image')
+
+  useEffect(() => {
+    onChange(imageId)
+  }, [imageId, onChange])
+
+  return null
 }
 
 export default function CragPageClient({
@@ -51,7 +59,6 @@ export default function CragPageClient({
   initialPayloadLoadedAt,
   communityPlace,
   initialSelectedImageId = null,
-  initialIsSaved = false,
 }: CragPageClientProps) {
   const router = useRouter()
   const {
@@ -107,32 +114,19 @@ export default function CragPageClient({
   const actions = useCragPageActions({
     initialCrag,
   })
-  const [isSaved, setIsSaved] = useState(initialIsSaved)
-  const [saveLoading, setSaveLoading] = useState(false)
+  const savedCrag = useSavedCrag(id)
 
   const handleToggleSaveCrag = async () => {
-    const supabase = createClient()
-    const { data } = await supabase.auth.getUser()
-    if (!data.user) {
+    if (savedCrag.isAnonymous) {
       router.push(`/auth?redirect_to=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname + window.location.search : `/crag/${id}`)}`)
       return
     }
 
-    const nextSaved = !isSaved
-    setIsSaved(nextSaved)
-    setSaveLoading(true)
-
     try {
-      const result = nextSaved ? await saveCragAction(id) : await unsaveCragAction(id)
-      if (!result.success) {
-        setIsSaved(!nextSaved)
-        actions.showToast(nextSaved ? 'Failed to save crag' : 'Failed to remove saved crag')
-        return
-      }
-
+      const nextSaved = await savedCrag.toggle()
       actions.showToast(nextSaved ? 'Crag saved' : 'Crag removed from saved')
-    } finally {
-      setSaveLoading(false)
+    } catch {
+      actions.showToast(savedCrag.isSaved ? 'Failed to remove saved crag' : 'Failed to save crag')
     }
   }
 
@@ -146,6 +140,11 @@ export default function CragPageClient({
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {initialSelectedImageId === null ? (
+        <Suspense fallback={null}>
+          <SelectedImageSearchParam onChange={filters.setSelectedImageId} />
+        </Suspense>
+      ) : null}
       {actions.toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">
           {actions.toast}
@@ -197,8 +196,10 @@ export default function CragPageClient({
         cragSwitcherOpen={actions.cragSwitcherOpen}
         cragSwitcherQuery={actions.cragSwitcherQuery}
         cragSwitcherOptions={actions.cragSwitcherOptions}
-        saveLoading={saveLoading}
-        isSaved={isSaved}
+        saveLoading={savedCrag.isHydrating || savedCrag.isPending}
+        saveDisabled={savedCrag.isHydrating || savedCrag.isPending || savedCrag.isError}
+        savePendingLabel={savedCrag.isPending ? 'Saving...' : 'Checking...'}
+        isSaved={savedCrag.isSaved}
         availableDirections={filters.availableDirections}
         routeTypeChips={filters.routeTypeChips}
         searchModalResults={filters.searchModalResults}

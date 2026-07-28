@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
+import { revalidatePublicCrag } from '@/features/crags/server/crag-cache-tags'
 
 export interface SubmissionRouteMutationDeps {
   supabase: ReturnType<typeof getServerClientFromRequest>
@@ -17,6 +18,7 @@ export async function revalidateSubmissionImagePaths(
 
   revalidatePath('/')
   if (!cragId) return
+  revalidatePublicCrag(cragId)
 
   const { data: cragData } = await supabase
     .from('crags')

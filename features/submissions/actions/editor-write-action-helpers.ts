@@ -1,6 +1,7 @@
 import { revalidatePath } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildDraftConflictResponse, resolveDisplayName, type ProfileRow } from '@/features/submissions/server/drafts/draft-route-shared'
+import { revalidatePublicCrag } from '@/features/crags/server/crag-cache-tags'
 
 export async function buildDraftConflictResult(
   supabase: SupabaseClient,
@@ -60,6 +61,7 @@ export async function revalidateSubmissionImagePaths(supabase: SupabaseClient, i
 
   const { data: image } = await supabase.from('images').select('crag_id').eq('id', imageId).single()
   if (!image?.crag_id) return
+  revalidatePublicCrag(image.crag_id)
 
   const { data: cragData } = await supabase.from('crags').select('slug, country_code').eq('id', image.crag_id).single()
   if (cragData?.slug && cragData?.country_code) {

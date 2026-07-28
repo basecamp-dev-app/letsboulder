@@ -41,6 +41,8 @@ interface CragRouteSectionProps {
   cragSwitcherQuery: string
   cragSwitcherOptions: CragSwitcherOption[]
   saveLoading: boolean
+  saveDisabled: boolean
+  savePendingLabel: string
   isSaved: boolean
   availableDirections: string[]
   routeTypeChips: string[]
@@ -100,6 +102,8 @@ const CragRouteSection = React.memo(function CragRouteSection({
   cragSwitcherQuery,
   cragSwitcherOptions,
   saveLoading,
+  saveDisabled,
+  savePendingLabel,
   isSaved,
   availableDirections,
   routeTypeChips,
@@ -150,6 +154,8 @@ const CragRouteSection = React.memo(function CragRouteSection({
             cragSwitcherQuery={cragSwitcherQuery}
             cragSwitcherOptions={cragSwitcherOptions}
             saveLoading={saveLoading}
+            saveDisabled={saveDisabled}
+            savePendingLabel={savePendingLabel}
             isSaved={isSaved}
             hasActiveRouteFilters={hasActiveRouteFilters}
             selectedImageId={selectedImageId}

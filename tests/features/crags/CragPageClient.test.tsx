@@ -3,13 +3,16 @@
 import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CragAccessPanel } from '@/features/crags/components/CragAccessPanel'
 import CragPageClient from '@/features/crags/components/CragPageClient'
+
+const navigationMocks = vi.hoisted(() => ({ searchParams: new URLSearchParams() }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/gb/test-crag',
+  useSearchParams: () => navigationMocks.searchParams,
 }))
 
 vi.mock('@/features/crags/components/CragMapView', () => ({
@@ -37,11 +40,16 @@ vi.mock('@/lib/supabase', () => ({
   createClient: () => ({
     auth: {
       getUser: vi.fn(async () => ({ data: { user: null } })),
+      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
     },
   }),
 }))
 
 describe('CragPageClient selected image flow', () => {
+  beforeEach(() => {
+    navigationMocks.searchParams = new URLSearchParams()
+  })
+
   it('exposes every image represented by a selected primary pin', () => {
     const queryClient = new QueryClient()
 
@@ -108,8 +116,9 @@ describe('CragPageClient selected image flow', () => {
     }
   })
 
-  it('honors the selected image on first render while route refresh is unavailable', () => {
+  it('hydrates the selected image from the URL while route refresh is unavailable', () => {
     const queryClient = new QueryClient()
+    navigationMocks.searchParams = new URLSearchParams('image=image-selected')
 
     render(
       <QueryClientProvider client={queryClient}>
@@ -187,7 +196,6 @@ describe('CragPageClient selected image flow', () => {
           initialCriticalImagesComplete={true}
           initialMapImagesComplete={true}
           initialPayloadLoadedAt={Date.now()}
-          initialSelectedImageId="image-selected"
         />
       </QueryClientProvider>
     )
