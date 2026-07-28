@@ -13,6 +13,18 @@ interface RouteParams {
   route: string
 }
 
+interface ResolvedCragSlug {
+  country_code: string | null
+  slug: string | null
+  superseded_from: string | null
+}
+
+interface ResolvedClimbSlug {
+  crag_id: string
+  slug: string | null
+  superseded_from: string | null
+}
+
 interface CragRow {
   id: string
   name: string
@@ -135,6 +147,39 @@ async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug
   }
 }
 
+async function resolveSupersededRoute(countryCode: string, cragSlug: string, routeSlug: string) {
+  const supabase = await getSupabase()
+  const { data: resolvedCrag } = await supabase
+    .rpc('resolve_public_crag_slug', { p_country_code: countryCode, p_crag_slug: cragSlug })
+    .maybeSingle()
+
+  const typedCrag = resolvedCrag as ResolvedCragSlug | null
+
+  const { data: resolvedClimb } = await supabase
+    .rpc('resolve_public_climb_slug', {
+      p_climb_slug: routeSlug,
+      p_country_code: countryCode,
+      p_crag_slug: cragSlug,
+    })
+    .maybeSingle()
+  const typedClimb = resolvedClimb as ResolvedClimbSlug | null
+  if (typedClimb?.superseded_from && typedClimb.slug) {
+    const { data: replacementCrag } = await supabase
+      .from('crags')
+      .select('country_code, slug')
+      .eq('id', typedClimb.crag_id)
+      .maybeSingle()
+    if (replacementCrag?.country_code && replacementCrag.slug) {
+      return `/${replacementCrag.country_code.toLowerCase()}/${replacementCrag.slug}/${typedClimb.slug}`
+    }
+  }
+
+  if (typedCrag?.superseded_from && typedCrag.country_code && typedCrag.slug) {
+    return `/${typedCrag.country_code.toLowerCase()}/${typedCrag.slug}`
+  }
+  return null
+}
+
 export async function generateMetadata({ params }: { params: Promise<RouteParams> }): Promise<Metadata> {
   const { country, crag: cragSlug, route: routeSlug } = await params
   if (!country || country.length !== 2) return {}
@@ -202,6 +247,9 @@ export default async function RoutePage({ params }: { params: Promise<RouteParam
   if (!country || country.length !== 2) notFound()
 
   const countryCode = country.toUpperCase()
+
+  const supersededPath = await resolveSupersededRoute(countryCode, cragSlug, routeSlug)
+  if (supersededPath) permanentRedirect(supersededPath)
 
   const { crag, climb, bestImage: best, effectiveClimbId } = await getRoutePageData(countryCode, cragSlug, routeSlug)
 

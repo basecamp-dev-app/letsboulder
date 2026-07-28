@@ -60,7 +60,7 @@ export function useAdminCrags() {
     }
   }, [loadCrags, showToast])
 
-  const deleteCrag = useCallback(async (crag: AdminCrag, confirmCount: string) => {
+  const deleteCrag = useCallback(async (crag: AdminCrag, confirmCount: string, reason: string) => {
     if (confirmCount !== String(crag.climb_count)) {
       showToast('Type the climb count exactly to confirm')
       return
@@ -70,6 +70,8 @@ export function useAdminCrags() {
     try {
       const response = await csrfFetch(`/api/crags/${crag.id}`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
       })
 
       if (response.ok) {

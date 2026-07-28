@@ -138,21 +138,29 @@ export async function resolveFlag(request: NextRequest, supabase: RequestSupabas
     const resolvedAt = new Date().toISOString()
 
     if (action === 'remove') {
-      if (typedFlag.crag_id && !typedFlag.climb_id && !typedFlag.image_id) {
-        const { error: climbFetchError } = await supabase.from('climbs').select('id').eq('crag_id', typedFlag.crag_id)
-        if (climbFetchError) return createErrorResponse(climbFetchError, 'Error fetching climbs for deletion')
+      const deletionReason = resolution_note?.trim() || `Moderation flag: ${typedFlag.flag_type}`
 
-        const { error: deleteCragError } = await supabase.from('crags').delete().eq('id', typedFlag.crag_id)
+      if (typedFlag.crag_id && !typedFlag.climb_id && !typedFlag.image_id) {
+        const { error: deleteCragError } = await supabase.rpc('soft_delete_crag', {
+          p_crag_id: typedFlag.crag_id,
+          p_reason: deletionReason,
+        })
         if (deleteCragError) return createErrorResponse(deleteCragError, 'Error deleting crag')
       }
 
       if (typedFlag.climb_id) {
-        const { error: deleteError } = await supabase.from('climbs').delete().eq('id', typedFlag.climb_id)
+        const { error: deleteError } = await supabase.rpc('soft_delete_climb', {
+          p_climb_id: typedFlag.climb_id,
+          p_reason: deletionReason,
+        })
         if (deleteError) return createErrorResponse(deleteError, 'Error removing climb')
       }
 
       if (typedFlag.image_id) {
-        const { error: deleteError } = await supabase.from('images').delete().eq('id', typedFlag.image_id)
+        const { error: deleteError } = await supabase.rpc('soft_delete_image', {
+          p_image_id: typedFlag.image_id,
+          p_reason: deletionReason,
+        })
         if (deleteError) return createErrorResponse(deleteError, 'Error removing image')
       }
     }
@@ -364,7 +372,10 @@ export async function deleteImage(supabase: RequestSupabaseClient, imageId: stri
     if (fetchError || !existingImage) return NextResponse.json({ error: 'Image not found' }, { status: 404 })
     if (existingImage.status === 'deleted') return NextResponse.json({ error: 'Image already deleted' }, { status: 400 })
 
-    const { error: updateError } = await supabase.from('images').update({ status: 'deleted' }).eq('id', imageId)
+    const { error: updateError } = await supabase.rpc('soft_delete_image', {
+      p_image_id: imageId,
+      p_reason: 'Removed by administrator',
+    })
     if (updateError) return createErrorResponse(updateError, 'Error soft deleting image')
 
     return NextResponse.json({ success: true, message: 'Image deleted successfully' })

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { cache } from 'react'
 import CragPageShell from '@/features/crags/components/CragPageShell'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
@@ -13,6 +13,12 @@ export const revalidate = 60
 interface CragSlugParams {
   country: string
   crag: string
+}
+
+interface ResolvedCragSlug {
+  country_code: string | null
+  slug: string | null
+  superseded_from: string | null
 }
 
 interface CragSlugRow {
@@ -67,6 +73,14 @@ interface CragSlugRow {
 function getSupabase() {
   return getUnauthenticatedClient()
 }
+
+const resolveCragSlug = cache(async (countryCode: string, cragSlug: string) => {
+  const supabase = await getSupabase()
+  const { data } = await supabase
+    .rpc('resolve_public_crag_slug', { p_country_code: countryCode, p_crag_slug: cragSlug })
+    .maybeSingle()
+  return data as ResolvedCragSlug | null
+})
 
 // Temporarily removed cache() to test - will add back after debugging
 const getCragByCountrySlug = cache(async (countryCode: string, cragSlug: string): Promise<CragSlugRow | null> => {
@@ -165,6 +179,10 @@ export default async function CragSlugPage({
   if (!country || country.length !== 2) notFound()
 
   const countryCode = country.toUpperCase()
+  const resolvedCrag = await resolveCragSlug(countryCode, cragSlug)
+  if (resolvedCrag?.superseded_from && resolvedCrag.country_code && resolvedCrag.slug) {
+    permanentRedirect(`/${resolvedCrag.country_code.toLowerCase()}/${resolvedCrag.slug}`)
+  }
   const crag = await getCragByCountrySlug(countryCode, cragSlug)
 
   if (!crag) notFound()

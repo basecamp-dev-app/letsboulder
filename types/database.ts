@@ -269,6 +269,7 @@ export type Database = {
           crag_id: string | null
           created_at: string | null
           deleted_at: string | null
+          deletion_reason: string | null
           description: string | null
           grade: string
           grade_index: number | null
@@ -285,6 +286,7 @@ export type Database = {
           shared_climb_id: string | null
           slug: string | null
           status: string | null
+          superseded_by: string | null
           total_votes: number | null
           updated_at: string | null
           user_id: string | null
@@ -295,6 +297,7 @@ export type Database = {
           crag_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
+          deletion_reason?: string | null
           description?: string | null
           grade: string
           grade_index?: number | null
@@ -311,6 +314,7 @@ export type Database = {
           shared_climb_id?: string | null
           slug?: string | null
           status?: string | null
+          superseded_by?: string | null
           total_votes?: number | null
           updated_at?: string | null
           user_id?: string | null
@@ -321,6 +325,7 @@ export type Database = {
           crag_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
+          deletion_reason?: string | null
           description?: string | null
           grade?: string
           grade_index?: number | null
@@ -337,6 +342,7 @@ export type Database = {
           shared_climb_id?: string | null
           slug?: string | null
           status?: string | null
+          superseded_by?: string | null
           total_votes?: number | null
           updated_at?: string | null
           user_id?: string | null
@@ -374,6 +380,13 @@ export type Database = {
           {
             foreignKeyName: "climbs_shared_climb_id_fkey"
             columns: ["shared_climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_superseded_by_fkey"
+            columns: ["superseded_by"]
             isOneToOne: false
             referencedRelation: "climbs"
             referencedColumns: ["id"]
@@ -993,6 +1006,8 @@ export type Database = {
           country_code: string | null
           country_id: string | null
           created_at: string | null
+          deleted_at: string | null
+          deletion_reason: string | null
           description: string | null
           id: string
           image_count: number | null
@@ -1009,6 +1024,7 @@ export type Database = {
           route_count: number | null
           slug: string | null
           sub_area: string | null
+          superseded_by: string | null
           synced_at: string | null
           tide_dependency: string | null
           type: string | null
@@ -1020,6 +1036,8 @@ export type Database = {
           country_code?: string | null
           country_id?: string | null
           created_at?: string | null
+          deleted_at?: string | null
+          deletion_reason?: string | null
           description?: string | null
           id?: string
           image_count?: number | null
@@ -1036,6 +1054,7 @@ export type Database = {
           route_count?: number | null
           slug?: string | null
           sub_area?: string | null
+          superseded_by?: string | null
           synced_at?: string | null
           tide_dependency?: string | null
           type?: string | null
@@ -1047,6 +1066,8 @@ export type Database = {
           country_code?: string | null
           country_id?: string | null
           created_at?: string | null
+          deleted_at?: string | null
+          deletion_reason?: string | null
           description?: string | null
           id?: string
           image_count?: number | null
@@ -1063,6 +1084,7 @@ export type Database = {
           route_count?: number | null
           slug?: string | null
           sub_area?: string | null
+          superseded_by?: string | null
           synced_at?: string | null
           tide_dependency?: string | null
           type?: string | null
@@ -1081,6 +1103,13 @@ export type Database = {
             columns: ["region_id"]
             isOneToOne: false
             referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crags_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "crags"
             referencedColumns: ["id"]
           },
         ]
@@ -2615,7 +2644,7 @@ export type Database = {
           before_data: Json | null
           created_at: string
           edit_kind: string
-          edited_by: string
+          edited_by: string | null
           field_targets: string[]
           id: string
           image_id: string
@@ -2629,7 +2658,7 @@ export type Database = {
           before_data?: Json | null
           created_at?: string
           edit_kind: string
-          edited_by: string
+          edited_by?: string | null
           field_targets?: string[]
           id?: string
           image_id: string
@@ -2643,7 +2672,7 @@ export type Database = {
           before_data?: Json | null
           created_at?: string
           edit_kind?: string
-          edited_by?: string
+          edited_by?: string | null
           field_targets?: string[]
           id?: string
           image_id?: string
@@ -2871,10 +2900,15 @@ export type Database = {
         Args: { max_age?: string; max_delete?: number }
         Returns: number
       }
+      climb_is_hard_deletable: {
+        Args: { p_climb_id: string }
+        Returns: boolean
+      }
       compute_contributor_tier: {
         Args: { p_accepted_count: number; p_score: number }
         Returns: string
       }
+      crag_is_hard_deletable: { Args: { p_crag_id: string }; Returns: boolean }
       create_notification: {
         Args: {
           p_link?: string
@@ -3496,12 +3530,183 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_public_climb_slug: {
+        Args: {
+          p_climb_slug: string
+          p_country_code: string
+          p_crag_slug: string
+        }
+        Returns: {
+          crag_id: string
+          grade: string
+          id: string
+          name: string
+          route_type: string
+          slug: string
+          superseded_from: string
+        }[]
+      }
+      resolve_public_crag_slug: {
+        Args: { p_country_code: string; p_crag_slug: string }
+        Returns: {
+          country_code: string
+          id: string
+          name: string
+          slug: string
+          superseded_from: string
+        }[]
+      }
       save_submission_grade_votes: {
         Args: { p_grades: Json; p_image_id: string }
         Returns: number
       }
       slugify: { Args: { input: string }; Returns: string }
+      soft_delete_climb: {
+        Args: { p_climb_id: string; p_reason: string; p_superseded_by?: string }
+        Returns: {
+          consensus_grade: string | null
+          crag_id: string | null
+          created_at: string | null
+          deleted_at: string | null
+          deletion_reason: string | null
+          description: string | null
+          grade: string
+          grade_index: number | null
+          grade_tied: boolean | null
+          id: string
+          is_verified: boolean | null
+          latitude: number | null
+          longitude: number | null
+          name: string | null
+          original_grade_string: string | null
+          place_id: string | null
+          route_type: string | null
+          sector_id: string | null
+          shared_climb_id: string | null
+          slug: string | null
+          status: string | null
+          superseded_by: string | null
+          total_votes: number | null
+          updated_at: string | null
+          user_id: string | null
+          verification_count: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "climbs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       soft_delete_comment: { Args: { p_comment_id: string }; Returns: boolean }
+      soft_delete_crag: {
+        Args: { p_crag_id: string; p_reason: string; p_superseded_by?: string }
+        Returns: {
+          access_notes: string | null
+          country: string | null
+          country_code: string | null
+          country_id: string | null
+          created_at: string | null
+          deleted_at: string | null
+          deletion_reason: string | null
+          description: string | null
+          id: string
+          image_count: number | null
+          is_flagged: boolean | null
+          last_edited_by: string | null
+          latitude: number | null
+          location: unknown
+          longitude: number | null
+          name: string
+          region_id: string | null
+          region_name: string | null
+          report_count: number | null
+          rock_type: string | null
+          route_count: number | null
+          slug: string | null
+          sub_area: string | null
+          superseded_by: string | null
+          synced_at: string | null
+          tide_dependency: string | null
+          type: string | null
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "crags"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      soft_delete_image: {
+        Args: { p_image_id: string; p_reason: string }
+        Returns: {
+          admin_region_name: string | null
+          asset_version: number
+          capture_date: string | null
+          checksum_sha256: string | null
+          continent_name: string | null
+          contribution_credit_handle: string | null
+          contribution_credit_platform: string | null
+          country_code: string | null
+          country_id: string | null
+          country_name: string | null
+          crag_id: string | null
+          created_at: string | null
+          created_by: string | null
+          face_direction: string | null
+          face_directions: string[] | null
+          face_order: number | null
+          has_humans: boolean | null
+          height: number | null
+          id: string
+          is_anonymous_submission: boolean
+          is_primary: boolean
+          is_verified: boolean | null
+          last_edited_by: string | null
+          latitude: number | null
+          location_mode: string | null
+          longitude: number | null
+          moderated_at: string | null
+          moderation_error: string | null
+          moderation_labels: Json | null
+          moderation_provider: string | null
+          moderation_status: string | null
+          natural_height: number | null
+          natural_width: number | null
+          original_bucket: string | null
+          original_bytes: number | null
+          original_height: number | null
+          original_key: string | null
+          original_mime_type: string | null
+          original_width: number | null
+          parent_image_id: string | null
+          place_id: string | null
+          processed_at: string | null
+          processing_status: string
+          status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          storage_provider: string
+          submission_id: string | null
+          un_region_name: string | null
+          url: string
+          variants: Json
+          verification_count: number | null
+          visibility: string
+          width: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "images"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      soft_delete_published_submission: {
+        Args: { p_image_ids: string[]; p_owner_id: string }
+        Returns: Json
+      }
       sync_climb_grade_from_votes: {
         Args: { p_climb_id: string }
         Returns: undefined

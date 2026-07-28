@@ -71,8 +71,8 @@ export default function AdminCragsPage() {
           crag={removingCrag}
           deleting={deleting}
           onClose={() => setRemovingCrag(null)}
-          onConfirm={(confirmCount) => {
-            void deleteCrag(removingCrag, confirmCount)
+          onConfirm={(confirmCount, reason) => {
+            void deleteCrag(removingCrag, confirmCount, reason)
           }}
         />
       )}

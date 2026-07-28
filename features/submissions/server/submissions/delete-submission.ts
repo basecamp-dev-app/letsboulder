@@ -58,94 +58,12 @@ export async function deleteSubmission(deps: DeleteSubmissionDeps) {
 
   const imageIds = allImages.map((img) => img.id)
 
-  const { data: routeLines, error: routeLinesError } = await supabase
-    .from('route_lines')
-    .select('id, climb_id')
-    .in('image_id', imageIds)
-
-  if (routeLinesError) return createErrorResponse(routeLinesError, 'Delete submission error')
-
-  const climbIds = [...new Set((routeLines || []).map((rl: { climb_id: string }) => rl.climb_id))]
-
-  if (climbIds.length > 0) {
-    const { error: deleteLogsError } = await supabase
-      .from('user_climbs')
-      .delete()
-      .in('climb_id', climbIds)
-      .eq('user_id', userId)
-
-    if (deleteLogsError) return createErrorResponse(deleteLogsError, 'Delete submission error')
-  }
-
   const writeClient = supabaseAdmin || supabase
-
-  const { error: deleteFlagsError } = await writeClient
-    .from('climb_flags')
-    .delete()
-    .in('climb_id', climbIds)
-    .eq('flagged_by', userId)
-
-  if (deleteFlagsError) {
-    // non-fatal
-  }
-
-  const { error: deleteImageFlagsError } = await writeClient
-    .from('image_flags')
-    .delete()
-    .in('image_id', imageIds)
-    .eq('flagged_by', userId)
-
-  if (deleteImageFlagsError) {
-    // non-fatal
-  }
-
-  const { error: deleteCollaboratorsError } = await writeClient
-    .from('submission_collaborators')
-    .delete()
-    .in('image_id', imageIds)
-
-  if (deleteCollaboratorsError) {
-    // non-fatal
-  }
-
-  const { data: cragImageLinks, error: cragLinksError } = await writeClient
-    .from('crag_images')
-    .select('id')
-    .in('linked_image_id', imageIds)
-
-  if (cragLinksError) return createErrorResponse(cragLinksError, 'Delete submission error')
-
-  const cragImageIds = (cragImageLinks || []).map((link: { id: string }) => link.id)
-
-  if (cragImageIds.length > 0) {
-    const { error: deleteCragImagesError } = await writeClient
-      .from('crag_images')
-      .delete()
-      .in('id', cragImageIds)
-
-    if (deleteCragImagesError) return createErrorResponse(deleteCragImagesError, 'Delete submission error')
-  }
-
-  const { error: deleteImagesError } = await writeClient
-    .from('images')
-    .delete()
-    .in('id', imageIds)
-
-  if (deleteImagesError) return createErrorResponse(deleteImagesError, 'Delete submission error')
-
-  if (climbIds.length > 0) {
-    const { data: remainingRouteLines } = await writeClient
-      .from('route_lines')
-      .select('climb_id')
-      .in('climb_id', climbIds)
-
-    const climbIdsWithRoutes = new Set((remainingRouteLines || []).map((rl: { climb_id: string }) => rl.climb_id))
-    const orphanClimbIds = climbIds.filter((id) => !climbIdsWithRoutes.has(id))
-
-    if (orphanClimbIds.length > 0) {
-      await writeClient.from('climbs').delete().in('id', orphanClimbIds)
-    }
-  }
+  const { error: deleteSubmissionError } = await writeClient.rpc('soft_delete_published_submission', {
+    p_image_ids: imageIds,
+    p_owner_id: userId,
+  })
+  if (deleteSubmissionError) return createErrorResponse(deleteSubmissionError, 'Delete submission error')
 
   const storageRows = allImages.map((img) => ({
     storage_provider: img.storage_provider,
