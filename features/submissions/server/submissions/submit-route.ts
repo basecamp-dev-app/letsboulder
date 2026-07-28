@@ -14,6 +14,7 @@ import { executeExistingImageSubmission } from '@/features/submissions/server/su
 import { executeNewImageSubmission } from '@/features/submissions/server/submissions/submit-new-image'
 import { resolveCragImageToImageId } from '@/features/submissions/server/submissions/submit-crag-image'
 import { validateAndPrepareRoutes, validateNewSubmissionInput, type NewSubmissionImage, type SubmissionRequest } from '@/features/submissions/server/submissions/submit-route-validation'
+import { revalidatePublicCrag } from '@/features/crags/server/crag-cache-tags'
 
 import type { NextRequest } from 'next/server'
 
@@ -46,6 +47,7 @@ async function runSubmissionSideEffects(
 
   const { revalidatePath } = await import('next/cache')
   revalidatePath('/')
+  revalidatePublicCrag(input.cragId)
   if (cragData?.slug && cragData?.country_code) {
     revalidatePath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
   }

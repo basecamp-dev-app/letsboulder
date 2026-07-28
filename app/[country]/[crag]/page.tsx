@@ -1,14 +1,19 @@
 import type { Metadata } from 'next'
+import { unstable_cache } from 'next/cache'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { cache } from 'react'
 import CragPageShell from '@/features/crags/components/CragPageShell'
-import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import CragStructuredData from '@/features/crags/components/CragStructuredData'
 import type { BreadcrumbItem, CragPageCrag } from '@/features/crags/lib/crag-page-types'
-import { isCragSavedByUser } from '@/features/saved/lib/queries'
-import { getServerClient, getUnauthenticatedClient } from '@/lib/supabase-server'
+import { getCachedInitialCragRouteData } from '@/features/crags/server/crag-cache'
+import { getCragSlugCacheTag } from '@/features/crags/server/crag-cache-tags'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const revalidate = 60
+
+export function generateStaticParams() {
+  return []
+}
 
 interface CragSlugParams {
   country: string
@@ -75,19 +80,24 @@ function getSupabase() {
 }
 
 const resolveCragSlug = cache(async (countryCode: string, cragSlug: string) => {
-  const supabase = await getSupabase()
-  const { data } = await supabase
-    .rpc('resolve_public_crag_slug', { p_country_code: countryCode, p_crag_slug: cragSlug })
-    .maybeSingle()
-  return data as ResolvedCragSlug | null
+  return unstable_cache(async () => {
+    const supabase = await getSupabase()
+    const { data } = await supabase
+      .rpc('resolve_public_crag_slug', { p_country_code: countryCode, p_crag_slug: cragSlug })
+      .maybeSingle()
+    return data as ResolvedCragSlug | null
+  }, ['resolve-public-crag-slug', countryCode, cragSlug], {
+    revalidate: 60,
+    tags: [getCragSlugCacheTag(countryCode, cragSlug)],
+  })()
 })
 
-// Temporarily removed cache() to test - will add back after debugging
 const getCragByCountrySlug = cache(async (countryCode: string, cragSlug: string): Promise<CragSlugRow | null> => {
-  const supabase = await getSupabase()
-  const { data } = await supabase
-    .from('crags')
-    .select(`
+  return unstable_cache(async () => {
+    const supabase = await getSupabase()
+    const { data } = await supabase
+      .from('crags')
+      .select(`
       id,
       name,
       slug,
@@ -112,12 +122,16 @@ const getCragByCountrySlug = cache(async (countryCode: string, cragSlug: string)
           un_regions:un_region_name (name, continent_name)
         )
       )
-    `)
-    .eq('country_code', countryCode)
-    .eq('slug', cragSlug)
-    .maybeSingle()
+      `)
+      .eq('country_code', countryCode)
+      .eq('slug', cragSlug)
+      .maybeSingle()
 
-  return (data as CragSlugRow | null) || null
+    return (data as CragSlugRow | null) || null
+  }, ['public-crag-by-slug', countryCode, cragSlug], {
+    revalidate: 60,
+    tags: [getCragSlugCacheTag(countryCode, cragSlug)],
+  })()
 })
 
 export async function generateMetadata({ params }: { params: Promise<CragSlugParams> }): Promise<Metadata> {
@@ -168,14 +182,10 @@ export async function generateMetadata({ params }: { params: Promise<CragSlugPar
 
 export default async function CragSlugPage({
   params,
-  searchParams,
 }: {
   params: Promise<CragSlugParams>
-  searchParams: Promise<{ image?: string }>
 }) {
   const { country, crag: cragSlug } = await params
-  const { image } = await searchParams
-  const requestId = `crag-slug:${country}:${cragSlug}`
   if (!country || country.length !== 2) notFound()
 
   const countryCode = country.toUpperCase()
@@ -187,10 +197,6 @@ export default async function CragSlugPage({
 
   if (!crag) notFound()
 
-  const supabase = await getServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
   const countryRow = Array.isArray(crag.countries) ? crag.countries[0] : crag.countries
   const regionRow = Array.isArray(countryRow?.regions) ? countryRow.regions[0] : countryRow?.regions
   const unRegionRow = Array.isArray(regionRow?.un_regions) ? regionRow.un_regions[0] : regionRow?.un_regions
@@ -216,11 +222,10 @@ export default async function CragSlugPage({
     ...(initialCrag.climbing_areas?.name ? [{ label: initialCrag.climbing_areas.name }] : []),
     { label: crag.name },
   ]
-  const initialRouteData = await loadInitialCragRouteData(supabase, crag.id, {
+  const initialRouteData = await getCachedInitialCragRouteData(crag.id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
-  }, requestId, image || null)
-  const initialIsSaved = user ? await isCragSavedByUser(supabase, user.id, crag.id) : false
+  })
 
   return (
     <>
@@ -239,8 +244,6 @@ export default async function CragSlugPage({
         initialCriticalImagesComplete={initialRouteData.initialCriticalImagesComplete}
         initialMapImagesComplete={initialRouteData.initialMapImagesComplete}
         initialPayloadLoadedAt={initialRouteData.loadedAt}
-        initialSelectedImageId={image || null}
-        initialIsSaved={initialIsSaved}
       />
     </>
   )

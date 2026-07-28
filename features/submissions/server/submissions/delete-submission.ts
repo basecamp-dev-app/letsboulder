@@ -3,6 +3,7 @@ import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { isCanonicalImageObjectKey } from '@/lib/media/deletion-key'
 import { deleteObject } from '@/lib/media/r2'
+import { revalidatePublicCrag } from '@/features/crags/server/crag-cache-tags'
 import type { Database } from '@/types/database'
 
 type ImageStorageRow = Pick<
@@ -98,6 +99,7 @@ export async function deleteSubmission(deps: DeleteSubmissionDeps) {
   revalidatePath('/')
 
   if (cragId) {
+    revalidatePublicCrag(cragId)
     const { data: cragData } = await writeClient
       .from('crags')
       .select('slug, country_code')

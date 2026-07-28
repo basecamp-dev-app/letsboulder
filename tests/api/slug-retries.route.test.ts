@@ -15,6 +15,7 @@ vi.mock('@/lib/location/resolve-country', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }))
 
 vi.mock('@/lib/rate-limit', () => ({

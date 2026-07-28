@@ -1,13 +1,16 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import CragPageShell from '@/features/crags/components/CragPageShell'
 import type { CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
-import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
-import { isCragSavedByUser } from '@/features/saved/lib/queries'
-import { getServerClient, getUnauthenticatedClient } from '@/lib/supabase-server'
-import { getCragById } from '../lib/get-crag-by-id'
+import { getCachedInitialCragRouteData } from '@/features/crags/server/crag-cache'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
+import { getCragById } from '@/features/crags/server/get-crag-by-id'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 
 export const revalidate = 60
+
+export function generateStaticParams() {
+  return []
+}
 
 async function getCommunityPlaceById(id: string): Promise<CommunityPlaceInfo | null> {
   const supabase = getUnauthenticatedClient()
@@ -29,7 +32,6 @@ async function getCommunityPlaceById(id: string): Promise<CommunityPlaceInfo | n
 
 export default async function CragIdPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const requestId = `crag-id:${id}`
   const crag = await getCragById(id)
 
   if (!crag) notFound()
@@ -52,16 +54,11 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
     continent_name: unRegionRow?.continent_name,
   }
 
-  const supabase = await getServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  const initialRouteData = await loadInitialCragRouteData(supabase, id, {
+  const initialRouteData = await getCachedInitialCragRouteData(id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
-  }, requestId)
+  })
   const communityPlace = await getCommunityPlaceById(id)
-  const initialIsSaved = user ? await isCragSavedByUser(supabase, user.id, id) : false
 
   return (
     <CragPageShell
@@ -79,7 +76,6 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
       initialMapImagesComplete={initialRouteData.initialMapImagesComplete}
       initialPayloadLoadedAt={initialRouteData.loadedAt}
       communityPlace={communityPlace}
-      initialIsSaved={initialIsSaved}
     />
   )
 }
