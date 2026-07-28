@@ -19,6 +19,7 @@ export function useCragData({
   initialCragCenter = null,
   initialRouteTargetsComplete = false,
   initialCriticalImagesComplete = false,
+  initialMapImagesComplete = false,
   initialPayloadLoadedAt,
 }: UseCragDataParams): UseCragDataResult {
   const [crag, setCrag] = useState(initialCrag)
@@ -48,6 +49,7 @@ export function useCragData({
     initialCragCenter,
     initialRouteTargetsComplete,
     initialCriticalImagesComplete,
+    initialMapImagesComplete,
     initialPayloadLoadedAt,
     setCrag,
     setImages,

@@ -15,6 +15,7 @@ interface CragPageShellProps {
   initialCragCenter: [number, number] | null
   initialRouteTargetsComplete?: boolean
   initialCriticalImagesComplete?: boolean
+  initialMapImagesComplete?: boolean
   initialPayloadLoadedAt?: number
   communityPlace?: CommunityPlaceInfo | null
   initialSelectedImageId?: string | null

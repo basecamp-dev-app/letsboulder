@@ -76,6 +76,7 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
       initialCragCenter={initialRouteData.initialCragCenter}
       initialRouteTargetsComplete={initialRouteData.initialRouteTargetsComplete}
       initialCriticalImagesComplete={initialRouteData.initialCriticalImagesComplete}
+      initialMapImagesComplete={initialRouteData.initialMapImagesComplete}
       initialPayloadLoadedAt={initialRouteData.loadedAt}
       communityPlace={communityPlace}
       initialIsSaved={initialIsSaved}

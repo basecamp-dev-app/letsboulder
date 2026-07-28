@@ -13,6 +13,10 @@ vi.mock('@/features/crags/lib/crag-route-targets', async () => {
   }
 })
 
+vi.mock('@/features/crags/lib/crag-map-images', () => ({
+  loadPublicCragMapImages: vi.fn(),
+}))
+
 type QueryResult = { data?: unknown; error?: unknown }
 
 function createSelectBuilder(result: QueryResult) {
@@ -49,9 +53,26 @@ function createRouteIntelligenceRow() {
   }
 }
 
+function createMapImage(id: string, latitude: number, longitude: number) {
+  return {
+    id,
+    url: `https://example.com/${id}.jpg`,
+    storageUrl: `https://example.com/${id}.jpg`,
+    latitude,
+    longitude,
+    route_lines_count: 0,
+    is_verified: false,
+    verification_count: 0,
+    supplementary_faces_count: 0,
+    map_primary_image_id: id,
+  }
+}
+
 describe('loadInitialCragRouteData', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    const { loadPublicCragMapImages } = await import('@/features/crags/lib/crag-map-images')
+    vi.mocked(loadPublicCragMapImages).mockResolvedValue([])
   })
 
   it('hydrates exact route counts for route-critical images', async () => {
@@ -307,7 +328,7 @@ describe('loadInitialCragRouteData', () => {
     expect(result.initialCriticalImagesComplete).toBe(true)
   })
 
-  it('only returns route-critical seeded images when route targets exist', async () => {
+  it('returns image-only map images when route targets exist', async () => {
     const imagesSelect = createSelectBuilder({
       data: [
         { id: 'image-1', url: 'https://example.com/1.jpg', latitude: 51.0, longitude: 0.1 },
@@ -379,10 +400,16 @@ describe('loadInitialCragRouteData', () => {
         },
       },
     })
+    const { loadPublicCragMapImages } = await import('@/features/crags/lib/crag-map-images')
+    vi.mocked(loadPublicCragMapImages).mockResolvedValue([
+      createMapImage('image-1', 51, 0.1),
+      createMapImage('image-2', 51.1, 0.2),
+    ])
 
     const result = await loadInitialCragRouteData(supabase as never, 'crag-1')
 
-    expect(result.initialImages.map((image) => image.id)).toEqual(['image-2'])
+    expect(result.initialImages.map((image) => image.id)).toEqual(['image-1', 'image-2'])
+    expect(result.initialMapImagesComplete).toBe(true)
   })
 
   it('includes the selected image in the critical SSR image set', async () => {
@@ -448,6 +475,11 @@ describe('loadInitialCragRouteData', () => {
       nextDefaultRouteTargetByImageId: {},
       nextRouteNavigationTargetByClimbId: {},
     })
+    const { loadPublicCragMapImages } = await import('@/features/crags/lib/crag-map-images')
+    vi.mocked(loadPublicCragMapImages).mockResolvedValue([
+      createMapImage('image-1', 51, 0.1),
+      createMapImage('image-2', 51.1, 0.2),
+    ])
 
     const result = await loadInitialCragRouteData(supabase as never, 'crag-1', undefined, undefined, 'image-2')
 
@@ -472,6 +504,12 @@ describe('loadInitialCragRouteData', () => {
       }),
     }
 
+    const { loadPublicCragMapImages } = await import('@/features/crags/lib/crag-map-images')
+    vi.mocked(loadPublicCragMapImages).mockResolvedValue([
+      createMapImage('image-1', 51, 0.1),
+      createMapImage('image-2', 51.1, 0.2),
+    ])
+
     const result = await loadInitialCragRouteData(supabase as never, 'crag-1')
 
     expect(result.initialImages.map((image) => image.id)).toEqual(['image-1', 'image-2'])
@@ -495,6 +533,9 @@ describe('loadInitialCragRouteData', () => {
       rpc: vi.fn(async () => ({ data: [], error: null })),
       from: vi.fn(() => ({ select: vi.fn(() => createSelectBuilder({ error: queryError })) })),
     }
+
+    const { loadPublicCragMapImages } = await import('@/features/crags/lib/crag-map-images')
+    vi.mocked(loadPublicCragMapImages).mockRejectedValue(queryError)
 
     await expect(loadInitialCragRouteData(supabase as never, 'crag-1')).rejects.toBe(queryError)
   })

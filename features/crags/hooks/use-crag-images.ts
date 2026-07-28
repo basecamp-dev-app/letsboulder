@@ -47,6 +47,7 @@ export interface UseCragImagesParams {
   initialCragCenter: [number, number] | null
   initialRouteTargetsComplete: boolean
   initialCriticalImagesComplete: boolean
+  initialMapImagesComplete: boolean
   initialPayloadLoadedAt: number | undefined
   setCrag: Dispatch<SetStateAction<CragPageCrag | null>>
   setImages: Dispatch<SetStateAction<ImageData[]>>
@@ -68,6 +69,7 @@ export function useCragImages({
   initialCragCenter,
   initialRouteTargetsComplete,
   initialCriticalImagesComplete,
+  initialMapImagesComplete,
   initialPayloadLoadedAt,
   setCrag,
   setImages,
@@ -77,7 +79,7 @@ export function useCragImages({
   setRoutesLoadState,
 }: UseCragImagesParams) {
   const hasInitialRouteData = initialRoutes !== null
-  const hasCompleteInitialImages = Boolean(initialCrag) && initialCriticalImagesComplete
+  const hasCompleteInitialImages = Boolean(initialCrag) && initialMapImagesComplete
 
   // Seed in-memory cache from SSR payload when images are authoritative.
   useEffect(() => {
@@ -100,6 +102,7 @@ export function useCragImages({
     initialCragCenter,
     initialDefaultRouteTargetByImageId,
     initialCriticalImagesComplete,
+    initialMapImagesComplete,
     initialImages,
     initialPayloadLoadedAt,
     initialRouteImageIdsByClimbId,

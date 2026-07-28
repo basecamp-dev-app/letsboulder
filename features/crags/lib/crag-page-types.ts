@@ -41,6 +41,7 @@ export interface ImageData {
   is_verified: boolean
   verification_count: number
   supplementary_faces_count: number
+  map_primary_image_id?: string
 }
 
 export interface SelectedPinImage {
@@ -95,6 +96,7 @@ export interface InitialCragRouteData {
   initialCragCenter: [number, number] | null
   initialRouteTargetsComplete: boolean
   initialCriticalImagesComplete: boolean
+  initialMapImagesComplete: boolean
   loadedAt: number
 }
 

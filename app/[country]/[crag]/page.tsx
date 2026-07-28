@@ -219,6 +219,7 @@ export default async function CragSlugPage({
         initialCragCenter={initialRouteData.initialCragCenter}
         initialRouteTargetsComplete={initialRouteData.initialRouteTargetsComplete}
         initialCriticalImagesComplete={initialRouteData.initialCriticalImagesComplete}
+        initialMapImagesComplete={initialRouteData.initialMapImagesComplete}
         initialPayloadLoadedAt={initialRouteData.loadedAt}
         initialSelectedImageId={image || null}
         initialIsSaved={initialIsSaved}
