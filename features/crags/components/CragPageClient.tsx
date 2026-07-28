@@ -28,6 +28,7 @@ interface CragPageClientProps {
   initialCragCenter?: [number, number] | null
   initialRouteTargetsComplete?: boolean
   initialCriticalImagesComplete?: boolean
+  initialMapImagesComplete?: boolean
   initialPayloadLoadedAt?: number
   communityPlace?: CommunityPlaceInfo | null
   initialSelectedImageId?: string | null
@@ -46,6 +47,7 @@ export default function CragPageClient({
   initialCragCenter = null,
   initialRouteTargetsComplete = false,
   initialCriticalImagesComplete = false,
+  initialMapImagesComplete = false,
   initialPayloadLoadedAt,
   communityPlace,
   initialSelectedImageId = null,
@@ -77,6 +79,7 @@ export default function CragPageClient({
     initialCragCenter,
     initialRouteTargetsComplete,
     initialCriticalImagesComplete,
+    initialMapImagesComplete,
     initialPayloadLoadedAt,
   })
 

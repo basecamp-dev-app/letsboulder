@@ -22,6 +22,7 @@ export interface UseCragDataParams {
   initialCragCenter?: [number, number] | null
   initialRouteTargetsComplete?: boolean
   initialCriticalImagesComplete?: boolean
+  initialMapImagesComplete?: boolean
   initialPayloadLoadedAt?: number
 }
 

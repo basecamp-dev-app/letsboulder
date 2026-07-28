@@ -11,6 +11,7 @@ import { buildActiveRouteFilterChips, buildCragRouteSummaries, buildRouteNavigat
 import type { ActiveRouteFilterChip, CragRouteStats, ResolvedRouteDestination } from '@/features/crags/lib/crag-page-domain'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview, SelectedPinImage } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
+import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 
 interface ClusteredImageData {
   id: string
@@ -22,6 +23,7 @@ interface ClusteredImageData {
   is_verified: boolean
   verification_count: number
   supplementary_faces_count: number
+  map_primary_image_id?: string
 }
 
 interface LocatedClusteredImageData extends ClusteredImageData {
@@ -41,22 +43,33 @@ interface CragImageClusterModel {
   clusterImageIdsByClusterId: Map<string, string[]>
 }
 
-function buildCragImageClusterModel(orderedImages: ImageData[]): CragImageClusterModel {
+export function buildCragImageClusterModel(orderedImages: ImageData[]): CragImageClusterModel {
   const imageById = new Map<string, ClusteredImageData>()
-  const locatedImagesByClusterId = new Map<string, LocatedClusteredImageData[]>()
+  const locatedImagesByPrimaryId = new Map<string, LocatedClusteredImageData[]>()
 
   for (const image of orderedImages) {
     imageById.set(image.id, image as ClusteredImageData)
 
-    if (typeof image.latitude !== 'number' || typeof image.longitude !== 'number') continue
-    const clusterId = `${image.latitude.toFixed(6)}:${image.longitude.toFixed(6)}`
-    const existing = locatedImagesByClusterId.get(clusterId)
+    if (typeof image.latitude !== 'number' || !Number.isFinite(image.latitude)
+      || typeof image.longitude !== 'number' || !Number.isFinite(image.longitude)) continue
+    const primaryImageId = image.map_primary_image_id || image.id
+    const existing = locatedImagesByPrimaryId.get(primaryImageId)
     if (existing) {
       existing.push(image as LocatedClusteredImageData)
       continue
     }
-    locatedImagesByClusterId.set(clusterId, [image as LocatedClusteredImageData])
+    locatedImagesByPrimaryId.set(primaryImageId, [image as LocatedClusteredImageData])
   }
+
+  const spatialOrder = getStableSpatialOrder(Array.from(locatedImagesByPrimaryId.entries()).map(([primaryImageId, images]) => {
+    const primaryImage = images.find((image) => image.id === primaryImageId) || images[0]
+    return {
+      displayImageId: primaryImageId,
+      latitude: primaryImage.latitude,
+      longitude: primaryImage.longitude,
+      createdAt: primaryImage.created_at,
+    }
+  }))
 
   const clusters: Array<{ id: string; images: Array<{ id: string }> }> = []
   const mapPins: LightweightCragMapPin[] = []
@@ -66,7 +79,9 @@ function buildCragImageClusterModel(orderedImages: ImageData[]): CragImageCluste
   const clusterImageIdsByClusterId = new Map<string, string[]>()
   let pinNumber = 1
 
-  for (const [clusterId, groupedImages] of locatedImagesByClusterId.entries()) {
+  for (const stack of spatialOrder.orderedStacks) {
+    const clusterId = stack.stackId
+    const groupedImages = stack.images.flatMap((node) => locatedImagesByPrimaryId.get(node.displayImageId) || [])
     const clusterImageIds: string[] = []
     const clusterImages = groupedImages.map((image) => {
       clusterIdByImageId.set(image.id, clusterId)
@@ -80,14 +95,16 @@ function buildCragImageClusterModel(orderedImages: ImageData[]): CragImageCluste
     clusterById.set(clusterId, cluster)
     clusterImageIdsByClusterId.set(clusterId, clusterImageIds)
 
-    const primaryImage = groupedImages[0]
+    const primaryImageId = stack.images[0]?.displayImageId || groupedImages[0]?.id
+    const primaryImage = groupedImages.find((image) => image.id === primaryImageId) || groupedImages[0]
+    if (!primaryImage) continue
     mapPins.push({
       id: clusterId,
       latitude: primaryImage.latitude,
       longitude: primaryImage.longitude,
       label: String(groupedImages.length),
       activeImageIds: clusterImageIds,
-      primaryImageId: primaryImage.id,
+      primaryImageId,
     })
 
     pinNumber += 1
@@ -292,6 +309,7 @@ export function useCragPageFilters({
         return {
           id: image.id,
           url: image.url,
+          storageUrl: image.storageUrl,
           routeLinesCount,
           href: buildCragImageDestination({
             imageId: image.id,

@@ -1,10 +1,9 @@
 import { createClient } from '@/lib/supabase'
-import { reportError } from '@/lib/errors'
-import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import { getAverageCoordinates } from '@/features/crags/lib/crag-page-domain'
-import type { CragRouteIntelligenceRow, RawImageRow } from '@/features/crags/lib/crag-page-domain'
+import type { CragRouteIntelligenceRow } from '@/features/crags/lib/crag-page-domain'
 import type { CragPageCrag, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
+import { loadPublicCragMapImages } from '@/features/crags/lib/crag-map-images'
 
 export const cragKeys = {
   all: ['crag'] as const,
@@ -34,39 +33,12 @@ interface InitialCragImagesFallback {
   routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
 }
 
-function buildInitialCragImagesFallback(
-  initialCrag: CragPageCrag,
-  fallback: InitialCragImagesFallback
-): CragImagesResult {
-  return {
-    crag: initialCrag,
-    images: fallback.images,
-    cragCenter: fallback.cragCenter,
-    defaultRouteTargetByImageId: fallback.defaultRouteTargetByImageId,
-    routeImageIdsByClimbId: fallback.routeImageIdsByClimbId,
-    routePreviewByClimbId: fallback.routePreviewByClimbId,
-    routeNavigationTargetByClimbId: fallback.routeNavigationTargetByClimbId,
-  }
-}
-
 export async function fetchCragImages(
   id: string,
   initialCrag: CragPageCrag | null,
   initialFallback?: InitialCragImagesFallback
 ): Promise<CragImagesResult> {
   const supabase = createClient()
-
-  const imagesPromise = supabase
-    .from('images')
-    .select('id, url, latitude, longitude, created_at, is_verified, verification_count, route_lines(count)')
-    .eq('crag_id', id)
-    .order('created_at', { ascending: false })
-
-  const supplementaryImageIdsPromise = supabase
-    .from('crag_images')
-    .select('linked_image_id, source_image_id, url')
-    .eq('crag_id', id)
-    .not('linked_image_id', 'is', null)
 
   const cragPromise = initialCrag
     ? Promise.resolve({ data: initialCrag, error: null as null })
@@ -81,91 +53,14 @@ export async function fetchCragImages(
 
   const [
     { data: cragData, error: cragError },
-    { data: imagesData, error: imagesError },
-    { data: supplementaryImageIdsData, error: supplementaryImageIdsError },
-  ] = await Promise.all([cragPromise, imagesPromise, supplementaryImageIdsPromise])
+    imagesData,
+  ] = await Promise.all([cragPromise, loadPublicCragMapImages(supabase, id)])
 
   if (cragError || !cragData) {
     throw new Error(`Crag not found: ${cragError?.message}`)
   }
 
-  if (imagesError) reportError(new Error('Error fetching images'), { message: 'Error fetching images', extra: imagesError })
-  if (supplementaryImageIdsError) reportError(new Error('Error fetching supplementary image IDs'), { message: 'Error fetching supplementary image IDs', extra: supplementaryImageIdsError })
-
-  if ((imagesError || supplementaryImageIdsError) && initialCrag && initialFallback) {
-    return buildInitialCragImagesFallback(initialCrag, initialFallback)
-  }
-
-  const supplementaryImageIds = new Set<string>(
-    (supplementaryImageIdsData || [])
-      .flatMap((row: { linked_image_id: string | null; source_image_id?: string | null }) => [row.linked_image_id, row.source_image_id || null])
-      .filter((value: string | null): value is string => typeof value === 'string' && value.length > 0)
-  )
-
-  const supplementaryImageUrls = new Set(
-    (supplementaryImageIdsData || [])
-      .filter((row: { source_image_id: string | null; url?: string | null }) => !!row.source_image_id)
-      .map((row: { url?: string | null }) => row.url)
-      .filter((value: string | null | undefined): value is string => typeof value === 'string' && value.length > 0)
-  )
-
-  const supplementaryCountByPrimaryId: Record<string, number> = {}
-  for (const row of (supplementaryImageIdsData || []) as Array<{ source_image_id: string | null }>) {
-    if (!row.source_image_id) continue
-    supplementaryCountByPrimaryId[row.source_image_id] = (supplementaryCountByPrimaryId[row.source_image_id] || 0) + 1
-  }
-
-  const allImagesData = (imagesData || []) as RawImageRow[]
-  const knownImageIds = new Set(allImagesData.map((image) => image.id))
-  const missingSupplementaryImageIds = Array.from(supplementaryImageIds).filter((imageId) => !knownImageIds.has(imageId))
-
-  let supplementaryImagesData: RawImageRow[] = []
-  if (missingSupplementaryImageIds.length > 0) {
-    const { data: extraImagesData, error: extraImagesError } = await supabase
-      .from('images')
-      .select('id, url, latitude, longitude, created_at, is_verified, verification_count, route_lines(count)')
-      .in('id', missingSupplementaryImageIds)
-
-    if (extraImagesError) reportError(new Error('Error fetching supplementary images'), { message: 'Error fetching supplementary images', extra: extraImagesError })
-    else supplementaryImagesData = (extraImagesData || []) as RawImageRow[]
-  }
-
-  const mergedImagesData = [...allImagesData, ...supplementaryImagesData]
-
-  const primaryImagesData = mergedImagesData.filter(
-    (img: { id: string; url: string }) => !supplementaryImageIds.has(img.id) && !supplementaryImageUrls.has(img.url)
-  )
-
-  if (imagesError || supplementaryImageIdsError || primaryImagesData.length === 0) {
-    if (initialCrag && initialFallback) {
-      return buildInitialCragImagesFallback(initialCrag, initialFallback)
-    }
-
-    throw new Error('Failed to fetch crag images')
-  }
-
-  const formatImageRow = (img: RawImageRow): ImageData => {
-    const routeLinesCount = Array.isArray(img.route_lines) && img.route_lines[0]
-      ? img.route_lines[0].count
-      : 0
-    return {
-      id: img.id,
-      url: resolveRouteImageUrl(img.url),
-      storageUrl: img.url,
-      latitude: img.latitude,
-      longitude: img.longitude,
-      created_at: img.created_at ?? null,
-      is_verified: img.is_verified || false,
-      verification_count: img.verification_count || 0,
-      route_lines_count: routeLinesCount,
-      supplementary_faces_count: supplementaryCountByPrimaryId[img.id] || 0,
-    }
-  }
-
-  const formattedImages: ImageData[] = primaryImagesData.map(formatImageRow)
-  const previewImages = mergedImagesData.map(formatImageRow)
-
-  const withCoords = formattedImages.filter(
+  const withCoords = imagesData.filter(
     (img): img is ImageData & { latitude: number; longitude: number } => img.latitude !== null && img.longitude !== null
   )
   let cragCenter: [number, number] | null = null
@@ -177,7 +72,7 @@ export async function fetchCragImages(
 
   return {
     crag: cragData,
-    images: previewImages,
+    images: imagesData,
     cragCenter,
     defaultRouteTargetByImageId: initialFallback?.defaultRouteTargetByImageId || {},
     routeImageIdsByClimbId: initialFallback?.routeImageIdsByClimbId || {},

@@ -38,6 +38,9 @@ describe('SelectedPinImageTray', () => {
     const links = screen.getAllByRole('link')
     expect(links[0]?.getAttribute('href')).toBe('/gb/test-crag/i/image-1')
     expect(links[1]?.getAttribute('href')).toBe('/gb/test-crag/i/image-2')
+    for (const thumbnail of screen.getAllByRole('img')) {
+      expect(thumbnail.getAttribute('loading')).toBe('lazy')
+    }
   })
 
   it('renders routed copy when an image has mapped routes', () => {

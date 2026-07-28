@@ -123,7 +123,7 @@ export function buildThumbnailUrl(
   quality = 72,
   options?: BuildThumbnailOptions
 ): string {
-  const resolvedUrl = resolveRouteImageUrl(url)
+  const resolvedUrl = resolveRouteImageUrl(options?.storageUrl || url)
   if (!resolvedUrl) return ''
 
   if (resolvedUrl.startsWith(API_MEDIA_PREFIX)) {
@@ -139,7 +139,5 @@ export function buildThumbnailUrl(
 
   const normalizedQuality = quality
   void normalizedQuality
-  void options
-
   return resolvedUrl
 }
