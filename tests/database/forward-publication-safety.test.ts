@@ -186,8 +186,6 @@ async function committedFixture(withRoute = true): Promise<Fixture> {
 
 async function cleanupFixture(fixture: Fixture) {
   await pool.query('delete from auth.users where id = $1', [fixture.userId])
-  await pool.query('delete from public.crags where id = $1', [fixture.cragId])
-  await pool.query('delete from public.images where id = $1', [fixture.imageId])
 }
 
 async function authenticatedClient(userId: string, applicationName?: string): Promise<Client> {
@@ -396,9 +394,12 @@ describe('forward publication safety migrations', () => {
          values ('Retaining route', '6A', 'approved', 'sport', $1, $2, $2, $3)`,
         [userId, cragId, `retaining-${randomUUID()}`],
       )
-      await client.query('delete from public.images where id = $1', [image.imageId])
+      await client.query("update public.images set status = 'deleted', visibility = 'private' where id = $1", [image.imageId])
       expect(await exists(client, 'crags', cragId)).toBe(true)
-      expect((await client.query('select count(*)::int as count from public.images where crag_id = $1', [cragId])).rows[0].count).toBe(0)
+      expect((await client.query(
+        "select count(*)::int as count from public.images where crag_id = $1 and status <> 'deleted'",
+        [cragId],
+      )).rows[0].count).toBe(0)
     })
   })
 
@@ -408,7 +409,7 @@ describe('forward publication safety migrations', () => {
       const cragId = await createCrag(client, "now() - interval '2 hours'")
       const image = await createReadyImage(client, userId, { cragId })
       await client.query('insert into public.submission_drafts (user_id, crag_id) values ($1, $2)', [userId, cragId])
-      await client.query('delete from public.images where id = $1', [image.imageId])
+      await client.query("update public.images set status = 'deleted', visibility = 'private' where id = $1", [image.imageId])
       expect(await exists(client, 'crags', cragId)).toBe(true)
     })
   })
@@ -422,7 +423,10 @@ describe('forward publication safety migrations', () => {
       const cragImage = await createReadyImage(client, userId, { cragId: imageCragId })
       await client.query("insert into public.sectors (name, crag_id) values ('Sector', $1)", [sectorCragId])
       await client.query("insert into public.crag_images (crag_id, url) values ($1, 'https://example.test/crag.jpg')", [imageCragId])
-      await client.query('delete from public.images where id = any($1::uuid[])', [[sectorImage.imageId, cragImage.imageId]])
+      await client.query(
+        "update public.images set status = 'deleted', visibility = 'private' where id = any($1::uuid[])",
+        [[sectorImage.imageId, cragImage.imageId]],
+      )
       expect(await exists(client, 'crags', sectorCragId)).toBe(true)
       expect(await exists(client, 'crags', imageCragId)).toBe(true)
     })
@@ -686,9 +690,7 @@ describe('forward publication safety migrations', () => {
            and cmd = 'DELETE' and permissive = 'PERMISSIVE'
          group by tablename order by tablename`,
       )
-      expect(policies.rows).toEqual([
-        { tablename: 'images', count: 1 },
-      ])
+      expect(policies.rows).toEqual([])
 
       const userId = await createUser(client)
       const cragId = await createCrag(client)
@@ -704,7 +706,8 @@ describe('forward publication safety migrations', () => {
       )
       await client.query('reset role')
       await setAuthenticatedContext(client, userId)
-      expect((await client.query('delete from public.images where id = $1', [image.imageId])).rowCount).toBe(0)
+      const imageDelete = await rpcError(client, 'delete from public.images where id = $1', [image.imageId])
+      expect(imageDelete.message).toContain('permission denied')
       expect((await client.query('delete from public.submission_draft_images where id = $1', [draftImageId])).rowCount).toBe(0)
       expect((await client.query('delete from public.submission_drafts where id = $1', [draftId])).rowCount).toBe(0)
       const statusBypass = await rpcError(client, "update public.submission_drafts set status = 'submitted' where id = $1", [draftId])

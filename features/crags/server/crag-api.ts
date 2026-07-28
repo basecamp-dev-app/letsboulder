@@ -37,6 +37,11 @@ export const createCragSchema = z.object({
   }
 })
 
+const deleteCragSchema = z.object({
+  reason: z.string().trim().min(1, 'Deletion reason is required').max(500),
+  superseded_by: z.string().uuid().nullable().optional(),
+})
+
 export function normalizeRouteType(value: string | null | undefined): string | null {
   if (!value) return null
   const normalized = value.trim().toLowerCase().replace(/_/g, '-')
@@ -591,8 +596,11 @@ export async function updateCrag(request: NextRequest, supabase: RequestSupabase
   }
 }
 
-export async function deleteCrag(supabase: RequestSupabaseClient, userId: string, cragId: string) {
+export async function deleteCrag(request: NextRequest, supabase: RequestSupabaseClient, cragId: string) {
   try {
+    const parsedBody = parseWithSchema(deleteCragSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+
     const { data: crag, error: fetchError } = await supabase
       .from('crags')
       .select('id, name, slug, country_code')
@@ -603,32 +611,22 @@ export async function deleteCrag(supabase: RequestSupabaseClient, userId: string
       return NextResponse.json({ error: 'Crag not found' }, { status: 404 })
     }
 
-    const [{ data: climbData }, { data: imageData }] = await Promise.all([
-      supabase.from('climbs').select('id').eq('crag_id', cragId),
-      supabase.from('images').select('id').eq('crag_id', cragId),
-    ])
-
-    const climbCount = climbData?.length || 0
-    const imageCount = imageData?.length || 0
-
-    const { error: deleteError } = await supabase.from('crags').delete().eq('id', cragId)
+    const { data: deletedCrag, error: deleteError } = await supabase.rpc('soft_delete_crag', {
+      p_crag_id: cragId,
+      p_reason: parsedBody.data.reason,
+      p_superseded_by: parsedBody.data.superseded_by || undefined,
+    })
     if (deleteError) {
       return createErrorResponse(deleteError, 'Error deleting crag')
     }
-
-    await supabase.from('admin_actions').insert({
-      user_id: userId,
-      action: 'delete_crag',
-      target_id: cragId,
-      details: { crag_name: crag.name, climbs_deleted: climbCount, images_deleted: imageCount },
-    })
+    if (!deletedCrag) return NextResponse.json({ error: 'Crag not found' }, { status: 404 })
 
     revalidatePath('/')
     if (crag.slug && crag.country_code) {
       revalidatePath(`/${crag.country_code.toLowerCase()}/${crag.slug}`)
     }
 
-    return NextResponse.json({ success: true, message: `Crag "${crag.name}" deleted with ${climbCount} climbs and ${imageCount} images` })
+    return NextResponse.json({ success: true, message: `Crag "${crag.name}" removed` })
   } catch (error) {
     return createErrorResponse(error, 'Error deleting crag')
   }

@@ -48,5 +48,5 @@ export async function DELETE(
   const adminError = await requireAdminFromSupabase(supabase)
   if (adminError) return adminError
 
-  return deleteCrag(supabase, user.id, cragId)
+  return deleteCrag(request, supabase, cragId)
 }

@@ -101,6 +101,7 @@ export async function recordAcceptedWikiContribution(editHistoryId: string) {
   if (!edit || edit.moderation_state !== 'accepted') {
     throw new Error('Accepted wiki contribution source not found')
   }
+  if (!edit.edited_by) return
 
   const { data: image, error: imageError } = await supabase
     .from('images')

@@ -9,13 +9,14 @@ interface DeleteCragDialogProps {
   crag: AdminCrag
   deleting: boolean
   onClose: () => void
-  onConfirm: (confirmCount: string) => void
+  onConfirm: (confirmCount: string, reason: string) => void
 }
 
 export default function DeleteCragDialog({ crag, deleting, onClose, onConfirm }: DeleteCragDialogProps) {
   useOverlayHistory({ open: true, onClose, id: `admin-delete-crag-${crag.id}` })
 
   const [confirmCount, setConfirmCount] = useState('')
+  const [reason, setReason] = useState('')
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -34,10 +35,18 @@ export default function DeleteCragDialog({ crag, deleting, onClose, onConfirm }:
         </div>
 
         <p className="text-gray-300 mb-4">
-          This will <span className="text-red-500 font-bold">permanently delete</span> the crag <span className="font-semibold text-white">{crag.name}</span>, {' '}
-          <span className="font-semibold text-white">{crag.climb_count} climbs</span>, and {' '}
-          <span className="font-semibold text-white">{crag.image_count} images</span>. This action cannot be undone.
+          This hides the crag and its <span className="font-semibold text-white">{crag.climb_count} climbs</span> while preserving images, logs, and edit history.
         </p>
+
+        <label className="mb-2 block text-white" htmlFor="crag-deletion-reason">Reason</label>
+        <textarea
+          id="crag-deletion-reason"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          maxLength={500}
+          placeholder="Why is this crag being removed?"
+          className="mb-4 min-h-20 w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-white placeholder-gray-500"
+        />
 
         <p className="text-white mb-2">
           Type <span className="font-bold text-yellow-500">{crag.climb_count}</span> to confirm:
@@ -59,8 +68,8 @@ export default function DeleteCragDialog({ crag, deleting, onClose, onConfirm }:
             Cancel
           </button>
           <button
-            onClick={() => onConfirm(confirmCount)}
-            disabled={confirmCount !== String(crag.climb_count) || deleting}
+            onClick={() => onConfirm(confirmCount, reason.trim())}
+            disabled={confirmCount !== String(crag.climb_count) || !reason.trim() || deleting}
             className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {deleting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Delete'}

@@ -132,7 +132,7 @@ Public totals are available only through sanitized aggregate views:
 | `climb_flag_counts` | Target type/ID and total/pending counts |
 | `crag_report_counts` | Crag ID and total/per-status counts |
 
-These views are owned by the non-login, non-bypass `operational_aggregate_reader` role. That role receives column-level access only to grouping keys and statuses and has dedicated RLS policies; it cannot read identities or free-form moderation fields.
+These views are owned by the non-login, non-bypass `operational_aggregate_reader` role. That role receives column-level access only to grouping keys, statuses, and active-target predicates and has dedicated RLS policies; it cannot read identities or free-form moderation fields. Flag/report rows for deleted crags, deleted climbs, deleted images, or images under deleted crags are excluded explicitly.
 
 Image rows in `climb_flag_counts` are limited to publicly deliverable images. Authenticated callers use `get_image_pending_flag_count(image_id)` for a scalar count on public images, their own private images, or private images shared with them; the RPC returns zero when the image is not visible to the caller.
 
@@ -197,6 +197,7 @@ Image rows in `climb_flag_counts` are limited to publicly deliverable images. Au
 | `auth.users` | `saved_climbs` | CASCADE |
 | `auth.users` | `saved_crags` | CASCADE |
 | `auth.users` | `user_climbs` | no action |
+| `auth.users` | `submission_edit_history.edited_by` | SET NULL |
 | `crags` | `climbs` | CASCADE |
 | `crags` | `crag_images` | CASCADE |
 | `crags` | `crag_location_tags` | CASCADE |
@@ -218,7 +219,7 @@ Image rows in `climb_flag_counts` are limited to publicly deliverable images. Au
 | `images` | `submission_collaborators` | CASCADE |
 | `images` | `submission_collaborator_invites` | CASCADE |
 | `images` | `submission_contributors` | CASCADE |
-| `images` | `submission_edit_history` | CASCADE |
+| `images` | `submission_edit_history` | RESTRICT |
 | `climbs` | `climb_corrections` | CASCADE |
 | `climbs` | `climb_flags` | CASCADE |
 | `climbs` | `climb_verifications` | CASCADE |
@@ -229,6 +230,8 @@ Image rows in `climb_flag_counts` are limited to publicly deliverable images. Au
 | `climbs` | `saved_climbs` | CASCADE |
 | `climbs` | `user_climbs` | CASCADE |
 | `climbs` | `climbs` (self-ref via shared_climb_id) | SET NULL |
+| `climbs` | `climbs` (self-ref via superseded_by) | RESTRICT |
+| `crags` | `crags` (self-ref via superseded_by) | RESTRICT |
 | `crags` | `saved_crags` | CASCADE |
 | `submission_drafts` | `submission_draft_images` | CASCADE |
 | `submission_drafts` | `submission_draft_routes` | CASCADE |
@@ -262,6 +265,15 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 
 **Tradeoff:** No cascade at the DB level. Orphan comments are prevented by triggers, not FK constraints. If a trigger is dropped or disabled, orphans can accumulate.
 
+### Published Content Deletion
+- `crags` and `climbs` use `deleted_at`, a required trimmed `deletion_reason` of at most 500 characters, and optional same-table `superseded_by`. Existing soft-deleted climbs are backfilled with `Legacy soft deletion`.
+- `soft_delete_climb` and `soft_delete_crag` are authenticated admin-only `SECURITY DEFINER` RPCs bound to `auth.uid()` through `is_current_user_admin()`. They lock target/replacement rows, require an active replacement, reject self-reference/cycles, and insert `admin_actions` in the same transaction. Crag deletion also locks and soft-deletes every active child climb.
+- Lifecycle changes are trigger-gated to the admin soft-delete RPCs and service-only account/submission deletion workflows. Authenticated direct DELETE grants/policies are removed. Hard-delete guards apply even to `service_role`: only fully empty crags and unassociated, never-published climbs/images can be physically deleted.
+- The physical `crags` to `climbs` FK remains `ON DELETE CASCADE` for legacy compatibility, but the crag hard-delete guard prevents that cascade whenever any climb exists.
+- Public RLS exposes only active crags and active climbs under active crags. Image reads additionally reject `status = 'deleted'` and deleted crag parents; comment visibility is parent-aware. Administrators have separate all-row read policies for crags/climbs.
+- `resolve_public_crag_slug(country_code, crag_slug)` and `resolve_public_climb_slug(country_code, crag_slug, climb_slug)` follow valid supersession to an active row. Their result shapes intentionally omit deletion reasons.
+- Published/history-bearing images survive account cleanup as `status = 'deleted'`, private tombstones. Published climbs are soft-deleted. `submission_edit_history.image_id` is `ON DELETE RESTRICT`, while `edited_by` is nullable and `ON DELETE SET NULL`, preserving history after image/editor deletion.
+
 ### Media Pipeline Tables
 - `images` carries media-pipeline state in addition to legacy `url` storage fields.
 - Key columns: `storage_provider`, `original_bucket`, `original_key`, `asset_version`, `variants`, `visibility`, `processing_status`, `checksum_sha256`, `processed_at`, `latitude`, `longitude`.
@@ -283,10 +295,10 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - Published submissions use wiki-style editing for authenticated users; `submission_collaborators` and `submission_collaborator_invites` remain legacy published-collaboration tables.
 - Published images may exist before any `route_lines` are added, enabling image-only submissions that receive topo later.
 - `submission_contributors` records successful non-owner published editors.
-- `submission_edit_history` stores field-aware, per-image edit history for published submissions.
+- `submission_edit_history` stores field-aware, per-image edit history for published submissions and is retained when an editor account is deleted.
 - `submission_draft_collaborators` and `submission_draft_collaborator_invites` continue to enable shared editing on drafts.
 - RLS helper functions: `is_submission_collaborator(image_id, user_id)` and `is_submission_draft_collaborator(draft_id, user_id)`.
-- Wiki helper function: `user_can_wiki_edit_submission(image_id, user_id)`; the supplied user must equal `auth.uid()`.
+- Wiki helper function: `user_can_wiki_edit_submission(image_id, user_id)`; the supplied user must equal `auth.uid()`, and deleted images or images under deleted crags are rejected.
 - Invite claims: `claim_submission_collaborator_invite(token)` and `claim_submission_draft_collaborator_invite(token)`.
 
 ### Profile Access
@@ -313,6 +325,8 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 | `submission_contributors` | authenticated | service / helper only | service / helper only | service / helper only |
 | `submission_edit_history` | authenticated | service / helper only | service / helper only | service / helper only |
 | `images` | existing + collaborator read | existing | existing | admin policy or guarded RPC |
+| `crags` | active public rows; all rows for admin | authenticated create | existing | empty-row maintenance only |
+| `climbs` | active rows under active crags; all rows for admin | owner create | owner pending fields only | unassociated pending-row maintenance only |
 
 **Key security notes:**
 - `promote_draft_to_submission` is `SECURITY DEFINER`, requires the locked draft's owner, and is the only path allowed to transition a draft to `submitted`; direct draft UPDATE policies require both old and new status to remain `draft`.
@@ -339,6 +353,12 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 | `trg_update_climb_consensus_on_vote` | grade_votes | Update consensus on vote changes |
 | `trigger_crag_counts_climbs` | climbs | Recompute crag route count |
 | `trigger_crag_counts_images` | images | Recompute crag image count |
+| `crags_validate_supersession` | crags | Enforce guarded, active, acyclic replacement links |
+| `climbs_validate_supersession` | climbs | Enforce guarded, active, acyclic replacement links |
+| `*_require_active_crag` | climbs, images, crag_images | Reject inserts/reassignments under deleted crags |
+| `crags_guard_hard_delete` | crags | Permit physical deletion only for empty crags |
+| `climbs_guard_hard_delete` | climbs | Permit physical deletion only for disposable climbs |
+| `images_guard_hard_delete` | images | Permit physical deletion only for unassociated unpublished images |
 | `trg_submission_draft_promoted_handoff` | submission_drafts | Handle draft→submission promotion |
 | `*_updated_at` | media_jobs, submission_drafts, submission_draft_images | Timestamp touch |
 
@@ -379,6 +399,8 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `get_crag_faces_complete_summary(p_crag_id)` | Multi-face summary for a crag |
 | `get_image_faces_summary(p_image_id)` | Face data for an image |
 | `get_effective_climb_id(p_climb_id)` | Resolve climb ID through shared_climb_id chain |
+| `resolve_public_crag_slug(country_code, crag_slug)` | Resolve a canonical public crag slug through active supersession |
+| `resolve_public_climb_slug(country_code, crag_slug, climb_slug)` | Resolve a canonical public climb slug through active supersession |
 
 ### Analytics
 | Function | Purpose |
@@ -441,6 +463,10 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `increment_crag_report_count(p_crag_id)` | Increment crag report counter |
 | `delete_empty_crag(p_crag_id, grace_period)` | Delete one strictly empty crag after the grace period |
 | `delete_empty_crags(grace_period)` | Deterministically batch-delete strictly empty crags after the grace period |
+| `soft_delete_crag(crag_id, reason, superseded_by)` | Admin-only audited crag/child-climb soft deletion |
+| `soft_delete_climb(climb_id, reason, superseded_by)` | Admin-only audited climb soft deletion |
+| `soft_delete_image(image_id, reason)` | Admin-only audited image tombstoning |
+| `soft_delete_published_submission(image_ids, owner_id)` | Service-only owner submission tombstoning |
 
 ### Notifications
 | Function | Purpose |

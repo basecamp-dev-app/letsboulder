@@ -35,6 +35,7 @@ export async function loadAdminCragsWithCounts(supabase: RequestSupabaseClient):
     const { data: crags, error: cragsError } = await supabase
       .from('crags')
       .select('id, name, latitude, longitude, rock_type, type, region_name, sub_area, created_at')
+      .is('deleted_at', null)
 
     if (cragsError) return { crags: [], error: `Error fetching crags: ${cragsError.message}` }
 

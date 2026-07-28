@@ -66,7 +66,12 @@ const API_EXECUTABLE_DEFINERS = [
   'log_submission_edit(uuid,uuid,text,text,jsonb,jsonb,text,text,text[],text[])',
   'promote_draft_to_submission(uuid)',
   'queue_media_ingest_job(uuid,text,text,text,text,uuid,text,boolean)',
+  'resolve_public_climb_slug(text,text,text)',
+  'resolve_public_crag_slug(text,text)',
+  'soft_delete_climb(uuid,text,uuid)',
   'soft_delete_comment(uuid)',
+  'soft_delete_crag(uuid,text,uuid)',
+  'soft_delete_image(uuid,text)',
   'update_own_profile_submission_credit(text,text)',
   'update_own_submission_anonymity(uuid,boolean)',
   'update_own_submission_credit(uuid,text,text)',
@@ -87,6 +92,7 @@ const RESTRICTED_FUNCTIONS = [
   'delete_account_atomic(uuid,text,boolean)',
   'initialize_climb_grade_vote(uuid,uuid,character varying)',
   'record_contribution_event(uuid,text,integer,text,uuid,uuid,uuid,uuid,uuid,jsonb,text)',
+  'soft_delete_published_submission(uuid[],uuid)',
 ]
 
 const SERVICE_FUNCTIONS = [
@@ -95,6 +101,7 @@ const SERVICE_FUNCTIONS = [
   'delete_account_atomic(uuid,text,boolean)',
   'initialize_climb_grade_vote(uuid,uuid,character varying)',
   'record_contribution_event(uuid,text,integer,text,uuid,uuid,uuid,uuid,uuid,jsonb,text)',
+  'soft_delete_published_submission(uuid[],uuid)',
 ]
 
 async function transaction<T>(run: (client: PoolClient) => Promise<T>): Promise<T> {
