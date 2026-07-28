@@ -3448,6 +3448,10 @@ export type Database = {
         }
         Returns: string
       }
+      save_submission_grade_votes: {
+        Args: { p_grades: Json; p_image_id: string }
+        Returns: number
+      }
       slugify: { Args: { input: string }; Returns: string }
       soft_delete_comment: { Args: { p_comment_id: string }; Returns: boolean }
       sync_climb_grade_from_votes: {

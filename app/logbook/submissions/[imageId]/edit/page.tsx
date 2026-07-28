@@ -243,8 +243,11 @@ export default function EditSubmittedRoutesPage() {
       }
 
       if (existingRoutes.length > 0) {
+        const initialGradeByRouteId = new Map(
+          editor.initialEditedRoutes.map((route) => [route.id, route.climb?.grade])
+        )
         const gradeVotePayload = existingRoutes
-          .filter((route) => route.id && route.climb?.grade)
+          .filter((route) => route.id && route.climb?.grade && route.climb.grade !== initialGradeByRouteId.get(route.id))
           .map((route) => ({ routeLineId: route.id, grade: route.climb?.grade || '6A' }))
 
         if (gradeVotePayload.length > 0) {
