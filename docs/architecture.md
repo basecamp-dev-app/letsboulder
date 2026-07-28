@@ -52,6 +52,7 @@ The durable `media_jobs` database outbox is authoritative for media ingest. `med
 
 - MapLibre GL is the renderer for live maps, location pickers, and static-location views. The app does not use the Mapbox renderer or Mapbox-hosted style as its default.
 - `NEXT_PUBLIC_MAP_STYLE_URL` selects a hosted MapLibre-compatible style. The default is OpenFreeMap Liberty at `https://tiles.openfreemap.org/styles/liberty`.
+- The world map requests padded viewport data through React Query after debounced movement. Postgres filters canonical spatial rows and returns low-zoom clusters, so the browser does not download or index the global place dataset.
 - Offline mode is a pins-only degraded view; it does not claim that the hosted basemap is available offline.
 - Public R2 `/maps/*` assets served by the media Worker are a separate storage/delivery concern from the configured OpenFreeMap basemap.
 

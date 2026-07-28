@@ -3,15 +3,11 @@
 import { useEffect, useMemo, useRef } from 'react'
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl'
 
+import type { MapBounds } from '@/lib/map/map-bounds'
 import { buildMapLibreStyle } from '@/lib/map/maplibre-style'
 import { getVectorMapConfig } from '@/lib/map/vector-map-config'
 
-export interface MapBounds {
-  north: number
-  south: number
-  east: number
-  west: number
-}
+export type { MapBounds } from '@/lib/map/map-bounds'
 
 export type MapLibreLngLat = [number, number]
 export type MapLibreFitBounds = [MapLibreLngLat, MapLibreLngLat]
@@ -28,6 +24,7 @@ interface MapLibreVectorMapProps {
   minZoom?: number
   maxZoom?: number
   fitBounds?: MapLibreFitBounds | null
+  focusTarget?: { center: MapLibreLngLat; zoom: number } | null
   pinsGeoJson: GeoJSON.FeatureCollection<GeoJSON.Point>
   clustersGeoJson?: GeoJSON.FeatureCollection<GeoJSON.Point>
   userLocation?: LocationPoint | null
@@ -86,6 +83,7 @@ export default function MapLibreVectorMap({
   minZoom = 0,
   maxZoom = 19,
   fitBounds = null,
+  focusTarget = null,
   pinsGeoJson,
   clustersGeoJson,
   userLocation = null,
@@ -151,11 +149,20 @@ export default function MapLibreVectorMap({
     }
     setInteractions(map, interactive && !staticPreview)
 
+    let viewportTimer: ReturnType<typeof setTimeout> | null = null
     const emitViewport = () => {
       onViewportChangeRef.current?.({ zoom: map.getZoom(), bounds: getBoundsState(map) })
     }
-    map.on('moveend', emitViewport)
-    map.on('zoomend', emitViewport)
+    const emitViewportDebounced = () => {
+      if (viewportTimer) clearTimeout(viewportTimer)
+      viewportTimer = setTimeout(emitViewport, 250)
+    }
+    const cancelPendingViewport = () => {
+      if (viewportTimer) clearTimeout(viewportTimer)
+      viewportTimer = null
+    }
+    map.on('movestart', cancelPendingViewport)
+    map.on('moveend', emitViewportDebounced)
 
     map.on('load', () => {
       map.addSource('letsboulder-pins', { type: 'geojson', data: pinsGeoJsonRef.current })
@@ -284,6 +291,7 @@ export default function MapLibreVectorMap({
     })
 
     return () => {
+      if (viewportTimer) clearTimeout(viewportTimer)
       readyRef.current = false
       map.remove()
       mapRef.current = null
@@ -328,6 +336,12 @@ export default function MapLibreVectorMap({
     if (!map || !readyRef.current || !fitBounds) return
     fitMapToBounds(map, fitBounds, maxZoom)
   }, [fitBounds, maxZoom])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current || !focusTarget) return
+    map.easeTo({ center: focusTarget.center, zoom: Math.min(focusTarget.zoom, maxZoom), duration: 450 })
+  }, [focusTarget, maxZoom])
 
   return <div ref={containerRef} className={className} data-testid="maplibre-vector-map" role="region" aria-label={ariaLabel} />
 }

@@ -12,6 +12,30 @@ export interface PlacePin {
   route_count: number | null
 }
 
+export interface ViewportPlacePin extends PlacePin {
+  is_cluster: false
+  point_count: number
+}
+
+export interface ViewportPinCluster {
+  id: string
+  name: null
+  type: 'cluster'
+  latitude: number
+  longitude: number
+  slug: null
+  country_code: null
+  image_count: number | null
+  route_count: number | null
+  is_cluster: true
+  point_count: number
+}
+
+export type ViewportMapFeature = ViewportPlacePin | ViewportPinCluster
+export type MapPinsApiResponse =
+  | { pins: ViewportMapFeature[]; error?: never }
+  | { error: string; pins?: never }
+
 interface ClusterProperties extends PlacePin {
   cluster: false
   placeCount: 1

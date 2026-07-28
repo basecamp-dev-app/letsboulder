@@ -71,6 +71,8 @@ Route correction requests and voting. Requires authentication to submit and vote
 
 Crag CRUD operations, search, nearby queries, pin data, reports, image management, and sector operations. Read operations are public; write operations require authentication. Uses CSRF protection.
 
+- `GET crags/pins` requires one `north`, `south`, `east`, `west`, and integer `zoom` query parameter. Bounds may wrap across the antimeridian; zoom 12+ requests use a progressively smaller maximum span. It returns canonical crag and gym pins for the viewport, with server-generated clusters at zoom 11 and below, and uses the public-search rate-limit tier.
+
 ### csrf
 
 `GET /api/csrf` requires a Supabase user resolved from request cookies. It returns the signed user-bound token in `{ token }` and sets the same token as an HttpOnly `csrf_token` cookie. It is necessarily exempt from CSRF validation itself; anonymous requests receive 401.

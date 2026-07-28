@@ -3517,6 +3517,29 @@ export type Database = {
       get_user_count: { Args: never; Returns: number }
       get_verification_count: { Args: { climb_id: string }; Returns: number }
       get_verified_routes_count: { Args: never; Returns: number }
+      get_viewport_map_features: {
+        Args: {
+          include_pending?: boolean
+          p_east: number
+          p_north: number
+          p_south: number
+          p_west: number
+          p_zoom: number
+        }
+        Returns: {
+          country_code: string
+          id: string
+          image_count: number
+          is_cluster: boolean
+          latitude: number
+          longitude: number
+          name: string
+          point_count: number
+          route_count: number
+          slug: string
+          type: string
+        }[]
+      }
       get_visible_profile: {
         Args: { p_user_id: string }
         Returns: {
