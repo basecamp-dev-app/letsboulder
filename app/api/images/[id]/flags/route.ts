@@ -41,11 +41,8 @@ export async function GET(
       return createErrorResponse(flagError, 'Error checking flag status')
     }
 
-    const { count: pendingCount, error: countError } = await supabase
-      .from('climb_flags')
-      .select('id', { count: 'exact' })
-      .eq('image_id', imageId)
-      .eq('status', 'pending')
+    const { data: pendingCount, error: countError } = await supabase
+      .rpc('get_image_pending_flag_count', { p_image_id: imageId })
 
     if (countError) {
       return createErrorResponse(countError, 'Error counting flags')
@@ -54,7 +51,7 @@ export async function GET(
     const response = NextResponse.json({
       user_has_flagged: !!existingFlag,
       flag: existingFlag || null,
-      pending_flag_count: pendingCount || 0,
+      pending_flag_count: pendingCount ?? 0,
     })
 
     response.headers.set('Cache-Control', 'private, max-age=60')

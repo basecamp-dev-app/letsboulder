@@ -112,22 +112,21 @@ export async function saveCommunityRsvpAction(postId: string, status: RsvpStatus
     if (error) return { success: false, error: 'Error updating RSVP', status: 500 }
   }
 
-  const { data: rsvps } = await supabase.from('community_post_rsvps').select('user_id, status').eq('post_id', validatedPostId)
-  let viewerRsvp: RsvpStatus | null = null
-  let goingCount = 0
-  let interestedCount = 0
-
-  for (const rsvp of (rsvps || []) as Array<{ user_id: string; status: RsvpStatus }>) {
-    if (rsvp.status === 'going') goingCount += 1
-    if (rsvp.status === 'interested') interestedCount += 1
-    if (rsvp.user_id === auth.data.userId) viewerRsvp = rsvp.status
-  }
+  const { data: rsvpCounts, error: rsvpCountsError } = await supabase
+    .from('community_post_rsvp_counts')
+    .select('going_count, interested_count')
+    .eq('post_id', validatedPostId)
+    .maybeSingle()
+  if (rsvpCountsError) return { success: false, error: 'Error loading RSVP counts', status: 500 }
 
   return {
     success: true,
     data: {
-      rsvp_counts: { going: goingCount, interested: interestedCount },
-      viewer_rsvp: viewerRsvp,
+      rsvp_counts: {
+        going: rsvpCounts?.going_count ?? 0,
+        interested: rsvpCounts?.interested_count ?? 0,
+      },
+      viewer_rsvp: validatedStatus,
     },
   }
 }

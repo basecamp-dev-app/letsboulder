@@ -2766,6 +2766,50 @@ export type Database = {
       }
     }
     Views: {
+      climb_flag_counts: {
+        Row: {
+          pending_count: number | null
+          target_id: string | null
+          target_type: string | null
+          total_count: number | null
+        }
+        Relationships: []
+      }
+      community_post_rsvp_counts: {
+        Row: {
+          going_count: number | null
+          interested_count: number | null
+          post_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_post_rsvps_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crag_report_counts: {
+        Row: {
+          crag_id: string | null
+          dismissed_count: number | null
+          investigating_count: number | null
+          pending_count: number | null
+          resolved_count: number | null
+          total_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crag_reports_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       worker_health: {
         Row: {
           active_jobs: number | null
@@ -3066,6 +3110,10 @@ export type Database = {
           total_faces: number
           total_routes_combined: number
         }[]
+      }
+      get_image_pending_flag_count: {
+        Args: { p_image_id: string }
+        Returns: number
       }
       get_logbook_lifetime_stats: {
         Args: { p_user_id: string }

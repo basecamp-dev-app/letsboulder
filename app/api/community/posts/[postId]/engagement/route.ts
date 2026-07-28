@@ -46,19 +46,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       data: { user },
     } = await supabase.auth.getUser()
 
-    const { data: rsvps } = await supabase
-      .from('community_post_rsvps')
-      .select('user_id, status')
+    const { data: rsvpCounts, error: rsvpCountsError } = await supabase
+      .from('community_post_rsvp_counts')
+      .select('going_count, interested_count')
       .eq('post_id', postId)
+      .maybeSingle()
 
     let viewerRsvp: RsvpStatus | null = null
-    let goingCount = 0
-    let interestedCount = 0
+    if (rsvpCountsError) {
+      return createErrorResponse(rsvpCountsError, 'Error loading RSVP counts')
+    }
 
-    for (const rsvp of (rsvps || []) as Array<{ user_id: string; status: RsvpStatus }>) {
-      if (rsvp.status === 'going') goingCount += 1
-      if (rsvp.status === 'interested') interestedCount += 1
-      if (user && rsvp.user_id === user.id) viewerRsvp = rsvp.status
+    if (user) {
+      const { data: ownRsvp, error: ownRsvpError } = await supabase
+        .from('community_post_rsvps')
+        .select('status')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (ownRsvpError) {
+        return createErrorResponse(ownRsvpError, 'Error loading viewer RSVP')
+      }
+      viewerRsvp = (ownRsvp?.status as RsvpStatus | undefined) ?? null
     }
 
     const { data: commentRows } = await supabase
@@ -93,8 +103,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
 
     return NextResponse.json({
       rsvp_counts: {
-        going: goingCount,
-        interested: interestedCount,
+        going: rsvpCounts?.going_count ?? 0,
+        interested: rsvpCounts?.interested_count ?? 0,
       },
       viewer_rsvp: viewerRsvp,
       comments,
