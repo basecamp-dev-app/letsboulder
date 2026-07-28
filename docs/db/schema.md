@@ -72,7 +72,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 ### Core Tables
 | Table | Purpose |
 |-------|---------|
-| `crags` | Climbing locations with PostGIS geometry, country/region references |
+| `crags` | Climbing locations with canonical latitude/longitude and generated PostGIS geography, country/region references |
 | `climbs` | Individual routes/problems with grade, name, crag reference |
 | `images` | Route photos with media-pipeline state, moderation, GPS coordinates |
 | `profiles` | User profiles; public-safe columns are separated from private and server-owned fields by column grants and RLS |
@@ -458,6 +458,11 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `normalize_climb_route_type(p_route_type)` | Normalize route type string |
 
 ### Crag Management
+`crags.latitude` and `crags.longitude` are the canonical coordinates. They must
+both be null or both be present and within valid latitude/longitude ranges.
+`crags.location` is a stored generated `geography(Point, 4326)` derived from
+that pair and has a GiST index for spatial queries.
+
 | Function | Purpose |
 |----------|---------|
 | `recompute_crag_counts(p_crag_id)` | Recompute image/route counts for a crag |
