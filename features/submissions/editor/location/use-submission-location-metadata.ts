@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
   formatCoordinate,
-  isCragMetadataDirty,
   isImageMetadataDirty,
 } from '@/features/submissions/lib/location-metadata'
 import { useLocationSearch } from './use-location-search'
@@ -36,7 +35,6 @@ export function useSubmissionLocationMetadata(input: {
   const [initialFaceDirections, setInitialFaceDirections] = useState<FaceDirection[]>(input.initialFaceDirections)
   const [initialLocationMode, setInitialLocationMode] = useState<'shared' | 'custom'>(input.initialLocationMode)
 
-  const canEditCragMetadata = !!input.currentUserId && !!input.ownerUserId && input.currentUserId === input.ownerUserId && !!input.cragId
   const imageMetadataDirty = useMemo(() => isImageMetadataDirty({
     initialLatitude,
     initialLongitude,
@@ -47,15 +45,6 @@ export function useSubmissionLocationMetadata(input: {
     initialLocationMode,
     locationMode,
   }), [faceDirections, initialFaceDirections, initialLatitude, initialLocationMode, initialLongitude, latitude, locationMode, longitude])
-  const cragMetadataDirty = useMemo(() => isCragMetadataDirty({
-    canEditCragMetadata,
-    cragName,
-    initialCragName,
-    regionTag,
-    initialRegionTag,
-    subArea,
-    initialSubArea,
-  }), [canEditCragMetadata, cragName, initialCragName, initialRegionTag, initialSubArea, regionTag, subArea])
 
   const toggleFaceDirection = useCallback((direction: FaceDirection) => {
     setFaceDirections((prev) => (prev.includes(direction) ? prev.filter((value) => value !== direction) : [...prev, direction]))
@@ -111,9 +100,7 @@ export function useSubmissionLocationMetadata(input: {
     setInitialFaceDirections,
     initialLocationMode,
     setInitialLocationMode,
-    canEditCragMetadata,
     imageMetadataDirty,
-    cragMetadataDirty,
     toggleFaceDirection,
     handleSearchLocation,
   }

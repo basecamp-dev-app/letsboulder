@@ -120,6 +120,8 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `correction_votes` | Votes on climb corrections |
 | `crag_reports` | User reports on crags (access, safety, etc.) |
 | `admin_actions` | Admin audit log of moderation actions |
+| `crag_maintainers` | Current admin-assigned, crag-scoped metadata review permissions |
+| `crag_metadata_proposals` | Immutable-head proposals with a required rationale for existing active crag metadata changes |
 
 ### Operational Data Access
 `community_post_rsvps`, `climb_flags`, and `crag_reports` contain user identities or moderation details. Anonymous callers have no direct table access. Authenticated callers can read their own rows, while administrators can read all rows through the identity-bound `is_current_user_admin()` RLS predicate.
@@ -204,6 +206,11 @@ Image rows in `climb_flag_counts` are limited to publicly deliverable images. Au
 | `auth.users` | `saved_crags` | CASCADE |
 | `auth.users` | `user_climbs` | no action |
 | `auth.users` | `submission_edit_history.edited_by` | SET NULL |
+| `auth.users` | `crag_metadata_proposals.proposer_id` | SET NULL |
+| `auth.users` | `crag_metadata_proposals.reviewer_id` | SET NULL |
+| `auth.users` | `crags.created_by` | SET NULL |
+| `auth.users` | `crag_maintainers.user_id` | CASCADE |
+| `auth.users` | `crag_maintainers.assigned_by` | SET NULL |
 | `crags` | `climbs` | CASCADE |
 | `crags` | `crag_images` | CASCADE |
 | `crags` | `crag_location_tags` | CASCADE |
@@ -253,6 +260,9 @@ Image rows in `climb_flag_counts` are limited to publicly deliverable images. Au
 | `images` | `comments` | Trigger soft-delete (image) |
 | `climbs` | `comments` | Trigger soft-delete (climb) |
 | `location_tags` | `crag_location_tags` | CASCADE |
+| `crags` | `crag_maintainers` | CASCADE |
+| `crags` | `crag_metadata_proposals` | RESTRICT |
+| `images` | `crag_metadata_proposals.source_image_id` | SET NULL |
 | `continents` | `un_regions` | no action |
 | `un_regions` | `regions` | no action |
 
@@ -311,6 +321,11 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - Existing published content is backfilled as `baseline` revisions. Content first edited or lifecycle-changed after publication receives a lazy pre-change baseline; newly created routes begin at revision 1. Soft deletion and supersession changes are grouped by database transaction identity and append revisions without trusting session metadata. `submission_edit_history` remains dual-written for contributor scoring and pre-migration audit display but is not revision authority.
 - Commit/revision/merge-parent rows reject updates and deletes at the database layer. The sole allowed commit update is the `auth.users ON DELETE SET NULL` author anonymization required by account deletion. Authenticated reads require the source image/climb/crag and route parents to remain visible under their existing RLS policies; admins can read retained tombstones. API roles cannot write ledger tables directly. Narrow `SECURITY DEFINER` functions own writes.
 - Rollback never rewinds a head. `rollback_wiki_entity_revision` is admin-only, locks and compares the expected head UUID, restores the selected canonical snapshot, and appends a new `rollback` revision with `restored_from_revision_id`. A stale preview fails with `wiki_revision_conflict`.
+- Existing active crag name, region, and sub-area changes use `propose_crag_metadata`; proposal creation records the immutable crag head UUID but does not change the crag, its place projection, or location-tag edges. Every proposal includes a trimmed 10-1000 character rationale, which is part of the idempotent request hash. A client mutation UUID is idempotent per proposer and cannot be reused for another payload, and each proposer may have only one pending proposal per crag. An optional source image must already belong to the crag. The target crag is retained by `ON DELETE RESTRICT`. This workflow does not create crags or model an area hierarchy.
+- `crags.created_by` binds authenticated crag creation to `auth.uid()`. The creator may attach the initial region edge only while that new crag has no images, climbs, drafts, or crag images; authenticated callers cannot directly attach taxonomy edges to a shared crag.
+- A newly inserted proposal transactionally creates one `crag_metadata_review_requested` notification for every assigned crag maintainer and `profiles.is_admin` moderator except the proposer; overlapping roles are deduplicated and idempotent replays do not notify again. Links target `/maintain/crags` with crag and proposal query parameters.
+- `review_crag_metadata_proposal` permits only a different user who is an admin or an assigned maintainer for that crag. Rejection changes proposal state only. Approval locks the proposal, active crag, and wiki head; any head mismatch permanently resolves the proposal as `conflict` without canonical mutation. A successful approval resolves the country-scoped region tag, updates the single primary region edge and crag (thereby running the crag-to-place trigger), appends one immutable crag revision, and marks the proposal approved in the same transaction. Approved, rejected, and conflict outcomes transactionally notify the proposer when that account still exists.
+- `set_crag_maintainer` is admin-only and identity-bound. Maintainer and proposal tables are directly read-only to API roles; assignment, proposal, and review writes are RPC-only. The legacy `update_submission_crag_metadata` RPC is no longer executable by authenticated callers.
 - `submission_draft_collaborators` and `submission_draft_collaborator_invites` continue to enable shared editing on drafts.
 - RLS helper functions: `is_submission_collaborator(image_id, user_id)` and `is_submission_draft_collaborator(draft_id, user_id)`.
 - Wiki helper function: `user_can_wiki_edit_submission(image_id, user_id)`; the supplied user must equal `auth.uid()`, and deleted images or images under deleted crags are rejected.
@@ -345,8 +360,10 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 | `wiki_entity_revisions` | authenticated when entity source is visible; all for admin | RPC only | none | none |
 | `wiki_revision_merge_parents` | authenticated when revision source is visible; all for admin | RPC only | none | none |
 | `wiki_entity_heads` | authenticated when entity source is visible; all for admin | RPC only | RPC only | none |
+| `crag_maintainers` | own scope or admin | RPC only | RPC only | RPC only |
+| `crag_metadata_proposals` | proposer, in-scope crag maintainer, or admin | RPC only | RPC only | none |
 | `images` | existing + collaborator read | existing | existing | admin policy or guarded RPC |
-| `crags` | active public rows; all rows for admin | authenticated create | existing | empty-row maintenance only |
+| `crags` | active public rows; all rows for admin | authenticated self-bound create | existing | empty-row maintenance only |
 | `climbs` | active rows under active crags; all rows for admin | owner create | owner pending fields only | unassociated pending-row maintenance only |
 
 **Key security notes:**
@@ -394,7 +411,7 @@ Both `crags` and `places` have a `synced_at TIMESTAMPTZ` column. When a sync ope
 Non-delete synchronization remains bidirectional. Delete synchronization is intentionally one-way: deleting a `crags` row removes its paired `places` projection, while deleting a `places` row never deletes the source crag.
 
 ### Empty Crag Cleanup
-- A crag is empty only when no row references either the crag directly (`images`, `climbs`, `submission_drafts`, `crag_images`, `sectors`, `crag_reports`, `climb_flags`, `crag_location_tags`, `saved_crags`, `contribution_events`, `contribution_bounties`, or polymorphic crag `comments`) or its paired place (`climbs`, `images`, `community_place_follows`, `community_posts`, `gym_floor_plans`, `gym_memberships`, `gym_routes`, `contribution_events`, `contribution_bounties`, or `user_place_contributor_scores`).
+- A crag is empty only when no row references either the crag directly (`images`, `climbs`, `submission_drafts`, `crag_images`, `sectors`, `crag_reports`, `climb_flags`, `crag_location_tags`, `saved_crags`, `contribution_events`, `contribution_bounties`, or polymorphic crag `comments`) or its paired place (`climbs`, `images`, `community_place_follows`, `community_posts`, `gym_floor_plans`, `gym_memberships`, `gym_routes`, `contribution_events`, `contribution_bounties`, or `user_place_contributor_scores`). Crag metadata proposal history independently retains its target with `ON DELETE RESTRICT`, so a crag with any proposal is never eligible for hard deletion.
 - Cleanup requires `created_at` to be older than the grace period, which defaults to one hour. The image recompute trigger explicitly uses the same one-hour grace after reassignment or deletion.
 - `delete_empty_crag` locks the crag and paired place parent rows, locks polymorphic comments against concurrent inserts, checks the complete predicate, and repeats that predicate in the final DELETE. `delete_empty_crags` processes eligible IDs in deterministic UUID order and delegates each final decision to the single-row function.
 - Both cleanup RPCs are executable only by `service_role`; `anon` and `authenticated` cannot invoke them directly. The invoking image trigger is `SECURITY DEFINER`.
@@ -525,7 +542,10 @@ may request at most 30 rows.
 | `update_own_submission_anonymity(...)` | Update submission anonymity |
 | `update_own_submission_credit(...)` | Update submission credit |
 | `update_own_submitted_routes(...)` | Update submitted routes |
-| `update_submission_crag_metadata(...)` | Update crag metadata on submission |
+| `propose_crag_metadata(...)` | Propose an existing active crag metadata change with rationale and immutable base head |
+| `review_crag_metadata_proposal(...)` | Approve or reject an in-scope crag metadata proposal atomically |
+| `set_crag_maintainer(...)` | Admin-only crag maintainer assignment or removal |
+| `update_submission_crag_metadata(...)` | Legacy immediate-update RPC; authenticated execution revoked |
 | `update_submission_image_order(...)` | Update image display order |
 
 ---

@@ -1,12 +1,9 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
-import { assessNonOwnerTextRisk, combineRiskAssessments } from '@/features/submissions/server/submissions/wiki-edit-protection'
-import { revalidatePublicCrag } from '@/features/crags/server/crag-cache-tags'
 import { getServerClient } from '@/lib/supabase-server'
 import { z } from 'zod'
 
@@ -19,13 +16,6 @@ const submissionCreditSchema = z.object({
 const submissionAnonymousSchema = z.object({
   imageId: z.string().trim().min(1, 'Image ID is required'),
   isAnonymousSubmission: z.boolean(),
-})
-
-const submissionCragSchema = z.object({
-  imageId: z.string().trim().min(1, 'Image ID is required'),
-  cragName: z.string().trim().min(1, 'Invalid payload'),
-  regionTag: z.string().trim().min(1, 'Invalid payload'),
-  subArea: z.string().nullable().optional(),
 })
 
 export async function updateSubmissionCreditAction(imageId: string, platformInput: unknown, handleInput: unknown): Promise<ActionResult<{ credit: { platform: string | null; handle: string | null } }>> {
@@ -95,99 +85,4 @@ export async function updateSubmissionAnonymousAction(imageId: string, isAnonymo
 
   const resultObject = result && typeof result === 'object' && !Array.isArray(result) ? result as Record<string, unknown> : {}
   return { success: true, data: { submission: { isAnonymousSubmission: resultObject.isAnonymousSubmission === true } } }
-}
-
-export async function updateSubmissionCragAction(imageId: string, cragName: string, regionTag: string, subArea?: string | null): Promise<ActionResult<{ crag: unknown }>> {
-  const validation = validateActionInput(submissionCragSchema, { imageId, cragName, regionTag, subArea })
-  if (!validation.success) return fail<{ crag: unknown }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
-
-  const auth = await getActionAuth()
-  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
-  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-
-  const supabase = await getServerClient()
-  const { data: imageOwner } = await supabase.from('images').select('created_by, crag_id').eq('id', validation.data.imageId).maybeSingle()
-  const ownerId = typeof imageOwner?.created_by === 'string' ? imageOwner.created_by : null
-
-  if (ownerId && ownerId !== auth.data.userId && typeof imageOwner?.crag_id === 'string') {
-    const { data: existingCrag } = await supabase.from('crags').select('name, region_name, sub_area').eq('id', imageOwner.crag_id).maybeSingle()
-    if (existingCrag) {
-      const risk = combineRiskAssessments([
-        assessNonOwnerTextRisk({ field: 'crag_name', previousValue: existingCrag.name, nextValue: validation.data.cragName }),
-        assessNonOwnerTextRisk({ field: 'region_tag', previousValue: existingCrag.region_name, nextValue: validation.data.regionTag }),
-        assessNonOwnerTextRisk({ field: 'sub_area', previousValue: existingCrag.sub_area, nextValue: typeof validation.data.subArea === 'string' ? validation.data.subArea.trim() || null : null }),
-      ])
-
-      if (risk.riskLevel === 'high_risk') {
-        await supabase.rpc('log_submission_edit', {
-          p_image_id: validation.data.imageId,
-          p_edited_by: auth.data.userId,
-          p_edit_kind: 'crag_metadata_update_blocked',
-          p_summary: `Blocked risky crag metadata update for "${existingCrag.name || validation.data.cragName}"`,
-          p_before_data: existingCrag,
-          p_after_data: {
-            name: validation.data.cragName,
-            region_tag: validation.data.regionTag,
-            sub_area: typeof validation.data.subArea === 'string' ? validation.data.subArea.trim() || null : null,
-          },
-          p_risk_level: risk.riskLevel,
-          p_moderation_state: risk.moderationState,
-          p_risk_reasons: risk.reasons,
-          p_field_targets: risk.fieldTargets,
-        })
-
-        return { success: false, error: 'This edit was blocked because it removes too much value from the crag metadata.', status: 403 }
-      }
-    }
-  }
-
-  const { data: result, error: rpcError } = await supabase.rpc('update_submission_crag_metadata', {
-    p_image_id: validation.data.imageId,
-    p_crag_name: validation.data.cragName,
-    p_region_tag: validation.data.regionTag,
-    p_sub_area: typeof validation.data.subArea === 'string' ? validation.data.subArea.trim() || null : null,
-  })
-
-  if (rpcError) {
-    const message = (rpcError.message || '').toLowerCase()
-    if (message.includes('owner') || message.includes('permission')) return { success: false, error: 'You do not have permission to edit crag metadata for this submission', status: 403 }
-    if (message.includes('not found') || message.includes('required')) return { success: false, error: rpcError.message, status: 400 }
-    return { success: false, error: 'Update submission crag metadata error', status: 500 }
-  }
-
-  const { data: image } = await supabase.from('images').select('crag_id').eq('id', validation.data.imageId).single()
-  revalidatePath('/')
-  if (image?.crag_id) {
-    revalidatePublicCrag(image.crag_id)
-    const { data: cragData } = await supabase.from('crags').select('slug, country_code').eq('id', image.crag_id).single()
-    if (cragData?.slug && cragData?.country_code) {
-      revalidatePath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
-    }
-  }
-
-  if (ownerId && ownerId !== auth.data.userId && result && typeof result === 'object' && imageOwner?.crag_id) {
-    const { data: existingCrag } = await supabase.from('crags').select('name, region_name, sub_area').eq('id', imageOwner.crag_id).maybeSingle()
-    const risk = combineRiskAssessments([
-      assessNonOwnerTextRisk({ field: 'crag_name', previousValue: existingCrag?.name || null, nextValue: validation.data.cragName }),
-      assessNonOwnerTextRisk({ field: 'region_tag', previousValue: existingCrag?.region_name || null, nextValue: validation.data.regionTag }),
-      assessNonOwnerTextRisk({ field: 'sub_area', previousValue: existingCrag?.sub_area || null, nextValue: typeof validation.data.subArea === 'string' ? validation.data.subArea.trim() || null : null }),
-    ])
-
-    if (risk.riskLevel === 'suspicious') {
-      await supabase.rpc('log_submission_edit', {
-        p_image_id: validation.data.imageId,
-        p_edited_by: auth.data.userId,
-        p_edit_kind: 'crag_metadata_flagged',
-        p_summary: `Flagged crag metadata update for "${validation.data.cragName}"`,
-        p_before_data: existingCrag,
-        p_after_data: result,
-        p_risk_level: risk.riskLevel,
-        p_moderation_state: risk.moderationState,
-        p_risk_reasons: risk.reasons,
-        p_field_targets: risk.fieldTargets,
-      })
-    }
-  }
-
-  return { success: true, data: { crag: result } }
 }
