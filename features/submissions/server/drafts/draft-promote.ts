@@ -6,6 +6,7 @@ import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { recordSubmissionPublishedEvent } from '@/features/community/lib/contributor-score'
 import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
+import { OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/lib/open-data-consent'
 
 interface PromoteResult {
   success?: boolean
@@ -279,6 +280,15 @@ export async function promoteDraftToSubmission(input: {
   userId: string
 }) {
   const { supabase, draftId, userId } = input
+  const { data: hasConsent, error: consentError } = await supabase.rpc('has_valid_open_data_consent')
+  if (consentError) return createErrorResponse(consentError, 'Failed to validate contribution terms')
+  if (hasConsent !== true) {
+    return NextResponse.json({
+      code: OPEN_DATA_CONSENT_REQUIRED,
+      error: 'Accept the Open Data Contributor Terms to publish.',
+    }, { status: 428 })
+  }
+
   const { data: draft, error: draftError } = await supabase
     .from('submission_drafts')
     .select('id, user_id, crag_id, status, metadata, updated_at')
@@ -478,6 +488,9 @@ export async function promoteDraftToSubmission(input: {
 
   const { data, error } = await supabase.rpc('promote_draft_to_submission', { p_draft_id: draftId })
   if (error) {
+    if (error.details === 'open_data_consent_required') {
+      return NextResponse.json({ code: OPEN_DATA_CONSENT_REQUIRED, error: 'Accept the Open Data Contributor Terms to publish.' }, { status: 428 })
+    }
     if (isMediaNotReadyError(error)) {
       return NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 })
     }

@@ -12,6 +12,7 @@ import { shouldResumeQueuedUploads } from '@/features/media-upload/lib/media-upl
 import { createClientId, ensureFileName, mapMediaUploadStatus, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
 import { persistNewUpload, persistUploadMetadata, removePersistedUpload, restoreUploads } from '@/features/media-upload/lib/durable-upload-store'
 import { createClient } from '@/lib/supabase'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 
 export interface MediaUploadQueueController {
   uploads: Record<string, MediaUploadItem>
@@ -52,6 +53,7 @@ function waitForLifecyclePoll(signal: AbortSignal) {
 }
 
 export function useMediaUploadQueueController(): MediaUploadQueueController {
+  const { requireConsent } = useOpenDataConsent()
   const [uploads, setUploads] = useState<Record<string, MediaUploadItem>>({})
   const [queueOrder, setQueueOrder] = useState<string[]>([])
   const [activeClientId, setActiveClientId] = useState<string | null>(null)
@@ -367,7 +369,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
 
   startNextUploadRef.current = startNextUpload
 
-  const queueUploads = useCallback((files: File[], target: MediaUploadTarget) => {
+  const queueUploadsAfterConsent = useCallback((files: File[], target: MediaUploadTarget) => {
     const existingCount = Object.values(uploadsRef.current).filter((upload) => {
       if (upload.target.kind !== target.kind) return false
       return target.kind === 'draft'
@@ -430,6 +432,10 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       queueMicrotask(() => startNextUploadRef.current())
     })()
   }, [updateUpload])
+
+  const queueUploads = useCallback((files: File[], target: MediaUploadTarget) => {
+    void requireConsent(() => queueUploadsAfterConsent(files, target))
+  }, [queueUploadsAfterConsent, requireConsent])
 
   const retryUpload = useCallback((clientId: string) => {
     const entry = queueEntriesRef.current.get(clientId)

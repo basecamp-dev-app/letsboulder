@@ -7,6 +7,7 @@ import { submitGradeVoteAction } from '@/components/grade-voting-actions'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { reportError } from '@/lib/errors'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 
 const GRADE_COLORS: Record<string, string> = {
   '5A': 'bg-gray-100', '5A+': 'bg-gray-200', '5B': 'bg-gray-300', '5B+': 'bg-gray-400', '5C': 'bg-gray-500', '5C+': 'bg-gray-600',
@@ -20,10 +21,11 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
   const gradeSystem = useGradeSystem()
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const { requireConsent } = useOpenDataConsent()
 
   const totalVotes = votes.reduce((sum, v) => sum + v.vote_count, 0)
 
-  const handleVote = async (grade: string) => {
+  const submitVote = async (grade: string) => {
     if (loading) return
     setLoading(true)
     try {
@@ -35,6 +37,10 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleVote = (grade: string) => {
+    void requireConsent(() => submitVote(grade))
   }
 
   return (

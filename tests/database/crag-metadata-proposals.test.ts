@@ -62,8 +62,9 @@ async function createUser(client: PoolClient, isAdmin = false) {
     [id, email],
   )
   await client.query(
-    `insert into public.profiles (id, username, email, is_admin)
-     values ($1, $2, $3, $4)`,
+    `insert into public.profiles (
+       id, username, email, is_admin, open_data_consent_version, consent_timestamp
+     ) values ($1, $2, $3, $4, public.current_open_data_consent_version(), now())`,
     [id, `crag-proposal-${id.slice(0, 8)}`, email, isAdmin],
   )
   return id

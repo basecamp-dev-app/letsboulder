@@ -7,6 +7,7 @@ import { getLengthInputBounds, getLengthInputLabel, parseLengthInputToCm, type M
 import { fetchSettings, settingsQueryKey } from '@/features/settings/lib/queries'
 import { VIDEO_PLATFORMS, type VideoPlatform, validateAndNormalizeVideoUrl } from '@/lib/video-beta'
 import { AddVideoBetaDialog, VideoBetaFilterBar, VideoBetaList } from '@/features/climb/components/video-beta-sections'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 
 interface VideoBetaItem {
   id: string
@@ -35,6 +36,7 @@ function isKnownPlatform(value: string): value is VideoPlatform {
 }
 
 export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
+  const { requireConsent } = useOpenDataConsent()
   const [items, setItems] = useState<VideoBetaItem[]>([])
   const [loadingItems, setLoadingItems] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -166,7 +168,7 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
     })
   }, [genderFilter, items, maxHeight, maxReach, minHeight, minReach, platformFilter, units])
 
-  const handleSave = async () => {
+  const saveVideoBeta = async () => {
     setError(null)
 
     if (!preview.valid || !preview.url || !preview.platform) {
@@ -206,6 +208,10 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleSave = () => {
+    void requireConsent(saveVideoBeta)
   }
 
   return (

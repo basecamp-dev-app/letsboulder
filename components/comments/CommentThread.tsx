@@ -7,6 +7,7 @@ import type { Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 import { reportError } from '@/lib/errors'
 import { createCommentAction, deleteCommentAction } from '@/components/comments/actions'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 
 type TargetType = 'crag' | 'image' | 'climb'
 type CommentCategory =
@@ -147,6 +148,7 @@ function formatTimestamp(value: string): string {
 }
 
 export default function CommentThread({ targetType, targetId, className, userId }: CommentThreadProps) {
+  const { requireConsent } = useOpenDataConsent()
   const [comments, setComments] = useState<CommentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -274,7 +276,7 @@ export default function CommentThread({ targetType, targetId, className, userId 
     void fetchComments(0, false)
   }, [fetchComments])
 
-  const handleSubmit = useCallback(async () => {
+  const submitComment = useCallback(async () => {
     const trimmedBody = commentBody.trim()
     if (!trimmedBody || !isSignedIn || submitting) return
 
@@ -309,6 +311,10 @@ export default function CommentThread({ targetType, targetId, className, userId 
       setSubmitting(false)
     }
   }, [category, categoryFilter, commentBody, isSignedIn, submitting, targetId, targetType, threadConfig.defaultCategory])
+
+  const handleSubmit = useCallback(() => {
+    void requireConsent(submitComment)
+  }, [requireConsent, submitComment])
 
   const handleDelete = useCallback(async (commentId: string) => {
     if (!commentId || deletingId) return

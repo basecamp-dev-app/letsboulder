@@ -201,6 +201,7 @@ function makeSupabase(options?: {
       throw new Error(`Unexpected table: ${table}`)
     }),
     rpc: vi.fn(async (fnName: string) => {
+      if (fnName === 'has_valid_open_data_consent') return { data: true, error: null }
       if (fnName === 'promote_draft_to_submission') {
         return {
           data: {
@@ -370,6 +371,7 @@ describe('promoteDraftToSubmission', () => {
     const supabase = makeSupabase()
 
     ;(supabase.rpc as unknown) = vi.fn(async (fnName: string) => {
+      if (fnName === 'has_valid_open_data_consent') return { data: true, error: null }
       if (fnName === 'promote_draft_to_submission') {
         return {
           data: {
@@ -525,6 +527,7 @@ describe('promoteDraftToSubmission', () => {
     })
 
     ;(supabase.rpc as unknown) = vi.fn(async (fnName: string, args?: Record<string, unknown>) => {
+      if (fnName === 'has_valid_open_data_consent') return { data: true, error: null }
       if (fnName === 'sync_submission_draft_routes') {
         expect(args).toEqual(expect.objectContaining({
           p_draft_id: 'draft-1',
@@ -659,6 +662,7 @@ describe('promoteDraftToSubmission', () => {
     const supabase = makeSupabase({ includeAllImageRoutes: false, includeFallbackRouteData: true })
 
     ;(supabase.rpc as unknown) = vi.fn(async (fnName: string) => {
+      if (fnName === 'has_valid_open_data_consent') return { data: true, error: null }
       if (fnName === 'sync_submission_draft_routes') {
         return { data: null, error: { message: 'routes payload malformed' } }
       }

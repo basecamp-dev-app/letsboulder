@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import RootClientUtilities from '@/components/RootClientUtilities'
 import QueryProviders from '@/components/QueryProviders'
+import { OpenDataConsentProvider } from '@/features/legal/components/OpenDataConsentProvider'
 
 import '@/lib/env-startup'
 import {
@@ -178,8 +179,10 @@ export default function RootLayout({
           Skip to main content
         </a>
         <QueryProviders>
-          {children}
-          <RootClientUtilities />
+          <OpenDataConsentProvider>
+            {children}
+            <RootClientUtilities />
+          </OpenDataConsentProvider>
         </QueryProviders>
       </body>
     </html>

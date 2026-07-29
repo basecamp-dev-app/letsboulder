@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { proposeCragMetadataAction } from '@/features/crags/actions/crag-governance-actions'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 
 interface CragMetadataProposalDialogProps {
   cragId: string
@@ -35,6 +36,7 @@ export function CragMetadataProposalDialog({
   onOpenChange,
   onSubmitted,
 }: CragMetadataProposalDialogProps) {
+  const { requireConsent } = useOpenDataConsent()
   const [name, setName] = useState(currentName)
   const [regionName, setRegionName] = useState(currentRegionName)
   const [subArea, setSubArea] = useState(currentSubArea)
@@ -56,7 +58,7 @@ export function CragMetadataProposalDialog({
     onOpenChange(nextOpen)
   }
 
-  const submit = async () => {
+  const submitProposal = async () => {
     const input = {
       cragId,
       name: name.trim(),
@@ -92,6 +94,10 @@ export function CragMetadataProposalDialog({
     pendingMutation.current = null
     onOpenChange(false)
     onSubmitted()
+  }
+
+  const submit = () => {
+    void requireConsent(submitProposal)
   }
 
   const changed = name.trim() !== currentName.trim()

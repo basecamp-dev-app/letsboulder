@@ -2112,6 +2112,7 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           boulder_system: string | null
+          consent_timestamp: string | null
           contribution_credit_handle: string | null
           contribution_credit_platform: string | null
           contributor_score_total: number
@@ -2137,6 +2138,7 @@ export type Database = {
           last_name: string | null
           name: string | null
           name_updated_at: string | null
+          open_data_consent_version: string | null
           preferred_grade_system: string | null
           preferred_style: string | null
           reach_cm: number | null
@@ -2156,6 +2158,7 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           boulder_system?: string | null
+          consent_timestamp?: string | null
           contribution_credit_handle?: string | null
           contribution_credit_platform?: string | null
           contributor_score_total?: number
@@ -2181,6 +2184,7 @@ export type Database = {
           last_name?: string | null
           name?: string | null
           name_updated_at?: string | null
+          open_data_consent_version?: string | null
           preferred_grade_system?: string | null
           preferred_style?: string | null
           reach_cm?: number | null
@@ -2200,6 +2204,7 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           boulder_system?: string | null
+          consent_timestamp?: string | null
           contribution_credit_handle?: string | null
           contribution_credit_platform?: string | null
           contributor_score_total?: number
@@ -2225,6 +2230,7 @@ export type Database = {
           last_name?: string | null
           name?: string | null
           name_updated_at?: string | null
+          open_data_consent_version?: string | null
           preferred_grade_system?: string | null
           preferred_style?: string | null
           reach_cm?: number | null
@@ -3348,6 +3354,13 @@ export type Database = {
       }
     }
     Functions: {
+      accept_open_data_consent: {
+        Args: { p_expected_version: string }
+        Returns: {
+          consent_timestamp: string
+          open_data_consent_version: string
+        }[]
+      }
       add_correction_type_value:
         | { Args: { new_value: string }; Returns: undefined }
         | { Args: { p_type: string; p_value: string }; Returns: undefined }
@@ -3504,6 +3517,7 @@ export type Database = {
         }
         Returns: Json
       }
+      current_open_data_consent_version: { Args: never; Returns: string }
       delete_account_atomic: {
         Args: {
           p_delete_route_uploads: boolean
@@ -3783,6 +3797,15 @@ export type Database = {
           type: string
         }[]
       }
+      get_open_data_consent_status: {
+        Args: never
+        Returns: {
+          accepted_version: string
+          consent_timestamp: string
+          is_valid: boolean
+          required_version: string
+        }[]
+      }
       get_own_profile: {
         Args: never
         Returns: {
@@ -3790,6 +3813,7 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           boulder_system: string | null
+          consent_timestamp: string | null
           contribution_credit_handle: string | null
           contribution_credit_platform: string | null
           contributor_score_total: number
@@ -3815,6 +3839,7 @@ export type Database = {
           last_name: string | null
           name: string | null
           name_updated_at: string | null
+          open_data_consent_version: string | null
           preferred_grade_system: string | null
           preferred_style: string | null
           reach_cm: number | null
@@ -3984,6 +4009,10 @@ export type Database = {
           total_points: number
           username: string
         }[]
+      }
+      has_valid_open_data_consent: {
+        Args: { p_user_id?: string }
+        Returns: boolean
       }
       image_has_content_references: {
         Args: { p_image_id: string }
@@ -4194,6 +4223,7 @@ export type Database = {
         }
         Returns: string
       }
+      require_open_data_consent: { Args: never; Returns: undefined }
       resolve_missing_topo_bounty: {
         Args: {
           p_image_id: string

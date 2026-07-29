@@ -2,6 +2,7 @@
 
 import { Loader2, Trash2 } from 'lucide-react'
 import { EditorBackButton } from '@/features/editor/components/EditorBackButton'
+import { OpenDataLicenseNotice } from '@/features/legal/components/OpenDataLicenseNotice'
 
 interface DraftToolbarProps {
   savingDraft: boolean
@@ -77,8 +78,9 @@ export function DraftToolbar({
         </div>
       </div>
 
-      <div className="mb-2 text-xs text-gray-400 dark:text-gray-500">
-        Image changes save before switching. Click &quot;Save draft&quot; to save other edits.
+      <div className="mb-2 space-y-1">
+        <p className="text-xs text-gray-400 dark:text-gray-500">Image changes save before switching. Click &quot;Save draft&quot; to save other edits.</p>
+        <OpenDataLicenseNotice context={isOwner ? 'publish' : 'edit'} />
       </div>
     </>
   )

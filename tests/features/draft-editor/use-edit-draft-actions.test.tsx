@@ -17,6 +17,12 @@ vi.mock('@/hooks/useCsrf', () => ({
   csrfFetch: (...args: Parameters<typeof mockCsrfFetch>) => mockCsrfFetch(...args),
 }))
 
+vi.mock('@/features/legal/hooks/use-open-data-consent', () => ({
+  useOpenDataConsent: () => ({
+    requireConsent: async (intent: () => void | Promise<void>) => intent(),
+  }),
+}))
+
 function createDraft(): DraftPayload {
   return {
     id: 'draft-1',

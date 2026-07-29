@@ -10,6 +10,7 @@ import { buildRouteCompletionPayload } from '@/features/route-editor/route-edito
 import type { DraftConflictState } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
 import type { DraftCanvasSource, DraftConflictResponse, DraftPayload, DraftPublishErrorResponse, DraftRoute, DraftSavePayload, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
 import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 
 const RATE_LIMIT_ERROR_MESSAGE = 'You are saving too quickly right now. Please wait a moment and try again.'
 const PUBLISH_RATE_LIMIT_ERROR_MESSAGE = 'You have reached the current draft publish limit. Please wait a moment and try again.'
@@ -94,6 +95,7 @@ export function useEditDraftActions({
   getCheckpointRevision,
   clearCheckpointAfterSave,
 }: UseEditDraftActionsParams) {
+  const { requireConsent } = useOpenDataConsent()
   const router = useRouter()
   const [savingDraft, setSavingDraft] = useState(false)
   const [publishingDraft, setPublishingDraft] = useState(false)
@@ -356,8 +358,8 @@ export function useEditDraftActions({
   }, [markMetadataDirty])
 
   const handleManualSave = useCallback(() => {
-    void saveDraft()
-  }, [saveDraft])
+    void requireConsent(async () => { await saveDraft() })
+  }, [requireConsent, saveDraft])
 
   const publishDraft = useCallback(async () => {
     if (!draft || !isOwner) return
@@ -440,6 +442,10 @@ export function useEditDraftActions({
     }
   }, [addToast, cragId, draft, draftId, flushLocationSync, hasFailedUploads, hasPendingUploads, hasValidLocation, isOwner, locationSectionRef, router, saveDraft, setError, cragSectionRef])
 
+  const handlePublishDraft = useCallback(async () => {
+    await requireConsent(publishDraft)
+  }, [publishDraft, requireConsent])
+
   const handleReloadLatestDraft = useCallback(async () => {
     setConflict(null)
     setSuccess(null)
@@ -463,7 +469,7 @@ export function useEditDraftActions({
     handleDeleteDraft,
     persistMetadataImmediately,
     handleManualSave,
-    publishDraft,
+    publishDraft: handlePublishDraft,
     handleReloadLatestDraft,
     setLocationSyncInFlight: (value: boolean) => { locationSyncInFlightRef.current = value },
   }

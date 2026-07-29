@@ -60,6 +60,7 @@ function failureFor<T>(result: Pick<ActionResult<unknown>, 'error' | 'status' | 
 }
 
 function mapRpcError<T>(error: { code?: string; message: string; details?: string }, fallback: string): ActionResult<T> {
+  if (error.details === 'open_data_consent_required') return fail('OPEN_DATA_CONSENT_REQUIRED', 428)
   if (error.code === '42501') return fail(error.message, 403)
   if (error.code === 'P0002') return fail(error.message, 404)
   if (error.code === '22023') return fail(error.message, error.details === 'idempotency_conflict' ? 409 : 400)
