@@ -46,20 +46,12 @@ function parseArgs(argv) {
   return options
 }
 
-function isNonEmptyObject(value) {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0
-}
-
 function isImageBackfilled(row, privateBucket) {
   const canonicalOriginal = row.original_bucket === privateBucket && typeof row.original_key === 'string' && row.original_key.length > 0
-  const onR2 = row.storage_provider === 'r2'
-  const ready = row.processing_status === 'ready'
-
-  if (row.moderation_status === 'approved' || row.moderation_status === 'skipped') {
-    return onR2 && canonicalOriginal && row.visibility === 'public' && ready && isNonEmptyObject(row.variants)
-  }
-
-  return onR2 && canonicalOriginal && ready
+  const canonicalWebp = row.optimized_bucket === privateBucket
+    && typeof row.optimized_key === 'string' && row.optimized_key.length > 0
+    && row.optimized_mime === 'image/webp'
+  return row.storage_provider === 'r2' && canonicalOriginal && canonicalWebp
 }
 
 function buildPayload(row) {
@@ -106,7 +98,7 @@ async function collectCandidates(supabase, options, privateBucket) {
     const upperBound = offset + options.pageSize - 1
     const { data, error } = await supabase
       .from('images')
-      .select('id, created_by, status, moderation_status, storage_provider, storage_bucket, storage_path, original_bucket, original_key, visibility, processing_status, variants')
+      .select('id, created_by, status, storage_provider, storage_bucket, storage_path, original_bucket, original_key, optimized_bucket, optimized_key, optimized_mime')
       .neq('status', 'deleted')
       .order('created_at', { ascending: true })
       .range(offset, upperBound)
@@ -121,6 +113,15 @@ async function collectCandidates(supabase, options, privateBucket) {
     }
 
     for (const row of rows) {
+      const originalKeyPrefix = `images/(assets|originals)/${row.id}/`
+      if (row.storage_provider !== 'r2'
+        || row.original_bucket !== privateBucket
+        || typeof row.original_key !== 'string'
+        || !(new RegExp(`^${originalKeyPrefix}`).test(row.original_key))
+        || typeof row.created_by !== 'string') {
+        continue
+      }
+
       if (isImageBackfilled(row, privateBucket)) {
         continue
       }

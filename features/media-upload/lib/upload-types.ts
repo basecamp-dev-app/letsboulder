@@ -55,6 +55,7 @@ export interface QueueEntry {
   clientId: string
   target: MediaUploadTarget
   file: File
+  isPrepared: boolean
 }
 
 export interface DraftAttachResponse {

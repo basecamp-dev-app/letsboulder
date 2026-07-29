@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { extractGpsFromFile } from '@/lib/image-gps'
-import { completeMediaUploadSession, createMediaUploadSession, getMediaUploadStatus, pollMediaUploadStatus, uploadFileToMediaSession } from '@/lib/media/client-upload'
+import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, getMediaUploadStatus, pollMediaUploadStatus, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import { createAttachUpload } from '@/features/media-upload/lib/attach-upload'
 import { enqueueUploads, prepareRetryQueue, removeUploadEntry, resetQueuedUpload } from '@/features/media-upload/lib/media-upload-controller-helpers'
@@ -140,12 +140,34 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       let completion = upload.uploadedImageId
         ? await getMediaUploadStatus(upload.uploadedImageId, abortController.signal).catch(() => null)
         : null
+      if (!entry.isPrepared && upload.uploadedImageId && !completion) {
+        throw new Error('The previous upload session could not be recovered')
+      }
       if (!completion?.uploadCommitted) {
+        let preparedFile = entry.file
+        let gpsData = upload.gpsData
+        if (!entry.isPrepared) {
+          [preparedFile, gpsData] = await Promise.all([
+            preprocessFile(entry.file),
+            extractGpsFromFile(entry.file),
+          ])
+          const userId = userIdRef.current
+          if (!userId) throw new Error('Prepared photo could not be saved on this device')
+          const preparedUpload = upload.uploadedImageId
+            ? { ...upload, uploadedImageId: null, uploadedBucket: null, uploadedPath: null, gpsData }
+            : { ...upload, gpsData }
+          if (upload.uploadedImageId) {
+            await deleteMediaUploadSession(upload.uploadedImageId)
+            await persistUploadMetadata(userId, preparedUpload)
+            updateUpload(entry.clientId, () => preparedUpload)
+          }
+          if (!await persistNewUpload(userId, preparedUpload, preparedFile)) {
+            throw new Error('Prepared photo could not be saved on this device')
+          }
+          entry.file = preparedFile
+          entry.isPrepared = true
+        }
         updateUpload(entry.clientId, (current) => ({ ...current, status: 'PREPROCESSING', progress: 10, error: null }))
-        const [preparedFile, gpsData] = await Promise.all([
-          preprocessFile(entry.file),
-          extractGpsFromFile(entry.file),
-        ])
         const dimensions = await getImageDimensions(preparedFile)
         updateUpload(entry.clientId, (current) => ({
           ...current,
@@ -413,12 +435,21 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       for (let index = 0; index < createdUploads.length; index += 1) {
         const upload = createdUploads[index]
         const file = acceptedFiles[index]
-        if (await persistNewUpload(userId, upload, file)) {
-          durableRecords.push({ upload, file })
-          queueEntriesRef.current.set(upload.clientId, { clientId: upload.clientId, target, file })
-        } else {
-          failedUploads.push({ ...upload, status: 'FAILED', error: 'This photo could not be saved on this device. Free storage space, then select it again.' })
+        try {
+          const [preparedFile, gpsData] = await Promise.all([
+            preprocessFile(file),
+            extractGpsFromFile(file),
+          ])
+          const preparedUpload = { ...upload, gpsData }
+          if (await persistNewUpload(userId, preparedUpload, preparedFile)) {
+            durableRecords.push({ upload: preparedUpload, file: preparedFile })
+            queueEntriesRef.current.set(upload.clientId, { clientId: upload.clientId, target, file: preparedFile, isPrepared: true })
+            continue
+          }
+        } catch {
+          // Report preparation and durable-storage failures through the queue item.
         }
+        failedUploads.push({ ...upload, status: 'FAILED', error: 'This photo could not be prepared and saved on this device. Free storage space, then select it again.' })
       }
       const { nextUploads: queuedUploads, nextQueueOrder } = enqueueUploads(uploadsRef.current, queueOrderRef.current, durableRecords.map((record) => record.upload))
       const nextUploads = { ...queuedUploads, ...Object.fromEntries(failedUploads.map((upload) => [upload.clientId, upload])) }

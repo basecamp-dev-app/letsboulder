@@ -1,3 +1,4 @@
+import imageCompression from 'browser-image-compression'
 import { compressImage } from '@/lib/image-compression'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { isHeicFile } from '@/lib/image-utils'
@@ -17,12 +18,26 @@ export async function buildPreviewUrl(file: File) {
 }
 
 export async function preprocessFile(file: File) {
+  let sourceFile = file
   if (isHeicFile(file)) {
-    return new File(
+    sourceFile = new File(
       [await convertHeicToJpegBlob(file)],
       file.name.replace(/\.(heic|heif)$/i, '.jpg'),
-      { type: 'image/jpeg', lastModified: Date.now() }
+      { type: 'image/jpeg', lastModified: file.lastModified }
     )
   }
-  return file
+
+  const compressed = await imageCompression(sourceFile, {
+    maxWidthOrHeight: 3200,
+    maxSizeMB: 3,
+    initialQuality: 0.88,
+    fileType: 'image/jpeg',
+    preserveExif: false,
+    useWebWorker: false,
+  })
+  const jpegName = sourceFile.name.replace(/\.[^.]+$/, '') + '.jpg'
+  return new File([compressed], jpegName, {
+    type: 'image/jpeg',
+    lastModified: sourceFile.lastModified,
+  })
 }

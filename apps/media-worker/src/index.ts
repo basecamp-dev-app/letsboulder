@@ -9,6 +9,7 @@ const OUTBOX_DRAIN_LIMIT = 10
 interface ImageRow {
   id: string
   created_by: string | null
+  storage_provider: string | null
   original_bucket: string | null
   original_key: string | null
   original_width: number | null
@@ -20,7 +21,29 @@ interface ImageRow {
   visibility: string | null
   processing_status: string | null
   status: string | null
+  optimized_bucket: string | null
+  optimized_key: string | null
+  optimized_mime: string | null
+  optimized_bytes: number | null
+  optimized_width: number | null
+  optimized_height: number | null
 }
+
+type MediaFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
+interface ProcessJobDependencies {
+  createClient(env: Env): ReturnType<typeof createSupabaseAdminClient>
+  fetch: MediaFetch
+}
+
+const defaultProcessJobDependencies: ProcessJobDependencies = {
+  createClient: createSupabaseAdminClient,
+  fetch,
+}
+
+const CANONICAL_WIDTH = 2560
+const CANONICAL_QUALITY = 82
+const CANONICAL_MIME = 'image/webp'
 
 function json(data: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(data), {
@@ -45,6 +68,12 @@ function getRetryRunAt(attempts: number): string {
 function buildMediaPath(originalKey: string, variant: MediaVariantKey, format: MediaFormatKey): string {
   const originPath = `/${originalKey.split('/').map(encodeURIComponent).join('/')}`
   return `${originPath}?variant=${variant}&format=${format}`
+}
+
+export function getReadyDeliveryObjectKey(
+  image: Pick<ImageRow, 'optimized_key' | 'original_key' | 'processing_status'>,
+): string | null {
+  return image.processing_status === 'ready' ? image.optimized_key || image.original_key : null
 }
 
 function buildMapHeaders(init?: HeadersInit) {
@@ -138,7 +167,7 @@ async function handleEnqueue(request: Request, env: Env) {
 async function loadImage(supabase: ReturnType<typeof createSupabaseAdminClient>, imageId: string) {
   const { data, error } = await supabase
     .from('images')
-    .select('id, created_by, original_bucket, original_key, original_width, original_height, original_mime_type, original_bytes, width, height, visibility, processing_status, status')
+    .select('id, created_by, storage_provider, original_bucket, original_key, original_width, original_height, original_mime_type, original_bytes, width, height, visibility, processing_status, status, optimized_bucket, optimized_key, optimized_mime, optimized_bytes, optimized_width, optimized_height')
     .eq('id', imageId)
     .maybeSingle()
 
@@ -146,72 +175,127 @@ async function loadImage(supabase: ReturnType<typeof createSupabaseAdminClient>,
   return data as ImageRow | null
 }
 
-async function setImageProcessing(supabase: ReturnType<typeof createSupabaseAdminClient>, imageId: string) {
-  const { error } = await supabase
-    .from('images')
-    .update({ processing_status: 'processing' })
-    .eq('id', imageId)
-    .neq('status', 'deleted')
-
-  if (error) throw error
+async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
-async function finalizeImage(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
+function normalizedContentType(value: string | null | undefined): string | null {
+  return value?.split(';', 1)[0]?.trim().toLowerCase() || null
+}
+
+export async function processJob(
+  job: MediaIngestJobPayload,
   env: Env,
-  image: ImageRow,
-  originalKey: string
+  dependencies: ProcessJobDependencies = defaultProcessJobDependencies,
 ) {
-  const sourceWidth = image.original_width || image.width
-  const sourceHeight = image.original_height || image.height
-  const manifest = buildVirtualManifest(originalKey, sourceWidth, sourceHeight)
-
-  const { error } = await supabase
-    .from('images')
-    .update({
-      url: buildMediaPath(originalKey, 'detail', 'jpeg'),
-      storage_provider: 'r2',
-      variants: manifest,
-      visibility: 'public',
-      moderation_status: 'skipped',
-      moderation_provider: 'disabled',
-      moderation_labels: [],
-      moderation_error: null,
-      moderated_at: null,
-      processed_at: new Date().toISOString(),
-      processing_status: 'ready',
-      status: 'approved',
-    })
-    .eq('id', image.id)
-    .neq('status', 'deleted')
-
-  if (error) throw error
-}
-
-async function processJob(job: MediaIngestJobPayload, env: Env) {
-  const head = await env.ORIGINALS_BUCKET.head(job.originalKey)
-  if (!head) {
-    throw new Error(`Original object not found for ${job.originalKey}`)
-  }
-
-  const supabase = createSupabaseAdminClient(env)
+  const supabase = dependencies.createClient(env)
   const image = await loadImage(supabase, job.imageId)
 
   if (!image || image.status === 'deleted') {
     return
   }
 
-  if (!image.original_key || !image.original_bucket) {
+  if (!image.original_key || !image.original_bucket || image.storage_provider !== 'r2') {
     throw new Error(`Image ${job.imageId} is missing original storage metadata`)
   }
 
-  if (image.processing_status === 'ready' && image.visibility === 'public') {
+  if (image.original_bucket !== job.originalBucket || image.original_key !== job.originalKey || job.storageProvider !== image.storage_provider) {
+    throw new Error(`Media job source does not match image ${job.imageId}`)
+  }
+
+  if (image.original_bucket !== env.R2_PRIVATE_BUCKET) {
+    throw new Error(`Image ${job.imageId} source bucket is not allowlisted`)
+  }
+
+  if (image.optimized_key) {
+    if (image.processing_status !== 'ready' || image.optimized_bucket !== env.R2_PRIVATE_BUCKET || image.optimized_mime !== CANONICAL_MIME ||
+        !image.optimized_bytes || !image.optimized_width || !image.optimized_height) {
+      throw new Error(`Ready image ${job.imageId} is missing canonical WebP metadata`)
+    }
     return
   }
 
-  await setImageProcessing(supabase, image.id)
-  // Use authoritative image row's original_key for manifest, not job payload
-  await finalizeImage(supabase, env, image, image.original_key)
+  const sourceHead = await env.ORIGINALS_BUCKET.head(image.original_key)
+  if (!sourceHead) {
+    throw new Error(`Original object not found for ${image.original_key}`)
+  }
+
+  const sourceWidth = image.original_width || image.width
+  const sourceHeight = image.original_height || image.height
+  if (!sourceWidth || !sourceHeight || sourceWidth <= 0 || sourceHeight <= 0) {
+    throw new Error(`Image ${job.imageId} is missing valid source dimensions`)
+  }
+
+  const originUrl = `${env.R2_ORIGIN_URL}/${image.original_key.split('/').map(encodeURIComponent).join('/')}`
+  const resized = await dependencies.fetch(originUrl, {
+    cf: {
+      image: {
+        width: CANONICAL_WIDTH,
+        quality: CANONICAL_QUALITY,
+        format: 'webp',
+        fit: 'scale-down',
+        metadata: 'none',
+      },
+    },
+  } as RequestInit & { cf: { image: { width: number; quality: number; format: 'webp'; fit: 'scale-down'; metadata: 'none' } } })
+
+  if (!resized.ok) {
+    throw new Error(`Canonical WebP resize failed with status ${resized.status}`)
+  }
+  if (normalizedContentType(resized.headers.get('Content-Type')) !== CANONICAL_MIME) {
+    throw new Error('Canonical resize did not return image/webp')
+  }
+
+  const bytes = await resized.arrayBuffer()
+  if (bytes.byteLength === 0) throw new Error('Canonical resize returned an empty object')
+
+  const hash = await sha256Hex(bytes)
+  const optimizedKey = `images/assets/${image.id}/${hash}/canonical.webp`
+  const optimizedWidth = Math.min(CANONICAL_WIDTH, sourceWidth)
+  const optimizedHeight = deriveHeight(sourceWidth, sourceHeight, optimizedWidth)
+  const manifest = buildVirtualManifest(optimizedKey, optimizedWidth, optimizedHeight)
+  const url = buildMediaPath(optimizedKey, 'detail', 'webp')
+
+  await env.ORIGINALS_BUCKET.put(optimizedKey, bytes, {
+    httpMetadata: {
+      contentType: CANONICAL_MIME,
+      cacheControl: 'public, max-age=31536000, immutable',
+    },
+  })
+  const optimizedHead = await env.ORIGINALS_BUCKET.head(optimizedKey)
+  if (!optimizedHead || optimizedHead.size !== bytes.byteLength ||
+      normalizedContentType(optimizedHead.httpMetadata?.contentType) !== CANONICAL_MIME) {
+    throw new Error(`Canonical WebP verification failed for ${optimizedKey}`)
+  }
+
+  const { data: deletionJobId, error } = await supabase.rpc('commit_media_webp', {
+    p_image_id: image.id,
+    p_expected_original_bucket: image.original_bucket,
+    p_expected_original_key: image.original_key,
+    p_optimized_bucket: env.R2_PRIVATE_BUCKET,
+    p_optimized_key: optimizedKey,
+    p_optimized_mime: CANONICAL_MIME,
+    p_optimized_bytes: bytes.byteLength,
+    p_optimized_width: optimizedWidth,
+    p_optimized_height: optimizedHeight,
+    p_manifest: manifest,
+    p_url: url,
+  })
+  if (error) throw error
+  if (typeof deletionJobId !== 'string' || !deletionJobId) {
+    throw new Error('Canonical WebP commit did not return a deletion job')
+  }
+
+  try {
+    await env.ORIGINALS_BUCKET.delete(image.original_key)
+  } catch (deleteError) {
+    console.warn('Immediate original deletion failed; durable deletion remains queued', {
+      imageId: image.id,
+      deletionJobId,
+      error: stringifyError(deleteError),
+    })
+  }
 }
 
 async function claimMediaJob(supabase: ReturnType<typeof createSupabaseAdminClient>, workerName: string) {
@@ -457,7 +541,7 @@ async function handleMedia(request: Request, env: Env, url: URL) {
     const supabase = createSupabaseAdminClient(env)
     const { data: image } = await supabase
       .from('images')
-      .select('original_key, asset_version, processing_status, visibility, status, moderation_status')
+      .select('optimized_key, original_key, asset_version, processing_status, visibility, status, moderation_status')
       .eq('id', uuid)
       .single()
 
@@ -466,7 +550,9 @@ async function handleMedia(request: Request, env: Env, url: URL) {
       return new Response('Not found', { status: 404 })
     }
 
-    objectKey = image.original_key
+    const deliveryKey = getReadyDeliveryObjectKey(image)
+    if (!deliveryKey) return new Response('Not found', { status: 404 })
+    objectKey = deliveryKey
   } else {
     objectKey = pathname
       .split('/')
@@ -487,7 +573,9 @@ async function handleMedia(request: Request, env: Env, url: URL) {
   }
 
   const formatParam = url.searchParams.get('format')
-  const format = formatParam === 'avif' ? 'avif' : formatParam === 'auto' ? 'auto' : 'webp'
+  const format = formatParam === 'avif' || formatParam === 'jpeg' || formatParam === 'auto'
+    ? formatParam
+    : 'webp'
   const originUrl = `${env.R2_ORIGIN_URL}/${objectKey.split('/').map(encodeURIComponent).join('/')}`
 
   const response = await fetch(originUrl, {

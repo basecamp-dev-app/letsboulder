@@ -92,9 +92,9 @@ Use this as a reference when adding or changing route drawing, map, media, GPS, 
 - Publishing fails when no effective location exists or when a custom image lacks its own location.
 
 ### Known Edge Cases
-- **EXIF retention:** The active shared upload queue sends non-HEIC files unchanged, so private originals may retain EXIF. GPS is persisted separately as structured metadata. Public delivery requests metadata stripping, but private originals remain sensitive.
-- **Original handling:** HEIC is converted to JPEG before upload; supported non-HEIC files are uploaded unchanged to private R2. Older compression helpers are not the active `/submit` contract.
-- **Policy:** See [Media Pipeline](media-pipeline.md) for private originals, processing, publication, and delivery policy.
+- **EXIF ordering:** GPS extraction reads the selected original while preprocessing creates the stripped upload, so GPS can be persisted separately even though the durable/uploaded JPEG uses `preserveExif: false`.
+- **Prepared bytes:** HEIC is converted first, then every supported input is prepared as JPEG with maximum width or height 3200 px, maximum size 3 MiB, and initial quality 0.88. Persist and upload the same prepared bytes; do not reprocess an IndexedDB-restored queue item.
+- **Policy:** See [Media Pipeline](media-pipeline.md) for private sources, canonical processing, publication, and delivery policy.
 
 ---
 
@@ -107,7 +107,7 @@ Use this as a reference when adding or changing route drawing, map, media, GPS, 
 
 ### Known Edge Cases
 - **Resource-intensive:** Prefer the worker path. The main-thread fallback exists for compatibility and can block on large files.
-- **Limits:** `ImagePicker` accepts at most 20 files per selection. The active shared queue does not enforce the legacy uploader's 20 MB, 1200 px, or 307 KB compression limits.
+- **Limits:** `ImagePicker` accepts at most 20 files per selection. The active shared queue uses the 3200 px / 3 MiB / quality 0.88 preparation contract, not the legacy uploader's 20 MB, 1200 px, or 307 KB limits.
 - **Failure:** There is no server-side HEIC conversion fallback; ask the user to provide JPEG when client conversion fails.
 
 ---
@@ -157,11 +157,13 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - `apps/media-worker/` — Cloudflare Worker for processing
 
 ### Known Edge Cases
-- **Metadata:** Extract location from the original before preprocessing. The active queue preserves non-HEIC bytes and converts HEIC to JPEG, while storing GPS separately in the database.
+- **Metadata:** Extract location from the selected original before EXIF stripping. The active queue durably stores and uploads the exact prepared JPEG while storing GPS separately in the database.
 - **Public delivery:** Serve ready immutable variants from the CDN hostname, not app-route proxies.
-- **Private originals:** Keep originals in private object storage and use short-lived signed access for draft views.
-- **Cache busting:** Use versioned object paths like `v{asset_version}` instead of query strings.
-- **Worker safety:** Async ingest jobs must be idempotent; retries should not create duplicate variants.
+- **Canonical source:** Worker ingest persists a private, content-addressed WebP at maximum width 2560 px and quality 82. Ready virtual variants derive from this canonical object, not the prepared source.
+- **Provenance:** `original_bucket` and `original_key` remain the source record after canonical commit, but the object is then eligible for immediate and outbox-backed deletion.
+- **Failure ordering:** Verify the canonical object before atomically switching delivery and queueing `source_replaced`; never delete the prepared source before that commit. A failed commit can leave an unreferenced canonical object at its deterministic key for retry.
+- **Cache busting:** Use immutable canonical keys and versioned virtual paths like `v{asset_version}` instead of mutable objects.
+- **Worker safety:** Async ingest and deletion jobs must be idempotent. Immediate source deletion is only an accelerator; durable outbox retries are authoritative.
 
 ---
 

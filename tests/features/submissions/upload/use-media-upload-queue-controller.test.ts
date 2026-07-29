@@ -3,6 +3,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMediaUploadQueueController } from '@/features/media-upload/hooks/use-media-upload-queue-controller'
+import type { RestoredUpload } from '@/features/media-upload/lib/durable-upload-store'
 import { moveQueueItemToFront, pickNextQueueClientId, resetUploadForQueue } from '@/features/media-upload/lib/media-upload-queue-state'
 import type { MediaUploadItem } from '@/features/media-upload/lib/upload-types'
 import { isMediaUploadPending, mapMediaUploadStatus, MEDIA_UPLOAD_STATUS_LABELS } from '@/features/media-upload/lib/upload-types'
@@ -18,6 +19,13 @@ const uploadMocks = vi.hoisted(() => ({
   pollMediaUploadStatus: vi.fn(),
   preprocessFile: vi.fn(),
   uploadFileToMediaSession: vi.fn(),
+}))
+
+const durableMocks = vi.hoisted(() => ({
+  persistNewUpload: vi.fn(async () => true),
+  persistUploadMetadata: vi.fn(async () => undefined),
+  removePersistedUpload: vi.fn(async () => undefined),
+  restoreUploads: vi.fn<() => Promise<RestoredUpload[]>>(async () => []),
 }))
 
 vi.mock('@/lib/image-gps', () => ({
@@ -38,10 +46,10 @@ vi.mock('@/lib/supabase', () => ({
 }))
 
 vi.mock('@/features/media-upload/lib/durable-upload-store', () => ({
-  persistNewUpload: vi.fn(async () => true),
-  persistUploadMetadata: vi.fn(async () => undefined),
-  removePersistedUpload: vi.fn(async () => undefined),
-  restoreUploads: vi.fn(async () => []),
+  persistNewUpload: durableMocks.persistNewUpload,
+  persistUploadMetadata: durableMocks.persistUploadMetadata,
+  removePersistedUpload: durableMocks.removePersistedUpload,
+  restoreUploads: durableMocks.restoreUploads,
 }))
 
 vi.mock('@/lib/media/upload-debug', () => ({
@@ -78,7 +86,12 @@ function createUpload(overrides: Partial<MediaUploadItem> = {}): MediaUploadItem
 
 describe('media upload queue state machine', () => {
   beforeEach(() => {
+    durableMocks.persistNewUpload.mockClear()
+    durableMocks.persistUploadMetadata.mockClear()
+    durableMocks.removePersistedUpload.mockClear()
+    durableMocks.restoreUploads.mockClear()
     uploadMocks.createMediaUploadSession.mockReset()
+    uploadMocks.deleteMediaUploadSession.mockClear()
     uploadMocks.buildPreviewUrl.mockResolvedValue('')
     uploadMocks.completeMediaUploadSession.mockResolvedValue({ imageId: 'image-1', processingStatus: 'ready', moderationStatus: 'skipped', retryable: false, errorCode: null })
     uploadMocks.deleteMediaUploadSession.mockResolvedValue(undefined)
@@ -196,6 +209,116 @@ describe('media upload queue state machine', () => {
       expect(uploadMocks.createMediaUploadSession).toHaveBeenCalledTimes(3)
       expect(result.current.uploads[clientId!]?.status).toBe('READY')
     })
+    unmount()
+  })
+
+  it('persists and uploads the same prepared bytes while reading GPS from the original', async () => {
+    const original = new File(['original'], 'wall.png', { type: 'image/png' })
+    const prepared = new File(['prepared'], 'wall.jpg', { type: 'image/jpeg' })
+    uploadMocks.preprocessFile.mockResolvedValue(prepared)
+    uploadMocks.extractGpsFromFile.mockResolvedValue({ latitude: 12, longitude: 34 })
+    uploadMocks.createMediaUploadSession.mockResolvedValue({
+      imageId: 'image-1',
+      objectKey: 'uploads/image-1.jpg',
+      bucket: 'media',
+      uploadUrl: 'https://example.com/upload',
+      uploadMethod: 'PUT',
+      uploadHeaders: {},
+      expiresInSeconds: 300,
+    })
+    const { result, unmount } = renderHook(() => useMediaUploadQueueController())
+
+    act(() => result.current.queueUploads([original], { kind: 'crag', cragId: 'crag-1' }))
+
+    await vi.waitFor(() => expect(uploadMocks.uploadFileToMediaSession).toHaveBeenCalled())
+    expect(uploadMocks.extractGpsFromFile).toHaveBeenCalledWith(original)
+    expect(durableMocks.persistNewUpload).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ gpsData: { latitude: 12, longitude: 34 } }),
+      prepared
+    )
+    expect(uploadMocks.uploadFileToMediaSession.mock.calls[0]?.[2]).toBe(prepared)
+    expect(uploadMocks.preprocessFile).toHaveBeenCalledTimes(1)
+    unmount()
+  })
+
+  it('upgrades a restored legacy original before resuming its upload', async () => {
+    const original = new File(['legacy'], 'legacy.png', { type: 'image/png' })
+    const prepared = new File(['prepared'], 'legacy.jpg', { type: 'image/jpeg' })
+    const item = createUpload({
+      clientId: 'legacy-client',
+      fileName: original.name,
+      status: 'QUEUED',
+      uploadedImageId: null,
+      gpsData: null,
+    })
+    durableMocks.restoreUploads.mockResolvedValue([{
+      item,
+      entry: { clientId: item.clientId, target: item.target, file: original, isPrepared: false },
+    }])
+    uploadMocks.preprocessFile.mockResolvedValue(prepared)
+    uploadMocks.extractGpsFromFile.mockResolvedValue({ latitude: 56, longitude: 78 })
+    uploadMocks.createMediaUploadSession.mockResolvedValue({
+      imageId: 'image-1',
+      objectKey: 'uploads/image-1.jpg',
+      bucket: 'media',
+      uploadUrl: 'https://example.com/upload',
+      uploadMethod: 'PUT',
+      uploadHeaders: {},
+      expiresInSeconds: 300,
+    })
+    const { unmount } = renderHook(() => useMediaUploadQueueController())
+
+    await vi.waitFor(() => expect(uploadMocks.uploadFileToMediaSession).toHaveBeenCalled())
+    expect(uploadMocks.extractGpsFromFile).toHaveBeenCalledWith(original)
+    expect(durableMocks.persistNewUpload).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ gpsData: { latitude: 56, longitude: 78 } }),
+      prepared
+    )
+    expect(uploadMocks.uploadFileToMediaSession.mock.calls[0]?.[2]).toBe(prepared)
+    unmount()
+  })
+
+  it('replaces an unfinished legacy session before uploading newly prepared bytes', async () => {
+    const original = new File(['legacy'], 'legacy.png', { type: 'image/png' })
+    const prepared = new File(['prepared'], 'legacy.jpg', { type: 'image/jpeg' })
+    const item = createUpload({
+      clientId: 'legacy-client',
+      fileName: original.name,
+      status: 'QUEUED',
+      uploadedImageId: 'legacy-image',
+      gpsData: null,
+    })
+    durableMocks.restoreUploads.mockResolvedValue([{
+      item,
+      entry: { clientId: item.clientId, target: item.target, file: original, isPrepared: false },
+    }])
+    uploadMocks.getMediaUploadStatus.mockResolvedValue({
+      imageId: 'legacy-image',
+      processingStatus: 'pending',
+      moderationStatus: 'pending',
+      retryable: false,
+      errorCode: null,
+      uploadCommitted: false,
+    })
+    uploadMocks.preprocessFile.mockResolvedValue(prepared)
+    uploadMocks.createMediaUploadSession.mockResolvedValue({
+      imageId: 'replacement-image',
+      objectKey: 'uploads/replacement.jpg',
+      bucket: 'media',
+      uploadUrl: 'https://example.com/upload',
+      uploadMethod: 'PUT',
+      uploadHeaders: {},
+      expiresInSeconds: 300,
+    })
+    const { unmount } = renderHook(() => useMediaUploadQueueController())
+
+    await vi.waitFor(() => expect(uploadMocks.uploadFileToMediaSession).toHaveBeenCalled())
+    expect(uploadMocks.deleteMediaUploadSession).toHaveBeenCalledWith('legacy-image')
+    expect(uploadMocks.deleteMediaUploadSession.mock.invocationCallOrder[0])
+      .toBeLessThan(uploadMocks.createMediaUploadSession.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER)
+    expect(uploadMocks.uploadFileToMediaSession.mock.calls[0]?.[2]).toBe(prepared)
     unmount()
   })
 })

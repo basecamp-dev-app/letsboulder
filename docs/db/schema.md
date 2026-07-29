@@ -186,7 +186,7 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 |-------|---------|
 | `deletion_requests` | User account deletion workflow with scheduling |
 | `deleted_accounts` | Audit log of deleted user accounts |
-| `media_deletion_jobs` | Service-only transactional outbox for private R2 original deletion |
+| `media_deletion_jobs` | Service-only transactional outbox for private R2 original and canonical derivative deletion |
 
 `profiles.open_data_consent_version` and `profiles.consent_timestamp` record the latest Open Data Contributor Terms accepted by an account. `current_open_data_consent_version()` is the required version; changing it requires a migration and causes one-time re-consent on the contributor's next public contribution. Identity-bound RPCs own acceptance and status reads. Contribution triggers enforce consent transactionally while service-role maintenance, deletion, and moderation remain outside the contributor gate.
 
@@ -309,13 +309,14 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 
 ### Media Pipeline Tables
 - `images` carries media-pipeline state in addition to legacy `url` storage fields.
-- Key columns: `storage_provider`, `original_bucket`, `original_key`, `asset_version`, `variants`, `visibility`, `processing_status`, `checksum_sha256`, `processed_at`, `latitude`, `longitude`. Resumable browser sessions also bind `client_upload_id`, `upload_purpose`, `upload_draft_id`, and `upload_crag_id`; `(created_by, client_upload_id)` is unique when present.
+- Key columns: `storage_provider`, `original_bucket`, `original_key`, `optimized_bucket`, `optimized_key`, `optimized_mime`, `optimized_bytes`, `optimized_width`, `optimized_height`, `asset_version`, `variants`, `visibility`, `processing_status`, `checksum_sha256`, `processed_at`, `original_deletion_queued_at`, `original_deleted_at`, `latitude`, `longitude`. The optimized tuple is all-null or a complete positive-dimension `image/webp` object. Resumable browser sessions also bind `client_upload_id`, `upload_purpose`, `upload_draft_id`, and `upload_crag_id`; `(created_by, client_upload_id)` is unique when present.
 - `images.submission_id` is a logical submission-group identifier used by publication, grouping, editing, deletion, and monitoring code. No `submissions` table or FK constraint backs it, so application and RPC code must preserve its grouping invariants explicitly.
 - `images.wiki_revision` is the optimistic-concurrency token for published image edits. `apply_published_submission_edit` locks the image, requires the caller's `baseRevision` to match, and advances it once per committed mutation.
 - `submission_draft_images` mirrors the provider-aware original reference. A draft cannot link the same authoritative image twice.
 - `submission_draft_routes` stores durable draft route geometry and metadata. Explicit Save persists dirty images through image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
 - `media_jobs` is the durable outbox for active media ingest. Upload completion calls authenticated `finalize_media_upload(...)` to commit the immutable locator and invoke `queue_media_ingest_job(...)` in one transaction; replay returns the existing active job.
-- `media_deletion_jobs` snapshots canonical, image-UUID-namespaced R2 bucket/key coordinates before image tombstones and hard deletes. It intentionally has no FK to `images`, so pending deletion work survives source-row removal; active jobs are unique by bucket/key. The trigger also cancels active ingest jobs so a deleted image cannot be republished by delayed processing.
+- `commit_media_webp(...)` is the service-only atomic transition from an immutable original to its canonical WebP. It locks the image, compares the expected original bucket/key, requires the derivative under `images/assets/<image UUID>/<64-hex content ID>/*.webp`, stores the derivative tuple, manifest and URL, switches linked draft/crag locators, marks processing ready, and enqueues the original with reason `source_replaced`. Exact replay returns the same deletion-job UUID; stale, deleted, or conflicting rows fail without partial state.
+- `media_deletion_jobs` snapshots canonical, image-UUID-namespaced R2 bucket/key coordinates before image tombstones and hard deletes. It intentionally has no FK to `images`, so pending deletion work survives source-row removal; active jobs are unique by bucket/key. Image deletion captures original and optimized objects independently without relying on cascade behavior. Completing a `source_replaced` job stamps `images.original_deleted_at`; the trigger also cancels active ingest jobs so a deleted image cannot be republished by delayed processing.
 - `claim_media_job(worker_name text)` is used by the Cloudflare Worker scheduled handler to claim pending ingest work. Cloudflare Queue ingress remains as a compatibility path, but the durable outbox is the source of truth for app-owned uploads.
 - `claim_media_deletion_job(worker_name, lease_seconds)` reclaims due or expired deletion work with `FOR UPDATE SKIP LOCKED`. Completion/retry/failure RPCs require the current claim token, and completed/cancelled jobs are pruned after 30 days.
 - Active ingest runs through `media_jobs` + the Worker in `apps/media-worker`; `images` remains the source of truth.
@@ -549,6 +550,7 @@ may request at most 30 rows.
 | `soft_delete_comment(p_comment_id)` | Soft delete a comment |
 | `cleanup_orphan_route_uploads(max_age, max_delete)` | Service-only cleanup of orphaned route uploads |
 | `claim_media_job(worker_name)` | Service-only durable media-job claim |
+| `commit_media_webp(...)` | Service-only atomic canonical WebP commit and original-deletion enqueue; returns the deletion job UUID |
 | `claim_media_deletion_job(worker_name, lease_seconds)` | Service-only tokenized claim of due or lease-expired R2 deletion work |
 | `complete_media_deletion_job(job_id, claim_token)` | Complete a currently owned media deletion claim |
 | `retry_media_deletion_job(job_id, claim_token, error)` | Requeue or terminally fail a media deletion claim with backoff |

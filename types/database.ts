@@ -1782,8 +1782,16 @@ export type Database = {
           moderation_status: string | null
           natural_height: number | null
           natural_width: number | null
+          optimized_bucket: string | null
+          optimized_bytes: number | null
+          optimized_height: number | null
+          optimized_key: string | null
+          optimized_mime: string | null
+          optimized_width: number | null
           original_bucket: string | null
           original_bytes: number | null
+          original_deleted_at: string | null
+          original_deletion_queued_at: string | null
           original_height: number | null
           original_key: string | null
           original_mime_type: string | null
@@ -1843,8 +1851,16 @@ export type Database = {
           moderation_status?: string | null
           natural_height?: number | null
           natural_width?: number | null
+          optimized_bucket?: string | null
+          optimized_bytes?: number | null
+          optimized_height?: number | null
+          optimized_key?: string | null
+          optimized_mime?: string | null
+          optimized_width?: number | null
           original_bucket?: string | null
           original_bytes?: number | null
+          original_deleted_at?: string | null
+          original_deletion_queued_at?: string | null
           original_height?: number | null
           original_key?: string | null
           original_mime_type?: string | null
@@ -1904,8 +1920,16 @@ export type Database = {
           moderation_status?: string | null
           natural_height?: number | null
           natural_width?: number | null
+          optimized_bucket?: string | null
+          optimized_bytes?: number | null
+          optimized_height?: number | null
+          optimized_key?: string | null
+          optimized_mime?: string | null
+          optimized_width?: number | null
           original_bucket?: string | null
           original_bytes?: number | null
+          original_deleted_at?: string | null
+          original_deletion_queued_at?: string | null
           original_height?: number | null
           original_key?: string | null
           original_mime_type?: string | null
@@ -3958,6 +3982,22 @@ export type Database = {
         Args: { p_climb_id: string }
         Returns: boolean
       }
+      commit_media_webp: {
+        Args: {
+          p_expected_original_bucket: string
+          p_expected_original_key: string
+          p_image_id: string
+          p_manifest: Json
+          p_optimized_bucket: string
+          p_optimized_bytes: number
+          p_optimized_height: number
+          p_optimized_key: string
+          p_optimized_mime: string
+          p_optimized_width: number
+          p_url: string
+        }
+        Returns: string
+      }
       complete_media_deletion_job: {
         Args: { p_claim_token: string; p_job_id: string }
         Returns: undefined
@@ -4909,8 +4949,16 @@ export type Database = {
           moderation_status: string | null
           natural_height: number | null
           natural_width: number | null
+          optimized_bucket: string | null
+          optimized_bytes: number | null
+          optimized_height: number | null
+          optimized_key: string | null
+          optimized_mime: string | null
+          optimized_width: number | null
           original_bucket: string | null
           original_bytes: number | null
+          original_deleted_at: string | null
+          original_deletion_queued_at: string | null
           original_height: number | null
           original_key: string | null
           original_mime_type: string | null

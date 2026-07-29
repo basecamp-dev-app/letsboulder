@@ -39,6 +39,7 @@ export const mediaDeletionJobSchema = z.object({
     'draft_image_deleted',
     'unassociated_upload_deleted',
     'image_hard_deleted',
+    'source_replaced',
   ]),
   source_type: z.enum(['image', 'draft_image']),
   source_id: z.string().uuid().nullable(),
