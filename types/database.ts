@@ -2900,6 +2900,251 @@ export type Database = {
           },
         ]
       }
+      wiki_entities: {
+        Row: {
+          climb_id: string | null
+          crag_id: string | null
+          created_at: string
+          entity_kind: string
+          id: string
+          image_id: string | null
+          route_line_id: string | null
+        }
+        Insert: {
+          climb_id?: string | null
+          crag_id?: string | null
+          created_at?: string
+          entity_kind: string
+          id?: string
+          image_id?: string | null
+          route_line_id?: string | null
+        }
+        Update: {
+          climb_id?: string | null
+          crag_id?: string | null
+          created_at?: string
+          entity_kind?: string
+          id?: string
+          image_id?: string | null
+          route_line_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_entities_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: true
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entities_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: true
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entities_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: true
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entities_route_line_id_fkey"
+            columns: ["route_line_id"]
+            isOneToOne: true
+            referencedRelation: "route_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiki_entity_heads: {
+        Row: {
+          entity_id: string
+          revision_id: string
+          revision_number: number
+          updated_at: string
+        }
+        Insert: {
+          entity_id: string
+          revision_id: string
+          revision_number: number
+          updated_at?: string
+        }
+        Update: {
+          entity_id?: string
+          revision_id?: string
+          revision_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_entity_heads_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: true
+            referencedRelation: "wiki_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entity_heads_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: true
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiki_entity_revisions: {
+        Row: {
+          commit_id: string
+          content_hash: string
+          created_at: string
+          entity_id: string
+          id: string
+          parent_revision_id: string | null
+          patch: Json
+          restored_from_revision_id: string | null
+          revision_number: number
+          schema_version: number
+          snapshot: Json
+          supersedes_revision_id: string | null
+        }
+        Insert: {
+          commit_id: string
+          content_hash: string
+          created_at?: string
+          entity_id: string
+          id?: string
+          parent_revision_id?: string | null
+          patch: Json
+          restored_from_revision_id?: string | null
+          revision_number: number
+          schema_version?: number
+          snapshot: Json
+          supersedes_revision_id?: string | null
+        }
+        Update: {
+          commit_id?: string
+          content_hash?: string
+          created_at?: string
+          entity_id?: string
+          id?: string
+          parent_revision_id?: string | null
+          patch?: Json
+          restored_from_revision_id?: string | null
+          revision_number?: number
+          schema_version?: number
+          snapshot?: Json
+          supersedes_revision_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_entity_revisions_commit_id_fkey"
+            columns: ["commit_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_revision_commits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entity_revisions_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entity_revisions_parent_revision_id_fkey"
+            columns: ["parent_revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entity_revisions_restored_from_revision_id_fkey"
+            columns: ["restored_from_revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entity_revisions_supersedes_revision_id_fkey"
+            columns: ["supersedes_revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiki_revision_commits: {
+        Row: {
+          author_kind: string
+          author_user_id: string | null
+          client_mutation_id: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          revision_kind: string
+          summary: string
+          transaction_id: number | null
+        }
+        Insert: {
+          author_kind: string
+          author_user_id?: string | null
+          client_mutation_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          revision_kind: string
+          summary: string
+          transaction_id?: number | null
+        }
+        Update: {
+          author_kind?: string
+          author_user_id?: string | null
+          client_mutation_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          revision_kind?: string
+          summary?: string
+          transaction_id?: number | null
+        }
+        Relationships: []
+      }
+      wiki_revision_merge_parents: {
+        Row: {
+          ordinal: number
+          parent_revision_id: string
+          revision_id: string
+        }
+        Insert: {
+          ordinal: number
+          parent_revision_id: string
+          revision_id: string
+        }
+        Update: {
+          ordinal?: number
+          parent_revision_id?: string
+          revision_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_revision_merge_parents_parent_revision_id_fkey"
+            columns: ["parent_revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_revision_merge_parents_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       climb_flag_counts: {
@@ -2968,6 +3213,14 @@ export type Database = {
         Returns: Json
       }
       apply_published_submission_edit: {
+        Args: {
+          p_client_mutation_id: string
+          p_image_id: string
+          p_operations: Json
+        }
+        Returns: Json
+      }
+      apply_published_submission_edit_without_revisions: {
         Args: {
           p_client_mutation_id: string
           p_image_id: string
@@ -3727,6 +3980,16 @@ export type Database = {
         Args: { p_image_id: string; p_user_id: string }
         Returns: undefined
       }
+      record_wiki_entity_revision: {
+        Args: {
+          p_commit_id: string
+          p_entity_kind: string
+          p_restored_from_revision_id?: string
+          p_source_id: string
+          p_supersedes_revision_id?: string
+        }
+        Returns: string
+      }
       refresh_crag_type_from_climbs: {
         Args: { target_crag_id: string }
         Returns: undefined
@@ -3783,6 +4046,18 @@ export type Database = {
       retry_media_deletion_job: {
         Args: { p_claim_token: string; p_error: string; p_job_id: string }
         Returns: undefined
+      }
+      rollback_wiki_entity_revision: {
+        Args: {
+          p_expected_head_revision_id: string
+          p_reason: string
+          p_target_revision_id: string
+        }
+        Returns: {
+          commit_id: string
+          entity_id: string
+          revision_id: string
+        }[]
       }
       save_submission_grade_votes: {
         Args: { p_grades: Json; p_image_id: string }
@@ -3956,7 +4231,15 @@ export type Database = {
         Args: { p_image_id: string; p_is_anonymous: boolean }
         Returns: Json
       }
+      update_own_submission_anonymity_without_revisions: {
+        Args: { p_image_id: string; p_is_anonymous: boolean }
+        Returns: Json
+      }
       update_own_submission_credit: {
+        Args: { p_handle: string; p_image_id: string; p_platform: string }
+        Returns: Json
+      }
+      update_own_submission_credit_without_revisions: {
         Args: { p_handle: string; p_image_id: string; p_platform: string }
         Returns: Json
       }
@@ -3965,6 +4248,15 @@ export type Database = {
         Returns: number
       }
       update_submission_crag_metadata: {
+        Args: {
+          p_crag_name: string
+          p_image_id: string
+          p_region_tag: string
+          p_sub_area?: string
+        }
+        Returns: Json
+      }
+      update_submission_crag_metadata_without_revisions: {
         Args: {
           p_crag_name: string
           p_image_id: string
@@ -4004,6 +4296,14 @@ export type Database = {
       user_can_wiki_edit_submission: {
         Args: { p_image_id: string; p_user_id: string }
         Returns: boolean
+      }
+      wiki_entity_snapshot: {
+        Args: { p_entity_kind: string; p_source_id: string }
+        Returns: Json
+      }
+      wiki_json_patch: {
+        Args: { p_after: Json; p_before: Json }
+        Returns: Json
       }
     }
     Enums: {

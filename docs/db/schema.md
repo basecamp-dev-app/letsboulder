@@ -148,7 +148,12 @@ Image rows in `climb_flag_counts` are limited to publicly deliverable images. Au
 | `submission_draft_collaborators` | Shared editing access on drafts |
 | `submission_draft_collaborator_invites` | Token-based invites for draft collaboration |
 | `submission_contributors` | Non-owner users who have successfully edited a published submission |
-| `submission_edit_history` | Per-image history log for published wiki edits |
+| `submission_edit_history` | Retained legacy per-image audit log for published wiki edits |
+| `wiki_entities` | Permanent identities for revisioned images, climbs, route lines, and crags |
+| `wiki_revision_commits` | Immutable author, intent, and mutation metadata grouping one atomic edit |
+| `wiki_entity_revisions` | Immutable canonical snapshots, RFC 6902 patches, hashes, and parent links |
+| `wiki_revision_merge_parents` | Additional same-entity parents for explicit future merge commits |
+| `wiki_entity_heads` | Current linear revision pointer and optimistic-concurrency number per entity |
 
 ### Gym Tables
 | Table | Purpose |
@@ -301,6 +306,11 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `submission_contributors` records successful non-owner published editors.
 - `submission_edit_history` stores field-aware, per-image edit history for published submissions and is retained when an editor account is deleted.
 - `published_edit_mutations` is an internal, RLS-enabled receipt table keyed by `(editor_id, client_mutation_id)`. It stores the canonical request hash, committed revision, and generated route mappings so an ambiguous client retry returns the original result without repeating writes. API roles have no direct table privileges.
+- Published wiki state also has an immutable entity revision ledger. `wiki_entities` gives images, climbs, route lines, and crags permanent identities; `wiki_revision_commits` groups every changed entity from one save; and `wiki_entity_revisions` stores the complete canonical snapshot, deterministic top-level RFC 6902 patch, SHA-256 content hash, schema version, parent, and rollback/supersession links. Normal edits advance one linear `wiki_entity_heads` pointer. `wiki_revision_merge_parents` is reserved for explicit same-entity merge ancestry.
+- Snapshots contain user-authored canonical fields only. They exclude media processing fields, counts, grade consensus, vote totals, verification aggregates, generated geography, `places` projections, editor/timestamp fields, and `images.wiki_revision`. Route geometry is revisioned separately from climb metadata. Crag snapshots include the primary region tag edge so rollback can restore taxonomy consistently.
+- Existing published content is backfilled as `baseline` revisions. Content first edited or lifecycle-changed after publication receives a lazy pre-change baseline; newly created routes begin at revision 1. Soft deletion and supersession changes are grouped by database transaction identity and append revisions without trusting session metadata. `submission_edit_history` remains dual-written for contributor scoring and pre-migration audit display but is not revision authority.
+- Commit/revision/merge-parent rows reject updates and deletes at the database layer. The sole allowed commit update is the `auth.users ON DELETE SET NULL` author anonymization required by account deletion. Authenticated reads require the source image/climb/crag and route parents to remain visible under their existing RLS policies; admins can read retained tombstones. API roles cannot write ledger tables directly. Narrow `SECURITY DEFINER` functions own writes.
+- Rollback never rewinds a head. `rollback_wiki_entity_revision` is admin-only, locks and compares the expected head UUID, restores the selected canonical snapshot, and appends a new `rollback` revision with `restored_from_revision_id`. A stale preview fails with `wiki_revision_conflict`.
 - `submission_draft_collaborators` and `submission_draft_collaborator_invites` continue to enable shared editing on drafts.
 - RLS helper functions: `is_submission_collaborator(image_id, user_id)` and `is_submission_draft_collaborator(draft_id, user_id)`.
 - Wiki helper function: `user_can_wiki_edit_submission(image_id, user_id)`; the supplied user must equal `auth.uid()`, and deleted images or images under deleted crags are rejected.
@@ -330,6 +340,11 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 | `submission_contributors` | authenticated | service / helper only | service / helper only | service / helper only |
 | `submission_edit_history` | authenticated | service / helper only | service / helper only | service / helper only |
 | `published_edit_mutations` | RPC only | RPC only | RPC only | RPC only |
+| `wiki_entities` | authenticated when source is visible; all for admin | RPC only | RPC only | RPC only |
+| `wiki_revision_commits` | authenticated through a visible entity revision; all for admin | RPC only | author anonymization only | none |
+| `wiki_entity_revisions` | authenticated when entity source is visible; all for admin | RPC only | none | none |
+| `wiki_revision_merge_parents` | authenticated when revision source is visible; all for admin | RPC only | none | none |
+| `wiki_entity_heads` | authenticated when entity source is visible; all for admin | RPC only | RPC only | none |
 | `images` | existing + collaborator read | existing | existing | admin policy or guarded RPC |
 | `crags` | active public rows; all rows for admin | authenticated create | existing | empty-row maintenance only |
 | `climbs` | active rows under active crags; all rows for admin | owner create | owner pending fields only | unassociated pending-row maintenance only |
@@ -451,7 +466,8 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `create_submission_routes_service(user_id, image_id, crag_id, route_type, routes)` | Service-only identity-binding wrapper used by the validated existing-image Route Handler; the supplied user must exist |
 | `assert_media_ready_for_publication(image_ids)` | Lock and validate public media readiness |
 | `insert_pin_images_atomic(...)` | Atomic pin image insertion |
-| `apply_published_submission_edit(image_id, client_mutation_id, operations)` | Authenticated-only atomic and idempotent published image metadata, route create/update, and grade-vote mutation with revision conflict detection and generated ID mappings |
+| `apply_published_submission_edit(image_id, client_mutation_id, operations)` | Authenticated-only atomic and idempotent published image metadata, route create/update, and grade-vote mutation; returns generated route mappings and the immutable revision commit ID |
+| `rollback_wiki_entity_revision(target_revision_id, expected_head_revision_id, reason)` | Admin-only expected-head rollback that restores a canonical snapshot by appending a new immutable child revision |
 
 ### Grade Management
 | Function | Purpose |

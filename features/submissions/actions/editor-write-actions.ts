@@ -113,6 +113,7 @@ export interface PublishedRouteIdMapping {
 export interface AtomicPublishedEditResult {
   imageId: string
   clientMutationId: string
+  commitId: string | null
   revision: number
   routeMappings: PublishedRouteIdMapping[]
   historyIds: string[]
@@ -128,6 +129,7 @@ function readAtomicPublishedEditResult(value: unknown): AtomicPublishedEditResul
   if (typeof result.imageId !== 'string' || typeof result.clientMutationId !== 'string'
     || typeof result.revision !== 'number' || !Array.isArray(result.routeMappings)
     || !Array.isArray(result.historyIds)) return null
+  if (result.commitId !== null && typeof result.commitId !== 'string' && result.commitId !== undefined) return null
   const routeMappings = result.routeMappings.filter((mapping): mapping is PublishedRouteIdMapping => {
     if (!mapping || typeof mapping !== 'object' || Array.isArray(mapping)) return false
     const row = mapping as Record<string, unknown>
@@ -139,6 +141,7 @@ function readAtomicPublishedEditResult(value: unknown): AtomicPublishedEditResul
   return {
     imageId: result.imageId,
     clientMutationId: result.clientMutationId,
+    commitId: typeof result.commitId === 'string' ? result.commitId : null,
     revision: result.revision,
     routeMappings,
     historyIds,

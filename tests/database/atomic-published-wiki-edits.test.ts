@@ -123,6 +123,7 @@ describe('atomic published wiki edits', () => {
       expect(first.rows[0].result.routeMappings).toHaveLength(1)
       expect(first.rows[0].result.routeMappings[0].clientRouteId).toBe(clientRouteId)
       expect(replay.rows[0].result.routeMappings).toEqual(first.rows[0].result.routeMappings)
+      expect(replay.rows[0].result.commitId).toBe(first.rows[0].result.commitId)
       expect(replay.rows[0].result.replayed).toBe(true)
 
       const rows = await client.query(
@@ -203,6 +204,12 @@ describe('atomic published wiki edits', () => {
       expect(secondResult.rows[0].result.replayed).toBe(true)
       const count = await setup.query('select count(*)::int as count from public.route_lines where image_id = $1', [fixture.imageId])
       expect(count.rows[0].count).toBe(1)
+      const commits = await setup.query(
+        `select count(*)::int as count from public.wiki_revision_commits
+         where metadata->>'image_id' = $1`,
+        [fixture.imageId],
+      )
+      expect(commits.rows[0].count).toBe(2)
     } finally {
       await firstClient.query('rollback').catch(() => undefined)
       await secondClient.query('rollback').catch(() => undefined)
