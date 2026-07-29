@@ -14,10 +14,6 @@ export function resetUploadForQueue(current: MediaUploadItem): MediaUploadItem {
     status: 'QUEUED',
     progress: 0,
     error: null,
-    uploadedImageId: null,
-    uploadedBucket: null,
-    uploadedPath: null,
-    attachedRecordId: null,
   }
 }
 

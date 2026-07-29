@@ -292,12 +292,12 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 
 ### Media Pipeline Tables
 - `images` carries media-pipeline state in addition to legacy `url` storage fields.
-- Key columns: `storage_provider`, `original_bucket`, `original_key`, `asset_version`, `variants`, `visibility`, `processing_status`, `checksum_sha256`, `processed_at`, `latitude`, `longitude`.
+- Key columns: `storage_provider`, `original_bucket`, `original_key`, `asset_version`, `variants`, `visibility`, `processing_status`, `checksum_sha256`, `processed_at`, `latitude`, `longitude`. Resumable browser sessions also bind `client_upload_id`, `upload_purpose`, `upload_draft_id`, and `upload_crag_id`; `(created_by, client_upload_id)` is unique when present.
 - `images.submission_id` is a logical submission-group identifier used by publication, grouping, editing, deletion, and monitoring code. No `submissions` table or FK constraint backs it, so application and RPC code must preserve its grouping invariants explicitly.
 - `images.wiki_revision` is the optimistic-concurrency token for published image edits. `apply_published_submission_edit` locks the image, requires the caller's `baseRevision` to match, and advances it once per committed mutation.
-- `submission_draft_images` mirrors the provider-aware original reference.
+- `submission_draft_images` mirrors the provider-aware original reference. A draft cannot link the same authoritative image twice.
 - `submission_draft_routes` stores durable draft route geometry and metadata. Explicit Save persists dirty images through image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
-- `media_jobs` is the durable outbox for active media ingest. Upload completion calls `queue_media_ingest_job(...)` to update `images` and insert/reuse a queued job atomically.
+- `media_jobs` is the durable outbox for active media ingest. Upload completion calls authenticated `finalize_media_upload(...)` to commit the immutable locator and invoke `queue_media_ingest_job(...)` in one transaction; replay returns the existing active job.
 - `media_deletion_jobs` snapshots canonical, image-UUID-namespaced R2 bucket/key coordinates before image tombstones and hard deletes. It intentionally has no FK to `images`, so pending deletion work survives source-row removal; active jobs are unique by bucket/key. The trigger also cancels active ingest jobs so a deleted image cannot be republished by delayed processing.
 - `claim_media_job(worker_name text)` is used by the Cloudflare Worker scheduled handler to claim pending ingest work. Cloudflare Queue ingress remains as a compatibility path, but the durable outbox is the source of truth for app-owned uploads.
 - `claim_media_deletion_job(worker_name, lease_seconds)` reclaims due or expired deletion work with `FOR UPDATE SKIP LOCKED`. Completion/retry/failure RPCs require the current claim token, and completed/cancelled jobs are pruned after 30 days.

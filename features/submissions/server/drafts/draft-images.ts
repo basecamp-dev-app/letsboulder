@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { parseWithSchema } from '@/lib/api-validation'
+import type { Database } from '@/types/database'
 import {
   buildDraftConflictResponse,
   isPermissionDeniedError,
@@ -11,6 +12,7 @@ import {
 } from '@/features/submissions/server/drafts/draft-route-shared'
 
 interface DraftAppendImageInput {
+  uploaded_image_id?: string
   storage_bucket: string
   storage_path: string
   gps_data?: {
@@ -24,7 +26,11 @@ interface DraftAppendImageInput {
   linked_image_id?: string
 }
 
+type UploadImageRow = Pick<Database['public']['Tables']['images']['Row'], 'id' | 'created_by' | 'original_bucket' | 'original_key' | 'storage_bucket' | 'storage_path'>
+type DraftImageLinkRow = Pick<Database['public']['Tables']['submission_draft_images']['Row'], 'id' | 'linked_image_id'>
+
 const draftAppendImageSchema = z.object({
+  uploaded_image_id: z.string().uuid().optional(),
   storage_bucket: z.string().min(1),
   storage_path: z.string().min(1),
   gps_data: z.object({
@@ -53,6 +59,7 @@ export function normalizeAppendDraftImages(value: unknown): DraftAppendImageInpu
     if (typeof candidate.storage_path !== 'string' || !candidate.storage_path) return null
 
     normalized.push({
+      uploaded_image_id: typeof candidate.uploaded_image_id === 'string' ? candidate.uploaded_image_id : undefined,
       storage_bucket: candidate.storage_bucket,
       storage_path: candidate.storage_path,
       gps_data: candidate.gps_data && typeof candidate.gps_data === 'object' && typeof candidate.gps_data.latitude === 'number' && typeof candidate.gps_data.longitude === 'number'
@@ -96,13 +103,14 @@ export async function appendDraftImages(input: {
     return NextResponse.json({ error: 'expected_updated_at is required and must be a valid ISO timestamp' }, { status: 400 })
   }
 
-  for (const image of images) {
+  for (const image of images.filter((candidate) => !candidate.uploaded_image_id)) {
     if (!(await userOwnsUploadedObject(ownershipClient, userId, image.storage_bucket, image.storage_path))) {
       return NextResponse.json({ error: 'Invalid uploaded path owner' }, { status: 403 })
     }
   }
 
   const uploadIds = images.flatMap((image) => {
+    if (image.uploaded_image_id) return [image.uploaded_image_id]
     const match = image.storage_path.match(/images\/originals\/([0-9a-fA-F-]{36})/)
     return match?.[1] ? [match[1]] : []
   })
@@ -130,13 +138,43 @@ export async function appendDraftImages(input: {
     ].filter((key): key is string => key !== null)
     return keys.map((key) => [key, row.id] as const)
   }))
-  const linkedImages = images.map((image) => ({
-    ...image,
-    linked_image_id: uploadedByPath.get(`${image.storage_bucket}/${image.storage_path}`),
-  }))
+  const typedUploadedRows = (uploadedRows || []) as UploadImageRow[]
+  const uploadedById = new Map(typedUploadedRows.filter((row) => row.created_by === userId).map((row) => [row.id, row]))
+  const linkedImages = images.map((image) => {
+    const uploadedRow = image.uploaded_image_id ? uploadedById.get(image.uploaded_image_id) : null
+    return {
+      ...image,
+      storage_bucket: uploadedRow?.storage_bucket || uploadedRow?.original_bucket || image.storage_bucket,
+      storage_path: uploadedRow?.storage_path || uploadedRow?.original_key || image.storage_path,
+      linked_image_id: uploadedRow?.id || uploadedByPath.get(`${image.storage_bucket}/${image.storage_path}`),
+    }
+  })
 
   if (linkedImages.some((image) => !image.linked_image_id)) {
     return NextResponse.json({ error: 'Uploaded image record not found' }, { status: 400 })
+  }
+
+  const linkedImageIds = linkedImages.flatMap((image) => image.linked_image_id ? [image.linked_image_id] : [])
+  const { data: existingAttachments, error: existingAttachmentsError } = await supabase
+    .from('submission_draft_images')
+    .select('id, linked_image_id')
+    .eq('draft_id', draftId)
+    .in('linked_image_id', linkedImageIds)
+  if (existingAttachmentsError) return createErrorResponse(existingAttachmentsError, 'Failed to resolve attached images')
+  if ((existingAttachments || []).length === linkedImages.length) {
+    const { data: currentDraft, error: currentDraftError } = await supabase
+      .from('submission_drafts')
+      .select('updated_at')
+      .eq('id', draftId)
+      .single()
+    if (currentDraftError) return createErrorResponse(currentDraftError, 'Failed to resolve draft')
+    return NextResponse.json({
+      success: true,
+      draft: {
+        updated_at: currentDraft.updated_at,
+        appended_image_ids: ((existingAttachments || []) as DraftImageLinkRow[]).map((attachment) => attachment.id),
+      },
+    })
   }
 
   const expectedUpdatedAt = expectedUpdatedAtDate.toISOString()

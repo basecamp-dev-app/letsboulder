@@ -14,6 +14,7 @@ const uploadMocks = vi.hoisted(() => ({
   deleteMediaUploadSession: vi.fn(),
   extractGpsFromFile: vi.fn(),
   getImageDimensions: vi.fn(),
+  getMediaUploadStatus: vi.fn(),
   pollMediaUploadStatus: vi.fn(),
   preprocessFile: vi.fn(),
   uploadFileToMediaSession: vi.fn(),
@@ -27,8 +28,20 @@ vi.mock('@/lib/media/client-upload', () => ({
   completeMediaUploadSession: uploadMocks.completeMediaUploadSession,
   createMediaUploadSession: uploadMocks.createMediaUploadSession,
   deleteMediaUploadSession: uploadMocks.deleteMediaUploadSession,
+  getMediaUploadStatus: uploadMocks.getMediaUploadStatus,
   pollMediaUploadStatus: uploadMocks.pollMediaUploadStatus,
   uploadFileToMediaSession: uploadMocks.uploadFileToMediaSession,
+}))
+
+vi.mock('@/lib/supabase', () => ({
+  createClient: () => ({ auth: { getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } } })) } }),
+}))
+
+vi.mock('@/features/media-upload/lib/durable-upload-store', () => ({
+  persistNewUpload: vi.fn(async () => true),
+  persistUploadMetadata: vi.fn(async () => undefined),
+  removePersistedUpload: vi.fn(async () => undefined),
+  restoreUploads: vi.fn(async () => []),
 }))
 
 vi.mock('@/lib/media/upload-debug', () => ({
@@ -71,6 +84,7 @@ describe('media upload queue state machine', () => {
     uploadMocks.deleteMediaUploadSession.mockResolvedValue(undefined)
     uploadMocks.extractGpsFromFile.mockResolvedValue(null)
     uploadMocks.getImageDimensions.mockResolvedValue({ width: 1200, height: 900 })
+    uploadMocks.getMediaUploadStatus.mockResolvedValue({ imageId: 'image-1', processingStatus: 'queued', moderationStatus: 'pending', retryable: false, errorCode: null, uploadCommitted: true })
     uploadMocks.pollMediaUploadStatus.mockResolvedValue({ imageId: 'image-1', processingStatus: 'ready', moderationStatus: 'skipped', retryable: false, errorCode: null })
     uploadMocks.preprocessFile.mockImplementation(async (file: File) => file)
     uploadMocks.uploadFileToMediaSession.mockResolvedValue(undefined)
@@ -88,10 +102,6 @@ describe('media upload queue state machine', () => {
       status: 'QUEUED',
       progress: 0,
       error: null,
-      uploadedImageId: null,
-      uploadedBucket: null,
-      uploadedPath: null,
-      attachedRecordId: null,
     })
   })
 

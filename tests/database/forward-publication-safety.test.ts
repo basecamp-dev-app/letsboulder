@@ -584,10 +584,11 @@ describe('forward publication safety migrations', () => {
     })
   })
 
-  it('rejects duplicate authoritative image identities during promotion', async () => {
+  it('rejects duplicate authoritative image identities when they are attached', async () => {
     await transaction(async (client) => {
       const fixture = await createPromotionFixture(client, false)
-      await client.query(
+      await client.query('savepoint duplicate_attachment')
+      await expect(client.query(
         `insert into public.submission_draft_images (
            draft_id, display_order, storage_provider, storage_bucket, storage_path,
            original_bucket, original_key, linked_image_id, processing_status, width, height
@@ -596,12 +597,8 @@ describe('forward publication safety migrations', () => {
            original_bucket, original_key, linked_image_id, processing_status, width, height
          from public.submission_draft_images where id = $1`,
         [fixture.draftImageId],
-      )
-      await client.query('reset role')
-      await setAuthenticatedContext(client, fixture.userId)
-      const promotion = await rpcError(client, 'select public.promote_draft_to_submission($1)', [fixture.draftId])
-      expect(promotion.detail).toBe('media_not_ready')
-      expect((await client.query('select count(*)::int as count from public.crag_images where crag_id = $1', [fixture.cragId])).rows[0].count).toBe(0)
+      )).rejects.toMatchObject({ code: '23505' })
+      await client.query('rollback to savepoint duplicate_attachment')
     })
   })
 

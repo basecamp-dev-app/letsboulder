@@ -41,6 +41,7 @@ export function createAttachUpload({
           body: JSON.stringify({
             expected_updated_at: expectedUpdatedAt,
             images: [{
+              uploaded_image_id: upload.uploadedImageId,
               storage_bucket: upload.uploadedBucket,
               storage_path: upload.uploadedPath,
               gps_data: upload.gpsData,

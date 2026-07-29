@@ -126,7 +126,7 @@ Automated media moderation is disabled and no AWS Rekognition integration is act
 
 - The app is online-first. HTTP caching and React Query handle normal revisits; selected queries opt into IndexedDB persistence.
 - `/offline` provides a degraded connection state. The temporary `public/sw.js` tombstone removes historical caches and unregisters old service workers rather than implementing offline fetch behavior.
-- Upload transfer retries, offline pause, and reconnect/page-lifecycle resume operate only while the upload provider and its in-memory `File` objects remain alive.
+- Contribution uploads persist auth-scoped Blobs and server checkpoints in IndexedDB before transfer. Reload/reconnect recovery reuses a stable server image session; unfinished whole-file PUTs restart, while database-committed uploads skip transfer.
 
 ## Module Boundaries
 

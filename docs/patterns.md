@@ -188,6 +188,8 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - `lib/offline/tiles.ts`, `components/OfflineCragMapSnippet.tsx`, and `/api/offline-tiles/**` — legacy raster compatibility artifacts retained during retirement
 - `features/offline/` — shallow cached-page compatibility/fallback code; not a downloadable offline-pack feature
 - `lib/query-persistence.ts` — React Query IndexedDB persistence (12h max age)
+- `features/media-upload/lib/durable-upload-store.ts` — auth-scoped contribution Blob and queue checkpoints retained until server attachment is confirmed
+- `features/draft-editor/lib/draft-editor-checkpoint.ts` — auth-scoped unsaved route geometry and sector checkpoints
 
 ### Known Edge Cases
 - **Cache retirement:** Do not add caching/fetch handlers to `/sw.js`. Keep the tombstone registration and root cleanup available long enough to reach returning clients.

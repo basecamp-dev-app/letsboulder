@@ -1600,6 +1600,7 @@ export type Database = {
           asset_version: number
           capture_date: string | null
           checksum_sha256: string | null
+          client_upload_id: string | null
           continent_name: string | null
           contribution_credit_handle: string | null
           contribution_credit_platform: string | null
@@ -1645,6 +1646,9 @@ export type Database = {
           storage_provider: string
           submission_id: string | null
           un_region_name: string | null
+          upload_crag_id: string | null
+          upload_draft_id: string | null
+          upload_purpose: string | null
           url: string
           variants: Json
           verification_count: number | null
@@ -1657,6 +1661,7 @@ export type Database = {
           asset_version?: number
           capture_date?: string | null
           checksum_sha256?: string | null
+          client_upload_id?: string | null
           continent_name?: string | null
           contribution_credit_handle?: string | null
           contribution_credit_platform?: string | null
@@ -1702,6 +1707,9 @@ export type Database = {
           storage_provider?: string
           submission_id?: string | null
           un_region_name?: string | null
+          upload_crag_id?: string | null
+          upload_draft_id?: string | null
+          upload_purpose?: string | null
           url: string
           variants?: Json
           verification_count?: number | null
@@ -1714,6 +1722,7 @@ export type Database = {
           asset_version?: number
           capture_date?: string | null
           checksum_sha256?: string | null
+          client_upload_id?: string | null
           continent_name?: string | null
           contribution_credit_handle?: string | null
           contribution_credit_platform?: string | null
@@ -1759,6 +1768,9 @@ export type Database = {
           storage_provider?: string
           submission_id?: string | null
           un_region_name?: string | null
+          upload_crag_id?: string | null
+          upload_draft_id?: string | null
+          upload_purpose?: string | null
           url?: string
           variants?: Json
           verification_count?: number | null
@@ -1793,6 +1805,20 @@ export type Database = {
             columns: ["place_id"]
             isOneToOne: false
             referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "images_upload_crag_id_fkey"
+            columns: ["upload_crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "images_upload_draft_id_fkey"
+            columns: ["upload_draft_id"]
+            isOneToOne: false
+            referencedRelation: "submission_drafts"
             referencedColumns: ["id"]
           },
         ]
@@ -3531,6 +3557,34 @@ export type Database = {
         Args: { p_claim_token: string; p_error: string; p_job_id: string }
         Returns: undefined
       }
+      finalize_media_upload: {
+        Args: {
+          p_checksum_sha256: string
+          p_image_id: string
+          p_original_key: string
+        }
+        Returns: {
+          attempts: number
+          created_at: string
+          id: string
+          image_id: string
+          job_type: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "media_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       find_region_by_location: {
         Args: { search_lat: number; search_lng: number }
         Returns: {
@@ -4294,6 +4348,7 @@ export type Database = {
           asset_version: number
           capture_date: string | null
           checksum_sha256: string | null
+          client_upload_id: string | null
           continent_name: string | null
           contribution_credit_handle: string | null
           contribution_credit_platform: string | null
@@ -4339,6 +4394,9 @@ export type Database = {
           storage_provider: string
           submission_id: string | null
           un_region_name: string | null
+          upload_crag_id: string | null
+          upload_draft_id: string | null
+          upload_purpose: string | null
           url: string
           variants: Json
           verification_count: number | null

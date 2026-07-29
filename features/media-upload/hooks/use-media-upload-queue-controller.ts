@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { extractGpsFromFile } from '@/lib/image-gps'
-import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, pollMediaUploadStatus, uploadFileToMediaSession } from '@/lib/media/client-upload'
+import { completeMediaUploadSession, createMediaUploadSession, getMediaUploadStatus, pollMediaUploadStatus, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import { createAttachUpload } from '@/features/media-upload/lib/attach-upload'
 import { enqueueUploads, prepareRetryQueue, removeUploadEntry, resetQueuedUpload } from '@/features/media-upload/lib/media-upload-controller-helpers'
@@ -10,6 +10,8 @@ import { buildPreviewUrl, getImageDimensions, preprocessFile } from '@/features/
 import { pickNextQueueClientId, resetUploadForQueue } from '@/features/media-upload/lib/media-upload-queue-state'
 import { shouldResumeQueuedUploads } from '@/features/media-upload/lib/media-upload-resume-state'
 import { createClientId, ensureFileName, mapMediaUploadStatus, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
+import { persistNewUpload, persistUploadMetadata, removePersistedUpload, restoreUploads } from '@/features/media-upload/lib/durable-upload-store'
+import { createClient } from '@/lib/supabase'
 
 export interface MediaUploadQueueController {
   uploads: Record<string, MediaUploadItem>
@@ -60,6 +62,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
   const processingClientIdsRef = useRef<Set<string>>(new Set())
   const alreadyAttachedRef = useRef<Set<string>>(new Set())
   const subscribersRef = useRef<Set<UploadCompleteCallback>>(new Set())
+  const userIdRef = useRef<string | null>(null)
 
   const uploadsRef = useRef(uploads)
   const queueOrderRef = useRef(queueOrder)
@@ -78,6 +81,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     const nextUploads = { ...current, [clientId]: updater(existing) }
     uploadsRef.current = nextUploads
     setUploads(nextUploads)
+    if (userIdRef.current) void persistUploadMetadata(userIdRef.current, nextUploads[clientId])
   }, [])
 
   const setQueuePaused = useCallback((paused: boolean) => {
@@ -130,66 +134,67 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
         throw new Error('Upload entry is missing')
       }
 
-      updateUpload(entry.clientId, (current) => ({ ...current, status: 'PREPROCESSING', progress: 10, error: null }))
+      const purpose = entry.target.kind === 'draft' ? 'draft_image' : 'crag_image'
+      let completion = upload.uploadedImageId
+        ? await getMediaUploadStatus(upload.uploadedImageId, abortController.signal).catch(() => null)
+        : null
+      if (!completion?.uploadCommitted) {
+        updateUpload(entry.clientId, (current) => ({ ...current, status: 'PREPROCESSING', progress: 10, error: null }))
+        const [preparedFile, gpsData] = await Promise.all([
+          preprocessFile(entry.file),
+          extractGpsFromFile(entry.file),
+        ])
+        const dimensions = await getImageDimensions(preparedFile)
+        updateUpload(entry.clientId, (current) => ({
+          ...current,
+          status: 'UPLOADING',
+          progress: 35,
+          gpsData,
+          width: dimensions.width,
+          height: dimensions.height,
+        }))
 
-      const [preparedFile, gpsData] = await Promise.all([
-        preprocessFile(entry.file),
-        extractGpsFromFile(entry.file),
-      ])
-      const dimensions = await getImageDimensions(preparedFile)
-
-      updateUpload(entry.clientId, (current) => ({
-        ...current,
-        status: 'UPLOADING',
-        progress: 35,
-        gpsData,
-        width: dimensions.width,
-        height: dimensions.height,
-      }))
-
-      const uploadSession = await createMediaUploadSession({
-        purpose: entry.target.kind === 'draft' ? 'draft_image' : 'crag_image',
-        contentType: preparedFile.type || 'image/jpeg',
-        fileName: ensureFileName(preparedFile, entry.file.name).trim() || 'upload.jpg',
-        byteSize: preparedFile.size,
-        gpsData,
-        captureDate: upload.captureDate,
-        width: dimensions.width,
-        height: dimensions.height,
-        draftId: entry.target.kind === 'draft' ? entry.target.draftId : undefined,
-        cragId: entry.target.kind === 'crag' ? entry.target.cragId : undefined,
-      }, abortController.signal)
-      uploadSessionImageId = uploadSession.imageId
-
-      uploadDebug('upload-session-created', {
-        clientId: entry.clientId,
-        imageId: uploadSession.imageId,
-        objectKey: uploadSession.objectKey,
-      })
-
-      updateUpload(entry.clientId, (current) => ({
-        ...current,
-        progress: 55,
-        uploadedImageId: uploadSession.imageId,
-        uploadedBucket: uploadSession.bucket,
-        uploadedPath: uploadSession.objectKey,
-      }))
-
-      await uploadFileToMediaSession(uploadSession.uploadUrl, uploadSession.uploadHeaders, preparedFile, {
-        signal: abortController.signal,
-        onProgress: ({ progress }) => {
-          updateUpload(entry.clientId, (current) => ({
-            ...current,
-            progress: Math.max(current.progress, 35 + Math.round(progress * 0.45)),
-          }))
-        },
-      })
-      updateUpload(entry.clientId, (current) => ({ ...current, progress: 80 }))
-
-      const completion = await completeMediaUploadSession(uploadSession.imageId, entry.target.kind === 'draft' ? 'draft_image' : 'crag_image', abortController.signal)
+        const uploadSession = await createMediaUploadSession({
+          clientUploadId: entry.clientId,
+          purpose,
+          contentType: preparedFile.type || 'image/jpeg',
+          fileName: ensureFileName(preparedFile, entry.file.name).trim() || 'upload.jpg',
+          byteSize: preparedFile.size,
+          gpsData,
+          captureDate: upload.captureDate,
+          width: dimensions.width,
+          height: dimensions.height,
+          draftId: entry.target.kind === 'draft' ? entry.target.draftId : undefined,
+          cragId: entry.target.kind === 'crag' ? entry.target.cragId : undefined,
+        }, abortController.signal)
+        uploadSessionImageId = uploadSession.imageId
+        updateUpload(entry.clientId, (current) => ({
+          ...current,
+          progress: 55,
+          uploadedImageId: uploadSession.imageId,
+          uploadedBucket: uploadSession.bucket,
+          uploadedPath: uploadSession.objectKey,
+        }))
+        if (uploadSession.uploadCommitted) {
+          completion = await getMediaUploadStatus(uploadSession.imageId, abortController.signal)
+        } else {
+          await uploadFileToMediaSession(uploadSession.uploadUrl, uploadSession.uploadHeaders, preparedFile, {
+            signal: abortController.signal,
+            onProgress: ({ progress }) => updateUpload(entry.clientId, (current) => ({
+              ...current,
+              progress: Math.max(current.progress, 35 + Math.round(progress * 0.45)),
+            })),
+          })
+          updateUpload(entry.clientId, (current) => ({ ...current, progress: 80 }))
+          completion = await completeMediaUploadSession(uploadSession.imageId, purpose, abortController.signal)
+        }
+      } else {
+        uploadSessionImageId = upload.uploadedImageId
+      }
+      if (!completion || !uploadSessionImageId) throw new Error('Upload session could not be recovered')
       uploadDebug('upload-session-complete-succeeded', {
         clientId: entry.clientId,
-        imageId: uploadSession.imageId,
+        imageId: uploadSessionImageId,
       })
       updateUpload(entry.clientId, (current) => ({
         ...current,
@@ -198,9 +203,10 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       }))
       if (entry.target.kind === 'draft') {
         await attachUpload(entry.clientId)
+        if (userIdRef.current) await removePersistedUpload(userIdRef.current, entry.clientId)
         uploadDebug('attach-upload-succeeded', {
           clientId: entry.clientId,
-          imageId: uploadSession.imageId,
+          imageId: uploadSessionImageId,
         })
       }
 
@@ -220,7 +226,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
         if (mapMediaUploadStatus(finalStatus) === 'MODERATING') {
           await waitForLifecyclePoll(abortController.signal)
         }
-        finalStatus = await pollMediaUploadStatus(uploadSession.imageId, abortController.signal, (statusResponse) => {
+        finalStatus = await pollMediaUploadStatus(uploadSessionImageId, abortController.signal, (statusResponse) => {
           updateUpload(entry.clientId, (current) => ({
             ...current,
             status: mapMediaUploadStatus(statusResponse),
@@ -230,9 +236,10 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       const finalUploadStatus = mapMediaUploadStatus(finalStatus)
       if (finalUploadStatus === 'READY' && entry.target.kind === 'crag') {
         await attachUpload(entry.clientId)
+        if (userIdRef.current) await removePersistedUpload(userIdRef.current, entry.clientId)
         uploadDebug('attach-upload-succeeded', {
           clientId: entry.clientId,
-          imageId: uploadSession.imageId,
+          imageId: uploadSessionImageId,
         })
       }
       updateUpload(entry.clientId, (current) => ({
@@ -267,10 +274,6 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       }
 
       if (window.navigator.onLine === false) setQueuePaused(true)
-
-      if (uploadSessionImageId) {
-        await deleteMediaUploadSession(uploadSessionImageId).catch(() => null)
-      }
 
       updateUpload(entry.clientId, (current) => ({
         ...current,
@@ -365,7 +368,13 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
   startNextUploadRef.current = startNextUpload
 
   const queueUploads = useCallback((files: File[], target: MediaUploadTarget) => {
-    const acceptedFiles = files.slice(0, MAX_UPLOADS_PER_TARGET)
+    const existingCount = Object.values(uploadsRef.current).filter((upload) => {
+      if (upload.target.kind !== target.kind) return false
+      return target.kind === 'draft'
+        ? upload.target.kind === 'draft' && upload.target.draftId === target.draftId
+        : upload.target.kind === 'crag' && upload.target.cragId === target.cragId
+    }).length
+    const acceptedFiles = files.slice(0, Math.max(0, MAX_UPLOADS_PER_TARGET - existingCount))
     const createdAt = Date.now()
 
     const createdUploads = acceptedFiles.map((file, index) => ({
@@ -387,38 +396,39 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       startedAt: createdAt + index,
     }))
 
-    setUploads((current) => {
-      const next = { ...current }
-      createdUploads.forEach((upload) => {
-        next[upload.clientId] = upload
-      })
-      return next
-    })
-    setQueueOrder((current) => [...current, ...createdUploads.map((upload) => upload.clientId)])
-
-    createdUploads.forEach((upload, index) => {
-      const file = acceptedFiles[index]
-      queueEntriesRef.current.set(upload.clientId, { clientId: upload.clientId, target, file })
-      void buildPreviewUrl(file).then((previewUrl) => {
-        updateUpload(upload.clientId, (current) => ({ ...current, previewUrl }))
-      })
-    })
-
-    uploadDebug('queue-created', {
-      target: target.kind,
-      targetId: target.kind === 'draft' ? target.draftId : target.cragId,
-      clientIds: createdUploads.map((upload) => upload.clientId),
-      fileNames: createdUploads.map((upload) => upload.fileName),
-      queueLengthAfterEnqueue: queueOrderRef.current.length + createdUploads.length,
-    })
-
-      const { nextUploads, nextQueueOrder } = enqueueUploads(uploadsRef.current, queueOrderRef.current, createdUploads)
+    void (async () => {
+      const userId = userIdRef.current || (await createClient().auth.getUser()).data.user?.id || null
+      if (!userId) {
+        const failedUploads = createdUploads.map((upload) => ({ ...upload, status: 'FAILED' as const, error: 'Sign in again before saving these photos on this device.' }))
+        const nextUploads = { ...uploadsRef.current, ...Object.fromEntries(failedUploads.map((upload) => [upload.clientId, upload])) }
+        uploadsRef.current = nextUploads
+        setUploads(nextUploads)
+        return
+      }
+      userIdRef.current = userId
+      const durableRecords: Array<{ upload: MediaUploadItem; file: File }> = []
+      const failedUploads: MediaUploadItem[] = []
+      for (let index = 0; index < createdUploads.length; index += 1) {
+        const upload = createdUploads[index]
+        const file = acceptedFiles[index]
+        if (await persistNewUpload(userId, upload, file)) {
+          durableRecords.push({ upload, file })
+          queueEntriesRef.current.set(upload.clientId, { clientId: upload.clientId, target, file })
+        } else {
+          failedUploads.push({ ...upload, status: 'FAILED', error: 'This photo could not be saved on this device. Free storage space, then select it again.' })
+        }
+      }
+      const { nextUploads: queuedUploads, nextQueueOrder } = enqueueUploads(uploadsRef.current, queueOrderRef.current, durableRecords.map((record) => record.upload))
+      const nextUploads = { ...queuedUploads, ...Object.fromEntries(failedUploads.map((upload) => [upload.clientId, upload])) }
       uploadsRef.current = nextUploads
       queueOrderRef.current = nextQueueOrder
-
-    queueMicrotask(() => {
-      startNextUploadRef.current()
-    })
+      setUploads(nextUploads)
+      setQueueOrder(nextQueueOrder)
+      durableRecords.forEach(({ upload, file }) => {
+        void buildPreviewUrl(file).then((previewUrl) => updateUpload(upload.clientId, (current) => ({ ...current, previewUrl })))
+      })
+      queueMicrotask(() => startNextUploadRef.current())
+    })()
   }, [updateUpload])
 
   const retryUpload = useCallback((clientId: string) => {
@@ -456,6 +466,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     }
     setActiveClientId((current) => current === clientId ? null : current)
     setQueuePaused(false)
+    if (userIdRef.current) await removePersistedUpload(userIdRef.current, clientId)
     startNextUploadRef.current()
   }, [revokePreviewUrl, setQueuePaused])
 
@@ -522,6 +533,27 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     window.addEventListener('online', handleOnline)
     return () => window.removeEventListener('online', handleOnline)
   }, [resumeQueue])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const { data } = await createClient().auth.getUser()
+      const userId = data.user?.id
+      if (!userId || cancelled) return
+      userIdRef.current = userId
+      const restored = await restoreUploads(userId)
+      if (cancelled || restored.length === 0) return
+      const restoredUploads = restored.map((record) => record.item)
+      restored.forEach((record) => queueEntriesRef.current.set(record.item.clientId, record.entry))
+      const next = enqueueUploads(uploadsRef.current, queueOrderRef.current, restoredUploads)
+      uploadsRef.current = next.nextUploads
+      queueOrderRef.current = next.nextQueueOrder
+      setUploads(next.nextUploads)
+      setQueueOrder(next.nextQueueOrder)
+      queueMicrotask(() => startNextUploadRef.current())
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const subscribeToUploadComplete = useCallback((callback: UploadCompleteCallback) => {
     subscribersRef.current.add(callback)

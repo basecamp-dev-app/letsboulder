@@ -146,6 +146,7 @@ describe('Media upload session routes', () => {
     } as MiddlewareResult)
 
     const response = await createUploadSession(makeCreateRequest({
+      clientUploadId: '11111111-1111-4111-8111-111111111111',
       purpose: 'submission_image',
       contentType: 'image/jpeg',
       byteSize: 1024,
@@ -167,6 +168,7 @@ describe('Media upload session routes', () => {
     } as unknown as MiddlewareResult)
 
     const response = await createUploadSession(makeCreateRequest({
+      clientUploadId: '11111111-1111-4111-8111-111111111111',
       purpose: 'draft_image',
       contentType: 'image/jpeg',
       byteSize: 1024,
@@ -181,13 +183,19 @@ describe('Media upload session routes', () => {
 
   test('create persists the image row and returns upload details', async () => {
     const insert = vi.fn(async () => ({ error: null }))
+    const maybeSingle = vi.fn(async () => ({ data: null, error: null }))
     const supabase = {
       auth: {
         getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
       },
       from: vi.fn((table: string) => {
         expect(table).toBe('images')
-        return { insert }
+        return {
+          insert,
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle })) })),
+          })),
+        }
       }),
     }
 
@@ -198,6 +206,7 @@ describe('Media upload session routes', () => {
     } as unknown as MiddlewareResult)
 
     const response = await createUploadSession(makeCreateRequest({
+      clientUploadId: '11111111-1111-4111-8111-111111111111',
       purpose: 'submission_image',
       contentType: 'image/jpeg',
       byteSize: 1024,
@@ -218,6 +227,8 @@ describe('Media upload session routes', () => {
       moderation_status: 'skipped',
       moderation_provider: 'disabled',
       processing_status: 'pending',
+      client_upload_id: '11111111-1111-4111-8111-111111111111',
+      upload_purpose: 'submission_image',
     }))
     expect(createPrivateUploadUrl).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg', 'image/jpeg')
     expect(json).toEqual({
@@ -228,6 +239,7 @@ describe('Media upload session routes', () => {
       uploadMethod: 'PUT',
       uploadHeaders: { 'content-type': 'image/jpeg' },
       expiresInSeconds: 900,
+      uploadCommitted: false,
     })
   })
 
@@ -348,6 +360,7 @@ describe('Media upload session routes', () => {
       moderationStatus: 'skipped',
       retryable: false,
       errorCode: 'MEDIA_PROCESSING_FAILED',
+      uploadCommitted: true,
     })
     expect(json).not.toHaveProperty('last_error')
     expect(getAdminClientWithAudit).toHaveBeenCalledOnce()
@@ -413,6 +426,8 @@ describe('Media upload session routes', () => {
                   original_mime_type: 'image/jpeg',
                   original_bytes: 1024,
                   processing_status: 'pending',
+                  upload_purpose: 'submission_image',
+                  checksum_sha256: null,
                 },
                 error: null,
               })),
@@ -438,28 +453,18 @@ describe('Media upload session routes', () => {
     expect(headPrivateObject).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg')
     expect(copyPrivateObject).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg', 'images/assets/image-123/sha256hash/original.jpg')
     expect(deletePrivateObject).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg')
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({
-      original_key: 'images/assets/image-123/sha256hash/original.jpg',
-      storage_path: 'images/assets/image-123/sha256hash/original.jpg',
-      checksum_sha256: expect.any(String),
-    }))
-    expect(eq).toHaveBeenCalledWith('id', 'image-123')
     expect(json).toEqual({
       imageId: 'image-123',
       processingStatus: 'queued',
       moderationStatus: 'pending',
       retryable: false,
       errorCode: null,
+      uploadCommitted: true,
     })
-    expect(rpc).toHaveBeenCalledWith('queue_media_ingest_job', {
+    expect(rpc).toHaveBeenCalledWith('finalize_media_upload', {
       p_image_id: 'image-123',
-      p_original_bucket: 'private-bucket',
       p_original_key: 'images/assets/image-123/sha256hash/original.jpg',
-      p_storage_provider: 'r2',
-      p_purpose: 'submission_image',
-      p_triggered_by_user_id: 'user-1',
-      p_trigger: 'upload',
-      p_auto_approve: false,
+      p_checksum_sha256: expect.any(String),
     })
   })
 test('complete always queues moderation as pending', async () => {
@@ -491,6 +496,8 @@ test('complete always queues moderation as pending', async () => {
                   original_mime_type: 'image/jpeg',
                   original_bytes: 1024,
                   processing_status: 'pending',
+                  upload_purpose: 'crag_image',
+                  checksum_sha256: null,
                 },
                 error: null,
               })),
@@ -513,10 +520,7 @@ test('complete always queues moderation as pending', async () => {
     const json = await response.json()
     expect(response.status).toBe(200)
     expect(json.moderationStatus).toBe('pending')
-    expect(rpc).toHaveBeenCalledWith('queue_media_ingest_job', expect.objectContaining({
-      p_auto_approve: false,
-      p_purpose: 'crag_image',
-    }))
+    expect(rpc).toHaveBeenCalledWith('finalize_media_upload', expect.objectContaining({ p_image_id: 'image-123' }))
   })
 
   test('complete returns ready without queueing an already processed image', async () => {
@@ -539,6 +543,8 @@ test('complete always queues moderation as pending', async () => {
                 moderation_status: 'skipped',
                 visibility: 'public',
                 status: 'approved',
+                upload_purpose: 'submission_image',
+                checksum_sha256: 'sha256hash',
               },
               error: null,
             })),
@@ -565,6 +571,7 @@ test('complete always queues moderation as pending', async () => {
       moderationStatus: 'skipped',
       retryable: false,
       errorCode: null,
+      uploadCommitted: true,
     })
     expect(headPrivateObject).not.toHaveBeenCalled()
     expect(rpc).not.toHaveBeenCalled()
@@ -591,6 +598,8 @@ test('complete always queues moderation as pending', async () => {
                 original_mime_type: 'image/jpeg',
                 original_bytes: 1024,
                 processing_status: 'pending',
+                upload_purpose: 'submission_image',
+                checksum_sha256: null,
               },
               error: null,
             })),
