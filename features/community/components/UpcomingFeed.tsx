@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createCommunityCommentAction, deleteCommunityCommentAction, saveCommunityRsvpAction } from '@/features/community/actions'
 import { CommunitySessionPost } from '@/types/community'
 import { communityKeys, fetchEngagement, type PostEngagement, type SessionComment } from '@/features/community/lib/queries'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 
 interface UpcomingFeedProps {
   posts: CommunitySessionPost[]
@@ -49,6 +50,7 @@ export default function UpcomingFeed({ posts }: UpcomingFeedProps) {
 }
 
 function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
+  const { requireConsent } = useOpenDataConsent()
   const queryClient = useQueryClient()
   const [expandedComments, setExpandedComments] = useState(false)
   const [commentBody, setCommentBody] = useState('')
@@ -197,7 +199,7 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
     setError(null)
     setCommentBody('')
     setExpandedComments(true)
-    void commentMutation.mutate(trimmed)
+    void requireConsent(() => { commentMutation.mutate(trimmed) })
   }
 
   function handleCommentDelete(commentId: string) {

@@ -29,10 +29,13 @@ import {
 } from '@/features/submissions/submission-editor/lib/published-route-editor-state'
 import { usePublishedRouteEditorSync } from '@/features/submissions/submission-editor/hooks/use-published-route-editor-sync'
 import { useUnsavedChangesWarning } from '@/features/editor/hooks/use-unsaved-changes-warning'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
+import { OpenDataLicenseNotice } from '@/features/legal/components/OpenDataLicenseNotice'
 
 export default function EditSubmittedRoutesPage() {
   const searchParams = useSearchParams()
   const { toasts, removeToast } = useToast()
+  const { requireConsent } = useOpenDataConsent()
   const editor = useSubmissionEditorData()
   const location = useSubmissionLocationMetadata({ currentUserId: editor.currentUserId, ownerUserId: editor.ownerUserId, cragId: editor.cragId, initialLatitude: editor.initialLatitude, initialLongitude: editor.initialLongitude, initialCragName: editor.initialCragName, initialRegionTag: editor.initialRegionTag, initialSubArea: editor.initialSubArea, initialFaceDirections: editor.initialFaceDirections, initialLocationMode: editor.initialLocationMode })
   const drawingAreaRef = useRef<HTMLDivElement | null>(null)
@@ -113,7 +116,7 @@ export default function EditSubmittedRoutesPage() {
     editor.setEditedRoutes(routes)
   }, [editor])
 
-  const handleSaveAllChanges = useCallback(async () => {
+  const saveAllChangesAfterConsent = useCallback(async () => {
     if (savingAllChanges || !editor.activeImageId) return
     setSavingAllChanges(true)
     editor.setError(null)
@@ -229,6 +232,10 @@ export default function EditSubmittedRoutesPage() {
     }
   }, [editor, location, savingAllChanges, setRoutes])
 
+  const handleSaveAllChanges = useCallback(() => {
+    void requireConsent(saveAllChangesAfterConsent)
+  }, [requireConsent, saveAllChangesAfterConsent])
+
   if (editor.loading) {
     return <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-500 dark:text-gray-400" /></div>
   }
@@ -238,6 +245,7 @@ export default function EditSubmittedRoutesPage() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div className="mx-auto max-w-6xl px-4 py-4">
         <SubmissionToolbar hasPendingChanges={hasPendingChanges} savingAllChanges={savingAllChanges} onSaveAllChanges={() => { void handleSaveAllChanges() }} />
+        <OpenDataLicenseNotice context="edit" className="mb-3" />
         {editor.error ? <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">{editor.error}</div> : null}
         {editor.success ? <div className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">{editor.success}</div> : null}
         <SubmissionLocationPanel atlasSync={atlasSync} canProposeCragMetadata={!!editor.currentUserId && !!editor.cragId} cragId={editor.cragId} sourceImageId={editor.activeImageId} cragName={location.cragName} regionTag={location.regionTag} subArea={location.subArea} onProposalSubmitted={() => editor.setSuccess('Crag details proposal submitted for review')} latitude={location.latitude} onLatitudeChange={(value) => { location.setLatitude(value); editor.setLatitude(value) }} longitude={location.longitude} onLongitudeChange={(value) => { location.setLongitude(value); editor.setLongitude(value) }} searchQuery={location.searchQuery} onSearchQueryChange={location.setSearchQuery} onSearchLocation={() => { void location.handleSearchLocation() }} searchingLocation={location.searchingLocation} locationSearchError={location.locationSearchError} />

@@ -80,6 +80,7 @@ function makeAuthedSupabase() {
     auth: {
       getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
     },
+    rpc: vi.fn(async () => ({ data: true, error: null })),
     from: vi.fn(),
   }
 }
@@ -181,6 +182,28 @@ describe('Media upload session routes', () => {
     expect(json.error).toBe('draftId is required for draft uploads')
   })
 
+  test('create requires current open data consent before starting an upload', async () => {
+    const supabase = makeAuthedSupabase()
+    supabase.rpc.mockResolvedValue({ data: false, error: null })
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: supabase as never,
+      userId: null,
+    } as unknown as MiddlewareResult)
+
+    const response = await createUploadSession(makeCreateRequest({
+      clientUploadId: '11111111-1111-4111-8111-111111111111',
+      purpose: 'submission_image',
+      contentType: 'image/jpeg',
+      byteSize: 1024,
+      width: 1200,
+      height: 900,
+    }))
+
+    expect(response.status).toBe(428)
+    await expect(response.json()).resolves.toMatchObject({ code: 'OPEN_DATA_CONSENT_REQUIRED' })
+  })
+
   test('create persists the image row and returns upload details', async () => {
     const insert = vi.fn(async () => ({ error: null }))
     const maybeSingle = vi.fn(async () => ({ data: null, error: null }))
@@ -188,6 +211,7 @@ describe('Media upload session routes', () => {
       auth: {
         getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
       },
+      rpc: vi.fn(async () => ({ data: true, error: null })),
       from: vi.fn((table: string) => {
         expect(table).toBe('images')
         return {

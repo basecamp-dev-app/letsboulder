@@ -59,6 +59,12 @@ async function createFixture(client: PoolClient) {
     [userId, `atomic-edit-${userId}@example.test`],
   )
   await client.query(
+    `insert into public.profiles (
+       id, username, email, open_data_consent_version, consent_timestamp
+     ) values ($1, $2, $3, public.current_open_data_consent_version(), now())`,
+    [userId, `atomic-${userId.slice(0, 12)}`, `atomic-edit-${userId}@example.test`],
+  )
+  await client.query(
     `insert into public.images (
        id, url, created_by, status, visibility, processing_status,
        moderation_status, storage_provider, storage_bucket, storage_path,

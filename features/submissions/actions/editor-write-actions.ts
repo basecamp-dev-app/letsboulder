@@ -13,6 +13,7 @@ import {
 } from '@/features/submissions/server/drafts/draft-route-shared'
 import { FACE_DIRECTIONS } from '@/features/submissions/lib/submission-types'
 import type { Json } from '@/types/database'
+import { isOpenDataConsentError, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/lib/open-data-consent'
 
 interface DraftPatchBody {
   images: DraftPatchImage[]
@@ -309,7 +310,10 @@ export async function syncSubmissionDraftRoutesAction(draftId: string, draftImag
     })),
   })
 
-  if (error) return { success: false, error: 'Failed to sync draft routes', status: 500 }
+  if (error) {
+    if (isOpenDataConsentError(error)) return { success: false, error: OPEN_DATA_CONSENT_REQUIRED, status: 428 }
+    return { success: false, error: 'Failed to sync draft routes', status: 500 }
+  }
   return { success: true }
 }
 
@@ -335,6 +339,7 @@ export async function applyPublishedSubmissionEditAction(
   })
 
   if (error) {
+    if (isOpenDataConsentError(error)) return { success: false, error: OPEN_DATA_CONSENT_REQUIRED, status: 428 }
     if (error.details === 'wiki_revision_conflict' || error.code === '40001') {
       return { success: false, error: 'This submission changed while you were editing. Reload it before saving again.', status: 409 }
     }

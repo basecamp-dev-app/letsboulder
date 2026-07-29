@@ -9,6 +9,7 @@ import { reportError } from '@/lib/errors'
 import { isValidGrade } from '@/lib/grade-constants'
 import { getServerClient } from '@/lib/supabase-server'
 import { z } from 'zod'
+import { hasOpenDataConsent, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/lib/open-data-consent'
 
 const submitGradeVoteSchema = z.object({
   climbId: z.string().trim().min(1, 'Climb not found'),
@@ -42,6 +43,7 @@ export async function submitGradeVoteAction(climbId: string, grade: string): Pro
   const { climbId: validatedClimbId, grade: validatedGrade } = validation.data
 
   const supabase = await getServerClient()
+  if (!(await hasOpenDataConsent(supabase))) return { success: false, error: OPEN_DATA_CONSENT_REQUIRED, status: 428 }
   const effectiveClimbId = await resolveEffectiveClimbId(supabase, validatedClimbId)
 
   if (!effectiveClimbId) {

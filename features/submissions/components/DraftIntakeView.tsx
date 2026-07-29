@@ -15,6 +15,7 @@ import { type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'
 import { isMediaUploadPending } from '@/features/media-upload/lib/upload-types'
+import { OpenDataLicenseNotice } from '@/features/legal/components/OpenDataLicenseNotice'
 
 interface DraftImageRecord {
   id: string
@@ -288,6 +289,7 @@ export default function DraftIntakeView({ cragId = null }: { cragId?: string | n
           <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
             <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Upload photos</h2>
             <ImagePicker onFilesSelected={handleFilesSelected} disabled={phase === 'creating'} />
+            <OpenDataLicenseNotice context="media" className="mt-2" />
 
             {error ? (
               <div

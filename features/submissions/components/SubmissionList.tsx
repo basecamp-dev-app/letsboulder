@@ -18,6 +18,8 @@ import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'
 import { formatSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
 import type { Submission } from '@/types/submissions'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
+import { OpenDataLicenseNotice } from '@/features/legal/components/OpenDataLicenseNotice'
 
 interface SubmissionListProps {
   submissions: Submission[]
@@ -43,6 +45,7 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [deleteRouteConfirmation, setDeleteRouteConfirmation] = useState('')
   const [draftSignedUrls, setDraftSignedUrls] = useState<Map<string, string>>(new Map())
+  const { requireConsent } = useOpenDataConsent()
 
   useEffect(() => {
     const draftPreviewObjects = submissions
@@ -101,7 +104,7 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
     setPendingAction(null)
 
     if (action.type === 'publish') {
-      onPublishDraft(action.id)
+      void requireConsent(() => onPublishDraft(action.id))
       return
     }
 
@@ -337,6 +340,7 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
             <DialogTitle>{dialogTitle}</DialogTitle>
             <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
+          {pendingAction?.type === 'publish' ? <OpenDataLicenseNotice context="publish" /> : null}
           {isDeleteAction ? (
             <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
               <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/60">

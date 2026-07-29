@@ -13,6 +13,8 @@ import {
 import { extractGpsFromFile } from '@/lib/image-gps'
 import { isHeicFile, isSupportedImageFile } from '@/lib/image-utils'
 import type { GpsData } from '@/types/domain'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
+import { OpenDataLicenseNotice } from '@/features/legal/components/OpenDataLicenseNotice'
 
 interface ImageUploaderProps {
   onComplete: (result: NewImageSelection) => void
@@ -21,6 +23,7 @@ interface ImageUploaderProps {
 }
 
 export default function ImageUploader({ onComplete, onError, onUploading }: ImageUploaderProps) {
+  const { requireConsent } = useOpenDataConsent()
   const [file, setFile] = useState<File | null>(null)
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
   const [detectedGpsData, setDetectedGpsData] = useState<GpsData | null>(null)
@@ -165,7 +168,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     setIsDragging(false)
   }, [])
 
-  const handleConfirm = useCallback(async () => {
+  const uploadSelectedPhoto = useCallback(async () => {
     if (!compressedFile) {
       onError('No image selected. Please upload an image first.')
       return
@@ -197,6 +200,10 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       onUploading(false, 0, '')
     }
   }, [compressedFile, file, onComplete, onError, onUploading, previewUrl, updateDetectedGps])
+
+  const handleConfirm = useCallback(() => {
+    void requireConsent(uploadSelectedPhoto)
+  }, [requireConsent, uploadSelectedPhoto])
 
   return (
     <div className="image-uploader">
@@ -267,6 +274,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           >
             Upload Photo
           </button>
+          <OpenDataLicenseNotice context="media" />
         </div>
       ) : (
         <div
@@ -296,6 +304,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
                 Choose original image file
               </button>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">or drag and drop it here</p>
+              <OpenDataLicenseNotice context="media" className="mt-2" />
             </div>
 
             <p className="text-xs text-gray-400 dark:text-gray-500">Supports JPEG, PNG, WebP, HEIC, and HEIF up to 20MB.</p>

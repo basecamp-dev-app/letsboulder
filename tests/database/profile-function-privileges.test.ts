@@ -22,6 +22,7 @@ if (!isLoopback && !allowNonLocal) {
 const pool = new Pool({ connectionString: databaseUrl, max: 2, statement_timeout: 15_000 })
 
 const API_EXECUTABLE_DEFINERS = [
+  'accept_open_data_consent(text)',
   'apply_published_submission_edit(uuid,uuid,jsonb)',
   'assert_media_ready_for_publication(uuid[])',
   'claim_submission_collaborator_invite(uuid)',
@@ -47,6 +48,7 @@ const API_EXECUTABLE_DEFINERS = [
   'get_effective_climb_id(uuid)',
   'get_image_pending_flag_count(uuid)',
   'get_own_profile()',
+  'get_open_data_consent_status()',
   'get_place_contributor_leaderboard(uuid,integer)',
   'get_place_pins(boolean)',
   'get_place_rankings_leaderboard(uuid,text,integer,integer,timestamp with time zone)',
@@ -61,6 +63,7 @@ const API_EXECUTABLE_DEFINERS = [
   'get_visible_profile(uuid)',
   'get_verified_routes_count()',
   'insert_grade_vote(uuid,character varying)',
+  'has_valid_open_data_consent(uuid)',
   'is_current_user_admin()',
   'is_submission_collaborator(uuid,uuid)',
   'is_submission_draft_collaborator(uuid,uuid)',
@@ -96,9 +99,12 @@ const RESTRICTED_FUNCTIONS = [
   'create_submission_routes_atomic(uuid,uuid,text,jsonb)',
   'create_submission_routes_service(uuid,uuid,uuid,text,jsonb)',
   'delete_account_atomic(uuid,text,boolean)',
+  'enforce_draft_consent()',
+  'enforce_open_data_consent()',
   'initialize_climb_grade_vote(uuid,uuid,character varying)',
   'fail_media_deletion_job(uuid,uuid,text)',
   'prune_media_deletion_jobs(integer,integer)',
+  'require_open_data_consent()',
   'update_submission_crag_metadata(uuid,text,text,text)',
   'record_contribution_event(uuid,text,integer,text,uuid,uuid,uuid,uuid,uuid,jsonb,text)',
   'retry_media_deletion_job(uuid,uuid,text)',
@@ -270,6 +276,31 @@ describe('profile and function privilege hardening', () => {
         `update public.profiles set display_name = 'Updated owner' where id = $1 returning display_name`,
         [owner.userId],
       )).rows[0].display_name).toBe('Updated owner')
+    })
+  })
+
+  it('records current open data consent only through the identity-bound RPC', async () => {
+    await transaction(async (client) => {
+      const owner = await createProfile(client, false)
+      await setRequestRole(client, 'authenticated', owner.userId)
+
+      expect((await client.query('select public.has_valid_open_data_consent() as valid')).rows[0].valid).toBe(false)
+      expect(await expectedFailure(
+        client,
+        `update public.profiles
+         set open_data_consent_version = 'forged', consent_timestamp = now()
+         where id = $1`,
+        [owner.userId],
+      )).toContain('permission denied')
+      expect(await expectedFailure(
+        client,
+        "select public.accept_open_data_consent('stale-version')",
+      )).toContain('Open data consent version changed')
+
+      const accepted = await client.query("select * from public.accept_open_data_consent('2026-07-29-v1')")
+      expect(accepted.rows[0].open_data_consent_version).toBe('2026-07-29-v1')
+      expect(accepted.rows[0].consent_timestamp).toBeTruthy()
+      expect((await client.query('select public.has_valid_open_data_consent() as valid')).rows[0].valid).toBe(true)
     })
   })
 

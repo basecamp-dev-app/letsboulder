@@ -173,6 +173,8 @@ Image rows in `climb_flag_counts` are limited to publicly deliverable images. Au
 | `deleted_accounts` | Audit log of deleted user accounts |
 | `media_deletion_jobs` | Service-only transactional outbox for private R2 original deletion |
 
+`profiles.open_data_consent_version` and `profiles.consent_timestamp` record the latest Open Data Contributor Terms accepted by an account. `current_open_data_consent_version()` is the required version; changing it requires a migration and causes one-time re-consent on the contributor's next public contribution. Identity-bound RPCs own acceptance and status reads. Contribution triggers enforce consent transactionally while service-role maintenance, deletion, and moderation remain outside the contributor gate.
+
 ### Analytics & Misc Tables
 | Table | Purpose |
 |-------|---------|

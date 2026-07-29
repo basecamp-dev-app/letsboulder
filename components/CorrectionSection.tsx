@@ -5,6 +5,7 @@ import { SELECTABLE_GRADES } from '@/lib/grade-constants'
 import type { CorrectionSectionProps, CorrectionType } from '@/lib/verification-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { reportError } from '@/lib/errors'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 
 const CORRECTION_TYPE_LABELS: Record<CorrectionType, string> = {
   location: 'Location',
@@ -26,6 +27,7 @@ export default function CorrectionSection({
   onSubmitCorrection,
   onVoteCorrection
 }: CorrectionSectionProps) {
+  const { requireConsent } = useOpenDataConsent()
   const [isOpen, setIsOpen] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [correctionType, setCorrectionType] = useState<CorrectionType>('name')
@@ -38,8 +40,7 @@ export default function CorrectionSection({
   const approvedCorrections = corrections.filter(c => c.status === 'approved')
   const rejectedCorrections = corrections.filter(c => c.status === 'rejected')
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submitCorrection = async () => {
     if (loading) return
 
     setLoading(true)
@@ -92,6 +93,11 @@ export default function CorrectionSection({
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    void requireConsent(submitCorrection)
   }
 
   return (
@@ -295,8 +301,9 @@ function CorrectionCard({
   canVote: boolean
 }) {
   const [loading, setLoading] = useState(false)
+  const { requireConsent } = useOpenDataConsent()
 
-  const handleVote = async (voteType: 'approve' | 'reject') => {
+  const vote = async (voteType: 'approve' | 'reject') => {
     if (loading || !canVote) return
     setLoading(true)
     try {
@@ -317,6 +324,10 @@ function CorrectionCard({
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleVote = (voteType: 'approve' | 'reject') => {
+    void requireConsent(() => vote(voteType))
   }
 
   const getStatusColor = () => {

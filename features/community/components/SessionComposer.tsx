@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { createCommunityPostAction } from '@/features/community/actions'
 import type { CommunitySessionPost } from '@/types/community'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 
 interface SessionComposerProps {
   placeId: string
@@ -34,6 +35,7 @@ function toIsoFromDateAndTime(dateValue: string, timeValue: string): string | nu
 }
 
 export default function SessionComposer({ placeId, onOptimisticCreate, onCreateSuccess, onCreateError }: SessionComposerProps) {
+  const { requireConsent } = useOpenDataConsent()
   const [startDate, setStartDate] = useState('')
   const [startTime, setStartTime] = useState('18:00')
   const [endAt, setEndAt] = useState('')
@@ -48,8 +50,7 @@ export default function SessionComposer({ placeId, onOptimisticCreate, onCreateS
     return startDate.trim().length > 0 && body.trim().length > 0 && !isSubmitting
   }, [body, isSubmitting, startDate])
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function submitSession() {
     setError(null)
 
     const startIso = toIsoFromDateAndTime(startDate, startTime)
@@ -126,6 +127,11 @@ export default function SessionComposer({ placeId, onOptimisticCreate, onCreateS
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void requireConsent(submitSession)
   }
 
   return (

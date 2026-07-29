@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
@@ -26,7 +27,7 @@ export default function TermsPage() {
             <li>letsboulder is a climbing map, logbook, route submission, and community platform.</li>
             <li>Climbing is inherently dangerous, and information on letsboulder may be incomplete, inaccurate, or out of date.</li>
             <li>You are responsible for your own safety, access checks, partners, equipment, and decisions.</li>
-            <li>You keep ownership of content you upload, but you give letsboulder permission to host and display it to operate the service.</li>
+            <li>You keep ownership of content you upload. Public contributions are shared under the licenses in the Open Data Contributor Terms.</li>
             <li>We may remove content, suspend accounts, or restrict access to protect users, landowners, and the platform.</li>
           </ul>
         </section>
@@ -90,6 +91,9 @@ export default function TermsPage() {
           </p>
           <p className="text-gray-700 dark:text-gray-300">
             You represent that you have the rights and permissions needed to upload the content and that sharing it does not violate the rights of others.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            When you make a public contribution after accepting the <Link href="/open-data-terms" className="underline">Open Data Contributor Terms</Link>, photos and expressive text are made available under CC BY-SA 4.0, while structured climbing data and route geometry are made available under ODbL 1.0.
           </p>
           <p className="text-gray-700 dark:text-gray-300">
             If you delete your account, some uploaded route content may be deleted or may remain on letsboulder without personal attribution depending on the deletion option available at the time.

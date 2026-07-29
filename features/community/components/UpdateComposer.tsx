@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { createCommunityPostAction } from '@/features/community/actions'
 import type { CommunityUpdatePost } from '@/types/community'
+import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 
 interface UpdateComposerProps {
   placeId: string
@@ -14,6 +15,7 @@ interface UpdateComposerProps {
 type UpdatePostType = 'update' | 'conditions' | 'question'
 
 export default function UpdateComposer({ placeId, onOptimisticCreate, onCreateSuccess, onCreateError }: UpdateComposerProps) {
+  const { requireConsent } = useOpenDataConsent()
   const [type, setType] = useState<UpdatePostType>('update')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -24,8 +26,7 @@ export default function UpdateComposer({ placeId, onOptimisticCreate, onCreateSu
     return body.trim().length > 0 && !isSubmitting
   }, [body, isSubmitting])
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function submitUpdate() {
     setError(null)
 
     const trimmedBody = body.trim()
@@ -85,6 +86,11 @@ export default function UpdateComposer({ placeId, onOptimisticCreate, onCreateSu
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void requireConsent(submitUpdate)
   }
 
   return (
