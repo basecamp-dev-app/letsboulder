@@ -26,6 +26,7 @@ interface UseEditDraftDataParams {
   setLatitude: (value: string) => void
   setLongitude: (value: string) => void
   setShowCragSelector: (value: boolean) => void
+  setSectorId: (value: string | null) => void
 }
 
 export function useEditDraftData({
@@ -36,6 +37,7 @@ export function useEditDraftData({
   setLatitude,
   setLongitude,
   setShowCragSelector,
+  setSectorId,
 }: UseEditDraftDataParams) {
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [, setIsRefreshingDraft] = useState(false)
@@ -203,6 +205,7 @@ export function useEditDraftData({
       setCragId(nextDraft.crag_id)
       setSelectedCrag(nextCrag)
       setShowCragSelector(!nextDraft.crag_id)
+      setSectorId(normalizedMetadata.submission.sectorId || null)
 
       if (savedCanvasSource?.kind === 'crag-image' && typeof savedCanvasSource.cragImageId === 'string' && typeof savedCanvasSource.cragId === 'string') {
         setCanvasSource({ kind: 'crag-image', cragImageId: savedCanvasSource.cragImageId, cragId: savedCanvasSource.cragId })
@@ -246,7 +249,7 @@ export function useEditDraftData({
         setIsRefreshingDraft(false)
       }
     }
-  }, [clearConflict, registerDraftUpdatedAt, setLatitude, setLongitude, setShowCragSelector])
+  }, [clearConflict, registerDraftUpdatedAt, setLatitude, setLongitude, setSectorId, setShowCragSelector])
 
   const syncUploadedImages = useCallback(async () => {
     const currentDraftId = draftIdRef.current

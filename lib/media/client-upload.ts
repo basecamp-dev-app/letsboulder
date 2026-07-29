@@ -3,6 +3,7 @@ import { uploadDebug } from '@/lib/media/upload-debug'
 import type { MediaStatusResponse } from '@/lib/media/types'
 
 interface UploadSessionRequest {
+  clientUploadId: string
   purpose: 'submission_image' | 'draft_image' | 'crag_image'
   contentType: string
   fileName: string
@@ -25,6 +26,7 @@ interface UploadSessionResponse {
   uploadMethod: 'PUT'
   uploadHeaders: Record<string, string>
   expiresInSeconds: number
+  uploadCommitted?: boolean
 }
 
 interface UploadProgressDetails {

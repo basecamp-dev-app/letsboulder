@@ -19,6 +19,7 @@ export interface MediaStatusResponse {
   moderationStatus: MediaModerationStatus
   retryable: boolean
   errorCode: string | null
+  uploadCommitted?: boolean
 }
 
 export interface MediaVariantAsset {
@@ -36,6 +37,7 @@ export type MediaVariantManifest = Partial<Record<MediaVariantKey, MediaVariantF
 export type MediaUploadPurpose = 'submission_image' | 'draft_image' | 'crag_image'
 
 export interface MediaUploadSessionRequest {
+  clientUploadId: string
   purpose: MediaUploadPurpose
   contentType: string
   fileName: string
@@ -59,6 +61,7 @@ export interface MediaUploadSessionResponse {
   uploadMethod: 'PUT'
   uploadHeaders: Record<string, string>
   expiresInSeconds: number
+  uploadCommitted?: boolean
 }
 
 export interface MediaIngestJobPayload {

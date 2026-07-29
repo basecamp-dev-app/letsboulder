@@ -50,6 +50,10 @@ export function normalizeUploadSessionRequest(input: unknown): MediaUploadSessio
 
   const candidate = input as Record<string, unknown>
 
+  if (typeof candidate.clientUploadId !== 'string' || !candidate.clientUploadId) {
+    throw new Error('Invalid client upload ID')
+  }
+
   if (typeof candidate.purpose !== 'string' || !isAllowedPurpose(candidate.purpose)) {
     throw new Error('Invalid media upload purpose')
   }
@@ -99,6 +103,7 @@ export function normalizeUploadSessionRequest(input: unknown): MediaUploadSessio
   })()
 
   return {
+    clientUploadId: candidate.clientUploadId,
     purpose: candidate.purpose,
     contentType: candidate.contentType,
     fileName: normalizeFileName(candidate.fileName, candidate.contentType),

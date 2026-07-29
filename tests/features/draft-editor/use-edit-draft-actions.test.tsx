@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createElement, useEffect } from 'react'
-import { render, act } from '@testing-library/react'
+import { render, renderHook, act } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { useEditDraftActions } from '@/features/draft-editor/hooks/use-edit-draft-actions'
 import type { DraftPayload, DraftRoute, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
@@ -551,6 +551,69 @@ describe('useEditDraftActions', () => {
     expect(mockCsrfFetch).not.toHaveBeenCalled()
     expect(setError).toHaveBeenCalledWith('You are saving too quickly right now. Please wait a moment and try again before publishing.')
     expect(addToast).toHaveBeenCalledWith('You are saving too quickly right now. Please wait a moment and try again before publishing.', 'error')
+  })
+
+  it('does not clear a newer local checkpoint created during a save', async () => {
+    const draft = createDraft()
+    const clearCheckpointAfterSave = vi.fn().mockResolvedValue(undefined)
+    let checkpointRevision = 1
+    let resolveSave!: (response: unknown) => void
+
+    mockCsrfFetch.mockReturnValue(new Promise((resolve) => { resolveSave = resolve }))
+
+    const { result } = renderHook(() => useEditDraftActions({
+        draftId: draft.id,
+        draft,
+        draftUpdatedAt: draft.updated_at,
+        currentUserId: 'user-1',
+        isOwner: true,
+        routeType: 'boulder',
+        creditPlatform: 'instagram',
+        creditHandle: '',
+        isAnonymousSubmission: false,
+        cragId: 'crag-1',
+        sectorId: 'sector-1',
+        canvasSource: null,
+        defaultImageId: 'image-1',
+        manageImages: [createManageImage('image-1')],
+        routesByImageId: { 'image-1': [] },
+        orientationByImageId: {},
+        locationModeByImageId: {},
+        customGpsByImageId: {},
+        markerPosition: [51.5, -0.1],
+        cragSectionRef: { current: null },
+        locationSectionRef: { current: null },
+        hasPendingUploads: () => false,
+        hasFailedUploads: () => false,
+        hasValidLocation: true,
+        flushLocationSync: vi.fn().mockResolvedValue({ ok: true }),
+        loadDraft: vi.fn().mockResolvedValue(undefined),
+        loadCollaborators: vi.fn().mockResolvedValue(undefined),
+        addToast: vi.fn(),
+        setDraft: vi.fn(),
+        setDraftUpdatedAt: vi.fn(),
+        setError: vi.fn(),
+        setSuccess: vi.fn(),
+        setConflict: vi.fn(),
+        setActiveImageId: vi.fn(),
+        getCheckpointRevision: () => checkpointRevision,
+        clearCheckpointAfterSave,
+      }))
+
+    act(() => { result.current.markMetadataDirty() })
+    const saving = result.current.saveDraft()
+    act(() => {
+      checkpointRevision = 2
+      result.current.markMetadataDirty()
+    })
+    resolveSave?.({
+      ok: true,
+      status: 200,
+      json: async () => ({ draft: { updated_at: '2026-07-29T10:00:00.000Z' } }),
+    })
+
+    await act(async () => { await saving })
+    expect(clearCheckpointAfterSave).not.toHaveBeenCalled()
   })
 
 })

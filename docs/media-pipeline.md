@@ -3,10 +3,10 @@
 ## Upload And Ingest
 
 1. The authenticated client calls the `POST /api/media/upload-sessions` Route Handler. The request identifies a `draft_image`, `crag_image`, or `submission_image` and includes dimensions plus client-extracted capture/GPS data when available.
-2. The Route Handler creates the authoritative `images` row as private/pending and returns a presigned R2 `PUT` URL from `createPrivateUploadUrl()` (`lib/media/r2.ts`, 15-minute TTL).
+2. The Route Handler creates the authoritative `images` row as private/pending and returns a presigned R2 `PUT` URL from `createPrivateUploadUrl()` (`lib/media/r2.ts`, 15-minute TTL). The auth-scoped `clientUploadId` is unique per user, so replaying session creation recovers the same image row and renews the signed URL.
 3. The browser uploads directly to the private R2 bucket. The app server does not proxy the bytes.
 4. The client calls `POST /api/media/upload-sessions/<imageId>/complete`. The handler verifies ownership and that the private object exists.
-5. `queue_media_ingest_job(...)` atomically changes the image to queued and inserts or reuses a durable `media_jobs` row. This database outbox is the source of truth.
+5. `finalize_media_upload(...)` atomically commits the immutable locator and invokes `queue_media_ingest_job(...)`, which changes the image to queued and inserts or reuses a durable `media_jobs` row. This database outbox is the source of truth and finalization is replay-safe.
 6. If `CF_MEDIA_WORKER_URL` and `CF_MEDIA_WORKER_SECRET` are configured, completion also best-effort calls Worker `POST /enqueue`. That Cloudflare Queue path reduces latency but is optional; its failure does not invalidate the durable job.
 7. The Worker queue consumer handles the fast path. Its scheduled handler uses its service-role client to call service-only `claim_media_job(worker_name)` and recover durable work, with retry/backoff and terminal failure recorded in `media_jobs`.
 
@@ -40,9 +40,9 @@ The Worker's `PUBLIC_BUCKET` binding is distinct from image delivery. Requests u
 
 ## Client Upload Queue
 
-`MediaUploadManagerProvider` owns one in-memory, serial queue for the submission/edit layout in which it is mounted. Files, object URLs, progress, retry state, and polling state are not persisted across a full page reload or provider unmount.
+`MediaUploadManagerProvider` owns a serial queue backed by the auth-scoped `letsboulder-contributions` IndexedDB database. A selected `File` is committed to IndexedDB before network work starts; queue metadata is checkpointed after lifecycle changes and restored on the next authenticated visit. Preview object URLs are regenerated from the stored Blob.
 
-The lifecycle is `QUEUED` -> preprocessing -> presigned upload -> completion/queued ingest -> status polling -> `READY` or `FAILED`. Transfer failures can be retried or deleted; an offline failure pauses the queue, and the browser `online`, page visibility, and page-show events resume eligible work while the provider remains mounted.
+The lifecycle is `QUEUED` -> preprocessing -> presigned upload -> completion/queued ingest -> status polling -> `READY` or `FAILED`. On recovery, the client reconciles a stored image ID with the server before transferring: committed uploads skip the PUT, while unfinished uploads reuse the stable client ID and restart the whole-file PUT with a fresh URL. Browser bytes are removed only after draft attachment or final crag attachment is confirmed. Transfer failures can be retried or deleted; an offline failure pauses the queue, and browser reconnect/page lifecycle events resume eligible work.
 
 Attachment timing differs by target:
 

@@ -91,6 +91,7 @@ export async function uploadSubmissionImageSession(file: File, gpsData: GpsData 
   URL.revokeObjectURL(objectUrl)
   const fileName = file.name.trim() || `upload.${(file.type || 'image/jpeg').split('/')[1] || 'jpg'}`
   const uploadSession = await createMediaUploadSession({
+    clientUploadId: crypto.randomUUID(),
     purpose: 'submission_image',
     contentType: file.type || 'image/jpeg',
     fileName,

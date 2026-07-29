@@ -56,7 +56,10 @@ export async function GET(
       return createErrorResponse(jobError, 'Failed to read upload status')
     }
 
-    return NextResponse.json(toMediaStatusResponse(data, latestJob))
+    return NextResponse.json({
+      ...toMediaStatusResponse(data, latestJob),
+      uploadCommitted: data.processing_status !== 'pending',
+    })
   } catch (error) {
     return createErrorResponse(error, 'Failed to read upload status')
   }

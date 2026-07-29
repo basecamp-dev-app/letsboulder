@@ -9,7 +9,7 @@ import { buildImmutableObjectKey, inferExtensionFromMime } from '@/lib/media/upl
 import type { Database } from '@/types/database'
 
 type ImageRow = Pick<Database['public']['Tables']['images']['Row'],
-  'id' | 'created_by' | 'original_bucket' | 'original_key' | 'original_mime_type' | 'original_bytes' | 'processing_status' | 'moderation_status' | 'visibility' | 'status'>
+  'id' | 'created_by' | 'original_bucket' | 'original_key' | 'original_mime_type' | 'original_bytes' | 'processing_status' | 'moderation_status' | 'visibility' | 'status' | 'upload_purpose' | 'checksum_sha256'>
 
 const completeUploadSchema = z.object({
   purpose: z.enum(['submission_image', 'draft_image', 'crag_image']).optional(),
@@ -104,7 +104,7 @@ export async function POST(
 
     const { data, error } = await supabase
       .from('images')
-      .select('id, created_by, original_bucket, original_key, original_mime_type, original_bytes, processing_status, moderation_status, visibility, status')
+      .select('id, created_by, original_bucket, original_key, original_mime_type, original_bytes, processing_status, moderation_status, visibility, status, upload_purpose, checksum_sha256')
       .eq('id', imageId)
       .single()
 
@@ -121,8 +121,22 @@ export async function POST(
       return NextResponse.json({ error: 'Image original location is incomplete' }, { status: 400 })
     }
 
-    if (image.processing_status === 'ready') {
-      return NextResponse.json(toMediaStatusResponse(image, null))
+    if (image.upload_purpose !== purpose) {
+      return NextResponse.json({ error: 'Upload purpose does not match the session' }, { status: 409 })
+    }
+
+    if (image.processing_status !== 'pending') {
+      return NextResponse.json({ ...toMediaStatusResponse(image, null), uploadCommitted: true })
+    }
+
+    if (image.original_key.startsWith(`images/assets/${image.id}/`) && image.checksum_sha256) {
+      const { data: job, error: finalizeError } = await supabase.rpc('finalize_media_upload', {
+        p_image_id: image.id,
+        p_original_key: image.original_key,
+        p_checksum_sha256: image.checksum_sha256,
+      })
+      if (finalizeError) return createErrorResponse(finalizeError, 'Failed to queue image for ingest')
+      return NextResponse.json({ ...toMediaStatusResponse({ ...image, processing_status: 'queued' }, job), uploadCommitted: true })
     }
 
     const head = await headPrivateObject(image.original_key)
@@ -143,44 +157,25 @@ export async function POST(
 
     await copyPrivateObject(image.original_key, immutableKey)
 
-    const { error: updateError } = await supabase
-      .from('images')
-      .update({
-        original_key: immutableKey,
-        storage_path: immutableKey,
-        checksum_sha256: sha256,
-      })
-      .eq('id', imageId)
+    const { data: job, error: finalizeError } = await supabase.rpc('finalize_media_upload', {
+      p_image_id: image.id,
+      p_original_key: immutableKey,
+      p_checksum_sha256: sha256,
+    })
 
-    if (updateError) {
-      await deletePrivateObject(immutableKey)
-      return createErrorResponse(updateError, 'Failed to update image record')
+    if (finalizeError) {
+      return createErrorResponse(finalizeError, 'Failed to queue image for ingest')
     }
 
     await deletePrivateObject(image.original_key)
 
-    const { data: job, error: queueError } = await supabase.rpc('queue_media_ingest_job', {
-      p_image_id: image.id,
-      p_original_bucket: image.original_bucket,
-      p_original_key: immutableKey,
-      p_storage_provider: 'r2',
-      p_purpose: purpose,
-      p_triggered_by_user_id: user.id,
-      p_trigger: 'upload',
-      p_auto_approve: false,
-    })
-
-    if (queueError) {
-      return createErrorResponse(queueError, 'Failed to queue image for ingest')
-    }
-
-    return NextResponse.json(toMediaStatusResponse({
+    return NextResponse.json({ ...toMediaStatusResponse({
       id: image.id,
       processing_status: 'queued',
       moderation_status: 'pending',
       visibility: 'private',
       status: 'pending',
-    }, job))
+    }, job), uploadCommitted: true })
   } catch (error) {
     return createErrorResponse(error, 'Failed to finalize upload session')
   }

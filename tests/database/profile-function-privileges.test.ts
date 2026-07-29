@@ -31,6 +31,7 @@ const API_EXECUTABLE_DEFINERS = [
   'delete_submission_draft_atomic(uuid)',
   'delete_submission_draft_image_atomic(uuid,uuid,timestamp with time zone)',
   'delete_unassociated_upload_image(uuid)',
+  'finalize_media_upload(uuid,text,text)',
   'get_active_climbers_count()',
   'get_boulders_with_gps_count()',
   'get_crag_contributor_leaderboard(uuid,integer)',

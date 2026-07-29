@@ -50,6 +50,9 @@ interface UseEditDraftActionsParams {
   setConflict: (value: DraftConflictState | null) => void
   setActiveImageId: (value: string | null | ((current: string | null) => string | null)) => void
   setLocationSyncInFlight?: (value: boolean) => void
+  onRoutesChanged?: () => void
+  getCheckpointRevision?: () => number
+  clearCheckpointAfterSave?: (revision: number) => Promise<void>
 }
 
 export function useEditDraftActions({
@@ -87,6 +90,9 @@ export function useEditDraftActions({
   setSuccess,
   setConflict,
   setLocationSyncInFlight,
+  onRoutesChanged,
+  getCheckpointRevision,
+  clearCheckpointAfterSave,
 }: UseEditDraftActionsParams) {
   const router = useRouter()
   const [savingDraft, setSavingDraft] = useState(false)
@@ -102,6 +108,16 @@ export function useEditDraftActions({
   const markRoutesDirty = useCallback((imageIds: string[]) => {
     for (const imageId of imageIds) dirtyRoutesRef.current.add(imageId)
     if (imageIds.length > 0) {
+      dirtyVersionRef.current += 1
+      onRoutesChanged?.()
+      setHasPendingChanges(true)
+    }
+  }, [onRoutesChanged])
+
+  const markRecoveredChanges = useCallback((imageIds: string[], sectorChanged: boolean) => {
+    for (const imageId of imageIds) dirtyRoutesRef.current.add(imageId)
+    if (sectorChanged) hasUnsavedMetadataRef.current = true
+    if (imageIds.length > 0 || sectorChanged) {
       dirtyVersionRef.current += 1
       setHasPendingChanges(true)
     }
@@ -223,6 +239,7 @@ export function useEditDraftActions({
     if (dirtyRoutesRef.current.size === 0 && !hasUnsavedMetadataRef.current && !options?.overrideCragId && !forceMetadataSave) return true
 
     const savingDirtyVersion = dirtyVersionRef.current
+    const savingCheckpointRevision = getCheckpointRevision?.() || 0
     saveInFlightRef.current = true
     setSavingDraft(true)
     setLocationSyncInFlight?.(true)
@@ -297,6 +314,7 @@ export function useEditDraftActions({
         for (const imageId of syncedImageIds) dirtyRoutesRef.current.delete(imageId)
         hasUnsavedMetadataRef.current = false
         setHasPendingChanges(false)
+        await clearCheckpointAfterSave?.(savingCheckpointRevision)
       }
       setConflict(null)
       setSuccess('Draft saved. Not published to the map.')
@@ -309,7 +327,7 @@ export function useEditDraftActions({
       setSavingDraft(false)
       setLocationSyncInFlight?.(false)
     }
-  }, [buildSavePayload, cragId, currentUserId, draft, draftUpdatedAt, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes, setLocationSyncInFlight])
+  }, [buildSavePayload, clearCheckpointAfterSave, cragId, currentUserId, draft, draftUpdatedAt, getCheckpointRevision, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes, setLocationSyncInFlight])
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return
@@ -440,6 +458,7 @@ export function useEditDraftActions({
     publishValidationMessage,
     markMetadataDirty,
     markRoutesDirty,
+    markRecoveredChanges,
     saveDraft,
     handleDeleteDraft,
     persistMetadataImmediately,

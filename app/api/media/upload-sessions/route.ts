@@ -10,6 +10,7 @@ import type { MediaUploadSessionResponse } from '@/lib/media/types'
 import { parseWithSchema } from '@/lib/api-validation'
 
 const uploadSessionSchema = z.object({
+  clientUploadId: z.string().uuid(),
   purpose: z.enum(['submission_image', 'draft_image', 'crag_image']),
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic']),
   byteSize: z.number().int().positive().max(20 * 1024 * 1024),
@@ -50,6 +51,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'cragId is required for crag image uploads' }, { status: 400 })
     }
 
+    const existingResult = await supabase
+      .from('images')
+      .select('id, created_by, original_bucket, original_key, original_mime_type, original_bytes, processing_status, upload_purpose, upload_draft_id, upload_crag_id')
+      .eq('created_by', user.id)
+      .eq('client_upload_id', body.clientUploadId)
+      .maybeSingle()
+
+    if (existingResult.error) {
+      return createErrorResponse(existingResult.error, 'Failed to resume image upload session')
+    }
+
+    if (existingResult.data) {
+      const existing = existingResult.data
+      const targetMatches = existing.upload_purpose === payload.purpose
+        && (existing.upload_draft_id ?? null) === (payload.draftId ?? null)
+        && (existing.upload_crag_id ?? null) === (payload.cragId ?? null)
+        && existing.original_mime_type === payload.contentType
+        && existing.original_bytes === payload.byteSize
+      if (!targetMatches || !existing.original_key) {
+        return NextResponse.json({ error: 'Upload session details do not match the original request' }, { status: 409 })
+      }
+
+      const uploadTarget = existing.processing_status === 'pending'
+        ? await createPrivateUploadUrl(existing.original_key, payload.contentType)
+        : null
+      return NextResponse.json({
+        imageId: existing.id,
+        objectKey: existing.original_key,
+        bucket: existing.original_bucket || uploadTarget?.bucket || getMediaStorageConfig().privateBucket,
+        uploadUrl: uploadTarget?.uploadUrl || '',
+        uploadMethod: 'PUT' as const,
+        uploadHeaders: uploadTarget?.uploadHeaders || {},
+        expiresInSeconds: uploadTarget?.expiresInSeconds || 0,
+        uploadCommitted: existing.processing_status !== 'pending',
+      } satisfies MediaUploadSessionResponse)
+    }
+
     const imageId = randomUUID()
     const stagingKey = buildStagingObjectKey(imageId, payload)
     const storage = getMediaStorageConfig()
@@ -79,6 +117,10 @@ export async function POST(request: NextRequest) {
       moderation_error: null,
       processing_status: 'pending',
       status: 'pending',
+      client_upload_id: body.clientUploadId,
+      upload_purpose: payload.purpose,
+      upload_draft_id: payload.draftId ?? null,
+      upload_crag_id: payload.cragId ?? null,
     }
 
     const { error: insertError } = await supabase
@@ -110,6 +152,7 @@ export async function POST(request: NextRequest) {
       uploadMethod: 'PUT',
       uploadHeaders: uploadTarget.uploadHeaders,
       expiresInSeconds: uploadTarget.expiresInSeconds,
+      uploadCommitted: false,
     }
 
     return NextResponse.json(response)

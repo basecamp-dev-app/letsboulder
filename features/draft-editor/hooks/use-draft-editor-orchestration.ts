@@ -21,6 +21,7 @@ import { useDraftLocationMetadata } from '@/features/submissions/editor/location
 import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { useDraftConflictResolution } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
 import { useDraftRouteEditing } from '@/features/draft-editor/hooks/use-draft-route-editing'
+import { useDraftEditorCheckpoint } from '@/features/draft-editor/hooks/use-draft-editor-checkpoint'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import {
@@ -147,6 +148,7 @@ export function useDraftEditorOrchestration({
     setLatitude,
     setLongitude,
     setShowCragSelector,
+    setSectorId,
   })
 
   useEffect(() => {
@@ -166,6 +168,19 @@ export function useDraftEditorOrchestration({
     clearCanvasState,
   })
   const { imagesPayload, imagesPayloadSignature } = useDraftEditorData({ draft, routeType, routesByImageId, manageImages })
+
+  const checkpointCallbacksRef = useRef<{
+    markCheckpointChanged: () => void
+    getCheckpointRevision: () => number
+    clearCheckpointAfterSave: (revision: number) => Promise<void>
+  }>({
+    markCheckpointChanged: () => {},
+    getCheckpointRevision: () => 0,
+    clearCheckpointAfterSave: async () => {},
+  })
+  const markCheckpointRoutesChanged = useCallback(() => checkpointCallbacksRef.current.markCheckpointChanged(), [])
+  const getCheckpointRevision = useCallback(() => checkpointCallbacksRef.current.getCheckpointRevision(), [])
+  const clearCheckpointAfterSave = useCallback((revision: number) => checkpointCallbacksRef.current.clearCheckpointAfterSave(revision), [])
 
   const {
     pendingDraftUploads,
@@ -334,6 +349,7 @@ export function useDraftEditorOrchestration({
     handleManualSave,
     publishDraft,
     handleReloadLatestDraft,
+    markRecoveredChanges,
   } = useEditDraftActions({
     draftId,
     draft,
@@ -370,7 +386,23 @@ export function useDraftEditorOrchestration({
     setConflict,
     setActiveImageId,
     setLocationSyncInFlight,
+    onRoutesChanged: markCheckpointRoutesChanged,
+    getCheckpointRevision,
+    clearCheckpointAfterSave,
   })
+
+  const checkpoint = useDraftEditorCheckpoint({
+    draft,
+    currentUserId,
+    routesByImageId,
+    sectorId,
+    setRoutesByImageId,
+    setSectorId,
+    markRecoveredChanges,
+  })
+  useEffect(() => {
+    checkpointCallbacksRef.current = checkpoint
+  }, [checkpoint])
 
   useEffect(() => {
     if (!activeImageId) return
@@ -618,6 +650,7 @@ export function useDraftEditorOrchestration({
       onSectorChange: (value: string | null) => {
         setSectorId(value)
         markMetadataDirty()
+        checkpoint.markCheckpointChanged()
       },
       onAnonymousChange: (value: boolean) => {
         setIsAnonymousSubmission(value)
