@@ -5,7 +5,7 @@ const metadataStore = createStore('letsboulder-contributions', 'media-queue')
 const blobStore = createStore('letsboulder-contributions', 'media-blobs')
 
 interface PersistedUploadMetadata {
-  schemaVersion: 1
+  schemaVersion: 1 | 2
   userId: string
   item: Omit<MediaUploadItem, 'previewUrl'>
   lastModified: number
@@ -27,7 +27,7 @@ function canUseIndexedDb() {
 function isMetadata(value: unknown): value is PersistedUploadMetadata {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Partial<PersistedUploadMetadata>
-  return candidate.schemaVersion === 1
+  return (candidate.schemaVersion === 1 || candidate.schemaVersion === 2)
     && typeof candidate.userId === 'string'
     && typeof candidate.lastModified === 'number'
     && Boolean(candidate.item && typeof candidate.item.clientId === 'string')
@@ -37,14 +37,24 @@ export async function persistNewUpload(userId: string, item: MediaUploadItem, fi
   if (!canUseIndexedDb()) return false
   const storageKey = key(userId, item.clientId)
   const persistedItem = { ...item, previewUrl: undefined }
+  const [previousBlob, previousMetadata] = await Promise.all([
+    get<Blob>(storageKey, blobStore).catch(() => undefined),
+    get<unknown>(storageKey, metadataStore).catch(() => undefined),
+  ])
   try {
     await set(storageKey, file, blobStore)
     delete persistedItem.previewUrl
-    await set(storageKey, { schemaVersion: 1, userId, item: persistedItem, lastModified: file.lastModified } satisfies PersistedUploadMetadata, metadataStore)
+    await set(storageKey, { schemaVersion: 2, userId, item: persistedItem, lastModified: file.lastModified } satisfies PersistedUploadMetadata, metadataStore)
     return true
   } catch {
-    await del(storageKey, blobStore).catch(() => undefined)
-    await del(storageKey, metadataStore).catch(() => undefined)
+    await Promise.all([
+      previousBlob === undefined
+        ? del(storageKey, blobStore).catch(() => undefined)
+        : set(storageKey, previousBlob, blobStore).catch(() => undefined),
+      previousMetadata === undefined
+        ? del(storageKey, metadataStore).catch(() => undefined)
+        : set(storageKey, previousMetadata, metadataStore).catch(() => undefined),
+    ])
     return false
   }
 }
@@ -87,7 +97,7 @@ export async function restoreUploads(userId: string): Promise<RestoredUpload[]> 
         error: null,
         previewUrl: URL.createObjectURL(blob),
       }
-      return { item, entry: { clientId: item.clientId, target: item.target, file } }
+      return { item, entry: { clientId: item.clientId, target: item.target, file, isPrepared: record.schemaVersion === 2 } }
     }))
     return restored.filter((record): record is RestoredUpload => record !== null)
   } catch {

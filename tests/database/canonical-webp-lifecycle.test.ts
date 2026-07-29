@@ -1,0 +1,212 @@
+import { randomUUID } from 'node:crypto'
+import { isIP } from 'node:net'
+
+import { Pool, type PoolClient } from 'pg'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+const databaseUrl = process.env.TEST_DATABASE_URL
+  || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+const hostname = new URL(databaseUrl).hostname.replace(/^\[|\]$/g, '')
+const isLoopback = hostname === 'localhost' || hostname === '::1'
+  || (isIP(hostname) === 4 && hostname.startsWith('127.'))
+
+if (!isLoopback && process.env.TEST_DATABASE_ALLOW_NON_LOCAL !== 'true') {
+  throw new Error(`Refusing database tests against non-loopback host ${hostname}`)
+}
+
+const pool = new Pool({ connectionString: databaseUrl, max: 2, statement_timeout: 15_000 })
+
+async function transaction(run: (client: PoolClient) => Promise<void>) {
+  const client = await pool.connect()
+  await client.query('begin')
+  try {
+    await run(client)
+  } finally {
+    await client.query('rollback')
+    client.release()
+  }
+}
+
+async function setServiceRole(client: PoolClient) {
+  await client.query('set local role service_role')
+  await client.query("select set_config('request.jwt.claims', '{\"role\":\"service_role\"}', true)")
+}
+
+function locators(imageId: string) {
+  const contentId = 'a'.repeat(64)
+  return {
+    originalBucket: 'private-media',
+    originalKey: `images/assets/${imageId}/${'b'.repeat(64)}/original.jpg`,
+    optimizedBucket: 'private-media',
+    optimizedKey: `images/assets/${imageId}/${contentId}/canonical.webp`,
+    url: `/media/${imageId}/${contentId}/canonical.webp`,
+  }
+}
+
+async function insertPendingImage(client: PoolClient, imageId: string) {
+  const locator = locators(imageId)
+  await client.query(
+    `insert into public.images (
+       id, url, status, storage_provider, original_bucket, original_key,
+       processing_status, moderation_status, visibility
+     ) values ($1, 'private://pending', 'pending', 'r2', $2, $3,
+       'processing', 'skipped', 'private')`,
+    [imageId, locator.originalBucket, locator.originalKey],
+  )
+  return locator
+}
+
+async function commit(client: PoolClient, imageId: string, locator: ReturnType<typeof locators>) {
+  return client.query(
+    `select public.commit_media_webp(
+       $1, $2, $3, $4, $5, 'image/webp', 12345, 1200, 800,
+       '{"canonical":{"format":"webp"}}'::jsonb, $6
+     ) as job_id`,
+    [imageId, locator.originalBucket, locator.originalKey,
+      locator.optimizedBucket, locator.optimizedKey, locator.url],
+  )
+}
+
+beforeAll(async () => {
+  const result = await pool.query(
+    "select to_regprocedure('public.commit_media_webp(uuid,text,text,text,text,text,bigint,integer,integer,jsonb,text)') is not null as installed",
+  )
+  if (!result.rows[0].installed) throw new Error('Canonical WebP lifecycle migration is not installed')
+})
+
+afterAll(async () => pool.end())
+
+describe('canonical WebP lifecycle', () => {
+  it('atomically commits the derivative and queues original deletion', async () => {
+    await transaction(async (client) => {
+      const imageId = randomUUID()
+      const locator = await insertPendingImage(client, imageId)
+      await setServiceRole(client)
+      await client.query(
+        `update public.images
+         set processing_status = 'ready', visibility = 'public', status = 'approved'
+         where id = $1`,
+        [imageId],
+      )
+      const cragId = randomUUID()
+      await client.query('insert into public.crags (id, name) values ($1, $2)', [cragId, 'Canonical Test Crag'])
+      await client.query(
+        `insert into public.crag_images (crag_id, url, width, height, linked_image_id, source_image_id)
+         values ($1, $2, 4000, 3000, $3, $3)`,
+        [cragId, `private://${locator.originalBucket}/${locator.originalKey}`, imageId],
+      )
+
+      const jobId = (await commit(client, imageId, locator)).rows[0].job_id
+      const image = (await client.query(
+        `select optimized_bucket, optimized_key, optimized_mime, optimized_bytes,
+                optimized_width, optimized_height, storage_bucket, storage_path,
+                processing_status, moderation_status, visibility, status, variants, url,
+                processed_at is not null as processed, original_deletion_queued_at is not null as queued
+         from public.images where id = $1`,
+        [imageId],
+      )).rows[0]
+      expect(image).toEqual({
+        optimized_bucket: locator.optimizedBucket,
+        optimized_key: locator.optimizedKey,
+        optimized_mime: 'image/webp',
+        optimized_bytes: '12345',
+        optimized_width: 1200,
+        optimized_height: 800,
+        storage_bucket: locator.optimizedBucket,
+        storage_path: locator.optimizedKey,
+        processing_status: 'ready',
+        moderation_status: 'skipped',
+        visibility: 'public',
+        status: 'approved',
+        variants: { canonical: { format: 'webp' } },
+        url: locator.url,
+        processed: true,
+        queued: true,
+      })
+      expect((await client.query(
+        'select id, bucket, object_key, reason from public.media_deletion_jobs where image_id = $1',
+        [imageId],
+      )).rows).toEqual([{
+        id: jobId,
+        bucket: locator.originalBucket,
+        object_key: locator.originalKey,
+        reason: 'source_replaced',
+      }])
+      expect((await client.query(
+        'select url, width, height from public.crag_images where linked_image_id = $1',
+        [imageId],
+      )).rows).toEqual([{
+        url: `private://${locator.optimizedBucket}/${locator.optimizedKey}`,
+        width: 1200,
+        height: 800,
+      }])
+    })
+  })
+
+  it('returns the same deletion job for an exact replay', async () => {
+    await transaction(async (client) => {
+      const imageId = randomUUID()
+      const locator = await insertPendingImage(client, imageId)
+      await setServiceRole(client)
+
+      const first = (await commit(client, imageId, locator)).rows[0].job_id
+      const replay = (await commit(client, imageId, locator)).rows[0].job_id
+
+      expect(replay).toBe(first)
+      expect((await client.query(
+        "select count(*)::integer as count from public.media_deletion_jobs where image_id = $1 and reason = 'source_replaced'",
+        [imageId],
+      )).rows[0].count).toBe(1)
+    })
+  })
+
+  it('rejects a stale source without committing derivative state', async () => {
+    await transaction(async (client) => {
+      const imageId = randomUUID()
+      const locator = await insertPendingImage(client, imageId)
+      await setServiceRole(client)
+      await client.query('savepoint stale_source')
+
+      await expect(commit(client, imageId, { ...locator, originalKey: `${locator.originalKey}.stale` }))
+        .rejects.toThrow('Stale image source')
+      await client.query('rollback to savepoint stale_source')
+
+      expect((await client.query(
+        'select optimized_key, processing_status from public.images where id = $1',
+        [imageId],
+      )).rows).toEqual([{ optimized_key: null, processing_status: 'processing' }])
+      expect((await client.query(
+        'select id from public.media_deletion_jobs where image_id = $1',
+        [imageId],
+      )).rows).toEqual([])
+    })
+  })
+
+  it('captures both original and optimized objects when an image is deleted', async () => {
+    await transaction(async (client) => {
+      const imageId = randomUUID()
+      const locator = locators(imageId)
+      await setServiceRole(client)
+      await client.query(
+        `insert into public.images (
+           id, url, status, storage_provider, original_bucket, original_key,
+           optimized_bucket, optimized_key, optimized_mime, optimized_bytes,
+           optimized_width, optimized_height
+         ) values ($1, $2, 'pending', 'r2', $3, $4, $5, $6, 'image/webp', 12345, 1200, 800)`,
+        [imageId, locator.url, locator.originalBucket, locator.originalKey,
+          locator.optimizedBucket, locator.optimizedKey],
+      )
+
+      await client.query('delete from public.images where id = $1', [imageId])
+
+      expect((await client.query(
+        `select bucket, object_key, reason from public.media_deletion_jobs
+         where image_id = $1 order by object_key`,
+        [imageId],
+      )).rows).toEqual([
+        { bucket: locator.optimizedBucket, object_key: locator.optimizedKey, reason: 'image_hard_deleted' },
+        { bucket: locator.originalBucket, object_key: locator.originalKey, reason: 'image_hard_deleted' },
+      ].sort((a, b) => a.object_key.localeCompare(b.object_key)))
+    })
+  })
+})

@@ -9,6 +9,10 @@ type WorkerR2Object = {
   httpMetadata?: { contentType?: string | null }
 }
 
+type WorkerR2PutOptions = {
+  httpMetadata?: { contentType?: string; cacheControl?: string }
+}
+
 type WorkerR2Range = {
   offset: number
   length?: number
@@ -22,6 +26,7 @@ type WorkerR2ObjectBody = WorkerR2Object & {
 type WorkerR2Bucket = {
   head(key: string): Promise<WorkerR2Object | null>
   get(key: string, options?: { range?: WorkerR2Range }): Promise<WorkerR2ObjectBody | null>
+  put(key: string, value: ArrayBuffer | ArrayBufferView | Blob | ReadableStream | string, options?: WorkerR2PutOptions): Promise<WorkerR2Object | null>
   delete(key: string): Promise<void>
 }
 

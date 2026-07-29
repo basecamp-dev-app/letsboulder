@@ -133,12 +133,11 @@ jobs:
               END AS inferred_purpose
             FROM public.images i
             WHERE i.original_bucket = 'lb-prod-media-private'
-              AND i.original_key LIKE 'images/originals/%/original.%'
-              AND i.url LIKE 'private://lb-prod-media-private/images/originals/%'
-              AND i.visibility = 'public'
-              AND i.processing_status = 'queued'
-              AND i.processed_at IS NULL
-              AND i.variants = '{}'::jsonb
+              AND i.storage_provider = 'r2'
+              AND i.original_key ~ ('^images/(assets|originals)/' || i.id::text || '/')
+              AND i.optimized_key IS NULL
+              AND i.status <> 'deleted'
+              AND i.created_by IS NOT NULL
               $sample_filter
             ORDER BY i.created_at ASC
             LIMIT $limit
@@ -236,6 +235,7 @@ jobs:
               visibility,
               processing_status,
               processed_at,
+              optimized_key,
               variants
             FROM public.images
             WHERE id::text IN (${ids_sql})
@@ -253,7 +253,7 @@ jobs:
           echo "$verified" > verified-images.json
           jq '.' verified-images.json
 
-          unresolved_count=$(jq '[.[] | select(.processing_status != "ready" or .processed_at == null or (.url | startswith("private://")) or .variants == {})] | length' verified-images.json)
+          unresolved_count=$(jq '[.[] | select(.processing_status != "ready" or .processed_at == null or .optimized_key == null or (.url | startswith("private://")) or .variants == {})] | length' verified-images.json)
           if [ "$unresolved_count" -gt 0 ]; then
             echo "::warning::Some images are still unresolved after enqueue"
             exit 1
