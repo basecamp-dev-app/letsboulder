@@ -37,6 +37,7 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology.
 - **Media pipeline**: Cloudflare Worker in `apps/media-worker` backed by R2 buckets
 - **Media delivery**: CDN at `static.letsboulder.com` (prod) / `static.dev.letsboulder.com` (staging)
 - **Network resilience**: Online-first loading with explicit connection and retry states
+- **Open data**: Signed nightly ODbL snapshots in a dedicated public R2 bucket
 
 ## Getting Started
 
@@ -72,6 +73,10 @@ See [`.env.example`](.env.example) for the categorized application, media, integ
 | `R2_*` | Media | R2 endpoint, buckets, and presigning credentials |
 | `NEXT_PUBLIC_MEDIA_CDN_URL` | Media | CDN base URL |
 | `RESEND_API_KEY` | No | Transactional emails (Resend) |
+| `PUBLIC_DATA_EXPORT_DATABASE_URL` | Export workflow | Dedicated read-only PostgreSQL login; never a service-role credential |
+| `OPEN_DATA_R2_ACCESS_KEY_ID`, `OPEN_DATA_R2_SECRET_ACCESS_KEY` | Export workflow | Dedicated public-data bucket credentials |
+| `OPEN_DATA_MINISIGN_PRIVATE_KEY`, `OPEN_DATA_MINISIGN_PUBLIC_KEY` | Export workflow | Matching signing keys stored in the protected Production environment |
+| `OPEN_DATA_R2_ENDPOINT`, `OPEN_DATA_R2_BUCKET`, `OPEN_DATA_PUBLIC_BASE_URL` | Export workflow | Production environment variables for storage and public discovery |
 
 ## Deployment
 
@@ -119,6 +124,7 @@ git push -u origin my-change
 - [Migrations](docs/db/migrations.md) — migration workflow and safety rules
 - [Patterns](docs/patterns.md) — canvas, maps, GPS, HEIC, offline, media pipeline
 - [Media Pipeline](docs/media-pipeline.md) — end-to-end image ingest and delivery
+- [Open Data Exports](docs/open-data-exports.md) - ODbL artifacts, verification, retention, and operations
 - [API Routes](docs/api/routes.md) — route handler reference
 - [Testing](docs/testing/) — E2E, unit, and integration test guide
 - [Auth & Security](docs/auth-security.md) — CSRF, rate limiting, auth patterns
