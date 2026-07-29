@@ -19,6 +19,10 @@ Browser
                                                         |-- cron/queue --------> Supabase media jobs/images
                                                         |-- deletion cron -----> private R2 originals
                                                         `-- optional fast path -> Cloudflare MEDIA_QUEUE
+
+GitHub Actions nightly --> read-only PostgreSQL export login --> dedicated public-data R2 bucket
+                              |-- signed immutable dated snapshots
+                              `-- latest.json discovery pointer
 ```
 
 The durable `media_jobs` database outbox is authoritative for media ingest. `media_deletion_jobs` is the transactional outbox for private-original deletion. Cloudflare Queue is an optional low-latency and legacy-backfill ingest transport, not the source of truth.
@@ -56,6 +60,12 @@ The durable `media_jobs` database outbox is authoritative for media ingest. `med
 - Offline mode is a pins-only degraded view; it does not claim that the hosted basemap is available offline.
 - Public R2 `/maps/*` assets served by the media Worker are a separate storage/delivery concern from the configured OpenFreeMap basemap.
 
+### Public Data Exports
+
+- A protected Production GitHub Actions workflow reads allowlisted public facts through a dedicated read-only PostgreSQL login, produces ODbL JSONL snapshots, and writes them to a dedicated public-data R2 bucket.
+- Dated artifacts and signed manifests are immutable; `latest.json` changes only after a complete snapshot is uploaded. This pipeline does not export media or use the Supabase service role.
+- Signing, location privacy, retention, consumer verification, and recovery are documented in `docs/open-data-exports.md`. R2 lifecycle policy remains external production configuration.
+
 ## Authentication And Request Security
 
 1. The browser Supabase client persists its session in `localStorage`; server clients use request cookies through `@supabase/ssr`. Each runtime must use its own client.
@@ -87,6 +97,7 @@ Do not put server truth into Zustand or infer durable upload recovery from React
 | Supabase PostgreSQL | RLS/service-role controlled | Product records, media metadata, durable outbox, moderation and verification state | Supabase clients/RPCs |
 | Private R2 bucket | Private | Uploaded originals, which may retain EXIF | Browser presigned PUT; app object checks; Worker binding/private origin |
 | Public R2 bucket | Public through controlled routes | `/maps/*` assets and legacy public objects | Worker `PUBLIC_BUCKET`; not the active image-variant destination |
+| Public-data R2 bucket | Public bulk download | Signed, immutable ODbL snapshots and mutable discovery metadata | Nightly GitHub Actions export; separate credentials and lifecycle policy |
 | Cloudflare edge cache | Public delivery cache | On-demand resized image responses | `static.*` Worker route and Image Resizing |
 | Browser IndexedDB | Per browser and auth scope | Opt-in non-community React Query cache | Query persister |
 | Browser memory/blob URLs | Page/provider local | Selected upload files, previews, queue state, editor state | React context/hooks/Zustand |
@@ -152,6 +163,7 @@ Code outside `app/` must not import reusable logic from `@/app/**`. Submission a
 | `app/api/media/upload-sessions/` | Upload session create/status/complete/delete HTTP surface |
 | `lib/media/r2.ts` | App-side R2 presigning and object operations |
 | `apps/media-worker/src/index.ts` | Durable ingest and virtual image/map delivery |
+| `.github/workflows/public-data-export-nightly.yml` | Protected nightly public-data snapshot publication |
 | `lib/map/vector-map-config.ts` | MapLibre style selection and offline mode |
 | `features/media-upload/` | In-memory client upload queue and attachment lifecycle |
 | `features/route-editor/` | Canvas editor and feature-owned Zustand state |

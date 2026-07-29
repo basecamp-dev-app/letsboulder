@@ -115,6 +115,13 @@ export type Database = {
             referencedRelation: "climbs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "climb_corrections_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
         ]
       }
       climb_flags: {
@@ -169,10 +176,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "climb_flags_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "climb_flags_crag_id_fkey"
             columns: ["crag_id"]
             isOneToOne: false
             referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climb_flags_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
             referencedColumns: ["id"]
           },
           {
@@ -209,6 +230,13 @@ export type Database = {
             columns: ["climb_id"]
             isOneToOne: false
             referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climb_verifications_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
             referencedColumns: ["id"]
           },
         ]
@@ -261,6 +289,13 @@ export type Database = {
             referencedRelation: "climbs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "climb_video_betas_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
         ]
       }
       climbs: {
@@ -277,6 +312,9 @@ export type Database = {
           id: string
           is_verified: boolean | null
           latitude: number | null
+          location_visibility:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
           longitude: number | null
           name: string | null
           original_grade_string: string | null
@@ -305,6 +343,9 @@ export type Database = {
           id?: string
           is_verified?: boolean | null
           latitude?: number | null
+          location_visibility?:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
           longitude?: number | null
           name?: string | null
           original_grade_string?: string | null
@@ -333,6 +374,9 @@ export type Database = {
           id?: string
           is_verified?: boolean | null
           latitude?: number | null
+          location_visibility?:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
           longitude?: number | null
           name?: string | null
           original_grade_string?: string | null
@@ -357,6 +401,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "climbs_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "climbs_grade_index_fkey"
             columns: ["grade_index"]
             isOneToOne: false
@@ -374,6 +425,13 @@ export type Database = {
             foreignKeyName: "climbs_sector_id_fkey"
             columns: ["sector_id"]
             isOneToOne: false
+            referencedRelation: "public_data_export_sectors_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
             referencedRelation: "sectors"
             referencedColumns: ["id"]
           },
@@ -385,10 +443,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "climbs_shared_climb_id_fkey"
+            columns: ["shared_climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "climbs_superseded_by_fkey"
             columns: ["superseded_by"]
             isOneToOne: false
             referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
             referencedColumns: ["id"]
           },
         ]
@@ -649,6 +721,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contribution_bounties_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "contribution_bounties_created_by_event_id_fkey"
             columns: ["created_by_event_id"]
             isOneToOne: false
@@ -729,10 +808,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contribution_events_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "contribution_events_crag_id_fkey"
             columns: ["crag_id"]
             isOneToOne: false
             referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contribution_events_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
             referencedColumns: ["id"]
           },
           {
@@ -894,10 +987,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "crag_images_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "crag_images_linked_image_id_fkey"
             columns: ["linked_image_id"]
             isOneToOne: false
             referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crag_images_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_sectors_v1"
             referencedColumns: ["id"]
           },
           {
@@ -944,6 +1051,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "crag_location_tags_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "crag_location_tags_tag_id_fkey"
             columns: ["tag_id"]
             isOneToOne: false
@@ -977,6 +1091,13 @@ export type Database = {
             columns: ["crag_id"]
             isOneToOne: false
             referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crag_maintainers_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
             referencedColumns: ["id"]
           },
         ]
@@ -1062,6 +1183,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "crag_metadata_proposals_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "crag_metadata_proposals_source_image_id_fkey"
             columns: ["source_image_id"]
             isOneToOne: false
@@ -1115,6 +1243,13 @@ export type Database = {
             referencedRelation: "crags"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "crag_reports_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
         ]
       }
       crags: {
@@ -1134,6 +1269,7 @@ export type Database = {
           last_edited_by: string | null
           latitude: number | null
           location: unknown
+          location_visibility: Database["public"]["Enums"]["location_visibility"]
           longitude: number | null
           name: string
           region_id: string | null
@@ -1165,6 +1301,7 @@ export type Database = {
           last_edited_by?: string | null
           latitude?: number | null
           location?: unknown
+          location_visibility?: Database["public"]["Enums"]["location_visibility"]
           longitude?: number | null
           name: string
           region_id?: string | null
@@ -1196,6 +1333,7 @@ export type Database = {
           last_edited_by?: string | null
           latitude?: number | null
           location?: unknown
+          location_visibility?: Database["public"]["Enums"]["location_visibility"]
           longitude?: number | null
           name?: string
           region_id?: string | null
@@ -1231,6 +1369,13 @@ export type Database = {
             columns: ["superseded_by"]
             isOneToOne: false
             referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crags_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
             referencedColumns: ["id"]
           },
         ]
@@ -1353,6 +1498,13 @@ export type Database = {
             columns: ["climb_id"]
             isOneToOne: false
             referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grade_votes_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
             referencedColumns: ["id"]
           },
         ]
@@ -1794,6 +1946,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "images_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "images_parent_image_id_fkey"
             columns: ["parent_image_id"]
             isOneToOne: false
@@ -1812,6 +1971,13 @@ export type Database = {
             columns: ["upload_crag_id"]
             isOneToOne: false
             referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "images_upload_crag_id_fkey"
+            columns: ["upload_crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
             referencedColumns: ["id"]
           },
           {
@@ -2247,6 +2413,30 @@ export type Database = {
         }
         Relationships: []
       }
+      public_data_export_registry: {
+        Row: {
+          deleted_at: string | null
+          entity_id: string
+          entity_type: string
+          first_eligible_at: string
+          superseded_by: string | null
+        }
+        Insert: {
+          deleted_at?: string | null
+          entity_id: string
+          entity_type: string
+          first_eligible_at?: string
+          superseded_by?: string | null
+        }
+        Update: {
+          deleted_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          first_eligible_at?: string
+          superseded_by?: string | null
+        }
+        Relationships: []
+      }
       published_edit_mutations: {
         Row: {
           base_revision: number
@@ -2359,6 +2549,13 @@ export type Database = {
             referencedRelation: "climbs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "route_grades_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
         ]
       }
       route_lines: {
@@ -2404,6 +2601,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "route_lines_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "route_lines_image_id_fkey"
             columns: ["image_id"]
             isOneToOne: false
@@ -2436,6 +2640,13 @@ export type Database = {
             referencedRelation: "climbs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "saved_climbs_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
         ]
       }
       saved_crags: {
@@ -2460,6 +2671,13 @@ export type Database = {
             columns: ["crag_id"]
             isOneToOne: false
             referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_crags_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
             referencedColumns: ["id"]
           },
         ]
@@ -2489,6 +2707,13 @@ export type Database = {
             columns: ["crag_id"]
             isOneToOne: false
             referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sectors_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
             referencedColumns: ["id"]
           },
         ]
@@ -2896,6 +3121,13 @@ export type Database = {
             referencedRelation: "crags"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "submission_drafts_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
         ]
       }
       submission_edit_history: {
@@ -3019,6 +3251,13 @@ export type Database = {
             referencedRelation: "climbs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_climbs_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
         ]
       }
       user_place_contributor_scores: {
@@ -3090,6 +3329,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wiki_entities_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: true
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wiki_entities_crag_id_fkey"
             columns: ["crag_id"]
             isOneToOne: true
@@ -3097,10 +3343,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wiki_entities_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: true
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wiki_entities_image_id_fkey"
             columns: ["image_id"]
             isOneToOne: true
             referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entities_route_line_id_fkey"
+            columns: ["route_line_id"]
+            isOneToOne: true
+            referencedRelation: "public_data_export_route_lines_v1"
             referencedColumns: ["id"]
           },
           {
@@ -3342,7 +3602,244 @@ export type Database = {
             referencedRelation: "crags"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "crag_reports_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      public_data_export_crags_v1: {
+        Row: {
+          country: string | null
+          country_code: string | null
+          country_id: string | null
+          created_at: string | null
+          id: string | null
+          latitude: number | null
+          location_visibility:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
+          longitude: number | null
+          name: string | null
+          region_id: string | null
+          region_name: string | null
+          rock_type: string | null
+          slug: string | null
+          sub_area: string | null
+          tide_dependency: string | null
+          type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          country?: string | null
+          country_code?: string | null
+          country_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          latitude?: never
+          location_visibility?:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
+          longitude?: never
+          name?: string | null
+          region_id?: string | null
+          region_name?: string | null
+          rock_type?: string | null
+          slug?: string | null
+          sub_area?: string | null
+          tide_dependency?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          country?: string | null
+          country_code?: string | null
+          country_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          latitude?: never
+          location_visibility?:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
+          longitude?: never
+          name?: string | null
+          region_id?: string | null
+          region_name?: string | null
+          rock_type?: string | null
+          slug?: string | null
+          sub_area?: string | null
+          tide_dependency?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crags_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crags_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_data_export_route_lines_v1: {
+        Row: {
+          climb_id: string | null
+          color: string | null
+          created_at: string | null
+          id: string | null
+          image_height: number | null
+          image_width: number | null
+          points: Json | null
+          sequence_order: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_lines_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_lines_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_data_export_routes_v1: {
+        Row: {
+          consensus_grade: string | null
+          crag_id: string | null
+          created_at: string | null
+          effective_climb_id: string | null
+          grade: string | null
+          grade_index: number | null
+          id: string | null
+          is_verified: boolean | null
+          latitude: number | null
+          location_visibility:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
+          longitude: number | null
+          name: string | null
+          original_grade_string: string | null
+          route_type: string | null
+          sector_id: string | null
+          shared_climb_id: string | null
+          slug: string | null
+          updated_at: string | null
+          verification_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "climbs_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_grade_index_fkey"
+            columns: ["grade_index"]
+            isOneToOne: false
+            referencedRelation: "grade_mappings"
+            referencedColumns: ["grade_index"]
+          },
+          {
+            foreignKeyName: "climbs_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_sectors_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "sectors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_shared_climb_id_fkey"
+            columns: ["shared_climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_shared_climb_id_fkey"
+            columns: ["shared_climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_data_export_sectors_v1: {
+        Row: {
+          crag_id: string | null
+          created_at: string | null
+          id: string | null
+          name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sectors_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sectors_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_data_export_tombstones_v1: {
+        Row: {
+          deleted_at: string | null
+          entity_type: string | null
+          id: string | null
+          superseded_by: string | null
+        }
+        Insert: {
+          deleted_at?: string | null
+          entity_type?: string | null
+          id?: string | null
+          superseded_by?: string | null
+        }
+        Update: {
+          deleted_at?: string | null
+          entity_type?: string | null
+          id?: string | null
+          superseded_by?: string | null
+        }
+        Relationships: []
       }
       worker_health: {
         Row: {
@@ -4308,6 +4805,9 @@ export type Database = {
           id: string
           is_verified: boolean | null
           latitude: number | null
+          location_visibility:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
           longitude: number | null
           name: string | null
           original_grade_string: string | null
@@ -4349,6 +4849,7 @@ export type Database = {
           last_edited_by: string | null
           latitude: number | null
           location: unknown
+          location_visibility: Database["public"]["Enums"]["location_visibility"]
           longitude: number | null
           name: string
           region_id: string | null
@@ -4541,7 +5042,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      location_visibility: "exact" | "approximate" | "hidden"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5216,7 +5717,9 @@ export const Constants = {
     Enums: {},
   },
   public: {
-    Enums: {},
+    Enums: {
+      location_visibility: ["exact", "approximate", "hidden"],
+    },
   },
   storage: {
     Enums: {

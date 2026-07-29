@@ -1,0 +1,88 @@
+name: Public Data Export Nightly
+
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      export_date:
+        description: 'Optional UTC snapshot date (YYYY-MM-DD)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-data-export
+  cancel-in-progress: false
+
+jobs:
+  export:
+    name: Publish public data export
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 45
+    env:
+      EXPORT_DATE: ${{ inputs.export_date }}
+      PUBLIC_DATA_EXPORT_DATABASE_URL: ${{ secrets.PUBLIC_DATA_EXPORT_DATABASE_URL }}
+      OPEN_DATA_R2_ACCESS_KEY_ID: ${{ secrets.OPEN_DATA_R2_ACCESS_KEY_ID }}
+      OPEN_DATA_R2_SECRET_ACCESS_KEY: ${{ secrets.OPEN_DATA_R2_SECRET_ACCESS_KEY }}
+      OPEN_DATA_MINISIGN_PRIVATE_KEY: ${{ secrets.OPEN_DATA_MINISIGN_PRIVATE_KEY }}
+      OPEN_DATA_MINISIGN_PUBLIC_KEY: ${{ secrets.OPEN_DATA_MINISIGN_PUBLIC_KEY }}
+      OPEN_DATA_R2_ENDPOINT: ${{ vars.OPEN_DATA_R2_ENDPOINT }}
+      OPEN_DATA_R2_BUCKET: ${{ vars.OPEN_DATA_R2_BUCKET }}
+      OPEN_DATA_PUBLIC_BASE_URL: ${{ vars.OPEN_DATA_PUBLIC_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.20.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --prefer-offline
+
+      - name: Install minisign
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes minisign
+          minisign -v
+
+      - name: Validate export configuration
+        shell: bash
+        run: |
+          required_vars=(
+            PUBLIC_DATA_EXPORT_DATABASE_URL
+            OPEN_DATA_R2_ACCESS_KEY_ID
+            OPEN_DATA_R2_SECRET_ACCESS_KEY
+            OPEN_DATA_MINISIGN_PRIVATE_KEY
+            OPEN_DATA_MINISIGN_PUBLIC_KEY
+            OPEN_DATA_R2_ENDPOINT
+            OPEN_DATA_R2_BUCKET
+            OPEN_DATA_PUBLIC_BASE_URL
+          )
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required export configuration: $var"
+              exit 1
+            fi
+          done
+
+          if [ -n "$EXPORT_DATE" ]; then
+            if ! [[ "$EXPORT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || \
+              [ "$(date --date="$EXPORT_DATE" +%F 2>/dev/null || true)" != "$EXPORT_DATE" ]; then
+              echo '::error::export_date must be a valid date in YYYY-MM-DD format'
+              exit 1
+            fi
+          fi
+
+      - name: Typecheck export scripts
+        run: npm run typecheck:scripts
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Publish export
+        run: npm run export:public-data

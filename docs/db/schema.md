@@ -72,8 +72,8 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 ### Core Tables
 | Table | Purpose |
 |-------|---------|
-| `crags` | Climbing locations with canonical latitude/longitude and generated PostGIS geography, country/region references |
-| `climbs` | Individual routes/problems with grade, name, crag reference |
+| `crags` | Climbing locations with canonical latitude/longitude, export visibility, generated PostGIS geography, country/region references |
+| `climbs` | Individual routes/problems with grade, name, crag reference, and optional export visibility override |
 | `images` | Route photos with media-pipeline state, moderation, GPS coordinates |
 | `profiles` | User profiles; public-safe columns are separated from private and server-owned fields by column grants and RLS |
 | `places` | Unified location entity (crags + gyms) |
@@ -137,6 +137,21 @@ Public totals are available only through sanitized aggregate views:
 These views are owned by the non-login, non-bypass `operational_aggregate_reader` role. That role receives column-level access only to grouping keys, statuses, and active-target predicates and has dedicated RLS policies; it cannot read identities or free-form moderation fields. Flag/report rows for deleted crags, deleted climbs, deleted images, or images under deleted crags are excluded explicitly.
 
 Image rows in `climb_flag_counts` are limited to publicly deliverable images. Authenticated callers use `get_image_pending_flag_count(image_id)` for a scalar count on public images, their own private images, or private images shared with them; the RPC returns zero when the image is not visible to the caller.
+
+### Public Data Export
+`location_visibility` is an enum with `exact`, `approximate`, and `hidden`. `crags.location_visibility` is required and defaults to fail-closed `hidden`; `climbs.location_visibility` is a nullable override. A route's effective policy is the stricter parent/route value (`hidden` > `approximate` > `exact`). Crag exports round approximate coordinates to two decimals and omit hidden coordinates. Route coordinates are exported only under an effective `exact` policy; approximate and hidden route coordinates are omitted.
+
+The versioned database export surfaces are:
+
+| View | Contents |
+|------|----------|
+| `public_data_export_crags_v1` | Active crags with nonblank slug/country code and policy-filtered coordinates |
+| `public_data_export_routes_v1` | Active/approved routes under eligible crags, with effective shared climb ID and location policy |
+| `public_data_export_route_lines_v1` | Route geometry for exported routes on ready, approved/skipped, public, approved media with an active crag parent when present |
+| `public_data_export_sectors_v1` | Sectors under eligible crags |
+| `public_data_export_tombstones_v1` | Deleted crag/route IDs, deletion timestamps, and optional replacements; deletion reasons are excluded |
+
+These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN NOINHERIT NOBYPASSRLS` role whose narrow base-table grants and dedicated RLS policies are limited to view evaluation. The separate `public_data_export_reader` role receives only view `SELECT` and has no source-table grants, so workflow credentials cannot bypass location filtering. Neither role has usable or unexpected memberships; identities, descriptions, access notes, media identifiers/URLs, deletion reasons, and moderation details are not exported. `public_data_export_registry` records crag/route IDs when they first become export-eligible and retains deletion time/replacement metadata on soft or hard deletion, allowing tombstones to remain complete without source rows or mutable status/routing fields; it contains no user data and is not readable by the workflow role.
 
 ### Submission Tables
 | Table | Purpose |

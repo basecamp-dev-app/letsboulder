@@ -16,6 +16,7 @@ for path in \
   "CONTRIBUTING.md" \
   "docs/README.md" \
   "docs/architecture.md" \
+  "docs/open-data-exports.md" \
   "docs/submission-workflow.md" \
   "docs/media-pipeline.md" \
   "docs/moderation.md" \
