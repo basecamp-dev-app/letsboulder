@@ -165,7 +165,7 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 
 ---
 
-## 7. Vector Maps / Network Fallback
+## 7. Offline Crag Packs / Vector Maps
 
 ### Pattern
 - Keep navigation online-first and rely on normal browser/CDN HTTP caching.
@@ -173,27 +173,35 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - Load the hosted OpenFreeMap style via `NEXT_PUBLIC_MAP_STYLE_URL`, defaulting to `https://tiles.openfreemap.org/styles/liberty`.
 - Do not add live third-party raster basemaps, satellite toggles, or separate raster label layers by default.
 - Use clear connection states when live map data cannot load. Pins-only rendering is a visual degradation, not an offline-availability promise.
+- User-selected crag packs are the explicit offline product. Store their versioned public metadata in the dedicated `letsboulder-offline-packs` IndexedDB database and immutable fixed-format media in the shared `letsboulder-offline-immutable-v1` Cache API cache.
+- Treat manifest installation as add, activate, then garbage collect. Cache and checkpoint every new asset before atomically moving the pack's active-version pointer; never replace a readable version with a partial update.
+- Keep downloads foreground-resumable instead of assuming a service worker will remain alive. The worker serves shells and cached responses; IndexedDB download jobs own recovery.
 
 ### Key Files
-- `components/OfflineRetirementCleanup.tsx` — root-mounted cleanup for old service workers and IndexedDB pack keys
-- `components/ServiceWorkerRegistration.tsx` — registers `/sw.js` only so returning clients receive the retirement worker
-- `public/sw.js` — retirement worker that removes `offline-*` and `runtime-transient-v2` caches, then unregisters itself
+- `components/ServiceWorkerRegistration.tsx` — root-mounted registration and safe update prompt for `/sw.js`
+- `public/sw.js` — active offline shells, network-first navigation fallback, and immutable build/pack media caching
+- `features/offline/components/OfflineLibraryView.tsx` — installed pack library backed by the offline pack store
+- `features/offline/components/OfflineCragViewer.tsx` — standalone IndexedDB-backed crag metadata, topo, route-line, and pins-only viewer
 - `components/map/MapLibreVectorMap.tsx` — shared MapLibre primitive for live vector maps
 - `components/map/MapLibreLocationPicker.tsx` — shared click/drag location picker map
 - `components/map/MapLibreStaticLocationMap.tsx` — shared non-interactive location snippet map
 - `lib/map/vector-map-config.ts` — shared resolver for hosted style vs pins-only fallback
 - `lib/map/maplibre-style.ts` — MapLibre style resolver
-- `lib/offline/storage.ts` — legacy pack types/readers plus `clearStoredOfflinePackRecords()` for four retired IndexedDB keys
-- `lib/offline/service-worker-client.ts` — unregisters letsboulder `/sw.js` registrations and removes retired Cache Storage entries
+- `features/offline/lib/offline-pack-database.ts` — versioned offline pack metadata and ownership records in IndexedDB
+- `lib/offline/service-worker-client.ts` — browser capability checks and shared registration/chunk-recovery constants
 - `lib/offline/tiles.ts`, `components/OfflineCragMapSnippet.tsx`, and `/api/offline-tiles/**` — legacy raster compatibility artifacts retained during retirement
-- `features/offline/` — shallow cached-page compatibility/fallback code; not a downloadable offline-pack feature
+- `features/offline/lib/offline-pack-*.ts` — validated manifests, resumable versioned downloads, immutable media ownership, and external-store state
 - `lib/query-persistence.ts` — React Query IndexedDB persistence (12h max age)
 - `features/media-upload/lib/durable-upload-store.ts` — auth-scoped contribution Blob and queue checkpoints retained until server attachment is confirmed
 - `features/draft-editor/lib/draft-editor-checkpoint.ts` — auth-scoped unsaved route geometry and sector checkpoints
 
 ### Known Edge Cases
-- **Cache retirement:** Do not add caching/fetch handlers to `/sw.js`. Keep the tombstone registration and root cleanup available long enough to reach returning clients.
-- **Stored data:** Cleanup deletes `offline-climb-packs`, `offline-pack-records`, `offline-climb-manifests`, and `offline-crag-manifests`; it does not delete auth-scoped React Query caches.
+- **Cache retirement:** Activation deletes only the explicit retired cache names in `/sw.js`; never delete unrelated Cache Storage entries or the active immutable pack cache.
+- **Shell releases:** Bump the shell/static cache suffix when changing the worker or offline shell contract. Installation must fully cache required shells and discovered Next assets before activation removes the preceding owned release cache.
+- **Stored data:** Pack versions activate only after every owned immutable asset is cached; removal keeps assets still owned by another installed pack.
+- **Quota:** Compare browser storage estimates against uncached incremental bytes with safety headroom. Browser persistence requests remain best-effort and the UI must surface failures.
+- **Updates:** Opening a downloaded crag checks its deterministic manifest version while online. Changed packs require user confirmation; a failed update leaves the active version intact.
+- **Auth:** Crag packs contain public content only and are device-local, so auth changes do not remove them. Never mix personal logs, private media, signed URLs, or collaboration data into a public pack.
 - **Network routes:** Preserve the current screen when a refetch fails and provide retry controls for failed initial loads.
 - **Hosted basemap CSP:** `tiles.openfreemap.org` must remain allowed in `connect-src`, `img-src`, and `font-src`.
 - **Legacy maps:** `/api/offline-tiles` is retirement-only infrastructure and must not be presented as available offline.

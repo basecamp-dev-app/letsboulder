@@ -443,24 +443,25 @@ async function handleMapAsset(request: Request, env: Env, url: URL) {
 async function handleMedia(request: Request, env: Env, url: URL) {
   const pathname = url.pathname.substring(1)
 
-  const staticVariantMatch = pathname.match(/^(images\/[^/]+\/v1\/)([a-z0-9_-]+)\.([a-z]+)$/i)
+  const staticVariantMatch = pathname.match(/^images\/([^/]+)\/v([1-9][0-9]*)\/([a-z0-9_-]+)\.([a-z]+)$/i)
   let objectKey: string
   let variant: string | null = null
   let width: number | null = null
 
   if (staticVariantMatch) {
-    const uuid = staticVariantMatch[1]?.replace(/^images\//, '').replace(/\/v1\/$/, '')
-    variant = staticVariantMatch[2] ?? null
+    const uuid = staticVariantMatch[1]
+    const requestedAssetVersion = Number(staticVariantMatch[2])
+    variant = staticVariantMatch[3] ?? null
     width = getVariantWidth(variant)
 
     const supabase = createSupabaseAdminClient(env)
     const { data: image } = await supabase
       .from('images')
-      .select('original_key, processing_status, visibility, status, moderation_status')
+      .select('original_key, asset_version, processing_status, visibility, status, moderation_status')
       .eq('id', uuid)
       .single()
 
-    if (!image || image.processing_status !== 'ready' || image.visibility !== 'public' ||
+    if (!image || image.asset_version !== requestedAssetVersion || image.processing_status !== 'ready' || image.visibility !== 'public' ||
         image.status !== 'approved' || !['approved', 'skipped'].includes(image.moderation_status ?? '')) {
       return new Response('Not found', { status: 404 })
     }

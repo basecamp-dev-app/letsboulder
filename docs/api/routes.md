@@ -24,6 +24,7 @@
 | media | Media serving, upload sessions, private media proxy | Optional | Yes |
 | moderation | Admin submission-moderation queue and voting | Yes (admin) | Yes |
 | notifications | Authenticated notification reads | Yes | No |
+| offline-packs | Versioned public crag-pack manifests | No | No |
 | offline-tiles | Retirement-only legacy raster tile proxy | No | No |
 | places | Place management, nearby search, search | Optional | Yes |
 | profile | User profile operations | Yes | Yes |
@@ -130,6 +131,10 @@ Admin-only submission moderation. `GET moderation/queue` filters queue items by 
 ### notifications
 
 Authenticated paginated notification reads with optional unread filtering and unread count. This group currently exposes GET only, so it does not require CSRF.
+
+### offline-packs
+
+Public read-only manifests for user-selected device downloads. `GET /api/offline-packs/crags/[cragId]/manifest` returns a deterministic ETagged snapshot of active public routes, publicly deliverable topo metadata, route-line geometry, policy-filtered coordinates, and immutable fixed-format media URLs. It supports `If-None-Match`; private media, signed URLs, personal state, and downloadable basemap tiles are excluded.
 
 ### offline-tiles
 
