@@ -9,7 +9,6 @@ import {
 } from '@/features/submissions/actions/editor-write-actions'
 import {
   updateSubmissionAnonymousAction,
-  updateSubmissionCragAction,
   updateSubmissionCreditAction,
 } from '@/features/submissions/actions/submission-metadata-actions'
 import { useAtlasAutoSync } from '@/features/submissions/editor/location/use-atlas-auto-sync'
@@ -66,7 +65,6 @@ export default function EditSubmittedRoutesPage() {
   })))
   const requestedRouteId = searchParams.get('route')
   const hasPendingChanges = location.imageMetadataDirty
-    || location.cragMetadataDirty
     || editor.creditDirty
     || editor.anonymityDirty
     || !areSerializedRoutesEqual(
@@ -215,16 +213,8 @@ export default function EditSubmittedRoutesPage() {
         const anonymousResult = await updateSubmissionAnonymousAction(editor.activeImageId, editor.isAnonymousSubmission)
         if (!anonymousResult.success) throw new Error(anonymousResult.error || 'Failed to save anonymity')
       }
-      if (location.cragMetadataDirty && editor.cragId && location.canEditCragMetadata) {
-        const cragResult = await updateSubmissionCragAction(editor.activeImageId, location.cragName, location.regionTag, location.subArea)
-        if (!cragResult.success) throw new Error(cragResult.error || 'Failed to update crag metadata')
-      }
-
       location.setInitialLatitude(location.latitude)
       location.setInitialLongitude(location.longitude)
-      location.setInitialCragName(location.cragName)
-      location.setInitialRegionTag(location.regionTag)
-      location.setInitialSubArea(location.subArea)
       location.setInitialFaceDirections(location.faceDirections)
       location.setInitialLocationMode(location.locationMode)
       editor.setInitialCreditPlatform(editor.creditPlatform)
@@ -250,7 +240,7 @@ export default function EditSubmittedRoutesPage() {
         <SubmissionToolbar hasPendingChanges={hasPendingChanges} savingAllChanges={savingAllChanges} onSaveAllChanges={() => { void handleSaveAllChanges() }} />
         {editor.error ? <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">{editor.error}</div> : null}
         {editor.success ? <div className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">{editor.success}</div> : null}
-        <SubmissionLocationPanel atlasSync={atlasSync} canEditCragMetadata={location.canEditCragMetadata} cragName={location.cragName} onCragNameChange={(value) => { location.setCragName(value); editor.setCragName(value) }} regionTag={location.regionTag} onRegionTagChange={(value) => { location.setRegionTag(value); editor.setRegionTag(value) }} subArea={location.subArea} onSubAreaChange={(value) => { location.setSubArea(value); editor.setSubArea(value) }} latitude={location.latitude} onLatitudeChange={(value) => { location.setLatitude(value); editor.setLatitude(value) }} longitude={location.longitude} onLongitudeChange={(value) => { location.setLongitude(value); editor.setLongitude(value) }} searchQuery={location.searchQuery} onSearchQueryChange={location.setSearchQuery} onSearchLocation={() => { void location.handleSearchLocation() }} searchingLocation={location.searchingLocation} locationSearchError={location.locationSearchError} />
+        <SubmissionLocationPanel atlasSync={atlasSync} canProposeCragMetadata={!!editor.currentUserId && !!editor.cragId} cragId={editor.cragId} sourceImageId={editor.activeImageId} cragName={location.cragName} regionTag={location.regionTag} subArea={location.subArea} onProposalSubmitted={() => editor.setSuccess('Crag details proposal submitted for review')} latitude={location.latitude} onLatitudeChange={(value) => { location.setLatitude(value); editor.setLatitude(value) }} longitude={location.longitude} onLongitudeChange={(value) => { location.setLongitude(value); editor.setLongitude(value) }} searchQuery={location.searchQuery} onSearchQueryChange={location.setSearchQuery} onSearchLocation={() => { void location.handleSearchLocation() }} searchingLocation={location.searchingLocation} locationSearchError={location.locationSearchError} />
         {editor.hasReadyData && editor.activeImageUrl ? <SubmissionWorkstation drawingAreaRef={drawingAreaRef} routeCanvasRef={routeCanvasRef} quickSwitcherImages={editor.quickSwitcherImages} activeImageId={editor.activeImageId} activeImageUrl={editor.activeImageUrl} draftPins={editor.publishedDraftPins} publishedPins={[]} initialCenter={editor.markerPosition} onSelectImage={editor.handleQuickSwitchImage} existingRouteLines={editor.editedRoutes} allowDelete={false} selectedRouteId={selectedRouteId} onSelectRoute={(routeId) => { setSelectedRoute(routeId); setActiveRoute(routeId); setEditorPanelOpen(true) }} onReorderRoutes={(routeIds) => { const reordered = routeIds.map((routeId, index) => { const route = editor.editedRoutes.find((item) => item.id === routeId); return route ? { ...route, sequence_order: index } : null }).filter((route): route is RouteLine => route !== null); handleCanvasRoutesUpdate(reordered) }} interactionTool={interactionTool === 'select' ? 'select' : 'draw'} currentPointsCount={currentPointsCount} onSetSelectTool={() => { setInteractionTool('select'); setEditorPanelOpen(true) }} onSetDrawTool={() => { setInteractionTool('draw'); setEditorPanelOpen(false) }} onUndoPoint={() => undoLastPoint()} onFinishRoute={() => routeCanvasRef.current?.finishRoute()} canvasKey={`${editor.canvasKey}:${editor.activeImageId}`} extraAction={null} onRoutesUpdate={handleCanvasRoutesUpdate} /> : null}
         <SubmissionDetailsPanel detailsOpen={detailsOpen} onDetailsToggle={() => setDetailsOpen((open) => !open)} orientationOpen={orientationOpen} onOrientationToggle={() => setOrientationOpen((open) => !open)} faceDirections={location.faceDirections} onToggleFaceDirection={(direction) => { location.toggleFaceDirection(direction); editor.toggleFaceDirection(direction) }} owner={editor.owner} contributors={editor.contributors} history={editor.history} canEditCredit={editor.canEditContributionCredit} isAnonymous={editor.isAnonymousSubmission} onAnonymousChange={editor.setIsAnonymousSubmission} creditPlatform={editor.creditPlatform} onCreditPlatformChange={editor.setCreditPlatform} creditHandle={editor.creditHandle} onCreditHandleChange={editor.setCreditHandle} />
       </div>

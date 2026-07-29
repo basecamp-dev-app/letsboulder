@@ -146,7 +146,6 @@ export function useSubmissionEditorData() {
   }, [manageFaces])
 
   const canEditContributionCredit = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId
-  const canEditCragMetadata = !!currentUserId && !!cragId
   const hasReadyData = !!imageSelection
   const markerPosition = useMemo<[number, number] | null>(() => {
     const lat = Number(latitude)
@@ -160,12 +159,11 @@ export function useSubmissionEditorData() {
   const quickSwitcherImages = useMemo(() => manageFaces.slice().sort((a, b) => a.index - b.index).map((face) => ({ imageId: face.imageId, signedUrl: face.signedUrl || (face.imageId === activeImageId ? activeImageUrl : ''), badgeNumber: face.index + 1, isDefault: face.imageId === (primaryManageImageId || routeImageId), locationMode: face.locationMode })).filter((face) => face.signedUrl), [activeImageId, activeImageUrl, manageFaces, primaryManageImageId, routeImageId])
   const publishedDraftPins = useMemo(() => buildMapPins(manageFaces.map((face) => ({ imageId: face.imageId, order: face.index, label: face.label, latitude: typeof face.latitude === 'number' ? face.latitude : null, longitude: typeof face.longitude === 'number' ? face.longitude : null, locationMode: face.locationMode || 'shared' }))), [manageFaces])
   const imageMetadataDirty = useMemo(() => initialLatitude !== latitude || initialLongitude !== longitude || JSON.stringify(initialFaceDirections) !== JSON.stringify(faceDirections) || initialLocationMode !== locationMode, [faceDirections, initialFaceDirections, initialLatitude, initialLocationMode, initialLongitude, latitude, locationMode, longitude])
-  const cragMetadataDirty = useMemo(() => canEditCragMetadata && (cragName.trim() !== initialCragName.trim() || regionTag.trim() !== initialRegionTag.trim() || subArea.trim() !== initialSubArea.trim()), [canEditCragMetadata, cragName, initialCragName, initialRegionTag, initialSubArea, regionTag, subArea])
   const creditDirty = useMemo(() => canEditContributionCredit && (initialCreditPlatform !== creditPlatform || initialCreditHandle !== creditHandle), [canEditContributionCredit, creditHandle, creditPlatform, initialCreditHandle, initialCreditPlatform])
   const anonymityDirty = useMemo(() => canEditContributionCredit && initialIsAnonymousSubmission !== isAnonymousSubmission, [canEditContributionCredit, initialIsAnonymousSubmission, isAnonymousSubmission])
   const routeEditsDirty = useMemo(() => haveRouteEdits(editedRoutes, initialEditedRoutes), [editedRoutes, initialEditedRoutes])
   const changedRouteGradeVotes = useMemo(() => [], [])
-  const hasPendingChanges = imageMetadataDirty || cragMetadataDirty || routeEditsDirty || changedRouteGradeVotes.length > 0 || creditDirty || anonymityDirty
+  const hasPendingChanges = imageMetadataDirty || routeEditsDirty || changedRouteGradeVotes.length > 0 || creditDirty || anonymityDirty
   const routesToPersist = useMemo(() => [], [])
 
   const buildEditUrl = useCallback((baseImageId: string, nextFaceImageId?: string | null) => {
@@ -382,9 +380,7 @@ export function useSubmissionEditorData() {
     contributors,
     history,
     canEditContributionCredit,
-    canEditCragMetadata,
     imageMetadataDirty,
-    cragMetadataDirty,
     creditDirty,
     anonymityDirty,
     routeEditsDirty,

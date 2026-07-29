@@ -151,6 +151,10 @@ export const NotificationTypeEnum = z.enum([
   'rsvp_reminder',
   'new_follower',
   'grade_consensus',
+  'crag_metadata_review_requested',
+  'crag_metadata_approved',
+  'crag_metadata_rejected',
+  'crag_metadata_conflict',
 ])
 export type NotificationType = z.infer<typeof NotificationTypeEnum>
 

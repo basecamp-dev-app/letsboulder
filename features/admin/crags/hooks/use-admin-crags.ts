@@ -39,27 +39,6 @@ export function useAdminCrags() {
     void loadCrags()
   }, [loadCrags])
 
-  const renameCrag = useCallback(async (cragId: string, data: { name: string; rock_type: string | null; region_tag: string; sub_area: string | null }) => {
-    try {
-      const response = await csrfFetch(`/api/crags/${cragId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-
-      if (response.ok) {
-        showToast('Crag renamed successfully')
-        void loadCrags()
-        return
-      }
-
-      const errorData: unknown = await response.json().catch(() => null)
-      showToast(getResponseError(errorData, 'Failed to rename crag'))
-    } catch {
-      showToast('Failed to rename crag')
-    }
-  }, [loadCrags, showToast])
-
   const deleteCrag = useCallback(async (crag: AdminCrag, confirmCount: string, reason: string) => {
     if (confirmCount !== String(crag.climb_count)) {
       showToast('Type the climb count exactly to confirm')
@@ -94,7 +73,6 @@ export function useAdminCrags() {
     deleting,
     loadCrags,
     loading,
-    renameCrag,
     deleteCrag,
     showToast,
     toast,

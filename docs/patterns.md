@@ -27,6 +27,7 @@ Use this as a reference when adding or changing route drawing, map, media, GPS, 
 - Call `reset()` when leaving/unmounting the editor. It additionally restores `mode: 'browse'`, `interactionTool: 'select'`, and the identity zoom transform.
 - Do not treat Zustand as durable storage. Draft routes are synchronized through `/api/submissions/drafts/[id]/routes`; published-image edits remain in their screen owner until explicitly saved through `apply_published_submission_edit`.
 - Published saves use one client mutation UUID per stable operation payload. Retry the same payload with the same UUID after an ambiguous failure; a changed payload receives a new UUID. The returned route mappings replace temporary canvas IDs, `commitId` identifies the grouped immutable entity revisions, and `wiki_revision` remains the editor's compatibility conflict token until entity-head UUIDs replace it.
+- Submission-local saves never mutate shared crag taxonomy. Existing crag name, region, and sub-area corrections use `propose_crag_metadata`; approval requires a different scoped crag maintainer or moderator and atomically advances the immutable crag head.
 - Durable history belongs to `wiki_revision_commits`, `wiki_entity_revisions`, and `wiki_entity_heads`, not the Zustand undo stack or `submission_edit_history`. Rollback appends a revision from a prior canonical snapshot and must compare the expected head UUID.
 
 ### Key Files

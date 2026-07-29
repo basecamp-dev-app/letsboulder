@@ -1,76 +1,83 @@
 'use client'
 
-import { useState } from 'react'
-import { Loader2, X } from 'lucide-react'
-import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { useRef, useState } from 'react'
+import { Loader2 } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { AdminCrag } from '@/features/admin/crags/types'
+import { proposeCragMetadataAction } from '@/features/crags/actions/crag-governance-actions'
 
 interface RenameCragModalProps {
   crag: AdminCrag
   onClose: () => void
-  onSave: (cragId: string, data: { name: string; rock_type: string | null; region_tag: string; sub_area: string | null }) => void
+  onSubmitted: (message: string) => void
 }
 
-const ROCK_TYPES = [
-  { value: null, label: 'Unknown' },
-  { value: 'granite', label: 'Granite' },
-  { value: 'limestone', label: 'Limestone' },
-  { value: 'sandstone', label: 'Sandstone' },
-  { value: 'basalt', label: 'Basalt' },
-  { value: 'slate', label: 'Slate' },
-  { value: 'gneiss', label: 'Gneiss' },
-  { value: 'schist', label: 'Schist' },
-  { value: 'quartzite', label: 'Quartzite' },
-  { value: 'dolerite', label: 'Dolerite' },
-  { value: 'chalk', label: 'Chalk' },
-  { value: 'conglomerate', label: 'Conglomerate' },
-  { value: 'tuff', label: 'Tuff' },
-  { value: 'other', label: 'Other' },
-]
-
-export default function RenameCragModal({ crag, onClose, onSave }: RenameCragModalProps) {
-  useOverlayHistory({ open: true, onClose, id: `admin-rename-crag-${crag.id}` })
-
+export default function RenameCragModal({ crag, onClose, onSubmitted }: RenameCragModalProps) {
   const [name, setName] = useState(crag.name)
   const [regionTag, setRegionTag] = useState(crag.region_tag || '')
   const [subArea, setSubArea] = useState(crag.sub_area || '')
-  const [rockType, setRockType] = useState(crag.rock_type || '')
+  const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const pendingMutation = useRef<{ payload: string; id: string } | null>(null)
 
   const handleSave = async () => {
     if (!name.trim() || !regionTag.trim()) return
 
+    const input = {
+      cragId: crag.id,
+      name,
+      regionName: regionTag,
+      subArea: subArea || null,
+      reason,
+    }
+    const payload = JSON.stringify(input)
+    if (!pendingMutation.current || pendingMutation.current.payload !== payload) {
+      pendingMutation.current = { payload, id: crypto.randomUUID() }
+    }
+
     setSaving(true)
+    setError(null)
+    let result
     try {
-      await onSave(crag.id, {
-        name: name.trim(),
-        rock_type: rockType || null,
-        region_tag: regionTag.trim(),
-        sub_area: subArea.trim() || null,
-      })
-      onClose()
+      result = await proposeCragMetadataAction({ ...input, clientMutationId: pendingMutation.current.id })
+    } catch {
+      setError('Failed to submit proposal. Try again to safely retry this request.')
+      return
     } finally {
       setSaving(false)
     }
+    if (!result.success) {
+      setError(result.error || 'Failed to submit proposal')
+      return
+    }
+    pendingMutation.current = null
+    onSubmitted('Crag metadata proposal submitted for review')
+    onClose()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-white">Edit Crag</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="border-gray-800 bg-gray-900 text-white">
+        <DialogHeader>
+          <DialogTitle>Propose crag metadata</DialogTitle>
+          <DialogDescription className="text-gray-400">Changes are reviewed before canonical crag metadata is updated.</DialogDescription>
+        </DialogHeader>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Crag Name</label>
+            <label className="block text-sm text-gray-400 mb-1" htmlFor="proposal-crag-name">Crag Name</label>
             <input
+              id="proposal-crag-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -80,8 +87,9 @@ export default function RenameCragModal({ crag, onClose, onSave }: RenameCragMod
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Region Tag</label>
+            <label className="block text-sm text-gray-400 mb-1" htmlFor="proposal-region">Region Tag</label>
             <input
+              id="proposal-region"
               type="text"
               value={regionTag}
               onChange={(e) => setRegionTag(e.target.value)}
@@ -91,8 +99,9 @@ export default function RenameCragModal({ crag, onClose, onSave }: RenameCragMod
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Sub-area (optional)</label>
+            <label className="block text-sm text-gray-400 mb-1" htmlFor="proposal-sub-area">Sub-area (optional)</label>
             <input
+              id="proposal-sub-area"
               type="text"
               value={subArea}
               onChange={(e) => setSubArea(e.target.value)}
@@ -102,37 +111,29 @@ export default function RenameCragModal({ crag, onClose, onSave }: RenameCragMod
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Rock Type</label>
-            <select
-              value={rockType}
-              onChange={(e) => setRockType(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
-            >
-              {ROCK_TYPES.map((type) => (
-                <option key={type.value || 'unknown'} value={type.value || ''}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+            <label className="block text-sm text-gray-400 mb-1" htmlFor="proposal-reason">Rationale</label>
+            <textarea
+              className="min-h-24 w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-white focus:border-blue-500 focus:outline-none"
+              id="proposal-reason"
+              maxLength={1000}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Explain why this canonical metadata should change."
+              value={reason}
+            />
           </div>
+          {error ? <p className="text-sm text-red-400" role="alert">{error}</p> : null}
         </div>
 
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
+        <DialogFooter>
+          <Button onClick={onClose} variant="outline">Cancel</Button>
+          <Button
             onClick={handleSave}
-            disabled={saving || !name.trim() || !regionTag.trim()}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={saving || !name.trim() || !regionTag.trim() || reason.trim().length < 10}
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Save'}
-          </button>
-        </div>
-      </div>
-    </div>
+            {saving ? <Loader2 className="animate-spin" /> : null} Submit proposal
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

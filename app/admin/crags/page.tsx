@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import CragsFilters from '@/features/admin/crags/components/CragsFilters'
+import CragMaintainersDialog from '@/features/admin/crags/components/CragMaintainersDialog'
 import CragsTable from '@/features/admin/crags/components/CragsTable'
 import DeleteCragDialog from '@/features/admin/crags/components/DeleteCragDialog'
 import RenameCragModal from '@/features/admin/crags/components/RenameCragModal'
@@ -14,7 +15,6 @@ export default function AdminCragsPage() {
     crags,
     deleting,
     loading,
-    renameCrag,
     deleteCrag,
     showToast,
     toast,
@@ -22,6 +22,7 @@ export default function AdminCragsPage() {
   const [search, setSearch] = useState('')
   const [missingRegionOnly, setMissingRegionOnly] = useState(false)
   const [renamingCrag, setRenamingCrag] = useState<AdminCrag | null>(null)
+  const [maintainerCrag, setMaintainerCrag] = useState<AdminCrag | null>(null)
   const [removingCrag, setRemovingCrag] = useState<AdminCrag | null>(null)
 
   const missingRegionCount = crags.filter((crag) => !crag.has_primary_region_tag).length
@@ -57,9 +58,15 @@ export default function AdminCragsPage() {
         <RenameCragModal
           crag={renamingCrag}
           onClose={() => setRenamingCrag(null)}
-          onSave={renameCrag}
+          onSubmitted={(message) => showToast(message, 4000)}
         />
       )}
+
+      <CragMaintainersDialog
+        key={maintainerCrag?.id || 'closed'}
+        crag={maintainerCrag}
+        onClose={() => setMaintainerCrag(null)}
+      />
 
       <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
         {movePublishedImageDisabledMessage}
@@ -101,6 +108,7 @@ export default function AdminCragsPage() {
         <CragsTable
           crags={filteredCrags}
           onDelete={setRemovingCrag}
+          onMaintainers={setMaintainerCrag}
           onMoveImage={() => showToast(movePublishedImageDisabledMessage, 4000)}
           onRename={setRenamingCrag}
           moveImageDisabled

@@ -952,6 +952,124 @@ export type Database = {
           },
         ]
       }
+      crag_maintainers: {
+        Row: {
+          assigned_by: string | null
+          crag_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          crag_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          crag_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crag_maintainers_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crag_metadata_proposals: {
+        Row: {
+          approved_commit_id: string | null
+          base_revision_id: string
+          client_mutation_id: string
+          crag_id: string
+          created_at: string
+          id: string
+          proposed_name: string
+          proposed_region_name: string
+          proposed_sub_area: string | null
+          proposer_id: string | null
+          reason: string
+          request_hash: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewer_id: string | null
+          source_image_id: string | null
+          status: string
+        }
+        Insert: {
+          approved_commit_id?: string | null
+          base_revision_id: string
+          client_mutation_id: string
+          crag_id: string
+          created_at?: string
+          id?: string
+          proposed_name: string
+          proposed_region_name: string
+          proposed_sub_area?: string | null
+          proposer_id?: string | null
+          reason: string
+          request_hash: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          source_image_id?: string | null
+          status?: string
+        }
+        Update: {
+          approved_commit_id?: string | null
+          base_revision_id?: string
+          client_mutation_id?: string
+          crag_id?: string
+          created_at?: string
+          id?: string
+          proposed_name?: string
+          proposed_region_name?: string
+          proposed_sub_area?: string | null
+          proposer_id?: string | null
+          reason?: string
+          request_hash?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          source_image_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crag_metadata_proposals_approved_commit_id_fkey"
+            columns: ["approved_commit_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_revision_commits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crag_metadata_proposals_base_revision_id_fkey"
+            columns: ["base_revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crag_metadata_proposals_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crag_metadata_proposals_source_image_id_fkey"
+            columns: ["source_image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crag_reports: {
         Row: {
           crag_id: string
@@ -1006,6 +1124,7 @@ export type Database = {
           country_code: string | null
           country_id: string | null
           created_at: string | null
+          created_by: string | null
           deleted_at: string | null
           deletion_reason: string | null
           description: string | null
@@ -1036,6 +1155,7 @@ export type Database = {
           country_code?: string | null
           country_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           deleted_at?: string | null
           deletion_reason?: string | null
           description?: string | null
@@ -1066,6 +1186,7 @@ export type Database = {
           country_code?: string | null
           country_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           deleted_at?: string | null
           deletion_reason?: string | null
           description?: string | null
@@ -3914,6 +4035,18 @@ export type Database = {
         Args: { p_draft_id: string }
         Returns: Json
       }
+      propose_crag_metadata: {
+        Args: {
+          p_client_mutation_id: string
+          p_crag_id: string
+          p_name: string
+          p_reason: string
+          p_region_name: string
+          p_source_image_id?: string
+          p_sub_area?: string
+        }
+        Returns: Json
+      }
       prune_media_deletion_jobs: {
         Args: { max_delete?: number; retention_days?: number }
         Returns: number
@@ -4047,6 +4180,14 @@ export type Database = {
         Args: { p_claim_token: string; p_error: string; p_job_id: string }
         Returns: undefined
       }
+      review_crag_metadata_proposal: {
+        Args: {
+          p_decision: string
+          p_proposal_id: string
+          p_review_note?: string
+        }
+        Returns: Json
+      }
       rollback_wiki_entity_revision: {
         Args: {
           p_expected_head_revision_id: string
@@ -4062,6 +4203,10 @@ export type Database = {
       save_submission_grade_votes: {
         Args: { p_grades: Json; p_image_id: string }
         Returns: number
+      }
+      set_crag_maintainer: {
+        Args: { p_crag_id: string; p_is_maintainer: boolean; p_user_id: string }
+        Returns: boolean
       }
       slugify: { Args: { input: string }; Returns: string }
       soft_delete_climb: {
@@ -4110,6 +4255,7 @@ export type Database = {
           country_code: string | null
           country_id: string | null
           created_at: string | null
+          created_by: string | null
           deleted_at: string | null
           deletion_reason: string | null
           description: string | null
