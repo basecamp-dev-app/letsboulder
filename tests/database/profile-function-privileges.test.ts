@@ -69,6 +69,7 @@ const API_EXECUTABLE_DEFINERS = [
   'queue_media_ingest_job(uuid,text,text,text,text,uuid,text,boolean)',
   'resolve_public_climb_slug(text,text,text)',
   'resolve_public_crag_slug(text,text)',
+  'rollback_wiki_entity_revision(uuid,uuid,text)',
   'soft_delete_climb(uuid,text,uuid)',
   'soft_delete_comment(uuid)',
   'soft_delete_crag(uuid,text,uuid)',
