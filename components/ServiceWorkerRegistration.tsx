@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
-  clearRegisteredServiceWorkers,
   SERVICE_WORKER_URL,
   shouldEnableServiceWorker,
 } from '@/lib/offline/service-worker-client'
@@ -71,7 +70,6 @@ export default function ServiceWorkerRegistration() {
 
   useEffect(() => {
     if (!shouldEnableServiceWorker()) {
-      void clearRegisteredServiceWorkers()
       return
     }
 

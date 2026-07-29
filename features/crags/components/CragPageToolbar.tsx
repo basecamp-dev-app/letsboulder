@@ -2,6 +2,7 @@ import { ArrowUpDown, ChevronDown, Filter, Search } from 'lucide-react'
 import { useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import CragOfflinePackControl from '@/features/offline/components/CragOfflinePackControl'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 
 export interface CragSwitcherOption {
@@ -115,6 +116,7 @@ export default function CragPageToolbar({
         <Button type="button" variant="outline" onClick={onToggleSaveCrag} disabled={saveDisabled} aria-label={isSaved ? 'Remove saved crag' : 'Save crag'} aria-pressed={isSaved} title={isSaved ? 'Remove saved crag' : 'Save crag'} className={isSaved ? 'min-h-11 rounded-full border-amber-200 bg-amber-50 px-3 text-amber-900 shadow-none hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50' : actionButtonClassName}>
           <span>{saveLoading ? savePendingLabel : isSaved ? 'Saved crag' : 'Save crag'}</span>
         </Button>
+        <CragOfflinePackControl cragId={crag.id} />
         <Button type="button" variant="outline" onClick={onOpenSearchModal} aria-label="Search routes" title="Search routes" className={actionButtonClassName}>
           <Search className="size-4" />
           <span>Search</span>

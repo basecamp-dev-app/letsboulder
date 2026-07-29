@@ -1,0 +1,70 @@
+import { OfflinePackManager } from '@/features/offline/lib/offline-pack-manager'
+import type { OfflinePackSnapshot } from '@/features/offline/lib/offline-pack-types'
+
+export class OfflinePackStore {
+  private snapshot: OfflinePackSnapshot = { loading: false, packs: [], error: null }
+  private readonly listeners = new Set<() => void>()
+
+  constructor(private readonly manager: OfflinePackManager) {}
+
+  getSnapshot = (): OfflinePackSnapshot => this.snapshot
+  getServerSnapshot = (): OfflinePackSnapshot => ({ loading: false, packs: [], error: null })
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  async refresh(): Promise<void> {
+    await this.run(async () => {
+      const packs = await this.manager.list()
+      this.setSnapshot({ loading: false, packs, error: null })
+    })
+  }
+
+  async install(manifestUrl: string): Promise<void> {
+    await this.run(async () => {
+      await this.manager.install(manifestUrl)
+      this.setSnapshot({ loading: false, packs: await this.manager.list(), error: null })
+    })
+  }
+
+  async update(packId: string): Promise<void> {
+    await this.run(async () => {
+      await this.manager.update(packId)
+      this.setSnapshot({ loading: false, packs: await this.manager.list(), error: null })
+    })
+  }
+
+  async remove(packId: string): Promise<void> {
+    await this.run(async () => {
+      await this.manager.remove(packId)
+      this.setSnapshot({ loading: false, packs: await this.manager.list(), error: null })
+    })
+  }
+
+  async resume(): Promise<void> {
+    await this.run(async () => {
+      await this.manager.resume()
+      this.setSnapshot({ loading: false, packs: await this.manager.list(), error: null })
+    })
+  }
+
+  private async run(operation: () => Promise<void>): Promise<void> {
+    this.setSnapshot({ ...this.snapshot, loading: true, error: null })
+    try {
+      await operation()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Offline pack operation failed'
+      this.setSnapshot({ ...this.snapshot, loading: false, error: message })
+      throw error
+    }
+  }
+
+  private setSnapshot(snapshot: OfflinePackSnapshot): void {
+    this.snapshot = snapshot
+    for (const listener of this.listeners) listener()
+  }
+}
+
+export const offlinePackStore = new OfflinePackStore(new OfflinePackManager())

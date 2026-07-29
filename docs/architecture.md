@@ -86,6 +86,7 @@ The CSRF cookie is not the Supabase session. See `docs/auth-security.md` for the
 | Remote query cache | TanStack React Query | In memory; only queries with `meta.persist = true` are persisted to auth-scoped IndexedDB for up to 12 hours; community queries are excluded |
 | Route drawing/editor history and selection | Feature-owned Zustand store in `features/route-editor/store/` | Client memory for the mounted editor; server/database data remains authoritative |
 | Upload files, queue order, progress, retry/polling state | `MediaUploadManagerProvider` React context/refs | In memory for the mounted submission/edit layout; not durable across reload/unmount |
+| User-selected public crag packs | `features/offline/lib/offline-pack-*` | Device-local IndexedDB metadata and download checkpoints plus immutable Cache API media; survives auth changes |
 | Local form/view state | Owning React component or feature hook | Client memory unless explicitly submitted or cached |
 
 Do not put server truth into Zustand or infer durable upload recovery from React Query persistence.
@@ -99,7 +100,8 @@ Do not put server truth into Zustand or infer durable upload recovery from React
 | Public R2 bucket | Public through controlled routes | `/maps/*` assets and legacy public objects | Worker `PUBLIC_BUCKET`; not the active image-variant destination |
 | Public-data R2 bucket | Public bulk download | Signed, immutable ODbL snapshots and mutable discovery metadata | Nightly GitHub Actions export; separate credentials and lifecycle policy |
 | Cloudflare edge cache | Public delivery cache | On-demand resized image responses | `static.*` Worker route and Image Resizing |
-| Browser IndexedDB | Per browser and auth scope | Opt-in non-community React Query cache | Query persister |
+| Browser IndexedDB | Per browser; store-specific auth policy | Auth-scoped React Query cache plus device-local public crag-pack versions, ownership, and resumable jobs | Query persister and offline pack database |
+| Browser Cache API | Per browser | Versioned offline shells, immutable Next assets, and shared immutable crag-pack media | Service worker and offline pack manager |
 | Browser memory/blob URLs | Page/provider local | Selected upload files, previews, queue state, editor state | React context/hooks/Zustand |
 
 ## Primary Data Flows
@@ -136,7 +138,11 @@ Automated media moderation is disabled and no AWS Rekognition integration is act
 ## Network Resilience
 
 - The app is online-first. HTTP caching and React Query handle normal revisits; selected queries opt into IndexedDB persistence.
-- `/offline` provides a degraded connection state. The temporary `public/sw.js` tombstone removes historical caches and unregisters old service workers rather than implementing offline fetch behavior.
+- `/offline` is the navigation fallback, while `/offline/library` and `/offline/crag?id=UUID` provide standalone views over installed IndexedDB pack metadata and immutable cached media. `public/sw.js` precaches those shells and their Next static assets.
+- `GET /api/offline-packs/crags/{cragId}/manifest` returns a deterministic, ETagged snapshot containing only active public routes, publicly deliverable image metadata, route-line geometry, policy-filtered coordinates, and fixed-format immutable media URLs.
+- The foreground pack manager validates and stages a complete metadata version, downloads only media absent from the shared Cache API cache, checkpoints each asset, atomically advances the IndexedDB active-version pointer, and then garbage-collects unowned old media. An interrupted update never replaces the active version.
+- Crag packs are public device-local content and survive sign-out. Personal logbook and account data remain in their existing auth-scoped stores and are not included in manifests.
+- Offline maps intentionally expose downloaded coordinates as pins-only context. Hosted OpenFreeMap styles and the retirement-only raster proxy are not downloadable pack assets.
 - Contribution uploads persist auth-scoped Blobs and server checkpoints in IndexedDB before transfer. Reload/reconnect recovery reuses a stable server image session; unfinished whole-file PUTs restart, while database-committed uploads skip transfer.
 
 ## Module Boundaries

@@ -1,9 +1,11 @@
+/* eslint-disable @next/next/no-html-link-for-pages -- Offline shell links require full document navigations so the service worker can serve cached HTML. */
 import type { Metadata } from 'next'
+import { Button } from '@/components/ui/button'
 import OfflineRetryButton from '@/features/offline/components/OfflineRetryButton'
 
 export const metadata: Metadata = {
   title: 'Offline',
-  description: 'Connectivity information for letsboulder.',
+  description: 'Open climbing guides saved on this device or retry the network.',
   robots: {
     index: false,
     follow: false,
@@ -17,15 +19,16 @@ export default function OfflinePage() {
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700 dark:text-cyan-300">Connection lost</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-950 dark:text-white">You&apos;re offline</h1>
         <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">
-          letsboulder needs a connection to load maps and climbing information. Check your signal and try again.
+          Live maps and updates need a connection, but guides saved on this device remain available.
         </p>
 
         <div className="mt-6 rounded-2xl border border-cyan-200 bg-cyan-50/80 px-4 py-4 text-sm text-cyan-900 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-100">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]">Connection required</p>
-          <p className="mt-2">Keep this page open and try again when your connection returns.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em]">Available offline</p>
+          <p className="mt-2">Open your offline library for saved route details, topo images, and coordinates.</p>
         </div>
 
-        <div className="mt-8">
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Button asChild className="rounded-xl"><a href="/offline/library">Open offline library</a></Button>
           <OfflineRetryButton />
         </div>
       </div>
