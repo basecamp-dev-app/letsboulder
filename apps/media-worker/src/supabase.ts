@@ -30,6 +30,16 @@ type WorkerR2Bucket = {
   delete(key: string): Promise<void>
 }
 
+type WorkerImagesBinding = {
+  input(stream: ReadableStream<Uint8Array>): {
+    transform(options: { width: number; fit: 'scale-down' }): {
+      output(options: { format: 'image/webp'; quality: number }): Promise<{
+        response(): Response
+      }>
+    }
+  }
+}
+
 export type MessageBatch<T> = {
   messages: Array<{
     body: T
@@ -47,6 +57,7 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY: string
   INGRESS_SECRET: string
   INTERNAL_ORIGIN_SECRET: string
+  IMAGES: WorkerImagesBinding
   ORIGINALS_BUCKET: WorkerR2Bucket
   PUBLIC_BUCKET: WorkerR2Bucket
   MEDIA_QUEUE: WorkerQueue<unknown>
