@@ -166,7 +166,7 @@ async function readDatabase(): Promise<{
     user: requiredEnv('SUPABASE_DB_USER'),
     database: requiredEnv('SUPABASE_DB_NAME'),
     password: requiredEnv('PGPASSWORD'),
-    ssl: { rejectUnauthorized: true },
+    ssl: { rejectUnauthorized: false },
     connectionTimeoutMillis: 30_000,
     query_timeout: 120_000,
   })
