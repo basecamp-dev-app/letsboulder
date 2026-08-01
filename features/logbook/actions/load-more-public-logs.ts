@@ -4,6 +4,7 @@ import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
 import { z } from 'zod'
 import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
+import { PUBLIC_DETAILED_LOGBOOK_SELECT } from '@/features/logbook/lib/query-selects'
 
 const loadMoreLogsSchema = z.object({
   userId: z.string().trim().min(1, 'User ID required'),
@@ -35,7 +36,7 @@ export async function loadMorePublicLogsAction(
 
   const { data: logsData, error: logsError } = await supabase
     .from('user_climbs')
-    .select('*, climbs(id, name, grade, route_lines(images(url, crags(name))))')
+    .select(PUBLIC_DETAILED_LOGBOOK_SELECT)
     .eq('user_id', userId)
     .lt('created_at', cursor)
     .order('created_at', { ascending: false })

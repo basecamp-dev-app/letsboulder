@@ -109,7 +109,7 @@ export const fetchHomepageRecentCragUpdates = cache(async function fetchHomepage
 
   const { data, error } = await supabase
     .from('images')
-    .select('id, url, created_at, crag_id, created_by, crags(id, name, slug, country_code)')
+    .select('id, url, created_at, crag_id, created_by, crags!images_crag_id_fkey(id, name, slug, country_code)')
     .in('moderation_status', ['approved', 'skipped'])
     .not('crag_id', 'is', null)
     .not('url', 'is', null)

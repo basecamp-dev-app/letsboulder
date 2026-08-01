@@ -9,6 +9,7 @@ import { startServerTiming, timeServerStep } from '@/lib/performance/server-timi
 import type { LogbookClimb, LogbookLifetimeStats, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 import { fetchSavedClimbs, fetchSavedCrags } from '@/features/saved/lib/queries'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
+import { DETAILED_LOGBOOK_SELECT } from '@/features/logbook/lib/query-selects'
 import { getOwnProfile } from '@/lib/profile-rpc'
 
 interface RawLogbookRow {
@@ -184,7 +185,7 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
     timeServerStep('fetchServerLogbookLogsAndProfile', 'recent-logs', async () =>
       supabase
         .from('user_climbs')
-        .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
+        .select(DETAILED_LOGBOOK_SELECT)
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -306,7 +307,7 @@ export async function fetchServerLogbookSubmissions(user: User): Promise<Submiss
 
   const { data: contributionRows, error: contribError } = await supabase
     .from('images')
-    .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name, slug, country_code), route_lines(count)')
+    .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags!images_crag_id_fkey(name, slug, country_code), route_lines(count)')
     .eq('created_by', user.id)
     .or('moderation_status.eq.approved,moderation_status.eq.skipped,moderation_status.eq.pending,moderation_status.is.null')
     .order('created_at', { ascending: false })

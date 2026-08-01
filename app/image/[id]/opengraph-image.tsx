@@ -56,7 +56,7 @@ export default async function OpenGraphImage({ params }: { params: Promise<Image
 
   const { data: imageData } = await supabase
     .from('images')
-    .select('url, crags(name)')
+    .select('url, crags!images_crag_id_fkey(name)')
     .eq('id', id)
     .single()
 

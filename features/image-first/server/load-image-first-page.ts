@@ -188,7 +188,7 @@ export const getImageByDisplayId = cache(async (displayImageId: string) => {
     if (resolved.linked_image_id) {
       const { data: imageData } = await supabase
         .from('images')
-        .select('id, crag_id, url, width, height, created_at, latitude, longitude, crags(id, slug, country_code, name)')
+        .select('id, crag_id, url, width, height, created_at, latitude, longitude, crags!images_crag_id_fkey(id, slug, country_code, name)')
         .eq('id', resolved.linked_image_id)
         .maybeSingle()
       asset = (imageData as ImageAssetRow | null) || null
@@ -213,7 +213,7 @@ export const getImageByDisplayId = cache(async (displayImageId: string) => {
 
   const { data: rawImageData, error: rawImageError } = await supabase
     .from('images')
-    .select('id, crag_id, url, width, height, created_at, latitude, longitude, crags(id, slug, country_code, name)')
+    .select('id, crag_id, url, width, height, created_at, latitude, longitude, crags!images_crag_id_fkey(id, slug, country_code, name)')
     .eq('id', displayImageId)
     .maybeSingle()
 

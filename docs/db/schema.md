@@ -351,6 +351,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 
 ### Profile Access
 - `anon` and `authenticated` can select only the public-safe profile columns (`id`, public names/avatar/bio/location preferences, `is_public`, and `created_at`). The `Read visible profiles` policy returns public rows plus the authenticated caller's own row.
+- `display_name` is the public name contract. `profiles_sync_display_name` derives it from protected first/last-name fields when a profile has no public label or those name fields change.
 - `get_own_profile()` returns the full profile only for `auth.uid()`. `is_current_user_admin()` is the identity-bound predicate used by admin RLS and server checks. `get_top_contributors(limit)` and `get_visible_profile(user_id)` expose only approved public display and statistics fields while respecting profile visibility.
 - Authenticated profile updates use an explicit user-editable column allowlist. `profiles_protect_fields` additionally blocks identity, email, admin, aggregate score/statistics, contribution tier/count, creation, policy, TOS, and email-workflow fields.
 - There is no authenticated `INSERT` grant on `profiles`; profile creation is server/auth-trigger owned.

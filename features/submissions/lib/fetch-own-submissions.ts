@@ -53,7 +53,7 @@ export async function fetchOwnSubmissions(
 
   const { data: contributionRows, error: contributionError } = await supabase
     .from('images')
-    .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name, slug, country_code), route_lines(id, climb_id)')
+    .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags!images_crag_id_fkey(name, slug, country_code), route_lines(id, climb_id)')
     .eq('created_by', userId)
     .or('moderation_status.eq.approved,moderation_status.eq.skipped,moderation_status.eq.pending,moderation_status.is.null')
     .order('created_at', { ascending: false })
