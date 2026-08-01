@@ -2050,6 +2050,7 @@ export type Database = {
           claim_token: string | null
           completed_at: string | null
           created_at: string
+          delivery_verified_at: string | null
           id: string
           image_id: string | null
           last_error: string | null
@@ -2070,6 +2071,7 @@ export type Database = {
           claim_token?: string | null
           completed_at?: string | null
           created_at?: string
+          delivery_verified_at?: string | null
           id?: string
           image_id?: string | null
           last_error?: string | null
@@ -2090,6 +2092,7 @@ export type Database = {
           claim_token?: string | null
           completed_at?: string | null
           created_at?: string
+          delivery_verified_at?: string | null
           id?: string
           image_id?: string | null
           last_error?: string | null
@@ -3921,6 +3924,7 @@ export type Database = {
           claim_token: string | null
           completed_at: string | null
           created_at: string
+          delivery_verified_at: string | null
           id: string
           image_id: string | null
           last_error: string | null
@@ -5079,6 +5083,10 @@ export type Database = {
       user_can_wiki_edit_submission: {
         Args: { p_image_id: string; p_user_id: string }
         Returns: boolean
+      }
+      verify_media_replacement_delivery: {
+        Args: { p_expected_optimized_key: string; p_job_id: string }
+        Returns: undefined
       }
       wiki_entity_snapshot: {
         Args: { p_entity_kind: string; p_source_id: string }
