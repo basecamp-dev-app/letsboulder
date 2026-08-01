@@ -233,7 +233,7 @@ export async function processJob(
 
   const canonicalUrl = `${env.MEDIA_HOST}/origin/${image.original_key.split('/').map(encodeURIComponent).join('/')}?transform=canonical-webp`
   const resized = await dependencies.fetch(canonicalUrl, {
-    headers: { 'X-Internal-Secret': env.INTERNAL_ORIGIN_SECRET },
+    headers: { Authorization: `Bearer ${env.INGRESS_SECRET}` },
   })
 
   if (!resized.ok) {
@@ -440,8 +440,11 @@ async function drainMediaOutbox(env: Env, workerName = OUTBOX_WORKER_NAME, limit
 }
 
 async function handleOrigin(request: Request, env: Env, url: URL) {
-  const secret = request.headers.get('X-Internal-Secret')
-  if (secret !== env.INTERNAL_ORIGIN_SECRET) {
+  const isCanonicalTransform = url.searchParams.get('transform') === 'canonical-webp'
+  const isAuthorized = isCanonicalTransform
+    ? request.headers.get('Authorization') === `Bearer ${env.INGRESS_SECRET}`
+    : request.headers.get('X-Internal-Secret') === env.INTERNAL_ORIGIN_SECRET
+  if (!isAuthorized) {
     return new Response('Unauthorized', { status: 401 })
   }
 
@@ -455,7 +458,7 @@ async function handleOrigin(request: Request, env: Env, url: URL) {
     return new Response('Not found', { status: 404 })
   }
 
-  if (url.searchParams.get('transform') === 'canonical-webp') {
+  if (isCanonicalTransform) {
     const originUrl = `${env.R2_ORIGIN_URL}/${objectKey.split('/').map(encodeURIComponent).join('/')}`
     const response = await fetch(originUrl, {
       cf: {
