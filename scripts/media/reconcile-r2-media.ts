@@ -66,11 +66,31 @@ type DeletionJobRow = QueryResultRow & {
 }
 type R2Object = { key: string; size: number; lastModified: string | null; etag: string | null }
 type Surface = { surface: string; recordId: string | null; imageId: string | null; status?: string }
+type TextColumnRow = QueryResultRow & { table_name: string; column_name: string }
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim()
   if (!value) throw new Error(`Missing required environment variable: ${name}`)
   return value
+}
+
+function databaseConfig() {
+  const port = Number.parseInt(requiredEnv('SUPABASE_DB_PORT'), 10)
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('SUPABASE_DB_PORT is invalid')
+  return {
+    host: requiredEnv('SUPABASE_DB_HOST'),
+    port,
+    user: requiredEnv('SUPABASE_DB_USER'),
+    database: requiredEnv('SUPABASE_DB_NAME'),
+    password: requiredEnv('PGPASSWORD'),
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 30_000,
+    query_timeout: 120_000,
+  }
+}
+
+function quoteIdentifier(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`
 }
 
 function privateUrlLocator(value: string): Locator | null {
@@ -158,18 +178,7 @@ async function readDatabase(): Promise<{
   mediaJobs: MediaJobRow[]
   deletionJobs: DeletionJobRow[]
 }> {
-  const port = Number.parseInt(requiredEnv('SUPABASE_DB_PORT'), 10)
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('SUPABASE_DB_PORT is invalid')
-  const client = new Client({
-    host: requiredEnv('SUPABASE_DB_HOST'),
-    port,
-    user: requiredEnv('SUPABASE_DB_USER'),
-    database: requiredEnv('SUPABASE_DB_NAME'),
-    password: requiredEnv('PGPASSWORD'),
-    ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 30_000,
-    query_timeout: 120_000,
-  })
+  const client = new Client(databaseConfig())
   await client.connect()
   try {
     await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
@@ -211,6 +220,48 @@ async function readDatabase(): Promise<{
       mediaJobs: mediaJobs.rows,
       deletionJobs: deletionJobs.rows,
     }
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    await client.end()
+  }
+}
+
+async function scanPublicTextReferences(keys: string[]): Promise<Map<string, string[]>> {
+  const references = new Map<string, string[]>()
+  if (keys.length === 0) return references
+
+  const client = new Client(databaseConfig())
+  await client.connect()
+  try {
+    await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
+    const columns = await client.query<TextColumnRow>(`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND data_type IN ('text', 'character varying', 'json', 'jsonb')
+      ORDER BY table_name, ordinal_position`)
+
+    for (const column of columns.rows) {
+      const table = quoteIdentifier(column.table_name)
+      const field = quoteIdentifier(column.column_name)
+      const matches = await client.query<{ key: string }>(`
+        SELECT candidate.key
+        FROM unnest($1::text[]) AS candidate(key)
+        WHERE EXISTS (
+          SELECT 1 FROM public.${table} AS source_row
+          WHERE source_row.${field}::text LIKE '%' || candidate.key || '%'
+        )
+      `, [keys])
+      for (const match of matches.rows) {
+        const matchedSurfaces = references.get(match.key) ?? []
+        matchedSurfaces.push(`${column.table_name}.${column.column_name}`)
+        references.set(match.key, matchedSurfaces)
+      }
+    }
+    await client.query('COMMIT')
+    return references
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined)
     throw error
@@ -363,6 +414,8 @@ async function main(): Promise<void> {
     }
   }
 
+  const unreferencedObjects = objects.filter((object) => !surfaces.has(object.key))
+  const textReferences = await scanPublicTextReferences(unreferencedObjects.map((object) => object.key))
   const objectClassifications = {
     referenced: [] as Array<Record<string, unknown>>,
     deletionTracked: [] as Array<Record<string, unknown>>,
@@ -370,8 +423,16 @@ async function main(): Promise<void> {
   }
   for (const object of objects) {
     const objectSurfaces = surfaces.get(object.key) ?? []
-    const item = { ...object, surfaces: objectSurfaces }
-    if (objectSurfaces.length === 0) {
+    const historicalSurfaces = textReferences.get(object.key) ?? []
+    const namespaceMatch = /^images\/(?:assets|originals|staging)\/([0-9a-f-]{36})\//i.exec(object.key)
+    const item = {
+      ...object,
+      surfaces: objectSurfaces,
+      historicalSurfaces,
+      namespaceImageId: namespaceMatch?.[1] ?? null,
+      namespaceImageExists: namespaceMatch ? imageIds.has(namespaceMatch[1]) : null,
+    }
+    if (objectSurfaces.length === 0 && historicalSurfaces.length === 0) {
       objectClassifications.possibleOrphan.push(item)
     } else if (objectSurfaces.some((surface) => surface.surface === 'media_deletion_jobs.object')) {
       objectClassifications.deletionTracked.push(item)
@@ -413,7 +474,7 @@ async function main(): Promise<void> {
     },
   }
   const artifact = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     summary,
     imageClassifications,
