@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { rpc } = vi.hoisted(() => ({
-  rpc: vi.fn(async () => ({ data: null, error: null })),
+  rpc: vi.fn(async (): Promise<{ data: unknown; error: Error | null }> => ({ data: null, error: null })),
 }))
 
 vi.mock('@/apps/media-worker/src/supabase', () => ({
   createSupabaseAdminClient: () => ({ rpc }),
 }))
 
-import { processMediaDeletionJob } from '@/apps/media-worker/src/deletion-outbox'
+import { drainMediaDeletionOutbox, processMediaDeletionJob } from '@/apps/media-worker/src/deletion-outbox'
 import type { MediaDeletionJobRow } from '@/apps/media-worker/src/schema'
 
 const job: MediaDeletionJobRow = {
@@ -34,7 +34,8 @@ function createEnv(deleteObject = vi.fn(async () => undefined), privateBucket = 
 
 describe('media deletion worker', () => {
   beforeEach(() => {
-    rpc.mockClear()
+    rpc.mockReset()
+    rpc.mockResolvedValue({ data: null, error: null })
   })
 
   it('deletes from the allowlisted private binding and completes the claim', async () => {
@@ -71,5 +72,11 @@ describe('media deletion worker', () => {
       p_claim_token: job.claim_token,
       p_error: 'R2 unavailable',
     })
+  })
+
+  it('treats an all-null composite claim as an empty outbox', async () => {
+    rpc.mockResolvedValueOnce({ data: { id: null, claim_token: null }, error: null })
+
+    await expect(drainMediaDeletionOutbox(createEnv())).resolves.toBe(0)
   })
 })
