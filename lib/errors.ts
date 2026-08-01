@@ -13,6 +13,13 @@ export interface ErrorContext {
   level?: 'fatal' | 'error' | 'warning' | 'info' | 'debug'
 }
 
+interface StructuredErrorDetails {
+  code?: unknown
+  details?: unknown
+  hint?: unknown
+  message?: unknown
+}
+
 const ERROR_MESSAGES: Record<string, string> = {
   auth: 'Authentication required',
   unauthorized: 'Unauthorized',
@@ -45,6 +52,29 @@ function getErrorMessage(error: unknown): string {
   return ERROR_MESSAGES.unknown
 }
 
+function getStructuredErrorDetails(error: unknown): StructuredErrorDetails | undefined {
+  if (!error || typeof error !== 'object') return undefined
+
+  const record = error as Record<string, unknown>
+  const details = {
+    code: record.code,
+    details: record.details,
+    hint: record.hint,
+    message: record.message,
+  }
+
+  return Object.values(details).some((value) => value !== undefined) ? details : undefined
+}
+
+function normalizeError(error: unknown): Error {
+  if (error instanceof Error) return error
+
+  const details = getStructuredErrorDetails(error)
+  if (typeof details?.message === 'string') return new Error(details.message)
+
+  return new Error(String(error))
+}
+
 export function generateErrorId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
@@ -52,17 +82,19 @@ export function generateErrorId(): string {
 export function reportError(error: unknown, context?: string | ErrorContext): void {
   const ctx = typeof context === 'string' ? { message: context } : (context ?? {})
   const message = ctx.message ?? 'Error'
+  const normalizedError = normalizeError(error)
+  const structuredError = getStructuredErrorDetails(error)
+  const extra = { ...ctx.extra, ...(structuredError ? { structuredError } : {}) }
 
   if (process.env.NODE_ENV === 'production' && process.env.SENTRY_DSN) {
-    Sentry.captureException(error, {
+    Sentry.captureException(normalizedError, {
       tags: ctx.tags,
-      extra: { ...ctx.extra, message },
+      extra: { ...extra, message },
       level: ctx.level ?? 'error',
     })
   } else {
     const errorId = generateErrorId()
-    const errorObj = error instanceof Error ? error : new Error(String(error))
-    console.error(`[${errorId}] ${message}:`, errorObj, ctx.extra ?? '')
+    console.error(`[${errorId}] ${message}:`, normalizedError, extra)
   }
 }
 

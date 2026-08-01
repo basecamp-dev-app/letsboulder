@@ -9,6 +9,7 @@ import type { Submission } from '@/types/submissions'
 import { fetchSavedClimbs, fetchSavedCrags } from '@/features/saved/lib/queries'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 import { getOwnProfile } from '@/lib/profile-rpc'
+import { DETAILED_LOGBOOK_SELECT } from '@/features/logbook/lib/query-selects'
 
 export interface LogbookProfile {
   id: string
@@ -160,7 +161,7 @@ export async function fetchOwnLogbookPage(
   const from = page * pageSize
   const { data, error } = await supabase
     .from('user_climbs')
-    .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
+    .select(DETAILED_LOGBOOK_SELECT)
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
@@ -201,7 +202,7 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
     getOwnProfile(supabase),
     supabase
       .from('user_climbs')
-      .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
+      .select(DETAILED_LOGBOOK_SELECT)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })

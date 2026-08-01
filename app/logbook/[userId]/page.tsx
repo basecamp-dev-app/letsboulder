@@ -13,6 +13,7 @@ import type { Database } from '@/types/database'
 export const revalidate = 60
 import type { Submission } from '@/types/submissions'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
+import { PUBLIC_DETAILED_LOGBOOK_SELECT } from '@/features/logbook/lib/query-selects'
 
 const PUBLIC_LOGBOOK_PAGE_SIZE = 50
 const PUBLIC_PROGRESS_LOG_LIMIT = 2000
@@ -63,7 +64,7 @@ async function getPublicLogs(
 
   let query = supabase
     .from('user_climbs')
-    .select('*, climbs(id, name, grade, route_lines(images(url, crags(name))))')
+    .select(PUBLIC_DETAILED_LOGBOOK_SELECT)
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(PUBLIC_LOGBOOK_PAGE_SIZE)
@@ -140,7 +141,7 @@ async function getPublicSubmissions(userId: string): Promise<Submission[]> {
 
   const { data, error } = await supabase
     .from('images')
-    .select('id, url, created_at, submission_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name, slug, country_code), route_lines(count)')
+    .select('id, url, created_at, submission_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags!images_crag_id_fkey(name, slug, country_code), route_lines(count)')
     .eq('created_by', userId)
     .eq('is_anonymous_submission', false)
     .in('moderation_status', ['approved', 'skipped'])

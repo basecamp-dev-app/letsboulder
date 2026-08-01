@@ -281,6 +281,33 @@ describe('profile and function privilege hardening', () => {
     })
   })
 
+  it('keeps the public display name synchronized with protected name fields', async () => {
+    await transaction(async (client) => {
+      const owner = await createProfile(client, true)
+      await client.query(
+        `update public.profiles
+         set first_name = '  Alex  ', last_name = '  Stone  ', display_name = null
+         where id = $1`,
+        [owner.userId],
+      )
+
+      expect((await client.query(
+        'select display_name from public.profiles where id = $1',
+        [owner.userId],
+      )).rows[0].display_name).toBe('Alex Stone')
+
+      await client.query(
+        `update public.profiles set last_name = 'River' where id = $1`,
+        [owner.userId],
+      )
+
+      expect((await client.query(
+        'select display_name from public.profiles where id = $1',
+        [owner.userId],
+      )).rows[0].display_name).toBe('Alex River')
+    })
+  })
+
   it('records current open data consent only through the identity-bound RPC', async () => {
     await transaction(async (client) => {
       const owner = await createProfile(client, false)
