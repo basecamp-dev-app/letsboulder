@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { getReadyDeliveryObjectKey, markMediaJobsCompletedByImage, processJob } from '@/apps/media-worker/src/index'
+import mediaWorker, { getReadyDeliveryObjectKey, markMediaJobsCompletedByImage, processJob } from '@/apps/media-worker/src/index'
 
 const IMAGE_ID = '11111111-1111-4111-8111-111111111111'
 const USER_ID = '22222222-2222-4222-8222-222222222222'
@@ -70,8 +70,10 @@ function createProcessingHarness(options: { failCommitOnce?: boolean; failDelete
     return new Response(new Uint8Array([1, 2, 3, 4]), { headers: { 'Content-Type': 'image/webp' } })
   })
   const env = {
+    MEDIA_HOST: 'https://static.example',
     R2_PRIVATE_BUCKET: BUCKET,
     R2_ORIGIN_URL: 'https://private-origin.example',
+    INTERNAL_ORIGIN_SECRET: 'origin-secret',
     ORIGINALS_BUCKET: bucket,
   }
   const job = {
@@ -162,10 +164,8 @@ describe('media worker canonical WebP processing', () => {
       p_url: expect.stringContaining('/canonical.webp?variant=detail&format=webp'),
     }))
     expect(harness.mediaFetch).toHaveBeenCalledWith(
-      `https://private-origin.example/${SOURCE_KEY}`,
-      expect.objectContaining({
-        cf: { image: { width: 2560, quality: 82, format: 'webp', fit: 'scale-down', metadata: 'none' } },
-      }),
+      `https://static.example/origin/${SOURCE_KEY}?transform=canonical-webp`,
+      { headers: { 'X-Internal-Secret': 'origin-secret' } },
     )
     expect(warn).toHaveBeenCalledWith(
       'Immediate original deletion failed; durable deletion remains queued',
@@ -252,5 +252,29 @@ describe('media worker canonical WebP processing', () => {
     expect(getReadyDeliveryObjectKey({ processing_status: 'ready', optimized_key: optimizedKey, original_key: originalKey })).toBe(optimizedKey)
     expect(getReadyDeliveryObjectKey({ processing_status: 'processing', optimized_key: optimizedKey, original_key: originalKey })).toBeNull()
     expect(getReadyDeliveryObjectKey({ processing_status: 'ready', optimized_key: null, original_key: originalKey })).toBe(originalKey)
+  })
+
+  it('performs canonical resizing inside an authenticated fetch event', async () => {
+    const transformed = new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/webp' } })
+    const resizeFetch = vi.fn(async () => transformed)
+    vi.stubGlobal('fetch', resizeFetch)
+
+    const response = await mediaWorker.fetch(new Request(
+      `https://static.example/origin/${SOURCE_KEY}?transform=canonical-webp`,
+      { headers: { 'X-Internal-Secret': 'origin-secret' } },
+    ), {
+      INTERNAL_ORIGIN_SECRET: 'origin-secret',
+      R2_ORIGIN_URL: 'https://private-origin.example',
+    } as never)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('image/webp')
+    expect(resizeFetch).toHaveBeenCalledWith(
+      `https://private-origin.example/${SOURCE_KEY}`,
+      expect.objectContaining({
+        cf: { image: { width: 2560, quality: 82, format: 'webp', fit: 'scale-down', metadata: 'none' } },
+      }),
+    )
+    vi.unstubAllGlobals()
   })
 })

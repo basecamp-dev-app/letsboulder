@@ -6,7 +6,11 @@ const DELETION_DRAIN_LIMIT = 25
 
 function stringifyError(error: unknown): string {
   if (error instanceof Error) return error.message
-  return typeof error === 'string' ? error : 'Unknown media deletion error'
+  if (typeof error === 'string') return error
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+  return 'Unknown media deletion error'
 }
 
 async function transitionJob(
@@ -67,7 +71,7 @@ export async function drainMediaDeletionOutbox(
       lease_seconds: 900,
     })
     if (error) throw error
-    if (!data) break
+    if (!data || typeof data !== 'object' || !('id' in data) || data.id === null) break
 
     const parsed = mediaDeletionJobSchema.safeParse(data)
     if (!parsed.success) {
