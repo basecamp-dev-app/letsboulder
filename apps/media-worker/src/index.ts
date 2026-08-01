@@ -38,7 +38,7 @@ interface ProcessJobDependencies {
 
 const defaultProcessJobDependencies: ProcessJobDependencies = {
   createClient: createSupabaseAdminClient,
-  fetch,
+  fetch: (input, init) => fetch(input, init),
 }
 
 const CANONICAL_WIDTH = 2560
@@ -231,10 +231,18 @@ export async function processJob(
     throw new Error(`Image ${job.imageId} is missing valid source dimensions`)
   }
 
-  const canonicalUrl = `${env.MEDIA_HOST}/origin/${image.original_key.split('/').map(encodeURIComponent).join('/')}?transform=canonical-webp`
-  const resized = await dependencies.fetch(canonicalUrl, {
-    headers: { 'X-Internal-Secret': env.INTERNAL_ORIGIN_SECRET },
-  })
+  const originUrl = `${env.R2_ORIGIN_URL}/${image.original_key.split('/').map(encodeURIComponent).join('/')}`
+  const resized = await dependencies.fetch(originUrl, {
+    cf: {
+      image: {
+        width: CANONICAL_WIDTH,
+        quality: CANONICAL_QUALITY,
+        format: 'webp',
+        fit: 'scale-down',
+        metadata: 'none',
+      },
+    },
+  } as RequestInit & { cf: { image: { width: number; quality: number; format: 'webp'; fit: 'scale-down'; metadata: 'none' } } })
 
   if (!resized.ok) {
     throw new Error(`Canonical WebP resize failed with status ${resized.status}`)
@@ -453,26 +461,6 @@ async function handleOrigin(request: Request, env: Env, url: URL) {
 
   if (!objectKey) {
     return new Response('Not found', { status: 404 })
-  }
-
-  if (url.searchParams.get('transform') === 'canonical-webp') {
-    const originUrl = `${env.R2_ORIGIN_URL}/${objectKey.split('/').map(encodeURIComponent).join('/')}`
-    const response = await fetch(originUrl, {
-      cf: {
-        image: {
-          width: CANONICAL_WIDTH,
-          quality: CANONICAL_QUALITY,
-          format: 'webp',
-          fit: 'scale-down',
-          metadata: 'none',
-        },
-      },
-    } as RequestInit & { cf: { image: { width: number; quality: number; format: 'webp'; fit: 'scale-down'; metadata: 'none' } } })
-
-    if (!response.ok) return new Response('Canonical transform failed', { status: response.status })
-    const headers = new Headers(response.headers)
-    headers.set('Cache-Control', 'private, no-store')
-    return new Response(response.body, { headers })
   }
 
   const object = await env.ORIGINALS_BUCKET.get(objectKey)
