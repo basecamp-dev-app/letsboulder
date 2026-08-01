@@ -427,7 +427,8 @@ async function main(): Promise<void> {
   console.log(JSON.stringify(summary))
 }
 
-main().catch(() => {
-  console.error('Media reconciliation failed; no identifiers or object keys were logged')
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : 'Unknown reconciliation error'
+  console.error(`Media reconciliation failed: ${message}`)
   process.exitCode = 1
 })
