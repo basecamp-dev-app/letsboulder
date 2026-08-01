@@ -35,6 +35,19 @@ export async function processMediaDeletionJob(job: MediaDeletionJobRow, env: Env
     return
   }
 
+  if (job.reason === 'source_replaced' && (!job.image_id || !job.delivery_verified_at)) {
+    await transitionJob(env, 'fail_media_deletion_job', job, new Error('Source replacement deletion is not delivery-verified'))
+    return
+  }
+
+  if (job.image_id) {
+    const namespacedPrefix = new RegExp(`^images/(?:assets|originals|staging)/${job.image_id}/`)
+    if (!namespacedPrefix.test(job.object_key)) {
+      await transitionJob(env, 'fail_media_deletion_job', job, new Error('Deletion key is not namespaced to the image'))
+      return
+    }
+  }
+
   const startedAt = Date.now()
   try {
     await env.ORIGINALS_BUCKET.delete(job.object_key)

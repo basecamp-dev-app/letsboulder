@@ -44,6 +44,7 @@ export const mediaDeletionJobSchema = z.object({
   source_type: z.enum(['image', 'draft_image']),
   source_id: z.string().uuid().nullable(),
   image_id: z.string().uuid().nullable(),
+  delivery_verified_at: z.string().datetime({ offset: true }).nullable(),
   status: z.literal('processing'),
   attempts: z.number().int().nonnegative(),
   max_attempts: z.number().int().positive(),
