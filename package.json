@@ -62,13 +62,13 @@
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.7.0",
     "maplibre-gl": "^5.24.0",
-    "next": "^16.2.3",
+    "next": "^16.2.6",
     "p-limit": "^7.3.0",
     "piexifjs": "^1.0.6",
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "recharts": "^3.6.0",
-    "resend": "^6.6.0",
+    "resend": "^6.12.4",
     "sharp": "^0.34.5",
     "supabase": "^2.76.14",
     "supercluster": "^8.0.1",
@@ -101,6 +101,6 @@
     "typescript": "^5",
     "vite": "^8.0.5",
     "vitest": "^4.0.18",
-    "wrangler": "^4.76.0"
+    "wrangler": "^4.95.0"
   }
 }
