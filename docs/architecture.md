@@ -50,7 +50,7 @@ The durable `media_jobs` database outbox is authoritative for media ingest. `med
 - `apps/media-worker/` owns cron and queue ingest handlers plus image, origin, and map delivery routes.
 - Prepared JPEG sources and canonical WebPs remain private. Ingest writes and verifies a maximum-2560 px, quality-82 canonical WebP; one database transaction switches ready delivery to it, records the virtual manifest, and queues source deletion.
 - Virtual variants derive from the canonical WebP through Cloudflare Image Resizing on demand and are cached at delivery; they are not stored variant objects.
-- The scheduled Worker drains transactional deletion jobs and removes allowlisted private sources or canonical objects through `ORIGINALS_BUCKET`. Canonical ingest explicitly attempts source deletion after commit, while durable retries remain authoritative.
+- The scheduled Worker drains transactional deletion jobs and removes allowlisted private sources or canonical objects through `ORIGINALS_BUCKET`. Replaced sources remain unclaimable until canonical public delivery has been verified; canonical ingest never deletes them directly.
 - The public R2 bucket backs `/maps/*` and legacy public objects. The active Worker does not write generated image variants there.
 - Environment routes are `static.dev.letsboulder.com` and `static.letsboulder.com`.
 
@@ -116,7 +116,7 @@ Do not put server truth into Zustand or infer durable upload recovery from React
 4. Browser uploads the persisted prepared bytes directly, then calls the upload-session completion Route Handler.
 5. Completion verifies the object and atomically queues durable ingest; optional Worker enqueue is only a best-effort fast path.
 6. Worker queue or cron processing writes and verifies the private canonical WebP before `commit_media_webp` atomically switches delivery and queues `source_replaced` deletion.
-7. The Worker then attempts immediate source deletion; the deletion outbox retries independently. Public requests resize the canonical WebP on demand.
+7. The Worker verifies the switched canonical URL through the public media hostname, arms the source-replacement deletion job, and lets the deletion outbox remove the original independently. Public requests resize the canonical WebP on demand.
 
 ### Media Deletion
 

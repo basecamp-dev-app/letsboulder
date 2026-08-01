@@ -160,8 +160,8 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - **Metadata:** Extract location from the selected original before EXIF stripping. The active queue durably stores and uploads the exact prepared JPEG while storing GPS separately in the database.
 - **Public delivery:** Serve ready immutable variants from the CDN hostname, not app-route proxies.
 - **Canonical source:** Worker ingest persists a private, content-addressed WebP at maximum width 2560 px and quality 82. Ready virtual variants derive from this canonical object, not the prepared source.
-- **Provenance:** `original_bucket` and `original_key` remain the source record after canonical commit, but the object is then eligible for immediate and outbox-backed deletion.
-- **Failure ordering:** Verify the canonical object before atomically switching delivery and queueing `source_replaced`; never delete the prepared source before that commit. A failed commit can leave an unreferenced canonical object at its deterministic key for retry.
+- **Provenance:** `original_bucket` and `original_key` remain the source record after canonical commit. The object becomes deletion-eligible only after public delivery is verified and the durable source-replacement job is armed.
+- **Failure ordering:** Verify the canonical object before atomically switching delivery and queueing `source_replaced`, then verify anonymous public delivery before allowing the deletion worker to claim the source. A failed commit can leave an unreferenced canonical object at its deterministic key for retry.
 - **Cache busting:** Use immutable canonical keys and versioned virtual paths like `v{asset_version}` instead of mutable objects.
 - **Worker safety:** Async ingest and deletion jobs must be idempotent. Immediate source deletion is only an accelerator; durable outbox retries are authoritative.
 
