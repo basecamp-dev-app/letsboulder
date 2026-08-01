@@ -1,0 +1,49 @@
+name: Media Worker Tail
+
+on:
+  workflow_dispatch:
+    inputs:
+      tail_seconds:
+        description: Seconds to capture production worker logs
+        required: true
+        default: "90"
+
+permissions:
+  contents: read
+
+jobs:
+  tail-production:
+    name: Tail Media Worker (Production)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: Production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.20.0"
+
+      - name: Capture production logs
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          TAIL_SECONDS: ${{ inputs.tail_seconds }}
+        run: |
+          set +e
+          timeout "${TAIL_SECONDS}s" npx --yes wrangler@3.90.0 tail --env production --format json \
+            > media-worker-tail.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            cat media-worker-tail.log
+            exit "$status"
+          fi
+
+      - name: Upload production logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: media-worker-tail
+          path: apps/media-worker/media-worker-tail.log
+          if-no-files-found: error
