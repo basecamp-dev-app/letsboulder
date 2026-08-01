@@ -1,0 +1,67 @@
+name: Production Media Reconciliation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-media-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile production media
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+      SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
+      SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
+      SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      RECONCILIATION_OUTPUT: production-media-reconciliation.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.20.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --prefer-offline
+
+      - name: Validate required configuration
+        shell: bash
+        run: |
+          required_vars=(
+            CLOUDFLARE_API_TOKEN
+            CLOUDFLARE_ACCOUNT_ID
+            SUPABASE_DB_HOST
+            SUPABASE_DB_PORT
+            SUPABASE_DB_USER
+            SUPABASE_DB_NAME
+            PGPASSWORD
+          )
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required configuration: $var"
+              exit 1
+            fi
+          done
+
+      - name: Run read-only reconciliation
+        run: npx tsx scripts/media/reconcile-r2-media.ts
+
+      - name: Upload reconciliation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-media-reconciliation
+          path: production-media-reconciliation.json
+          if-no-files-found: error
+          retention-days: 7
