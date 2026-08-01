@@ -14,11 +14,12 @@ import type { MediaDeletionJobRow } from '@/apps/media-worker/src/schema'
 const job: MediaDeletionJobRow = {
   id: '10000000-0000-4000-8000-000000000001',
   bucket: 'private-media',
-  object_key: 'images/assets/image/original.jpg',
+  object_key: 'images/assets/10000000-0000-4000-8000-000000000002/original.jpg',
   reason: 'account_deleted',
   source_type: 'image',
   source_id: '10000000-0000-4000-8000-000000000002',
   image_id: '10000000-0000-4000-8000-000000000002',
+  delivery_verified_at: null,
   status: 'processing',
   attempts: 1,
   max_attempts: 8,

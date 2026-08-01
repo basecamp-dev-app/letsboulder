@@ -27,14 +27,19 @@ interface ImageRow {
   optimized_bytes: number | null
   optimized_width: number | null
   optimized_height: number | null
+  original_deleted_at: string | null
+  variants: unknown
+  url: string | null
 }
 
 interface ProcessJobDependencies {
   createClient(env: Env): ReturnType<typeof createSupabaseAdminClient>
+  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>
 }
 
 const defaultProcessJobDependencies: ProcessJobDependencies = {
   createClient: createSupabaseAdminClient,
+  fetch: globalThis.fetch,
 }
 
 const CANONICAL_WIDTH = 2560
@@ -167,7 +172,7 @@ async function handleEnqueue(request: Request, env: Env) {
 async function loadImage(supabase: ReturnType<typeof createSupabaseAdminClient>, imageId: string) {
   const { data, error } = await supabase
     .from('images')
-    .select('id, created_by, storage_provider, original_bucket, original_key, original_width, original_height, original_mime_type, original_bytes, width, height, visibility, processing_status, status, optimized_bucket, optimized_key, optimized_mime, optimized_bytes, optimized_width, optimized_height')
+    .select('id, created_by, storage_provider, original_bucket, original_key, original_width, original_height, original_mime_type, original_bytes, width, height, visibility, processing_status, status, optimized_bucket, optimized_key, optimized_mime, optimized_bytes, optimized_width, optimized_height, original_deleted_at, variants, url')
     .eq('id', imageId)
     .maybeSingle()
 
@@ -182,6 +187,60 @@ async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
 
 function normalizedContentType(value: string | null | undefined): string | null {
   return value?.split(';', 1)[0]?.trim().toLowerCase() || null
+}
+
+async function commitAndVerifyCanonical(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  env: Env,
+  dependencies: ProcessJobDependencies,
+  image: ImageRow,
+  canonical: {
+    optimizedKey: string
+    optimizedMime: string
+    optimizedBytes: number
+    optimizedWidth: number
+    optimizedHeight: number
+    manifest: unknown
+    url: string
+  },
+) {
+  const { data: deletionJobId, error } = await supabase.rpc('commit_media_webp', {
+    p_image_id: image.id,
+    p_expected_original_bucket: image.original_bucket,
+    p_expected_original_key: image.original_key,
+    p_optimized_bucket: env.R2_PRIVATE_BUCKET,
+    p_optimized_key: canonical.optimizedKey,
+    p_optimized_mime: canonical.optimizedMime,
+    p_optimized_bytes: canonical.optimizedBytes,
+    p_optimized_width: canonical.optimizedWidth,
+    p_optimized_height: canonical.optimizedHeight,
+    p_manifest: canonical.manifest,
+    p_url: canonical.url,
+  })
+  if (error) throw error
+  if (typeof deletionJobId !== 'string' || !deletionJobId) {
+    throw new Error('Canonical WebP commit did not return a deletion job')
+  }
+
+  const deliveryUrl = new URL(canonical.url, env.MEDIA_HOST)
+  const delivery = await dependencies.fetch(deliveryUrl, { method: 'GET' })
+  if (delivery.status !== 200) {
+    throw new Error(`Canonical public delivery returned status ${delivery.status}`)
+  }
+
+  const deliveryContentType = normalizedContentType(delivery.headers.get('Content-Type'))
+  if (!deliveryContentType?.startsWith('image/')) {
+    throw new Error('Canonical public delivery did not return an image')
+  }
+  if ((await delivery.arrayBuffer()).byteLength === 0) {
+    throw new Error('Canonical public delivery returned an empty body')
+  }
+
+  const { error: verificationError } = await supabase.rpc('verify_media_replacement_delivery', {
+    p_job_id: deletionJobId,
+    p_expected_optimized_key: canonical.optimizedKey,
+  })
+  if (verificationError) throw verificationError
 }
 
 export async function processJob(
@@ -210,9 +269,20 @@ export async function processJob(
 
   if (image.optimized_key) {
     if (image.processing_status !== 'ready' || image.optimized_bucket !== env.R2_PRIVATE_BUCKET || image.optimized_mime !== CANONICAL_MIME ||
-        !image.optimized_bytes || !image.optimized_width || !image.optimized_height) {
+        !image.optimized_bytes || !image.optimized_width || !image.optimized_height ||
+        !image.variants || typeof image.variants !== 'object' || Array.isArray(image.variants) || !image.url) {
       throw new Error(`Ready image ${job.imageId} is missing canonical WebP metadata`)
     }
+    if (image.original_deleted_at) return
+    await commitAndVerifyCanonical(supabase, env, dependencies, image, {
+      optimizedKey: image.optimized_key,
+      optimizedMime: image.optimized_mime,
+      optimizedBytes: image.optimized_bytes,
+      optimizedWidth: image.optimized_width,
+      optimizedHeight: image.optimized_height,
+      manifest: image.variants,
+      url: image.url,
+    })
     return
   }
 
@@ -263,33 +333,15 @@ export async function processJob(
     throw new Error(`Canonical WebP verification failed for ${optimizedKey}`)
   }
 
-  const { data: deletionJobId, error } = await supabase.rpc('commit_media_webp', {
-    p_image_id: image.id,
-    p_expected_original_bucket: image.original_bucket,
-    p_expected_original_key: image.original_key,
-    p_optimized_bucket: env.R2_PRIVATE_BUCKET,
-    p_optimized_key: optimizedKey,
-    p_optimized_mime: CANONICAL_MIME,
-    p_optimized_bytes: bytes.byteLength,
-    p_optimized_width: optimizedWidth,
-    p_optimized_height: optimizedHeight,
-    p_manifest: manifest,
-    p_url: url,
+  await commitAndVerifyCanonical(supabase, env, dependencies, image, {
+    optimizedKey,
+    optimizedMime: CANONICAL_MIME,
+    optimizedBytes: bytes.byteLength,
+    optimizedWidth,
+    optimizedHeight,
+    manifest,
+    url,
   })
-  if (error) throw error
-  if (typeof deletionJobId !== 'string' || !deletionJobId) {
-    throw new Error('Canonical WebP commit did not return a deletion job')
-  }
-
-  try {
-    await env.ORIGINALS_BUCKET.delete(image.original_key)
-  } catch (deleteError) {
-    console.warn('Immediate original deletion failed; durable deletion remains queued', {
-      imageId: image.id,
-      deletionJobId,
-      error: stringifyError(deleteError),
-    })
-  }
 }
 
 async function claimMediaJob(supabase: ReturnType<typeof createSupabaseAdminClient>, workerName: string) {
