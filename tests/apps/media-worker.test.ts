@@ -73,7 +73,7 @@ function createProcessingHarness(options: { failCommitOnce?: boolean; failDelete
     MEDIA_HOST: 'https://static.example',
     R2_PRIVATE_BUCKET: BUCKET,
     R2_ORIGIN_URL: 'https://private-origin.example',
-    INTERNAL_ORIGIN_SECRET: 'origin-secret',
+    INGRESS_SECRET: 'ingress-secret',
     ORIGINALS_BUCKET: bucket,
   }
   const job = {
@@ -165,7 +165,7 @@ describe('media worker canonical WebP processing', () => {
     }))
     expect(harness.mediaFetch).toHaveBeenCalledWith(
       `https://static.example/origin/${SOURCE_KEY}?transform=canonical-webp`,
-      { headers: { 'X-Internal-Secret': 'origin-secret' } },
+      { headers: { Authorization: 'Bearer ingress-secret' } },
     )
     expect(warn).toHaveBeenCalledWith(
       'Immediate original deletion failed; durable deletion remains queued',
@@ -261,9 +261,9 @@ describe('media worker canonical WebP processing', () => {
 
     const response = await mediaWorker.fetch(new Request(
       `https://static.example/origin/${SOURCE_KEY}?transform=canonical-webp`,
-      { headers: { 'X-Internal-Secret': 'origin-secret' } },
+      { headers: { Authorization: 'Bearer ingress-secret' } },
     ), {
-      INTERNAL_ORIGIN_SECRET: 'origin-secret',
+      INGRESS_SECRET: 'ingress-secret',
       R2_ORIGIN_URL: 'https://private-origin.example',
     } as never)
 
