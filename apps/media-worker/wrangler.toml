@@ -37,6 +37,9 @@ bucket_name = "lb-dev-media-private"
 binding = "PUBLIC_BUCKET"
 bucket_name = "lb-dev-media-public"
 
+[env.staging.images]
+binding = "IMAGES"
+
 [[env.staging.routes]]
 pattern = "static.dev.letsboulder.com/*"
 zone_name = "letsboulder.com"
@@ -65,6 +68,9 @@ bucket_name = "lb-prod-media-private"
 [[env.production.r2_buckets]]
 binding = "PUBLIC_BUCKET"
 bucket_name = "lb-prod-media-public"
+
+[env.production.images]
+binding = "IMAGES"
 
 [[env.production.queues.producers]]
 binding = "MEDIA_QUEUE"

@@ -29,16 +29,12 @@ interface ImageRow {
   optimized_height: number | null
 }
 
-type MediaFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
-
 interface ProcessJobDependencies {
   createClient(env: Env): ReturnType<typeof createSupabaseAdminClient>
-  fetch: MediaFetch
 }
 
 const defaultProcessJobDependencies: ProcessJobDependencies = {
   createClient: createSupabaseAdminClient,
-  fetch: (input, init) => fetch(input, init),
 }
 
 const CANONICAL_WIDTH = 2560
@@ -231,10 +227,12 @@ export async function processJob(
     throw new Error(`Image ${job.imageId} is missing valid source dimensions`)
   }
 
-  const canonicalUrl = `${env.MEDIA_HOST}/origin/${image.original_key.split('/').map(encodeURIComponent).join('/')}?transform=canonical-webp`
-  const resized = await dependencies.fetch(canonicalUrl, {
-    headers: { Authorization: `Bearer ${env.INGRESS_SECRET}` },
-  })
+  const source = await env.ORIGINALS_BUCKET.get(image.original_key)
+  if (!source?.body) throw new Error(`Original object body not found for ${image.original_key}`)
+  const resized = (await env.IMAGES.input(source.body)
+    .transform({ width: CANONICAL_WIDTH, fit: 'scale-down' })
+    .output({ format: CANONICAL_MIME, quality: CANONICAL_QUALITY }))
+    .response()
 
   if (!resized.ok) {
     throw new Error(`Canonical WebP resize failed with status ${resized.status}`)
@@ -297,6 +295,7 @@ export async function processJob(
 async function claimMediaJob(supabase: ReturnType<typeof createSupabaseAdminClient>, workerName: string) {
   const { data, error } = await supabase.rpc('claim_media_job', { worker_name: workerName })
   if (error) throw error
+  if (!data || typeof data !== 'object' || !('id' in data) || data.id === null) return null
   return data as MediaJobRow | null
 }
 
@@ -440,11 +439,8 @@ async function drainMediaOutbox(env: Env, workerName = OUTBOX_WORKER_NAME, limit
 }
 
 async function handleOrigin(request: Request, env: Env, url: URL) {
-  const isCanonicalTransform = url.searchParams.get('transform') === 'canonical-webp'
-  const isAuthorized = isCanonicalTransform
-    ? request.headers.get('Authorization') === `Bearer ${env.INGRESS_SECRET}`
-    : request.headers.get('X-Internal-Secret') === env.INTERNAL_ORIGIN_SECRET
-  if (!isAuthorized) {
+  const secret = request.headers.get('X-Internal-Secret')
+  if (secret !== env.INTERNAL_ORIGIN_SECRET) {
     return new Response('Unauthorized', { status: 401 })
   }
 
@@ -456,26 +452,6 @@ async function handleOrigin(request: Request, env: Env, url: URL) {
 
   if (!objectKey) {
     return new Response('Not found', { status: 404 })
-  }
-
-  if (isCanonicalTransform) {
-    const originUrl = `${env.R2_ORIGIN_URL}/${objectKey.split('/').map(encodeURIComponent).join('/')}`
-    const response = await fetch(originUrl, {
-      cf: {
-        image: {
-          width: CANONICAL_WIDTH,
-          quality: CANONICAL_QUALITY,
-          format: 'webp',
-          fit: 'scale-down',
-          metadata: 'none',
-        },
-      },
-    } as RequestInit & { cf: { image: { width: number; quality: number; format: 'webp'; fit: 'scale-down'; metadata: 'none' } } })
-
-    if (!response.ok) return new Response('Canonical transform failed', { status: response.status })
-    const headers = new Headers(response.headers)
-    headers.set('Cache-Control', 'private, no-store')
-    return new Response(response.body, { headers })
   }
 
   const object = await env.ORIGINALS_BUCKET.get(objectKey)

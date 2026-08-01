@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import mediaWorker, { getReadyDeliveryObjectKey, markMediaJobsCompletedByImage, processJob } from '@/apps/media-worker/src/index'
+import { getReadyDeliveryObjectKey, markMediaJobsCompletedByImage, processJob } from '@/apps/media-worker/src/index'
 
 const IMAGE_ID = '11111111-1111-4111-8111-111111111111'
 const USER_ID = '22222222-2222-4222-8222-222222222222'
@@ -63,17 +63,20 @@ function createProcessingHarness(options: { failCommitOnce?: boolean; failDelete
       events.push(`delete:${key}`)
       if (options.failDelete) throw new Error('R2 unavailable')
     }),
-    get: vi.fn(),
+    get: vi.fn(async (key: string) => key === SOURCE_KEY ? { body: new ReadableStream() } : null),
   }
-  const mediaFetch = vi.fn(async () => {
+  const output = vi.fn(async () => ({
+    response: () => new Response(new Uint8Array([1, 2, 3, 4]), { headers: { 'Content-Type': 'image/webp' } }),
+  }))
+  const transform = vi.fn(() => {
     events.push('resize')
-    return new Response(new Uint8Array([1, 2, 3, 4]), { headers: { 'Content-Type': 'image/webp' } })
+    return { output }
   })
+  const images = { input: vi.fn(() => ({ transform })) }
   const env = {
-    MEDIA_HOST: 'https://static.example',
     R2_PRIVATE_BUCKET: BUCKET,
     R2_ORIGIN_URL: 'https://private-origin.example',
-    INGRESS_SECRET: 'ingress-secret',
+    IMAGES: images,
     ORIGINALS_BUCKET: bucket,
   }
   const job = {
@@ -85,7 +88,7 @@ function createProcessingHarness(options: { failCommitOnce?: boolean; failDelete
     triggeredByUserId: USER_ID,
   }
 
-  return { bucket, env, events, image, job, mediaFetch, stored, supabase }
+  return { bucket, env, events, image, images, job, output, stored, supabase, transform }
 }
 
 describe('media worker durable job synchronization', () => {
@@ -133,7 +136,6 @@ describe('media worker canonical WebP processing', () => {
 
     await processJob(harness.job, harness.env as never, {
       createClient: () => harness.supabase as never,
-      fetch: harness.mediaFetch,
     })
 
     const putEvent = harness.events.find(event => event.startsWith('put:'))
@@ -163,10 +165,9 @@ describe('media worker canonical WebP processing', () => {
       }),
       p_url: expect.stringContaining('/canonical.webp?variant=detail&format=webp'),
     }))
-    expect(harness.mediaFetch).toHaveBeenCalledWith(
-      `https://static.example/origin/${SOURCE_KEY}?transform=canonical-webp`,
-      { headers: { Authorization: 'Bearer ingress-secret' } },
-    )
+    expect(harness.images.input).toHaveBeenCalledOnce()
+    expect(harness.transform).toHaveBeenCalledWith({ width: 2560, fit: 'scale-down' })
+    expect(harness.output).toHaveBeenCalledWith({ format: 'image/webp', quality: 82 })
     expect(warn).toHaveBeenCalledWith(
       'Immediate original deletion failed; durable deletion remains queued',
       expect.objectContaining({ imageId: IMAGE_ID }),
@@ -179,13 +180,11 @@ describe('media worker canonical WebP processing', () => {
 
     await expect(processJob(harness.job, harness.env as never, {
       createClient: () => harness.supabase as never,
-      fetch: harness.mediaFetch,
     })).rejects.toThrow('commit unavailable')
     expect(harness.bucket.delete).not.toHaveBeenCalled()
 
     await processJob(harness.job, harness.env as never, {
       createClient: () => harness.supabase as never,
-      fetch: harness.mediaFetch,
     })
 
     const putKeys = harness.bucket.put.mock.calls.map(([key]) => key)
@@ -199,11 +198,10 @@ describe('media worker canonical WebP processing', () => {
 
     await expect(processJob({ ...harness.job, originalKey: 'images/staging/stale.jpg' }, harness.env as never, {
       createClient: () => harness.supabase as never,
-      fetch: harness.mediaFetch,
     })).rejects.toThrow('does not match')
 
     expect(harness.bucket.head).not.toHaveBeenCalled()
-    expect(harness.mediaFetch).not.toHaveBeenCalled()
+    expect(harness.images.input).not.toHaveBeenCalled()
     expect(harness.supabase.rpc).not.toHaveBeenCalled()
   })
 
@@ -221,7 +219,6 @@ describe('media worker canonical WebP processing', () => {
 
     await processJob(harness.job, harness.env as never, {
       createClient: () => harness.supabase as never,
-      fetch: harness.mediaFetch,
     })
 
     expect(harness.bucket.head).not.toHaveBeenCalled()
@@ -238,7 +235,6 @@ describe('media worker canonical WebP processing', () => {
 
     await processJob(harness.job, harness.env as never, {
       createClient: () => harness.supabase as never,
-      fetch: harness.mediaFetch,
     })
 
     expect(harness.bucket.put).toHaveBeenCalledOnce()
@@ -252,30 +248,6 @@ describe('media worker canonical WebP processing', () => {
     expect(getReadyDeliveryObjectKey({ processing_status: 'ready', optimized_key: optimizedKey, original_key: originalKey })).toBe(optimizedKey)
     expect(getReadyDeliveryObjectKey({ processing_status: 'processing', optimized_key: optimizedKey, original_key: originalKey })).toBeNull()
     expect(getReadyDeliveryObjectKey({ processing_status: 'ready', optimized_key: null, original_key: originalKey })).toBe(originalKey)
-  })
-
-  it('performs canonical resizing inside an authenticated fetch event', async () => {
-    const transformed = new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/webp' } })
-    const resizeFetch = vi.fn(async () => transformed)
-    vi.stubGlobal('fetch', resizeFetch)
-
-    const response = await mediaWorker.fetch(new Request(
-      `https://static.example/origin/${SOURCE_KEY}?transform=canonical-webp`,
-      { headers: { Authorization: 'Bearer ingress-secret' } },
-    ), {
-      INGRESS_SECRET: 'ingress-secret',
-      R2_ORIGIN_URL: 'https://private-origin.example',
-    } as never)
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Type')).toBe('image/webp')
-    expect(resizeFetch).toHaveBeenCalledWith(
-      `https://private-origin.example/${SOURCE_KEY}`,
-      expect.objectContaining({
-        cf: { image: { width: 2560, quality: 82, format: 'webp', fit: 'scale-down', metadata: 'none' } },
-      }),
-    )
-    vi.unstubAllGlobals()
   })
 
 })
