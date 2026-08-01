@@ -1,0 +1,96 @@
+name: Production Media Canonical Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_id:
+        description: Optional image UUID (must be a reconciliation candidate)
+        required: false
+        type: string
+      batch_size:
+        description: Number of stably sorted candidates to process (maximum 25)
+        required: true
+        default: '1'
+        type: string
+      confirmation:
+        description: Type MIGRATE exactly to authorize this production workflow
+        required: true
+        type: string
+      dry_run:
+        description: Validate candidates without downloading, uploading, or mutating the database
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-media-canonical-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Migrate production canonical media
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 60
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+      SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
+      SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
+      SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      MEDIA_CDN_URL: https://static.letsboulder.com
+      RECONCILIATION_OUTPUT: production-media-reconciliation.json
+      RECONCILIATION_INPUT: production-media-reconciliation.json
+      MIGRATION_RESULT: production-media-canonical-migration-result.json
+      IMAGE_ID: ${{ inputs.image_id }}
+      BATCH_SIZE: ${{ inputs.batch_size }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize result manifest
+        run: printf '%s\n' '{"schemaVersion":1,"fatalError":"Migration did not start"}' > "$MIGRATION_RESULT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.20.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --prefer-offline
+
+      - name: Validate dispatch authorization
+        shell: bash
+        run: |
+          if [ "$CONFIRMATION" != 'MIGRATE' ]; then
+            echo '::error::Confirmation must exactly equal MIGRATE'
+            exit 1
+          fi
+          if ! [[ "$BATCH_SIZE" =~ ^[0-9]+$ ]] || [ "$BATCH_SIZE" -lt 1 ] || [ "$BATCH_SIZE" -gt 25 ]; then
+            echo '::error::Batch size must be an integer between 1 and 25'
+            exit 1
+          fi
+
+      - name: Reconcile production media
+        run: npx tsx scripts/media/reconcile-r2-media.ts
+
+      - name: Run canonical migration
+        run: npx tsx scripts/media/migrate-canonical-webp.ts
+
+      - name: Upload migration result manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-media-canonical-migration-result
+          path: production-media-canonical-migration-result.json
+          if-no-files-found: error
+          retention-days: 30
