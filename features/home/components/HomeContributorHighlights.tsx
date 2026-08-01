@@ -1,6 +1,6 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import HomeAvatar from '@/features/home/components/HomeAvatar'
 import type { HomeContributorHighlight, HomeRecentClimbLog } from '@/features/home/server/homepage-data'
 
 function formatRelativeTime(dateString: string) {
@@ -15,27 +15,6 @@ function formatRelativeTime(dateString: string) {
 
   const diffInDays = Math.round(diffInHours / 24)
   return formatter.format(diffInDays, 'day')
-}
-
-function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
-  if (avatarUrl) {
-    return (
-      <Image
-        src={avatarUrl}
-        alt={name}
-        width={40}
-        height={40}
-        sizes="40px"
-        className="h-10 w-10 rounded-full object-cover"
-      />
-    )
-  }
-
-  return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-200 text-xs font-semibold text-stone-700 dark:bg-slate-800 dark:text-stone-100">
-      {name.slice(0, 2).toUpperCase()}
-    </div>
-  )
 }
 
 function formatLogStyle(style: string) {
@@ -59,7 +38,7 @@ function ContributorRow({
       href={contributor.href}
       className="flex items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/90 px-3 py-2.5 transition hover:border-stone-300 hover:bg-white dark:border-white/10 dark:bg-slate-950/55 dark:hover:border-white/20 dark:hover:bg-slate-950/72"
     >
-      <Avatar name={contributor.displayName} avatarUrl={contributor.avatarUrl} />
+      <HomeAvatar name={contributor.displayName} avatarUrl={contributor.avatarUrl} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-stone-950 dark:text-stone-50">{contributor.displayName}</p>
         {contributor.username ? <p className="truncate text-xs text-stone-500 dark:text-stone-400">@{contributor.username}</p> : null}
@@ -121,7 +100,7 @@ export default function HomeContributorHighlights({
                 className="flex items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/90 px-3 py-2.5 transition hover:border-stone-300 hover:bg-white dark:border-white/10 dark:bg-slate-950/55 dark:hover:border-white/20 dark:hover:bg-slate-950/72"
               >
                 <Link href={log.profileHref} aria-label={`View ${log.displayName}'s logbook`} className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 dark:focus-visible:ring-stone-500 dark:focus-visible:ring-offset-slate-950">
-                  <Avatar name={log.displayName} avatarUrl={log.avatarUrl} />
+                  <HomeAvatar name={log.displayName} avatarUrl={log.avatarUrl} />
                 </Link>
                 <Link href={log.href} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 dark:focus-visible:ring-stone-500 dark:focus-visible:ring-offset-slate-950">
                   <div className="min-w-0 flex-1">
