@@ -653,7 +653,16 @@ async function handleMedia(request: Request, env: Env, url: URL) {
   } as RequestInit & { cf: { cacheTtl: number; image: { width: number; format: string; fit: 'scale-down'; metadata: 'none' } } })
 
   if (!response.ok) {
-    return new Response('Not found', { status: 404 })
+    const fallback = await env.ORIGINALS_BUCKET.get(objectKey)
+    if (!fallback?.body) return new Response('Not found', { status: 404 })
+    const headers = new Headers()
+    fallback.writeHttpMetadata(headers)
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', objectKey.toLowerCase().endsWith('.webp') ? 'image/webp' : 'image/jpeg')
+    }
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+    headers.set('Access-Control-Allow-Origin', '*')
+    return new Response(fallback.body, { status: 200, headers })
   }
 
   const headers = new Headers(response.headers)
