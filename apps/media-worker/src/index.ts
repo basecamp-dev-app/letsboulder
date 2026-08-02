@@ -169,37 +169,6 @@ async function handleEnqueue(request: Request, env: Env) {
   return json({ success: true, status: 'queued' }, { status: 202 })
 }
 
-async function handleObjectDiagnostic(request: Request, env: Env) {
-  if (request.headers.get('Authorization') !== `Bearer ${env.INGRESS_SECRET}`) {
-    return new Response('Unauthorized', { status: 401 })
-  }
-  const body: unknown = await request.json().catch(() => null)
-  const key = typeof body === 'object' && body !== null && 'key' in body && typeof body.key === 'string'
-    ? body.key
-    : null
-  if (!key || !/^images\/(?:assets|originals)\/[0-9a-f-]{36}\/.+$/i.test(key)) {
-    return json({ error: 'Invalid diagnostic key' }, { status: 400 })
-  }
-  const object = await env.ORIGINALS_BUCKET.head(key)
-  return json({ exists: Boolean(object), size: object?.size ?? null, etag: object?.etag ?? null })
-}
-
-async function handleCacheRecovery(request: Request, env: Env) {
-  if (request.headers.get('Authorization') !== `Bearer ${env.INGRESS_SECRET}`) {
-    return new Response('Unauthorized', { status: 401 })
-  }
-  const body: unknown = await request.json().catch(() => null)
-  const url = typeof body === 'object' && body !== null && 'url' in body && typeof body.url === 'string'
-    ? new URL(body.url)
-    : null
-  if (!url || url.hostname !== 'static.letsboulder.com' || url.protocol !== 'https:') {
-    return json({ error: 'Invalid recovery URL' }, { status: 400 })
-  }
-  const defaultCache = (caches as CacheStorage & { default: Cache }).default
-  const deleted = await defaultCache.delete(new Request(url, { method: 'GET' }))
-  return json({ deleted })
-}
-
 async function loadImage(supabase: ReturnType<typeof createSupabaseAdminClient>, imageId: string) {
   const { data, error } = await supabase
     .from('images')
@@ -693,12 +662,6 @@ export default {
     const url = new URL(request.url)
     if (request.method === 'POST' && url.pathname === '/enqueue') {
       return handleEnqueue(request, env)
-    }
-    if (request.method === 'POST' && url.pathname === '/diagnose-object') {
-      return handleObjectDiagnostic(request, env)
-    }
-    if (request.method === 'POST' && url.pathname === '/recover-cache') {
-      return handleCacheRecovery(request, env)
     }
 
     if (request.method === 'GET' && url.pathname.startsWith('/origin/')) {

@@ -171,7 +171,7 @@ export async function verifySurface(
 ): Promise<Omit<HealthEntry, 'failure'>> {
   try {
     const fetchUrl = new URL(surface.requestedUrl)
-    fetchUrl.searchParams.set('lb-health', `${Date.now()}-${Math.random().toString(16).slice(2)}`)
+    fetchUrl.searchParams.set('width', `health-${Date.now()}-${Math.random().toString(16).slice(2)}`)
     const response = await fetcher(fetchUrl, {
       method: 'GET',
       redirect: 'follow',
