@@ -496,7 +496,7 @@ async function handleOrigin(request: Request, env: Env, url: URL) {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  const objectKey = url.pathname.replace(/^\/origin\/(?:_v2\/)?/, '')
+  const objectKey = url.pathname.replace(/^\/origin\//, '')
     .split('/')
     .filter(Boolean)
     .map(decodeURIComponent)
@@ -623,7 +623,7 @@ async function handleMedia(request: Request, env: Env, url: URL) {
   const format = formatParam === 'avif' || formatParam === 'jpeg' || formatParam === 'auto'
     ? formatParam
     : 'webp'
-  const originUrl = `${env.R2_ORIGIN_URL}/_v2/${objectKey.split('/').map(encodeURIComponent).join('/')}`
+  const originUrl = `${env.R2_ORIGIN_URL}/${objectKey.split('/').map(encodeURIComponent).join('/')}`
 
   const response = await fetch(originUrl, {
     cf: {
