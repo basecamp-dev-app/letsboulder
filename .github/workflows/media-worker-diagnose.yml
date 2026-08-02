@@ -1,0 +1,38 @@
+name: Production Media Worker Diagnose
+
+on:
+  workflow_dispatch:
+    inputs:
+      object_key:
+        description: Private image object key to HEAD through the production Worker binding
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Diagnose production media object
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 5
+    env:
+      CF_MEDIA_WORKER_URL: ${{ secrets.CF_MEDIA_WORKER_URL }}
+      CF_MEDIA_WORKER_SECRET: ${{ secrets.CF_MEDIA_WORKER_SECRET }}
+      OBJECT_KEY: ${{ inputs.object_key }}
+    steps:
+      - name: HEAD object through Worker binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$CF_MEDIA_WORKER_URL" ] || [ -z "$CF_MEDIA_WORKER_SECRET" ]; then
+            echo '::error::Missing Worker diagnostic configuration'
+            exit 1
+          fi
+          curl --fail --silent --show-error \
+            --request POST "${CF_MEDIA_WORKER_URL%/}/diagnose-object" \
+            -H "Authorization: Bearer $CF_MEDIA_WORKER_SECRET" \
+            -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg key "$OBJECT_KEY" '{key: $key}')" \
+            | jq .
