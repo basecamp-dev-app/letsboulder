@@ -6,6 +6,7 @@ type WorkerQueue<T> = {
 
 type WorkerR2Object = {
   size: number
+  etag: string
   httpMetadata?: { contentType?: string | null }
 }
 

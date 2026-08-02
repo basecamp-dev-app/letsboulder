@@ -1,0 +1,110 @@
+name: Production Media HTTP Health
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_run_id:
+        description: Optional prior Production Media HTTP Health run ID
+        required: false
+        type: string
+      baseline_artifact_digest:
+        description: API-reported digest for the optional baseline artifact
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-media-http-health
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify production media delivery
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 45
+    env:
+      SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+      SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
+      SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
+      SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      MEDIA_CDN_URL: https://static.letsboulder.com
+      MEDIA_HEALTH_OUTPUT: production-media-http-health.json
+      MEDIA_HEALTH_BASELINE: ${{ inputs.baseline_run_id && 'health-baseline/production-media-http-health.json' || '' }}
+      BASELINE_RUN_ID: ${{ inputs.baseline_run_id }}
+      BASELINE_ARTIFACT_DIGEST: ${{ inputs.baseline_artifact_digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize health manifest
+        run: printf '%s\n' '{"schemaVersion":1,"entries":[],"summary":{"checked":0,"passed":0,"existingFailures":0,"newFailures":1},"fatalError":"Verification did not start"}' > "$MEDIA_HEALTH_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.20.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --prefer-offline
+
+      - name: Validate required configuration
+        shell: bash
+        run: |
+          required_vars=(SUPABASE_DB_HOST SUPABASE_DB_PORT SUPABASE_DB_USER SUPABASE_DB_NAME PGPASSWORD MEDIA_CDN_URL)
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required configuration: $var"
+              exit 1
+            fi
+          done
+
+      - name: Verify optional baseline
+        if: inputs.baseline_run_id != '' || inputs.baseline_artifact_digest != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if ! [[ "$BASELINE_RUN_ID" =~ ^[0-9]+$ ]] \
+            || ! [[ "$BASELINE_ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo '::error::Baseline run ID and digest must both be supplied and valid'
+            exit 1
+          fi
+          run_json="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$BASELINE_RUN_ID")"
+          if [ "$(jq -r '.name' <<< "$run_json")" != 'Production Media HTTP Health' ] \
+            || [ "$(jq -r '.path' <<< "$run_json")" != '.github/workflows/production-media-http-health.yml' ] \
+            || [ "$(jq -r '.head_repository.full_name' <<< "$run_json")" != "$GITHUB_REPOSITORY" ]; then
+            echo '::error::Baseline run is not an associated production media health run'
+            exit 1
+          fi
+          artifacts_json="$(gh api --paginate "/repos/$GITHUB_REPOSITORY/actions/runs/$BASELINE_RUN_ID/artifacts?per_page=100" --slurp)"
+          api_digest="$(jq -r '[.[].artifacts[] | select(.name == "production-media-http-health" and .expired == false)][0].digest // ""' <<< "$artifacts_json")"
+          match_count="$(jq '[.[].artifacts[] | select(.name == "production-media-http-health" and .expired == false)] | length' <<< "$artifacts_json")"
+          if [ "$match_count" != '1' ] || [ "$api_digest" != "$BASELINE_ARTIFACT_DIGEST" ]; then
+            echo '::error::Baseline artifact association or digest mismatch'
+            exit 1
+          fi
+
+      - name: Download optional baseline
+        if: inputs.baseline_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: production-media-http-health
+          path: health-baseline
+          run-id: ${{ inputs.baseline_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Run read-only HTTP verification
+        run: npx tsx scripts/media/verify-production-http-health.ts
+
+      - name: Upload health manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-media-http-health
+          path: production-media-http-health.json
+          if-no-files-found: error
+          retention-days: 30

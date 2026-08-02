@@ -1,0 +1,59 @@
+name: Public R2 Inventory
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r2-public-inventory-production
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    name: Inventory Production Public R2 Bucket
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      R2_BUCKET: lb-prod-media-public
+    steps:
+      - name: List public R2 objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || ! [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]; then
+            echo '::error::Missing or invalid Cloudflare configuration'
+            exit 1
+          fi
+          verification="$(curl --fail --silent --show-error \
+            'https://api.cloudflare.com/client/v4/user/tokens/verify' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+          if ! jq -e '.success == true and .result.status == "active"' <<< "$verification" >/dev/null; then
+            echo '::error::Cloudflare API token is not active'
+            exit 1
+          fi
+          export AWS_ACCESS_KEY_ID="$(jq -r '.result.id' <<< "$verification")"
+          export AWS_SECRET_ACCESS_KEY="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | sha256sum | cut -d ' ' -f 1)"
+          export AWS_DEFAULT_REGION=auto AWS_EC2_METADATA_DISABLED=true
+          echo "::add-mask::$AWS_ACCESS_KEY_ID"
+          echo "::add-mask::$AWS_SECRET_ACCESS_KEY"
+          raw_inventory="$RUNNER_TEMP/r2-public-inventory-raw.json"
+          trap 'unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; rm -f "$raw_inventory"' EXIT
+          aws s3api list-objects-v2 --bucket "$R2_BUCKET" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --output json > "$raw_inventory"
+          jq '[.Contents[]? | {Key, Size, LastModified, ETag, StorageClass}] | sort_by(.Key)' \
+            "$raw_inventory" > lb-prod-media-public-inventory.json
+          jq '{objects: length, bytes: ([.[].Size] | add // 0)}' lb-prod-media-public-inventory.json
+
+      - name: Upload public R2 inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: lb-prod-media-public-inventory
+          path: lb-prod-media-public-inventory.json
+          if-no-files-found: error
+          retention-days: 30
