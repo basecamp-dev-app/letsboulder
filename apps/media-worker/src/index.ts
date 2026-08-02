@@ -627,6 +627,7 @@ async function handleMedia(request: Request, env: Env, url: URL) {
 
   const response = await fetch(originUrl, {
     cf: {
+      cacheTtl: 0,
       image: {
         width,
         format,
@@ -634,7 +635,7 @@ async function handleMedia(request: Request, env: Env, url: URL) {
         metadata: 'none',
       },
     },
-  } as RequestInit & { cf: { image: { width: number; format: string; fit: 'scale-down'; metadata: 'none' } } })
+  } as RequestInit & { cf: { cacheTtl: number; image: { width: number; format: string; fit: 'scale-down'; metadata: 'none' } } })
 
   if (!response.ok) {
     return new Response('Not found', { status: 404 })
