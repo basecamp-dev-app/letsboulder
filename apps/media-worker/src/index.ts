@@ -623,9 +623,7 @@ async function handleMedia(request: Request, env: Env, url: URL) {
   const format = formatParam === 'avif' || formatParam === 'jpeg' || formatParam === 'auto'
     ? formatParam
     : 'webp'
-  const originUrl = new URL(`${env.R2_ORIGIN_URL}/${objectKey.split('/').map(encodeURIComponent).join('/')}`)
-  const healthToken = url.searchParams.get('lb-health')
-  if (healthToken) originUrl.searchParams.set('lb-health', healthToken)
+  const originUrl = `${env.R2_ORIGIN_URL}/${objectKey.split('/').map(encodeURIComponent).join('/')}`
 
   const response = await fetch(originUrl, {
     cf: {
