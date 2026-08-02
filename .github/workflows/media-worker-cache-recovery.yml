@@ -1,0 +1,39 @@
+name: Production Media Worker Cache Recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Exact static.letsboulder.com URL to remove from the runner-colo cache
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    name: Recover production media cache entry
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 5
+    env:
+      CF_MEDIA_WORKER_URL: ${{ secrets.CF_MEDIA_WORKER_URL }}
+      CF_MEDIA_WORKER_SECRET: ${{ secrets.CF_MEDIA_WORKER_SECRET }}
+      RECOVERY_URL: ${{ inputs.url }}
+    steps:
+      - name: Delete local cache entry
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --request POST "${CF_MEDIA_WORKER_URL%/}/recover-cache" \
+            -H "Authorization: Bearer $CF_MEDIA_WORKER_SECRET" \
+            -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg url "$RECOVERY_URL" '{url: $url}')" \
+            | jq -e '.deleted == true'
+
+      - name: Verify recovered URL
+        run: |
+          curl --fail --location --silent --show-error "$RECOVERY_URL" --output recovered-image
+          test -s recovered-image
