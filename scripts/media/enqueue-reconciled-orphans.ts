@@ -192,9 +192,10 @@ async function cloudflareCredentials(): Promise<{ accessKeyId: string; secretAcc
 async function validateObjectMetadata(s3: S3Client, candidate: OrphanCandidate): Promise<string | null> {
   try {
     const head = await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: candidate.key }))
-    const modified = head.LastModified?.toISOString()
     const etag = head.ETag ? normalizeEtag(head.ETag) : null
-    if (head.ContentLength !== candidate.size || modified !== new Date(candidate.lastModified).toISOString()
+    const reviewedModifiedSecond = Math.floor(new Date(candidate.lastModified).getTime() / 1_000)
+    const currentModifiedSecond = head.LastModified ? Math.floor(head.LastModified.getTime() / 1_000) : null
+    if (head.ContentLength !== candidate.size || currentModifiedSecond !== reviewedModifiedSecond
       || etag !== candidate.etag) {
       return 'object-metadata-drift'
     }
