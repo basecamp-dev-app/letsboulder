@@ -2051,6 +2051,8 @@ export type Database = {
           completed_at: string | null
           created_at: string
           delivery_verified_at: string | null
+          expected_object_bytes: number | null
+          expected_object_etag: string | null
           id: string
           image_id: string | null
           last_error: string | null
@@ -2059,6 +2061,8 @@ export type Database = {
           max_attempts: number
           object_key: string
           reason: string
+          reconciliation_artifact_digest: string | null
+          reconciliation_run_id: number | null
           run_at: string
           source_id: string | null
           source_type: string
@@ -2072,6 +2076,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           delivery_verified_at?: string | null
+          expected_object_bytes?: number | null
+          expected_object_etag?: string | null
           id?: string
           image_id?: string | null
           last_error?: string | null
@@ -2080,6 +2086,8 @@ export type Database = {
           max_attempts?: number
           object_key: string
           reason: string
+          reconciliation_artifact_digest?: string | null
+          reconciliation_run_id?: number | null
           run_at?: string
           source_id?: string | null
           source_type: string
@@ -2093,6 +2101,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           delivery_verified_at?: string | null
+          expected_object_bytes?: number | null
+          expected_object_etag?: string | null
           id?: string
           image_id?: string | null
           last_error?: string | null
@@ -2101,6 +2111,8 @@ export type Database = {
           max_attempts?: number
           object_key?: string
           reason?: string
+          reconciliation_artifact_digest?: string | null
+          reconciliation_run_id?: number | null
           run_at?: string
           source_id?: string | null
           source_type?: string
@@ -3925,6 +3937,8 @@ export type Database = {
           completed_at: string | null
           created_at: string
           delivery_verified_at: string | null
+          expected_object_bytes: number | null
+          expected_object_etag: string | null
           id: string
           image_id: string | null
           last_error: string | null
@@ -3933,6 +3947,8 @@ export type Database = {
           max_attempts: number
           object_key: string
           reason: string
+          reconciliation_artifact_digest: string | null
+          reconciliation_run_id: number | null
           run_at: string
           source_id: string | null
           source_type: string
@@ -4107,6 +4123,20 @@ export type Database = {
           p_source_type: string
         }
         Returns: string
+      }
+      enqueue_reconciled_media_orphans: {
+        Args: {
+          p_artifact_digest: string
+          p_bucket: string
+          p_expected_bytes: number[]
+          p_expected_etags: string[]
+          p_keys: string[]
+          p_reconciliation_run_id: number
+        }
+        Returns: {
+          job_id: string
+          object_key: string
+        }[]
       }
       fail_media_deletion_job: {
         Args: { p_claim_token: string; p_error: string; p_job_id: string }
@@ -5086,6 +5116,10 @@ export type Database = {
       }
       verify_media_replacement_delivery: {
         Args: { p_expected_optimized_key: string; p_job_id: string }
+        Returns: undefined
+      }
+      verify_reconciled_orphan_deletion: {
+        Args: { p_claim_token: string; p_job_id: string }
         Returns: undefined
       }
       wiki_entity_snapshot: {

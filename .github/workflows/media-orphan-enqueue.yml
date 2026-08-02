@@ -1,0 +1,248 @@
+name: Production Media Orphan Enqueue
+
+on:
+  workflow_dispatch:
+    inputs:
+      reconciliation_run_id:
+        description: Successful Production Media Reconciliation run ID
+        required: true
+        type: string
+      reconciliation_artifact_digest:
+        description: Exact API-reported sha256 digest for the reconciliation artifact
+        required: true
+        type: string
+      health_baseline_run_id:
+        description: Reviewed Production Media HTTP Health baseline run ID
+        required: true
+        type: string
+      health_baseline_artifact_digest:
+        description: Exact API-reported digest for the health baseline artifact
+        required: true
+        type: string
+      migration_run_id:
+        description: Successful Supabase Migrations run for the executing revision
+        required: true
+        type: string
+      worker_deployment_run_id:
+        description: Successful Media Worker Deploy run for the executing revision
+        required: true
+        type: string
+      batch_size:
+        description: Number of deterministic candidates to consider (maximum 25)
+        required: true
+        default: '1'
+        type: string
+      confirmation:
+        description: Type ENQUEUE_ORPHANS exactly to authorize this workflow
+        required: true
+        type: string
+      dry_run:
+        description: Revalidate and retain candidates without enqueueing durable jobs
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-media-orphan-enqueue
+  cancel-in-progress: false
+
+jobs:
+  enqueue:
+    name: Enqueue reconciled production media orphans
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+      SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
+      SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
+      SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SOURCE_RUN_ID: ${{ inputs.reconciliation_run_id }}
+      ARTIFACT_DIGEST: ${{ inputs.reconciliation_artifact_digest }}
+      EXECUTION_RUN_ID: ${{ github.run_id }}
+      RECONCILIATION_INPUT: reconciliation-artifact/production-media-reconciliation.json
+      ORPHAN_MANIFEST_DIR: media-orphan-enqueue-manifests
+      BATCH_SIZE: ${{ inputs.batch_size }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      MEDIA_CDN_URL: https://static.letsboulder.com
+      MEDIA_HEALTH_OUTPUT: production-media-http-health.json
+      MEDIA_HEALTH_BASELINE: health-baseline/production-media-http-health.json
+      BASELINE_RUN_ID: ${{ inputs.health_baseline_run_id }}
+      BASELINE_ARTIFACT_DIGEST: ${{ inputs.health_baseline_artifact_digest }}
+      MIGRATION_RUN_ID: ${{ inputs.migration_run_id }}
+      WORKER_DEPLOYMENT_RUN_ID: ${{ inputs.worker_deployment_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize result manifests
+        shell: bash
+        run: |
+          mkdir -p "$ORPHAN_MANIFEST_DIR"
+          for manifest in attempted queued skipped failed completed retained-quarantine; do
+            jq -n \
+              --arg sourceRunId "$SOURCE_RUN_ID" \
+              --arg artifactDigest "$ARTIFACT_DIGEST" \
+              --arg executionRunId "$EXECUTION_RUN_ID" \
+              --arg manifest "$manifest" \
+              --argjson dryRun "$DRY_RUN" \
+              '{schemaVersion: 1, $sourceRunId, $artifactDigest, $executionRunId,
+                candidateCount: 0, candidateBytes: 0, selectedCount: 0, selectedBytes: 0,
+                $dryRun, $manifest, entries: [], fatalError: "Maintenance script did not start"}' \
+              > "$ORPHAN_MANIFEST_DIR/$manifest.json"
+          done
+
+      - name: Validate dispatch authorization
+        shell: bash
+        run: |
+          if [ "$CONFIRMATION" != 'ENQUEUE_ORPHANS' ]; then
+            echo '::error::Confirmation must exactly equal ENQUEUE_ORPHANS'
+            exit 1
+          fi
+          if ! [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo '::error::Reconciliation run ID must be numeric'
+            exit 1
+          fi
+          if ! [[ "$BASELINE_RUN_ID" =~ ^[0-9]+$ ]] \
+            || ! [[ "$BASELINE_ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo '::error::Health baseline run ID and digest must both be valid'
+            exit 1
+          fi
+          if ! [[ "$MIGRATION_RUN_ID" =~ ^[0-9]+$ ]] || ! [[ "$WORKER_DEPLOYMENT_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo '::error::Migration and Worker deployment run IDs must be numeric'
+            exit 1
+          fi
+          if ! [[ "$ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo '::error::Artifact digest must be a lowercase sha256 digest'
+            exit 1
+          fi
+          if ! [[ "$BATCH_SIZE" =~ ^[0-9]+$ ]] || [ "$BATCH_SIZE" -lt 1 ] || [ "$BATCH_SIZE" -gt 25 ]; then
+            echo '::error::Batch size must be an integer between 1 and 25'
+            exit 1
+          fi
+
+      - name: Verify source run and artifact digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          run_json="$(gh api "/repos/$EXPECTED_REPOSITORY/actions/runs/$SOURCE_RUN_ID")"
+          if [ "$(jq -r '.name' <<< "$run_json")" != 'Production Media Reconciliation' ] \
+            || [ "$(jq -r '.path' <<< "$run_json")" != '.github/workflows/media-reconciliation.yml' ] \
+            || [ "$(jq -r '.conclusion' <<< "$run_json")" != 'success' ] \
+            || [ "$(jq -r '.head_repository.full_name' <<< "$run_json")" != "$EXPECTED_REPOSITORY" ] \
+            || [ "$(jq -r '.head_branch' <<< "$run_json")" != 'main' ] \
+            || [ "$(jq -r '.head_sha' <<< "$run_json")" != "$GITHUB_SHA" ]; then
+            echo '::error::Source run is not an associated successful production reconciliation run'
+            exit 1
+          fi
+          artifacts_json="$(gh api --paginate "/repos/$EXPECTED_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" --slurp)"
+          match_count="$(jq '[.[].artifacts[] | select(.name == "production-media-reconciliation" and .expired == false)] | length' <<< "$artifacts_json")"
+          api_digest="$(jq -r '[.[].artifacts[] | select(.name == "production-media-reconciliation" and .expired == false)][0].digest // ""' <<< "$artifacts_json")"
+          if [ "$match_count" != '1' ] || [ "$api_digest" != "$ARTIFACT_DIGEST" ]; then
+            echo '::error::Artifact association or API digest does not match the supplied digest'
+            exit 1
+          fi
+
+      - name: Download verified reconciliation artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: production-media-reconciliation
+          path: reconciliation-artifact
+          run-id: ${{ inputs.reconciliation_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify health baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          run_json="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$BASELINE_RUN_ID")"
+          if [ "$(jq -r '.name' <<< "$run_json")" != 'Production Media HTTP Health' ] \
+            || [ "$(jq -r '.path' <<< "$run_json")" != '.github/workflows/production-media-http-health.yml' ] \
+            || [ "$(jq -r '.conclusion' <<< "$run_json")" != 'success' ] \
+            || [ "$(jq -r '.head_repository.full_name' <<< "$run_json")" != "$GITHUB_REPOSITORY" ] \
+            || [ "$(jq -r '.head_branch' <<< "$run_json")" != 'main' ] \
+            || [ "$(jq -r '.head_sha' <<< "$run_json")" != "$GITHUB_SHA" ]; then
+            echo '::error::Baseline run is not an associated production media health run'
+            exit 1
+          fi
+          artifacts_json="$(gh api --paginate "/repos/$GITHUB_REPOSITORY/actions/runs/$BASELINE_RUN_ID/artifacts?per_page=100" --slurp)"
+          api_digest="$(jq -r '[.[].artifacts[] | select(.name == "production-media-http-health" and .expired == false)][0].digest // ""' <<< "$artifacts_json")"
+          match_count="$(jq '[.[].artifacts[] | select(.name == "production-media-http-health" and .expired == false)] | length' <<< "$artifacts_json")"
+          if [ "$match_count" != '1' ] || [ "$api_digest" != "$BASELINE_ARTIFACT_DIGEST" ]; then
+            echo '::error::Baseline artifact association or digest mismatch'
+            exit 1
+          fi
+
+      - name: Verify database and Worker deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          migration_json="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$MIGRATION_RUN_ID")"
+          worker_json="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$WORKER_DEPLOYMENT_RUN_ID")"
+          if [ "$(jq -r '.name' <<< "$migration_json")" != 'Supabase Migrations' ] \
+            || [ "$(jq -r '.conclusion' <<< "$migration_json")" != 'success' ] \
+            || [ "$(jq -r '.head_sha' <<< "$migration_json")" != "$GITHUB_SHA" ]; then
+            echo '::error::Supabase migration deployment is not verified for this revision'
+            exit 1
+          fi
+          if [ "$(jq -r '.name' <<< "$worker_json")" != 'Media Worker Deploy' ] \
+            || [ "$(jq -r '.conclusion' <<< "$worker_json")" != 'success' ] \
+            || [ "$(jq -r '.head_sha' <<< "$worker_json")" != "$GITHUB_SHA" ]; then
+            echo '::error::Media Worker deployment is not verified for this revision'
+            exit 1
+          fi
+
+      - name: Download verified health baseline
+        uses: actions/download-artifact@v4
+        with:
+          name: production-media-http-health
+          path: health-baseline
+          run-id: ${{ inputs.health_baseline_run_id }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.20.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --prefer-offline
+
+      - name: Enqueue reconciled orphans
+        run: npx tsx scripts/media/enqueue-reconciled-orphans.ts
+
+      - name: Verify no new public image failures
+        if: always() && inputs.dry_run == 'false'
+        run: npx tsx scripts/media/verify-production-http-health.ts
+
+      - name: Upload maintenance manifests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-media-orphan-enqueue-manifests-${{ github.run_id }}
+          path: media-orphan-enqueue-manifests
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload post-batch health manifest
+        if: always() && inputs.dry_run == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-media-http-health-${{ github.run_id }}
+          path: production-media-http-health.json
+          if-no-files-found: error
+          retention-days: 30
