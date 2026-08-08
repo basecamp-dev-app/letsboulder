@@ -1,10 +1,14 @@
 import { defineConfig, devices } from '@playwright/test'
 import path from 'path'
 import dotenv from 'dotenv'
+import { validateTrustedBaseUrl } from '@/scripts/playwright/deployment-url'
 
 dotenv.config({ path: path.resolve(__dirname, 'tests/.env.test') })
 
-const resolvedBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
+const configuredBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
+const resolvedBaseUrl = process.env.CI
+  ? validateTrustedBaseUrl(configuredBaseUrl, Boolean(process.env.VERCEL_DEPLOYMENT_ID?.trim()))
+  : configuredBaseUrl
 const skipGlobalSetup = process.env.PLAYWRIGHT_SKIP_GLOBAL_SETUP === 'true'
 
 if (process.env.CI && !process.env.PLAYWRIGHT_BASE_URL?.trim()) {
@@ -30,16 +34,6 @@ export default defineConfig({
     baseURL: resolvedBaseUrl,
     trace: process.env.CI ? 'retain-on-failure' : 'on-first-retry',
     headless: true,
-    ...(process.env.CF_ACCESS_CLIENT_ID || process.env.CF_ACCESS_CLIENT_SECRET || process.env.INTERNAL_TEST_KEY ? {
-      extraHTTPHeaders: {
-        ...(process.env.CF_ACCESS_CLIENT_ID ? { 'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID } : {}),
-        ...(process.env.CF_ACCESS_CLIENT_SECRET ? { 'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET } : {}),
-        ...(process.env.INTERNAL_TEST_KEY ? {
-          'x-e2e-test-key': process.env.INTERNAL_TEST_KEY,
-          'x-internal-test-key': process.env.INTERNAL_TEST_KEY,
-        } : {}),
-      },
-    } : {}),
   },
   projects: [
     {
@@ -53,6 +47,16 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         storageState: path.resolve(__dirname, 'playwright/.auth/user.json'),
+        ...(process.env.CF_ACCESS_CLIENT_ID || process.env.CF_ACCESS_CLIENT_SECRET || process.env.INTERNAL_TEST_KEY ? {
+          extraHTTPHeaders: {
+            ...(process.env.CF_ACCESS_CLIENT_ID ? { 'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID } : {}),
+            ...(process.env.CF_ACCESS_CLIENT_SECRET ? { 'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET } : {}),
+            ...(process.env.INTERNAL_TEST_KEY ? {
+              'x-e2e-test-key': process.env.INTERNAL_TEST_KEY,
+              'x-internal-test-key': process.env.INTERNAL_TEST_KEY,
+            } : {}),
+          },
+        } : {}),
       },
     },
     {

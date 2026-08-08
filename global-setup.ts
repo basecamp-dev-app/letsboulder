@@ -2,6 +2,7 @@ import { chromium } from 'playwright'
 import path from 'path'
 import fs from 'fs'
 import { createClient } from '@supabase/supabase-js'
+import { validateTrustedBaseUrl } from '@/scripts/playwright/deployment-url'
 
 const SEEDED_PLACE_SLUG_PUBLIC = 'e2e-seeded-place-public'
 const SEEDED_PLACE_SLUG_AUTH = 'e2e-seeded-place-auth'
@@ -77,7 +78,10 @@ async function ensureSeedData() {
 }
 
 async function globalSetup() {
-  const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
+  const configuredBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
+  const baseURL = process.env.CI
+    ? validateTrustedBaseUrl(configuredBaseUrl, Boolean(process.env.VERCEL_DEPLOYMENT_ID?.trim()))
+    : configuredBaseUrl
   
   const testApiKey = process.env.TEST_API_KEY?.trim()
   const testUserId = process.env.TEST_USER_ID?.trim()
