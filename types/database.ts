@@ -2043,6 +2043,36 @@ export type Database = {
         }
         Relationships: []
       }
+      log_route_mutations: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          mutation_id: string
+          operation_type: string
+          request_hash: string
+          result: Json | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          mutation_id: string
+          operation_type: string
+          request_hash: string
+          result?: Json | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          mutation_id?: string
+          operation_type?: string
+          request_hash?: string
+          result?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       media_deletion_jobs: {
         Row: {
           attempts: number
@@ -3304,6 +3334,7 @@ export type Database = {
           notes: string | null
           star_rating: number | null
           style: string
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -3316,6 +3347,7 @@ export type Database = {
           notes?: string | null
           star_rating?: number | null
           style: string
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -3328,6 +3360,7 @@ export type Database = {
           notes?: string | null
           star_rating?: number | null
           style?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -4743,6 +4776,17 @@ export type Database = {
         Args: { p_draft_id: string; p_user_id: string }
         Returns: boolean
       }
+      log_routes_idempotent: {
+        Args: {
+          p_climb_ids: string[]
+          p_climbed_on: string
+          p_created_at: string
+          p_mutation_id: string
+          p_notes: string
+          p_style: string
+        }
+        Returns: Json
+      }
       log_submission_edit:
         | {
             Args: {
@@ -5025,15 +5069,6 @@ export type Database = {
           p_review_note?: string
         }
         Returns: Json
-      }
-      resolve_and_soft_delete_content: {
-        Args: {
-          p_action_taken: string
-          p_reason: string
-          p_target_id: string
-          p_target_type: string
-        }
-        Returns: undefined
       }
       rollback_wiki_entity_revision: {
         Args: {

@@ -83,7 +83,8 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `continents` | Continental groupings |
 | `comments` | User comments on crags, images, climbs (soft-deletable) |
 | `route_lines` | Route line geometry drawn on images |
-| `user_climbs` | User climb logs (flash/top/try) with star ratings and grade opinions |
+| `user_climbs` | User climb logs (flash/top/try) with star ratings, grade opinions, and mutation ordering timestamps |
+| `log_route_mutations` | RPC-only idempotency receipts for replay-safe climb log mutations |
 | `saved_climbs` | User saved climbs / want-to-try list |
 | `saved_crags` | User saved crags for future trips |
 
@@ -374,6 +375,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 | `submission_contributors` | authenticated | service / helper only | service / helper only | service / helper only |
 | `submission_edit_history` | authenticated | service / helper only | service / helper only | service / helper only |
 | `published_edit_mutations` | RPC only | RPC only | RPC only | RPC only |
+| `log_route_mutations` | RPC only | RPC only | RPC only | RPC only |
 | `wiki_entities` | authenticated when source is visible; all for admin | RPC only | RPC only | RPC only |
 | `wiki_revision_commits` | authenticated through a visible entity revision; all for admin | RPC only | author anonymization only | none |
 | `wiki_entity_revisions` | authenticated when entity source is visible; all for admin | RPC only | none | none |
@@ -478,6 +480,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `get_logbook_lifetime_stats(p_user_id)` | RLS-aware lifetime logbook counts by style |
 | `get_total_sends_count()` | Total sends count |
 | `get_total_logs_count()` | Total logs count |
+| `log_routes_idempotent(...)` | Identity-bound, replay-safe climb logging with stale-write protection |
 | `get_top_contributors(p_limit)` | Public-safe top contributor rows from public profiles |
 | `get_visible_profile(p_user_id)` | Public-safe profile display and statistics when the profile is visible |
 

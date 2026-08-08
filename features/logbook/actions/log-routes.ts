@@ -16,6 +16,8 @@ const logRoutesSchema = z.object({
   style: z.enum(['flash', 'top', 'try'], { error: 'Invalid style' }).default('top'),
   notes: z.string().trim().max(500, 'Notes must be under 500 characters').optional(),
   climbedOn: z.iso.date({ error: 'Invalid climbed date' }),
+  mutationId: z.uuid('Mutation ID is required'),
+  createdAt: z.iso.datetime({ error: 'Invalid mutation creation time' }),
 })
 
 interface LogRoutesResult {
@@ -27,9 +29,11 @@ export async function logRoutesAction(
   climbIds: string[],
   style: LogStyle = 'top',
   notes: string | undefined,
-  climbedOn: string
+  climbedOn: string,
+  mutationId: string,
+  createdAt: string,
 ): Promise<ActionResult<LogRoutesResult>> {
-  const validation = validateActionInput(logRoutesSchema, { climbIds, style, notes, climbedOn })
+  const validation = validateActionInput(logRoutesSchema, { climbIds, style, notes, climbedOn, mutationId, createdAt })
   if (!validation.success) return fail<LogRoutesResult>(validation.result.error || 'Invalid request data', validation.result.status || 400)
 
   const auth = await getActionAuth()
@@ -42,7 +46,7 @@ export async function logRoutesAction(
   }
 
   const userId = auth.data.userId
-  const { climbedOn: validatedClimbedOn, climbIds: validatedClimbIds, style: validatedStyle } = validation.data
+  const { climbedOn: validatedClimbedOn, climbIds: validatedClimbIds, style: validatedStyle, mutationId: validatedMutationId, createdAt: validatedCreatedAt } = validation.data
 
   const supabase = await getServerClient()
   const effectiveClimbIds = Array.from(
@@ -57,30 +61,26 @@ export async function logRoutesAction(
     return { success: false, error: 'No valid climbs found', status: 404 }
   }
 
-  const now = new Date()
-  const logs = effectiveClimbIds.map((climbId) => ({
-    user_id: userId,
-    climb_id: climbId,
-    style: validatedStyle,
-    date_climbed: validatedClimbedOn,
-    created_at: now.toISOString(),
-    notes: validation.data.notes || null,
-  }))
-
-  const { error } = await supabase
-    .from('user_climbs')
-    .upsert(logs, { onConflict: 'user_id,climb_id' })
+  const { data, error } = await supabase.rpc('log_routes_idempotent', {
+    p_mutation_id: validatedMutationId,
+    p_climb_ids: effectiveClimbIds,
+    p_style: validatedStyle,
+    p_notes: validation.data.notes || null,
+    p_climbed_on: validatedClimbedOn,
+    p_created_at: validatedCreatedAt,
+  })
 
   if (error) {
     reportError(error, { message: 'Failed to log climbs' })
+    if (error.code === '22023' && error.details === 'mutation_id_conflict') {
+      return { success: false, error: 'Mutation ID was already used for a different request', status: 409 }
+    }
     return { success: false, error: 'Failed to log climbs', status: 500 }
   }
 
   revalidatePath('/logbook')
   revalidatePath(`/logbook/${userId}`)
 
-  return ok({
-    logged: effectiveClimbIds.length,
-    style: validatedStyle,
-  })
+  const result = data as { logged?: number; style?: LogStyle } | null
+  return ok({ logged: result?.logged ?? 0, style: result?.style ?? validatedStyle })
 }

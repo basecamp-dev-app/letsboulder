@@ -4,3 +4,10 @@ export { fetchOfflinePackManifest, parseOfflinePackManifest } from '@/features/o
 export { OfflinePackManager } from '@/features/offline/lib/offline-pack-manager'
 export { offlinePackStore, OfflinePackStore } from '@/features/offline/lib/offline-pack-store'
 export type * from '@/features/offline/lib/offline-pack-types'
+export {
+  getPendingMutations,
+  markMutationFailed,
+  markMutationSuccess,
+  queueMutation,
+} from '@/features/offline/lib/mutation-outbox'
+export type { MutationOutboxRecord, MutationStatus } from '@/features/offline/lib/mutation-outbox'
