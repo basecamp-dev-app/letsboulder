@@ -10,37 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
     steps:
-      - name: Wait for CI checks
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wait for required CI checks
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: |
-          echo "Waiting for CI checks to complete..."
-          TIMEOUT=600
-          INTERVAL=30
-          ELAPSED=0
-          while [ $ELAPSED -lt $TIMEOUT ]; do
-            CHECKS=$(gh api repos/${{ github.repository }}/commits/${{ github.event.pull_request.head.sha }}/check-runs \
-              --jq '.check_runs[] | select(.status != "completed") | .name')
-            if [ -z "$CHECKS" ]; then
-              echo "All CI checks completed."
-              break
-            fi
-            echo "Still running: $CHECKS"
-            sleep $INTERVAL
-            ELAPSED=$((ELAPSED + INTERVAL))
-          done
-          if [ $ELAPSED -ge $TIMEOUT ]; then
-            echo "Timeout waiting for CI checks. Skipping auto-merge."
-            exit 1
-          fi
-          CONCLUSIONS=$(gh api repos/${{ github.repository }}/commits/${{ github.event.pull_request.head.sha }}/check-runs \
-            --jq '[.check_runs[] | select(.status == "completed") | .conclusion]')
-          if echo "$CONCLUSIONS" | grep -qE '"(failure|cancelled|action_required)"'; then
-            echo "CI checks failed. Skipping auto-merge."
-            exit 1
-          fi
-          echo "All CI checks passed."
+          gh pr checks --required --watch --fail-fast "$PR_URL"
         env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Approve and auto-merge
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: |
           gh pr review --approve "$PR_URL"
           gh pr merge --auto --squash "$PR_URL"
