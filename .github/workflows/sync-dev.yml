@@ -3,6 +3,9 @@ name: Sync Dev
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   merge-to-dev:
     runs-on: ubuntu-latest
@@ -12,5 +15,10 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Merge main to dev
-        run: git push origin main:dev
+      - name: Fast-forward dev to main
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main dev
+          git switch --create dev --track origin/dev
+          git merge --ff-only origin/main
+          git push origin HEAD:dev
