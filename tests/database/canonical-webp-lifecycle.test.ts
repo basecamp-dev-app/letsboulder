@@ -75,20 +75,35 @@ async function insertPendingImage(client: PoolClient, imageId: string) {
 }
 
 async function commit(client: PoolClient, imageId: string, locator: ReturnType<typeof locators>) {
+  const existing = await client.query(
+    `select id, claim_token from public.media_jobs
+     where image_id = $1 and status = 'processing' order by created_at limit 1`,
+    [imageId],
+  )
+  let job = existing.rows[0]
+  if (!job) {
+    job = (await client.query(
+      `insert into public.media_jobs
+         (image_id, job_type, status, payload, attempts, max_attempts, locked_at, locked_by, claim_token, lease_expires_at)
+       values ($1, 'ingest_image', 'processing', '{}'::jsonb, 1, 5, now(), 'canonical-test', $2, now() + interval '15 minutes')
+       returning id, claim_token`,
+      [imageId, randomUUID()],
+    )).rows[0]
+  }
   return client.query(
     `select public.commit_media_webp(
-       $1, $2, $3, $4, $5, 'image/webp', 12345, 1200, 800,
-       '{"canonical":{"format":"webp"}}'::jsonb, $6
-     ) as job_id`,
+        $1, $2, $3, $4, $5, 'image/webp', 12345, 1200, 800,
+        '{"canonical":{"format":"webp"}}'::jsonb, $6, $7, $8
+      ) as job_id`,
     [imageId, locator.originalBucket, locator.originalKey,
-      locator.optimizedBucket, locator.optimizedKey, locator.url],
+      locator.optimizedBucket, locator.optimizedKey, locator.url, job.id, job.claim_token],
   )
 }
 
 beforeAll(async () => {
   const result = await pool.query(
-    `select to_regprocedure('public.commit_media_webp(uuid,text,text,text,text,text,bigint,integer,integer,jsonb,text)') is not null
-       and to_regprocedure('public.verify_media_replacement_delivery(uuid,text)') is not null as installed`,
+    `select to_regprocedure('public.commit_media_webp(uuid,text,text,text,text,text,bigint,integer,integer,jsonb,text,uuid,uuid)') is not null
+       and to_regprocedure('public.verify_media_replacement_delivery(uuid,text,uuid,uuid)') is not null as installed`,
   )
   if (!result.rows[0].installed) throw new Error('Canonical WebP lifecycle migration is not installed')
 })
@@ -261,10 +276,14 @@ describe('canonical WebP lifecycle', () => {
         ['delivery-gate-worker'],
       )).rows[0].id).toBe(unrelatedJobId)
 
-      await client.query(
-        'select public.verify_media_replacement_delivery($1, $2)',
-        [jobId, locator.optimizedKey],
-      )
+       const claim = (await client.query(
+         'select claim_token from public.media_jobs where image_id = $1 and status = \'processing\'',
+         [imageId],
+       )).rows[0]
+       await client.query(
+         'select public.verify_media_replacement_delivery($1, $2, $3, $4)',
+         [jobId, locator.optimizedKey, (await client.query('select id from public.media_jobs where image_id = $1 and status = \'processing\'', [imageId])).rows[0].id, claim.claim_token],
+       )
       expect((await client.query(
         'select claimed.id from public.claim_media_deletion_job($1, 900) as claimed',
         ['delivery-gate-worker'],

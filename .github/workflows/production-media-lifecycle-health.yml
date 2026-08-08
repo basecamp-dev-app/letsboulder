@@ -1,0 +1,75 @@
+name: Production Media Lifecycle Health
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-media-lifecycle-health
+  cancel-in-progress: false
+
+jobs:
+  health:
+    name: Inspect production media lifecycle
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+      SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
+      SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
+      SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      RECONCILIATION_OUTPUT: production-media-reconciliation.json
+      RECONCILIATION_INPUT: production-media-reconciliation.json
+      LIFECYCLE_HEALTH_OUTPUT: production-media-lifecycle-health.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize artifacts
+        run: |
+          printf '%s\n' '{"fatalError":"Reconciliation did not start"}' > "$RECONCILIATION_OUTPUT"
+          printf '%s\n' '{"schemaVersion":1,"readOnly":true,"summary":{"critical":1,"status":"critical"},"findings":[],"fatalError":"Lifecycle health did not start"}' > "$LIFECYCLE_HEALTH_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.20.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --prefer-offline
+
+      - name: Validate required configuration
+        shell: bash
+        run: |
+          required_vars=(CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID SUPABASE_DB_HOST SUPABASE_DB_PORT SUPABASE_DB_USER SUPABASE_DB_NAME PGPASSWORD)
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required configuration: $var"
+              exit 1
+            fi
+          done
+
+      - name: Run read-only private R2 reconciliation
+        continue-on-error: true
+        run: npx tsx scripts/media/reconcile-r2-media.ts
+
+      - name: Run read-only lifecycle health check
+        run: npx tsx scripts/media/production-lifecycle-health.ts
+
+      - name: Upload lifecycle health artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-media-lifecycle-health
+          path: |
+            production-media-lifecycle-health.json
+            production-media-reconciliation.json
+          if-no-files-found: error
+          retention-days: 30

@@ -12,6 +12,9 @@ export const mediaIngestJobSchema = z.object({
 
 export type MediaIngestJobPayload = z.infer<typeof mediaIngestJobSchema>
 
+export const mediaWakeupSchema = z.object({ imageId: z.string().uuid() })
+export type MediaWakeupPayload = z.infer<typeof mediaWakeupSchema>
+
 export interface MediaJobRow {
   id: string
   image_id: string
@@ -23,6 +26,8 @@ export interface MediaJobRow {
   run_at: string
   locked_at: string | null
   locked_by: string | null
+  claim_token: string
+  lease_expires_at: string
   last_error: string | null
   created_at: string
   updated_at: string
@@ -40,6 +45,7 @@ export const mediaDeletionJobSchema = z.object({
     'unassociated_upload_deleted',
     'image_hard_deleted',
     'source_replaced',
+    'staging_replaced',
     'reconciled_orphan',
   ]),
   source_type: z.enum(['image', 'draft_image']),

@@ -2063,6 +2063,10 @@ export type Database = {
           reason: string
           reconciliation_artifact_digest: string | null
           reconciliation_run_id: number | null
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
           run_at: string
           source_id: string | null
           source_type: string
@@ -2088,6 +2092,10 @@ export type Database = {
           reason: string
           reconciliation_artifact_digest?: string | null
           reconciliation_run_id?: number | null
+          recovery_artifact_digest?: string | null
+          recovery_reason?: string | null
+          recovery_run_id?: number | null
+          replay_of_job_id?: string | null
           run_at?: string
           source_id?: string | null
           source_type: string
@@ -2113,56 +2121,89 @@ export type Database = {
           reason?: string
           reconciliation_artifact_digest?: string | null
           reconciliation_run_id?: number | null
+          recovery_artifact_digest?: string | null
+          recovery_reason?: string | null
+          recovery_run_id?: number | null
+          replay_of_job_id?: string | null
           run_at?: string
           source_id?: string | null
           source_type?: string
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "media_deletion_jobs_replay_of_job_id_fkey"
+            columns: ["replay_of_job_id"]
+            isOneToOne: false
+            referencedRelation: "media_deletion_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       media_jobs: {
         Row: {
           attempts: number
+          claim_token: string | null
+          completed_at: string | null
           created_at: string
           id: string
           image_id: string
           job_type: string
           last_error: string | null
+          lease_expires_at: string | null
           locked_at: string | null
           locked_by: string | null
           max_attempts: number
           payload: Json
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
           run_at: string
           status: string
           updated_at: string
         }
         Insert: {
           attempts?: number
+          claim_token?: string | null
+          completed_at?: string | null
           created_at?: string
           id?: string
           image_id: string
           job_type: string
           last_error?: string | null
+          lease_expires_at?: string | null
           locked_at?: string | null
           locked_by?: string | null
           max_attempts?: number
           payload?: Json
+          recovery_artifact_digest?: string | null
+          recovery_reason?: string | null
+          recovery_run_id?: number | null
+          replay_of_job_id?: string | null
           run_at?: string
           status?: string
           updated_at?: string
         }
         Update: {
           attempts?: number
+          claim_token?: string | null
+          completed_at?: string | null
           created_at?: string
           id?: string
           image_id?: string
           job_type?: string
           last_error?: string | null
+          lease_expires_at?: string | null
           locked_at?: string | null
           locked_by?: string | null
           max_attempts?: number
           payload?: Json
+          recovery_artifact_digest?: string | null
+          recovery_reason?: string | null
+          recovery_run_id?: number | null
+          replay_of_job_id?: string | null
           run_at?: string
           status?: string
           updated_at?: string
@@ -2173,6 +2214,13 @@ export type Database = {
             columns: ["image_id"]
             isOneToOne: false
             referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_jobs_replay_of_job_id_fkey"
+            columns: ["replay_of_job_id"]
+            isOneToOne: false
+            referencedRelation: "media_jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -3880,14 +3928,6 @@ export type Database = {
         }
         Relationships: []
       }
-      worker_health: {
-        Row: {
-          active_jobs: number | null
-          backlog_count: number | null
-          oldest_job_age: string | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
       accept_open_data_consent: {
@@ -3949,6 +3989,10 @@ export type Database = {
           reason: string
           reconciliation_artifact_digest: string | null
           reconciliation_run_id: number | null
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
           run_at: string
           source_id: string | null
           source_type: string
@@ -3963,18 +4007,60 @@ export type Database = {
         }
       }
       claim_media_job: {
-        Args: { worker_name: string }
+        Args: { lease_seconds?: number; worker_name: string }
         Returns: {
           attempts: number
+          claim_token: string | null
+          completed_at: string | null
           created_at: string
           id: string
           image_id: string
           job_type: string
           last_error: string | null
+          lease_expires_at: string | null
           locked_at: string | null
           locked_by: string | null
           max_attempts: number
           payload: Json
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "media_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      claim_media_job_for_image: {
+        Args: {
+          lease_seconds?: number
+          p_image_id: string
+          worker_name: string
+        }
+        Returns: {
+          attempts: number
+          claim_token: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          image_id: string
+          job_type: string
+          last_error: string | null
+          lease_expires_at: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
           run_at: string
           status: string
           updated_at: string
@@ -4004,10 +4090,12 @@ export type Database = {
       }
       commit_media_webp: {
         Args: {
+          p_claim_token: string
           p_expected_original_bucket: string
           p_expected_original_key: string
           p_image_id: string
           p_manifest: Json
+          p_media_job_id: string
           p_optimized_bucket: string
           p_optimized_bytes: number
           p_optimized_height: number
@@ -4019,6 +4107,10 @@ export type Database = {
         Returns: string
       }
       complete_media_deletion_job: {
+        Args: { p_claim_token: string; p_job_id: string }
+        Returns: undefined
+      }
+      complete_media_job: {
         Args: { p_claim_token: string; p_job_id: string }
         Returns: undefined
       }
@@ -4142,6 +4234,10 @@ export type Database = {
         Args: { p_claim_token: string; p_error: string; p_job_id: string }
         Returns: undefined
       }
+      fail_media_job: {
+        Args: { p_claim_token: string; p_error: string; p_job_id: string }
+        Returns: undefined
+      }
       finalize_media_upload: {
         Args: {
           p_checksum_sha256: string
@@ -4150,15 +4246,22 @@ export type Database = {
         }
         Returns: {
           attempts: number
+          claim_token: string | null
+          completed_at: string | null
           created_at: string
           id: string
           image_id: string
           job_type: string
           last_error: string | null
+          lease_expires_at: string | null
           locked_at: string | null
           locked_by: string | null
           max_attempts: number
           payload: Json
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
           run_at: string
           status: string
           updated_at: string
@@ -4718,15 +4821,22 @@ export type Database = {
         }
         Returns: {
           attempts: number
+          claim_token: string | null
+          completed_at: string | null
           created_at: string
           id: string
           image_id: string
           job_type: string
           last_error: string | null
+          lease_expires_at: string | null
           locked_at: string | null
           locked_by: string | null
           max_attempts: number
           payload: Json
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
           run_at: string
           status: string
           updated_at: string
@@ -4776,6 +4886,75 @@ export type Database = {
           p_supersedes_revision_id?: string
         }
         Returns: string
+      }
+      recover_media_deletion_jobs: {
+        Args: { p_digest: string; p_run_id: number; p_snapshots: Json }
+        Returns: {
+          attempts: number
+          bucket: string
+          claim_token: string | null
+          completed_at: string | null
+          created_at: string
+          delivery_verified_at: string | null
+          expected_object_bytes: number | null
+          expected_object_etag: string | null
+          id: string
+          image_id: string | null
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          object_key: string
+          reason: string
+          reconciliation_artifact_digest: string | null
+          reconciliation_run_id: number | null
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
+          run_at: string
+          source_id: string | null
+          source_type: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "media_deletion_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      recover_media_ingest_jobs: {
+        Args: { p_digest: string; p_run_id: number; p_snapshots: Json }
+        Returns: {
+          attempts: number
+          claim_token: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          image_id: string
+          job_type: string
+          last_error: string | null
+          lease_expires_at: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
+          run_at: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "media_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       refresh_crag_type_from_climbs: {
         Args: { target_crag_id: string }
@@ -4832,6 +5011,10 @@ export type Database = {
         }[]
       }
       retry_media_deletion_job: {
+        Args: { p_claim_token: string; p_error: string; p_job_id: string }
+        Returns: undefined
+      }
+      retry_media_job: {
         Args: { p_claim_token: string; p_error: string; p_job_id: string }
         Returns: undefined
       }
@@ -5114,10 +5297,20 @@ export type Database = {
         Args: { p_image_id: string; p_user_id: string }
         Returns: boolean
       }
-      verify_media_replacement_delivery: {
-        Args: { p_expected_optimized_key: string; p_job_id: string }
-        Returns: undefined
-      }
+      verify_media_replacement_delivery:
+        | {
+            Args: { p_expected_optimized_key: string; p_job_id: string }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_claim_token: string
+              p_expected_optimized_key: string
+              p_job_id: string
+              p_media_job_id: string
+            }
+            Returns: undefined
+          }
       verify_reconciled_orphan_deletion: {
         Args: { p_claim_token: string; p_job_id: string }
         Returns: undefined

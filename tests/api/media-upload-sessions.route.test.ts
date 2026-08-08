@@ -66,11 +66,16 @@ vi.mock('@/lib/media/upload-session', () => ({
   normalizeUploadSessionRequest: vi.fn((body: unknown) => body),
 }))
 
+vi.mock('@/lib/media/worker-enqueue', () => ({
+  enqueueMediaWorkerFastPath: vi.fn(async () => true),
+}))
+
 import { POST as createUploadSession } from '@/app/api/media/upload-sessions/route'
 import { DELETE as deleteUploadSession, GET as getUploadSession } from '@/app/api/media/upload-sessions/[imageId]/route'
 import { POST as completeUploadSession } from '@/app/api/media/upload-sessions/[imageId]/complete/route'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createPrivateUploadUrl, headPrivateObject, copyPrivateObject, deletePrivateObject, deleteObject } from '@/lib/media/r2'
+import { enqueueMediaWorkerFastPath } from '@/lib/media/worker-enqueue'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 
 type MiddlewareResult = Awaited<ReturnType<typeof withApiMiddleware>>
@@ -422,8 +427,22 @@ describe('Media upload session routes', () => {
   })
 
   test('complete queues private ingest with moderation skipped', async () => {
+    vi.mocked(enqueueMediaWorkerFastPath).mockRejectedValueOnce(new Error('worker unavailable'))
     const rpc = vi.fn(async () => ({
-      data: { status: 'queued', attempts: 0, max_attempts: 5 },
+      data: {
+        status: 'queued',
+        attempts: 0,
+        max_attempts: 5,
+        payload: {
+          imageId: 'image-123',
+          originalBucket: 'private-bucket',
+          originalKey: 'images/assets/image-123/sha256hash/original.jpg',
+          storageProvider: 'r2',
+          purpose: 'submission_image',
+          triggeredByUserId: 'user-1',
+          trigger: 'upload',
+        },
+      },
       error: null,
     }))
     const eq = vi.fn(async () => ({ error: null }))
@@ -476,7 +495,11 @@ describe('Media upload session routes', () => {
     expect(response.status).toBe(200)
     expect(headPrivateObject).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg')
     expect(copyPrivateObject).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg', 'images/assets/image-123/sha256hash/original.jpg')
-    expect(deletePrivateObject).toHaveBeenCalledWith('images/staging/image-123/abc123/original.jpg')
+    expect(deletePrivateObject).not.toHaveBeenCalled()
+    expect(enqueueMediaWorkerFastPath).toHaveBeenCalledWith(expect.objectContaining({
+      imageId: 'image-123',
+      originalKey: 'images/assets/image-123/sha256hash/original.jpg',
+    }))
     expect(json).toEqual({
       imageId: 'image-123',
       processingStatus: 'queued',
@@ -491,9 +514,21 @@ describe('Media upload session routes', () => {
       p_checksum_sha256: expect.any(String),
     })
   })
-test('complete always queues moderation as pending', async () => {
+  test('complete always queues moderation as pending', async () => {
     const rpc = vi.fn(async () => ({
-      data: { status: 'queued', attempts: 0, max_attempts: 5 },
+      data: {
+        status: 'queued',
+        attempts: 0,
+        max_attempts: 5,
+        payload: {
+          imageId: 'image-123',
+          originalBucket: 'private-bucket',
+          originalKey: 'images/assets/image-123/sha256hash/original.jpg',
+          storageProvider: 'r2',
+          purpose: 'crag_image',
+          triggeredByUserId: 'user-1',
+        },
+      },
       error: null,
     }))
     const eq = vi.fn(async () => ({ error: null }))
@@ -545,6 +580,63 @@ test('complete always queues moderation as pending', async () => {
     expect(response.status).toBe(200)
     expect(json.moderationStatus).toBe('pending')
     expect(rpc).toHaveBeenCalledWith('finalize_media_upload', expect.objectContaining({ p_image_id: 'image-123' }))
+  })
+
+  test('complete replays durable finalize and enqueues its returned payload', async () => {
+    const payload = {
+      imageId: 'image-123',
+      originalBucket: 'private-bucket',
+      originalKey: 'images/assets/image-123/sha256hash/original.jpg',
+      storageProvider: 'r2' as const,
+      purpose: 'submission_image' as const,
+      triggeredByUserId: 'user-1',
+      trigger: 'upload' as const,
+    }
+    const rpc = vi.fn(async () => ({
+      data: { status: 'queued', attempts: 0, max_attempts: 5, payload },
+      error: null,
+    }))
+    const supabase = {
+      auth: {
+        getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
+      },
+      rpc,
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({
+              data: {
+                id: 'image-123',
+                created_by: 'user-1',
+                original_bucket: 'private-bucket',
+                original_key: payload.originalKey,
+                original_mime_type: 'image/jpeg',
+                original_bytes: 1024,
+                processing_status: 'pending',
+                upload_purpose: 'submission_image',
+                checksum_sha256: 'sha256hash',
+              },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    }
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: supabase as never,
+      userId: null,
+    } as unknown as MiddlewareResult)
+
+    const response = await completeUploadSession(makeCompleteRequest({ purpose: 'submission_image' }), {
+      params: Promise.resolve({ imageId: 'image-123' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(enqueueMediaWorkerFastPath).toHaveBeenCalledWith(payload)
+    expect(headPrivateObject).not.toHaveBeenCalled()
+    expect(copyPrivateObject).not.toHaveBeenCalled()
+    expect(deletePrivateObject).not.toHaveBeenCalled()
   })
 
   test('complete returns ready without queueing an already processed image', async () => {

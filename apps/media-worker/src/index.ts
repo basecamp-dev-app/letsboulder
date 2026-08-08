@@ -1,10 +1,11 @@
 import { createSupabaseAdminClient, type Env, type MessageBatch } from './supabase'
 import { MEDIA_FORMATS, MEDIA_VARIANT_WIDTHS, getVariantWidth, type MediaFormatKey, type MediaVariantKey } from './config'
-import { mediaIngestJobSchema, type MediaIngestJobPayload, type MediaJobRow } from './schema'
+import { mediaIngestJobSchema, mediaWakeupSchema, type MediaIngestJobPayload, type MediaJobRow } from './schema'
 import { drainMediaDeletionOutbox, pruneMediaDeletionOutbox } from './deletion-outbox'
 
 const OUTBOX_WORKER_NAME = 'media-worker-scheduled'
 const OUTBOX_DRAIN_LIMIT = 10
+const MEDIA_JOB_LEASE_SECONDS = 300
 
 interface ImageRow {
   id: string
@@ -37,6 +38,11 @@ interface ProcessJobDependencies {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>
 }
 
+export interface MediaJobClaimContext {
+  jobId: string
+  claimToken: string
+}
+
 const defaultProcessJobDependencies: ProcessJobDependencies = {
   createClient: createSupabaseAdminClient,
   fetch: globalThis.fetch,
@@ -63,11 +69,6 @@ function stringifyError(error: unknown): string {
     return error.message
   }
   return 'Unknown media job error'
-}
-
-function getRetryRunAt(attempts: number): string {
-  const backoffMinutes = Math.min(60, 2 ** Math.max(attempts - 1, 0))
-  return new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString()
 }
 
 function buildMediaPath(originalKey: string, variant: MediaVariantKey, format: MediaFormatKey): string {
@@ -165,7 +166,7 @@ async function handleEnqueue(request: Request, env: Env) {
     return json({ error: 'Invalid media ingest payload', issues: parsed.error.flatten() }, { status: 400 })
   }
 
-  await env.MEDIA_QUEUE.send(parsed.data)
+  await env.MEDIA_QUEUE.send({ imageId: parsed.data.imageId })
   return json({ success: true, status: 'queued' }, { status: 202 })
 }
 
@@ -203,6 +204,7 @@ async function commitAndVerifyCanonical(
     manifest: unknown
     url: string
   },
+  claim: MediaJobClaimContext,
 ) {
   const { data: deletionJobId, error } = await supabase.rpc('commit_media_webp', {
     p_image_id: image.id,
@@ -216,6 +218,8 @@ async function commitAndVerifyCanonical(
     p_optimized_height: canonical.optimizedHeight,
     p_manifest: canonical.manifest,
     p_url: canonical.url,
+    p_media_job_id: claim.jobId,
+    p_claim_token: claim.claimToken,
   })
   if (error) throw error
   if (typeof deletionJobId !== 'string' || !deletionJobId) {
@@ -239,6 +243,8 @@ async function commitAndVerifyCanonical(
   const { error: verificationError } = await supabase.rpc('verify_media_replacement_delivery', {
     p_job_id: deletionJobId,
     p_expected_optimized_key: canonical.optimizedKey,
+    p_media_job_id: claim.jobId,
+    p_claim_token: claim.claimToken,
   })
   if (verificationError) throw verificationError
 }
@@ -247,6 +253,7 @@ export async function processJob(
   job: MediaIngestJobPayload,
   env: Env,
   dependencies: ProcessJobDependencies = defaultProcessJobDependencies,
+  claim: MediaJobClaimContext,
 ) {
   const supabase = dependencies.createClient(env)
   const image = await loadImage(supabase, job.imageId)
@@ -282,7 +289,7 @@ export async function processJob(
       optimizedHeight: image.optimized_height,
       manifest: image.variants,
       url: image.url,
-    })
+    }, claim)
     return
   }
 
@@ -341,47 +348,16 @@ export async function processJob(
     optimizedHeight,
     manifest,
     url,
-  })
+  }, claim)
 }
 
-async function claimMediaJob(supabase: ReturnType<typeof createSupabaseAdminClient>, workerName: string) {
-  const { data, error } = await supabase.rpc('claim_media_job', { worker_name: workerName })
+async function claimMediaJob(supabase: ReturnType<typeof createSupabaseAdminClient>, workerName: string, imageId?: string) {
+  const { data, error } = await supabase.rpc(imageId ? 'claim_media_job_for_image' : 'claim_media_job', imageId
+    ? { worker_name: workerName, p_image_id: imageId, lease_seconds: MEDIA_JOB_LEASE_SECONDS }
+    : { worker_name: workerName, lease_seconds: MEDIA_JOB_LEASE_SECONDS })
   if (error) throw error
   if (!data || typeof data !== 'object' || !('id' in data) || data.id === null) return null
   return data as MediaJobRow | null
-}
-
-async function markMediaJobCompleted(supabase: ReturnType<typeof createSupabaseAdminClient>, jobId: string) {
-  const { error } = await supabase
-    .from('media_jobs')
-    .update({
-      status: 'completed',
-      locked_at: null,
-      locked_by: null,
-      last_error: null,
-    })
-    .eq('id', jobId)
-    .eq('status', 'processing')
-
-  if (error) throw error
-}
-
-export async function markMediaJobsCompletedByImage(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
-  imageId: string
-) {
-  const { error } = await supabase
-    .from('media_jobs')
-    .update({
-      status: 'completed',
-      locked_at: null,
-      locked_by: null,
-      last_error: null,
-    })
-    .eq('image_id', imageId)
-    .in('status', ['queued', 'processing'])
-
-  if (error) throw error
 }
 
 async function markMediaJobForRetry(
@@ -389,45 +365,9 @@ async function markMediaJobForRetry(
   job: MediaJobRow,
   error: unknown
 ) {
-  const errorMessage = stringifyError(error)
-  const hasAttemptsRemaining = job.attempts < job.max_attempts
-
-  if (!hasAttemptsRemaining) {
-    const { error: jobError } = await supabase
-      .from('media_jobs')
-      .update({
-        status: 'failed',
-        locked_at: null,
-        locked_by: null,
-        last_error: errorMessage,
-      })
-      .eq('id', job.id)
-      .eq('status', 'processing')
-
-    if (jobError) throw jobError
-
-    const { error: imageError } = await supabase
-      .from('images')
-      .update({ processing_status: 'failed' })
-      .eq('id', job.image_id)
-      .neq('status', 'deleted')
-
-    if (imageError) throw imageError
-    return
-  }
-
-  const { error: retryError } = await supabase
-    .from('media_jobs')
-    .update({
-      status: 'queued',
-      locked_at: null,
-      locked_by: null,
-      last_error: errorMessage,
-      run_at: getRetryRunAt(job.attempts),
-    })
-    .eq('id', job.id)
-    .eq('status', 'processing')
-
+  const { error: retryError } = await supabase.rpc('retry_media_job', {
+    p_job_id: job.id, p_claim_token: job.claim_token, p_error: stringifyError(error),
+  })
   if (retryError) throw retryError
 }
 
@@ -436,27 +376,10 @@ async function failMediaJobPermanently(
   job: MediaJobRow,
   error: unknown
 ) {
-  const errorMessage = stringifyError(error)
-  const { error: jobError } = await supabase
-    .from('media_jobs')
-    .update({
-      status: 'failed',
-      locked_at: null,
-      locked_by: null,
-      last_error: errorMessage,
-    })
-    .eq('id', job.id)
-    .eq('status', 'processing')
-
+  const { error: jobError } = await supabase.rpc('fail_media_job', {
+    p_job_id: job.id, p_claim_token: job.claim_token, p_error: stringifyError(error),
+  })
   if (jobError) throw jobError
-
-  const { error: imageError } = await supabase
-    .from('images')
-    .update({ processing_status: 'failed' })
-    .eq('id', job.image_id)
-    .neq('status', 'deleted')
-
-  if (imageError) throw imageError
 }
 
 async function processClaimedMediaJob(job: MediaJobRow, env: Env) {
@@ -469,8 +392,9 @@ async function processClaimedMediaJob(job: MediaJobRow, env: Env) {
   }
 
   try {
-    await processJob(parsed.data, env)
-    await markMediaJobCompleted(supabase, job.id)
+    await processJob(parsed.data, env, undefined, { jobId: job.id, claimToken: job.claim_token })
+    const { error } = await supabase.rpc('complete_media_job', { p_job_id: job.id, p_claim_token: job.claim_token })
+    if (error) throw error
   } catch (error) {
     await markMediaJobForRetry(supabase, job, error)
   }
@@ -682,14 +606,19 @@ export default {
   async queue(batch: MessageBatch<unknown>, env: Env) {
     for (const message of batch.messages) {
       try {
-        const parsed = mediaIngestJobSchema.safeParse(message.body)
+        const parsed = mediaWakeupSchema.safeParse(message.body)
         if (!parsed.success) {
           message.ack()
           continue
         }
 
-        await processJob(parsed.data, env)
-        await markMediaJobsCompletedByImage(createSupabaseAdminClient(env), parsed.data.imageId)
+        const supabase = createSupabaseAdminClient(env)
+        const job = await claimMediaJob(supabase, 'media-worker-queue', parsed.data.imageId)
+        if (!job) {
+          message.ack()
+          continue
+        }
+        await processClaimedMediaJob(job, env)
         message.ack()
       } catch (error) {
         console.error('Failed to process media queue message', {

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { withApiMiddleware } from '@/lib/csrf-server'
-import { createErrorResponse } from '@/lib/errors'
+import { createErrorResponse, reportError } from '@/lib/errors'
 import { toMediaStatusResponse } from '@/lib/media/media-status'
-import { headPrivateObject, getPrivateObjectStream, copyPrivateObject, deletePrivateObject } from '@/lib/media/r2'
+import { headPrivateObject, getPrivateObjectStream, copyPrivateObject } from '@/lib/media/r2'
+import { enqueueMediaWorkerFastPath } from '@/lib/media/worker-enqueue'
 import { parseWithSchema } from '@/lib/api-validation'
 import { buildImmutableObjectKey, inferExtensionFromMime } from '@/lib/media/upload-session'
 import type { Database } from '@/types/database'
@@ -14,6 +15,30 @@ type ImageRow = Pick<Database['public']['Tables']['images']['Row'],
 const completeUploadSchema = z.object({
   purpose: z.enum(['submission_image', 'draft_image', 'crag_image']).optional(),
 })
+
+const mediaIngestJobPayloadSchema = z.object({
+  imageId: z.string().min(1),
+  originalBucket: z.string().min(1),
+  originalKey: z.string().min(1),
+  storageProvider: z.enum(['supabase', 'r2']),
+  purpose: z.enum(['submission_image', 'draft_image', 'crag_image']),
+  triggeredByUserId: z.string().min(1),
+  trigger: z.enum(['upload', 'backfill']).optional(),
+})
+
+async function enqueueFinalizedMediaJob(job: unknown): Promise<void> {
+  const payload = job && typeof job === 'object' && 'payload' in job
+    ? mediaIngestJobPayloadSchema.safeParse(job.payload)
+    : null
+  if (!payload?.success) {
+    reportError(new Error('Durable media job returned an invalid enqueue payload'), {
+      message: 'Media worker fast-path enqueue skipped; durable processing remains queued',
+    })
+    return
+  }
+
+  await enqueueMediaWorkerFastPath(payload.data).catch(() => false)
+}
 
 const MAGIC_BYTES: Record<string, number[][]> = {
   'image/jpeg': [[0xff, 0xd8, 0xff]],
@@ -136,6 +161,7 @@ export async function POST(
         p_checksum_sha256: image.checksum_sha256,
       })
       if (finalizeError) return createErrorResponse(finalizeError, 'Failed to queue image for ingest')
+      await enqueueFinalizedMediaJob(job)
       return NextResponse.json({ ...toMediaStatusResponse({ ...image, processing_status: 'queued' }, job), uploadCommitted: true })
     }
 
@@ -167,7 +193,7 @@ export async function POST(
       return createErrorResponse(finalizeError, 'Failed to queue image for ingest')
     }
 
-    await deletePrivateObject(image.original_key)
+    await enqueueFinalizedMediaJob(job)
 
     return NextResponse.json({ ...toMediaStatusResponse({
       id: image.id,

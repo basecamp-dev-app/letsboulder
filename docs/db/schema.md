@@ -314,10 +314,10 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `images.wiki_revision` is the optimistic-concurrency token for published image edits. `apply_published_submission_edit` locks the image, requires the caller's `baseRevision` to match, and advances it once per committed mutation.
 - `submission_draft_images` mirrors the provider-aware original reference. A draft cannot link the same authoritative image twice.
 - `submission_draft_routes` stores durable draft route geometry and metadata. Explicit Save persists dirty images through image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
-- `media_jobs` is the durable outbox for active media ingest. Upload completion calls authenticated `finalize_media_upload(...)` to commit the immutable locator and invoke `queue_media_ingest_job(...)` in one transaction; replay returns the existing active job.
+- `media_jobs` is the durable outbox for active media ingest. Upload completion calls authenticated `finalize_media_upload(...)` to commit the immutable locator, enqueue staging replacement cleanup, and invoke `queue_media_ingest_job(...)` in one transaction; replay returns the existing active job.
 - `commit_media_webp(...)` is the service-only atomic transition from an immutable original to its canonical WebP. It locks the image, compares the expected original bucket/key, requires the derivative under `images/assets/<image UUID>/<64-hex content ID>/*.webp`, stores the derivative tuple, manifest and URL, switches linked and exact locator-matched draft/crag locators, marks processing ready, and enqueues the original with reason `source_replaced`. Exact replay returns the same deletion-job UUID; stale, deleted, or conflicting rows fail without partial state.
 - `media_deletion_jobs` snapshots canonical, image-UUID-namespaced R2 bucket/key coordinates before image tombstones and hard deletes. It intentionally has no FK to `images`, so pending deletion work survives source-row removal; active jobs are unique by bucket/key. `source_replaced` rows additionally carry `delivery_verified_at` and cannot be claimed until service-only `verify_media_replacement_delivery(...)` confirms the image and all switched locators. Reviewed maintenance may call service-only `enqueue_reconciled_media_orphans(...)` for at most 25 unreferenced `lb-prod-media-private/images/originals/<UUID>/...` objects whose namespace image no longer exists; the RPC repeats the database-wide reference proof atomically and records reason `reconciled_orphan`. Image deletion captures original and optimized objects independently without relying on cascade behavior. Completing a source-replacement job stamps `images.original_deleted_at`; the trigger also cancels active ingest jobs so a deleted image cannot be republished by delayed processing.
-- `claim_media_job(worker_name text)` is used by the Cloudflare Worker scheduled handler to claim pending ingest work. Cloudflare Queue ingress remains as a compatibility path, but the durable outbox is the source of truth for app-owned uploads.
+- `claim_media_job(worker_name text, lease_seconds)` and `claim_media_job_for_image(worker_name, image_id, lease_seconds)` issue expiring claim tokens. Queue ingress is only a wake-up hint; both Queue and scheduled processing claim the durable outbox. Completion, retry, failure, canonical commit, and delivery verification reject stale tokens.
 - `claim_media_deletion_job(worker_name, lease_seconds)` reclaims due or expired deletion work with `FOR UPDATE SKIP LOCKED`. Completion/retry/failure RPCs require the current claim token, and completed/cancelled jobs are pruned after 30 days.
 - Active ingest runs through `media_jobs` + the Worker in `apps/media-worker`; `images` remains the source of truth.
 - Canonical publishability is `processing_status = 'ready'` and `moderation_status IN ('approved', 'skipped')`. Public delivery or association additionally requires `visibility = 'public'` and legacy `status = 'approved'`.
@@ -550,9 +550,15 @@ may request at most 30 rows.
 | `get_level(p_grade)` | Get difficulty level from grade |
 | `soft_delete_comment(p_comment_id)` | Soft delete a comment |
 | `cleanup_orphan_route_uploads(max_age, max_delete)` | Service-only cleanup of orphaned route uploads |
-| `claim_media_job(worker_name)` | Service-only durable media-job claim |
+| `claim_media_job(worker_name, lease_seconds)` | Service-only fenced durable media-job claim with expired-lease recovery |
+| `claim_media_job_for_image(worker_name, image_id, lease_seconds)` | Service-only targeted claim for Queue wake-ups |
+| `complete_media_job(job_id, claim_token)` | Complete a currently owned ingest claim |
+| `retry_media_job(job_id, claim_token, error)` | Requeue or terminally fail a media ingest claim with backoff |
+| `fail_media_job(job_id, claim_token, error)` | Permanently fail invalid ingest work without overwriting canonical-ready state |
+| `recover_media_ingest_jobs(snapshots, run_id, artifact_digest)` | Service-only exact-snapshot reviewed ingest recovery |
+| `recover_media_deletion_jobs(snapshots, run_id, artifact_digest)` | Service-only exact-snapshot reviewed deletion recovery, excluding reconciled orphans |
 | `commit_media_webp(...)` | Service-only atomic canonical WebP commit and gated original-deletion enqueue; returns the deletion job UUID |
-| `verify_media_replacement_delivery(job_id, expected_optimized_key)` | Service-only proof that canonical locators switched before source replacement becomes claimable |
+| `verify_media_replacement_delivery(job_id, expected_optimized_key, media_job_id, claim_token)` | Service-only proof that canonical locators switched under the active ingest claim before source replacement becomes claimable |
 | `claim_media_deletion_job(worker_name, lease_seconds)` | Service-only tokenized claim of due or lease-expired R2 deletion work |
 | `complete_media_deletion_job(job_id, claim_token)` | Complete a currently owned media deletion claim |
 | `retry_media_deletion_job(job_id, claim_token, error)` | Requeue or terminally fail a media deletion claim with backoff |
