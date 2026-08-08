@@ -31,7 +31,6 @@ jobs:
       SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
       SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
       SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
-      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       MEDIA_CDN_URL: https://static.letsboulder.com
       MEDIA_HEALTH_OUTPUT: production-media-http-health.json
       MEDIA_HEALTH_BASELINE: ${{ inputs.baseline_run_id && 'health-baseline/production-media-http-health.json' || '' }}
@@ -49,7 +48,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install --prefer-offline
+        run: npm ci --prefer-offline
 
       - name: Validate required configuration
         shell: bash
@@ -61,6 +60,8 @@ jobs:
               exit 1
             fi
           done
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Verify optional baseline
         if: inputs.baseline_run_id != '' || inputs.baseline_artifact_digest != ''
@@ -99,6 +100,8 @@ jobs:
 
       - name: Run read-only HTTP verification
         run: npx tsx scripts/media/verify-production-http-health.ts
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Upload health manifest
         if: always()

@@ -60,13 +60,11 @@ jobs:
     environment: Production
     timeout-minutes: 30
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
       SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
       SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
       SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
-      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SOURCE_RUN_ID: ${{ inputs.reconciliation_run_id }}
       ARTIFACT_DIGEST: ${{ inputs.reconciliation_artifact_digest }}
       EXECUTION_RUN_ID: ${{ github.run_id }}
@@ -220,14 +218,19 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install --prefer-offline
+        run: npm ci --prefer-offline
 
       - name: Enqueue reconciled orphans
         run: npx tsx scripts/media/enqueue-reconciled-orphans.ts
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Verify no new public image failures
         if: always() && inputs.dry_run == 'false'
         run: npx tsx scripts/media/verify-production-http-health.ts
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Upload maintenance manifests
         if: always()

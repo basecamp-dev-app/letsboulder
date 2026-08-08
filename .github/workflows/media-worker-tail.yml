@@ -24,6 +24,16 @@ jobs:
         with:
           node-version: "20.20.0"
 
+      - name: Validate tail duration
+        shell: bash
+        env:
+          TAIL_SECONDS: ${{ inputs.tail_seconds }}
+        run: |
+          if ! [[ "$TAIL_SECONDS" =~ ^[0-9]+$ ]] || [ "$TAIL_SECONDS" -lt 1 ] || [ "$TAIL_SECONDS" -gt 240 ]; then
+            echo '::error::tail_seconds must be an integer between 1 and 240'
+            exit 1
+          fi
+
       - name: Capture production logs
         working-directory: apps/media-worker
         env:
@@ -47,3 +57,4 @@ jobs:
           name: media-worker-tail
           path: apps/media-worker/media-worker-tail.log
           if-no-files-found: error
+          retention-days: 7

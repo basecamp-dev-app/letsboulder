@@ -19,13 +19,11 @@ jobs:
     environment: Production
     timeout-minutes: 45
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
       SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
       SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
       SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
-      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       RECONCILIATION_OUTPUT: production-media-reconciliation.json
       RECONCILIATION_INPUT: production-media-reconciliation.json
       LIFECYCLE_HEALTH_OUTPUT: production-media-lifecycle-health.json
@@ -43,7 +41,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install --prefer-offline
+        run: npm ci --prefer-offline
 
       - name: Validate required configuration
         shell: bash
@@ -55,13 +53,21 @@ jobs:
               exit 1
             fi
           done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Run read-only private R2 reconciliation
         continue-on-error: true
         run: npx tsx scripts/media/reconcile-r2-media.ts
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Run read-only lifecycle health check
         run: npx tsx scripts/media/production-lifecycle-health.ts
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Upload lifecycle health artifact
         if: always()

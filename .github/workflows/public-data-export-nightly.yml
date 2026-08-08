@@ -25,11 +25,6 @@ jobs:
     timeout-minutes: 45
     env:
       EXPORT_DATE: ${{ inputs.export_date }}
-      PUBLIC_DATA_EXPORT_DATABASE_URL: ${{ secrets.PUBLIC_DATA_EXPORT_DATABASE_URL }}
-      OPEN_DATA_R2_ACCESS_KEY_ID: ${{ secrets.OPEN_DATA_R2_ACCESS_KEY_ID }}
-      OPEN_DATA_R2_SECRET_ACCESS_KEY: ${{ secrets.OPEN_DATA_R2_SECRET_ACCESS_KEY }}
-      OPEN_DATA_MINISIGN_PRIVATE_KEY: ${{ secrets.OPEN_DATA_MINISIGN_PRIVATE_KEY }}
-      OPEN_DATA_MINISIGN_PUBLIC_KEY: ${{ secrets.OPEN_DATA_MINISIGN_PUBLIC_KEY }}
       OPEN_DATA_R2_ENDPOINT: ${{ vars.OPEN_DATA_R2_ENDPOINT }}
       OPEN_DATA_R2_BUCKET: ${{ vars.OPEN_DATA_R2_BUCKET }}
       OPEN_DATA_PUBLIC_BASE_URL: ${{ vars.OPEN_DATA_PUBLIC_BASE_URL }}
@@ -42,7 +37,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --prefer-offline
+        run: npm ci --prefer-offline
 
       - name: Install minisign
         run: |
@@ -77,6 +72,12 @@ jobs:
               exit 1
             fi
           fi
+        env:
+          PUBLIC_DATA_EXPORT_DATABASE_URL: ${{ secrets.PUBLIC_DATA_EXPORT_DATABASE_URL }}
+          OPEN_DATA_R2_ACCESS_KEY_ID: ${{ secrets.OPEN_DATA_R2_ACCESS_KEY_ID }}
+          OPEN_DATA_R2_SECRET_ACCESS_KEY: ${{ secrets.OPEN_DATA_R2_SECRET_ACCESS_KEY }}
+          OPEN_DATA_MINISIGN_PRIVATE_KEY: ${{ secrets.OPEN_DATA_MINISIGN_PRIVATE_KEY }}
+          OPEN_DATA_MINISIGN_PUBLIC_KEY: ${{ secrets.OPEN_DATA_MINISIGN_PUBLIC_KEY }}
 
       - name: Typecheck export scripts
         run: npm run typecheck:scripts
@@ -86,3 +87,9 @@ jobs:
 
       - name: Publish export
         run: npm run export:public-data
+        env:
+          PUBLIC_DATA_EXPORT_DATABASE_URL: ${{ secrets.PUBLIC_DATA_EXPORT_DATABASE_URL }}
+          OPEN_DATA_R2_ACCESS_KEY_ID: ${{ secrets.OPEN_DATA_R2_ACCESS_KEY_ID }}
+          OPEN_DATA_R2_SECRET_ACCESS_KEY: ${{ secrets.OPEN_DATA_R2_SECRET_ACCESS_KEY }}
+          OPEN_DATA_MINISIGN_PRIVATE_KEY: ${{ secrets.OPEN_DATA_MINISIGN_PRIVATE_KEY }}
+          OPEN_DATA_MINISIGN_PUBLIC_KEY: ${{ secrets.OPEN_DATA_MINISIGN_PUBLIC_KEY }}
