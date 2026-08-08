@@ -10,6 +10,7 @@ import { revalidatePublicCrag, revalidatePublicCragSlug } from '@/features/crags
 import type { NextRequest } from 'next/server'
 
 type RequestSupabaseClient = ReturnType<typeof import('@/lib/supabase-server').getServerClientFromRequest>
+type ContentTargetType = 'crag' | 'climb' | 'image'
 
 export const moderationQueueVoteSchema = z.object({
   vote_type: z.enum(['verify', 'flag']),
@@ -147,38 +148,31 @@ export async function resolveFlag(request: NextRequest, supabase: RequestSupabas
 
     if (action === 'remove') {
       const deletionReason = resolution_note?.trim() || `Moderation flag: ${typedFlag.flag_type}`
+      const target: { id: string; type: ContentTargetType } | null = typedFlag.climb_id
+        ? { id: typedFlag.climb_id, type: 'climb' }
+        : typedFlag.image_id
+          ? { id: typedFlag.image_id, type: 'image' }
+          : typedFlag.crag_id
+            ? { id: typedFlag.crag_id, type: 'crag' }
+            : null
 
-      if (typedFlag.crag_id && !typedFlag.climb_id && !typedFlag.image_id) {
-        const { error: deleteCragError } = await supabase.rpc('soft_delete_crag', {
-          p_crag_id: typedFlag.crag_id,
+      if (target) {
+        const { error: moderationError } = await supabase.rpc('resolve_and_soft_delete_content', {
+          p_target_id: target.id,
+          p_target_type: target.type,
           p_reason: deletionReason,
+          p_action_taken: action,
         })
-        if (deleteCragError) return createErrorResponse(deleteCragError, 'Error deleting crag')
+        if (moderationError) return createErrorResponse(moderationError, 'Error resolving moderation action')
       }
+    } else {
+      const { error: updateError } = await supabase
+        .from('climb_flags')
+        .update({ status: 'resolved', action_taken: action, resolved_by: userId, resolved_at: new Date().toISOString() })
+        .eq('id', flagId)
 
-      if (typedFlag.climb_id) {
-        const { error: deleteError } = await supabase.rpc('soft_delete_climb', {
-          p_climb_id: typedFlag.climb_id,
-          p_reason: deletionReason,
-        })
-        if (deleteError) return createErrorResponse(deleteError, 'Error removing climb')
-      }
-
-      if (typedFlag.image_id) {
-        const { error: deleteError } = await supabase.rpc('soft_delete_image', {
-          p_image_id: typedFlag.image_id,
-          p_reason: deletionReason,
-        })
-        if (deleteError) return createErrorResponse(deleteError, 'Error removing image')
-      }
+      if (updateError) return createErrorResponse(updateError, 'Error resolving flag')
     }
-
-    const { error: updateError } = await supabase
-      .from('climb_flags')
-      .update({ status: 'resolved', action_taken: action, resolved_by: userId, resolved_at: resolvedAt })
-      .eq('id', flagId)
-
-    if (updateError) return createErrorResponse(updateError, 'Error resolving flag')
 
     if (action === 'remove' && typedFlag.crag_id) {
       revalidatePublicCrag(typedFlag.crag_id)

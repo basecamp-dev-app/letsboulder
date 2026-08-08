@@ -5026,6 +5026,15 @@ export type Database = {
         }
         Returns: Json
       }
+      resolve_and_soft_delete_content: {
+        Args: {
+          p_action_taken: string
+          p_reason: string
+          p_target_id: string
+          p_target_type: string
+        }
+        Returns: undefined
+      }
       rollback_wiki_entity_revision: {
         Args: {
           p_expected_head_revision_id: string
@@ -6010,4 +6019,3 @@ export const Constants = {
     },
   },
 } as const
-

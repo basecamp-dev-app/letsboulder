@@ -18,6 +18,7 @@ function createUpload(overrides: Partial<MediaUploadItem> = {}): MediaUploadItem
     uploadedBucket: null,
     uploadedPath: null,
     gpsData: null,
+    missingExif: false,
     captureDate: null,
     error: null,
     attachedRecordId: null,

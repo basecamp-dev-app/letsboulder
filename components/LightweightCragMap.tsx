@@ -49,6 +49,7 @@ interface LightweightCragMapProps {
   staticPreview?: boolean
   disableClustering?: boolean
   disableAutoFit?: boolean
+  preserveIndividualPins?: boolean
   showUserLocation?: boolean
   onViewportChange?: (state: { zoom: number; bounds: MapBounds }) => void
   className?: string
@@ -68,6 +69,7 @@ export default function LightweightCragMap({
   staticPreview = false,
   disableClustering = false,
   disableAutoFit = false,
+  preserveIndividualPins = false,
   showUserLocation = false,
   onViewportChange,
   className,
@@ -158,6 +160,23 @@ export default function LightweightCragMap({
     features: clusteredResults.flatMap((feature, index) => {
       if (isClusterFeature(feature)) return []
 
+      if (preserveIndividualPins) {
+        const pin = resolvedPins[index]
+        if (!pin) return []
+        return [{
+          type: 'Feature' as const,
+          geometry: feature.geometry,
+          properties: {
+            id: pin.id,
+            selectId: pin.primaryImageId || pin.id,
+            label: pin.label || String(index + 1),
+            active: isPinActive(pin, activePinId),
+            interactive: pin.interactive !== false,
+            tone: pin.tone || 'draft',
+          },
+        }]
+      }
+
       const matchingPins = pinsByCoordinateKey.get(getPinCoordinateKey(feature.geometry.coordinates[1], feature.geometry.coordinates[0])) || []
       const representative = activePinId
         ? matchingPins.find((pin) => isPinActive(pin, activePinId)) || matchingPins[0]
@@ -181,7 +200,7 @@ export default function LightweightCragMap({
         },
       }]
     }),
-  }), [activePinId, clusteredResults, pinsByCoordinateKey])
+  }), [activePinId, clusteredResults, pinsByCoordinateKey, preserveIndividualPins, resolvedPins])
 
   const clustersGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
     type: 'FeatureCollection',

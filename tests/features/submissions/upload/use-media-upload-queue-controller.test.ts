@@ -76,6 +76,7 @@ function createUpload(overrides: Partial<MediaUploadItem> = {}): MediaUploadItem
     uploadedBucket: 'bucket',
     uploadedPath: 'path/file.jpg',
     gpsData: { latitude: 1, longitude: 2 },
+    missingExif: false,
     captureDate: '2026-01-01T00:00:00.000Z',
     error: 'broken',
     attachedRecordId: 'record-1',
@@ -232,6 +233,7 @@ describe('media upload queue state machine', () => {
 
     await vi.waitFor(() => expect(uploadMocks.uploadFileToMediaSession).toHaveBeenCalled())
     expect(uploadMocks.extractGpsFromFile).toHaveBeenCalledWith(original)
+    expect(uploadMocks.extractGpsFromFile.mock.invocationCallOrder[0]).toBeLessThan(uploadMocks.preprocessFile.mock.invocationCallOrder[0] || Infinity)
     expect(durableMocks.persistNewUpload).toHaveBeenCalledWith(
       'user-1',
       expect.objectContaining({ gpsData: { latitude: 12, longitude: 34 } }),

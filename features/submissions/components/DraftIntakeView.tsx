@@ -16,6 +16,8 @@ import { arrayMove } from '@dnd-kit/sortable'
 import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'
 import { isMediaUploadPending } from '@/features/media-upload/lib/upload-types'
 import { OpenDataLicenseNotice } from '@/features/legal/components/OpenDataLicenseNotice'
+import LightweightCragMap from '@/components/LightweightCragMap'
+import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 
 interface DraftImageRecord {
   id: string
@@ -51,10 +53,10 @@ interface DraftCreateResponse {
 
 type UploadPhase = 'idle' | 'creating' | 'uploading' | 'complete' | 'failed'
 
-export default function DraftIntakeView({ cragId = null }: { cragId?: string | null }) {
+export default function DraftIntakeView({ cragId = null, initialCenter = null }: { cragId?: string | null; initialCenter?: [number, number] | null }) {
   const router = useRouter()
   const { toasts, addToast, removeToast } = useToast()
-  const { queueDraftUploads, registerDraftUpdatedAt, getUploadsForDraft, resumeQueue, retryUpload, removeUpload } = useDraftUploadManager()
+  const { queueDraftUploads, updateUploadCoordinates, registerDraftUpdatedAt, getUploadsForDraft, resumeQueue, retryUpload, removeUpload } = useDraftUploadManager()
   const [phase, setPhase] = useState<UploadPhase>('idle')
   const [draftId, setDraftId] = useState<string | null>(null)
   const [draftImages, setDraftImages] = useState<DraftImageRecord[]>([])
@@ -89,6 +91,17 @@ export default function DraftIntakeView({ cragId = null }: { cragId?: string | n
     })),
     ...uploadThumbs,
   ]).filter((image) => image.previewUrl), [draftImages, uploadThumbs])
+  const uploadPins = useMemo<LightweightCragMapPin[]>(() => uploads
+    .filter((upload) => upload.gpsData)
+    .map((upload, index) => ({
+      id: upload.clientId,
+      latitude: upload.gpsData!.latitude,
+      longitude: upload.gpsData!.longitude,
+      label: String(index + 1),
+      activeImageIds: [upload.clientId],
+      interactive: false,
+      tone: 'draft',
+    })), [uploads])
   const loadDraftImages = useCallback(async (targetDraftId: string) => {
     const response = await csrfFetch(`/api/submissions/drafts/${targetDraftId}`)
     const payload = await response.json().catch(() => ({} as DraftThumbnailResponse))
@@ -162,7 +175,7 @@ export default function DraftIntakeView({ cragId = null }: { cragId?: string | n
     if (files.length === 0) return
 
     if (draftId) {
-      queueDraftUploads(files, draftId)
+      queueDraftUploads(files, draftId, initialCenter ? { latitude: initialCenter[0], longitude: initialCenter[1] } : null)
       setPhase('uploading')
       setError(null)
       return
@@ -196,7 +209,7 @@ export default function DraftIntakeView({ cragId = null }: { cragId?: string | n
 
       setDraftId(payload.draft.id)
       setDraftImages([])
-      queueDraftUploads(files, payload.draft.id)
+      queueDraftUploads(files, payload.draft.id, initialCenter ? { latitude: initialCenter[0], longitude: initialCenter[1] } : null)
       setPhase('uploading')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create draft'
@@ -204,7 +217,7 @@ export default function DraftIntakeView({ cragId = null }: { cragId?: string | n
       addToast(message, 'error')
       setPhase('idle')
     }
-  }, [addToast, cragId, draftId, queueDraftUploads, registerDraftUpdatedAt])
+  }, [addToast, cragId, draftId, initialCenter, queueDraftUploads, registerDraftUpdatedAt])
 
   const handleReorder = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event
@@ -322,6 +335,27 @@ export default function DraftIntakeView({ cragId = null }: { cragId?: string | n
                 </div>
 
                 {hasAnyImages ? <DraftImageGallery galleryImages={galleryImages} sortableImageIds={draftImages.map((image) => image.id)} onDragEnd={handleReorder} /> : null}
+
+                {uploads.some((upload) => upload.missingExif) ? (
+                  <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20">
+                    <p className="text-xs text-amber-800 dark:text-amber-200">Some photos have no GPS metadata. Check or adjust their coordinates.</p>
+                    {uploads.filter((upload) => upload.missingExif).map((upload) => (
+                      <div key={upload.clientId} className="grid grid-cols-[minmax(0,1fr)_minmax(0,7rem)_minmax(0,7rem)] items-center gap-2">
+                        <span className="truncate text-xs text-amber-900 dark:text-amber-100">{upload.fileName}</span>
+                        <label className="text-xs text-amber-900 dark:text-amber-100">
+                          <span className="sr-only">Latitude for {upload.fileName}</span>
+                          <input type="number" step="any" aria-label={`Latitude for ${upload.fileName}`} value={upload.gpsData?.latitude ?? ''} onChange={(event) => updateUploadCoordinates(upload.clientId, { latitude: Number(event.target.value), longitude: upload.gpsData?.longitude ?? 0 })} className="w-full rounded-md border border-amber-300 bg-white px-2 py-1 text-xs dark:border-amber-700 dark:bg-gray-900" placeholder="Latitude" />
+                        </label>
+                        <label className="text-xs text-amber-900 dark:text-amber-100">
+                          <span className="sr-only">Longitude for {upload.fileName}</span>
+                          <input type="number" step="any" aria-label={`Longitude for ${upload.fileName}`} value={upload.gpsData?.longitude ?? ''} onChange={(event) => updateUploadCoordinates(upload.clientId, { latitude: upload.gpsData?.latitude ?? 0, longitude: Number(event.target.value) })} className="w-full rounded-md border border-amber-300 bg-white px-2 py-1 text-xs dark:border-amber-700 dark:bg-gray-900" placeholder="Longitude" />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                 {uploadPins.length > 0 ? <LightweightCragMap pins={uploadPins} initialCenter={initialCenter} disableClustering preserveIndividualPins disableAutoFit heightClassName="h-[220px]" /> : null}
 
                 {totalCount > 0 ? (
                   <p className="text-xs text-gray-500 dark:text-gray-400">

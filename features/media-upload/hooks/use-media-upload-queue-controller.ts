@@ -9,7 +9,7 @@ import { enqueueUploads, prepareRetryQueue, removeUploadEntry, resetQueuedUpload
 import { buildPreviewUrl, getImageDimensions, preprocessFile } from '@/features/media-upload/lib/preprocess-image'
 import { pickNextQueueClientId, resetUploadForQueue } from '@/features/media-upload/lib/media-upload-queue-state'
 import { shouldResumeQueuedUploads } from '@/features/media-upload/lib/media-upload-resume-state'
-import { createClientId, ensureFileName, mapMediaUploadStatus, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
+import { createClientId, ensureFileName, mapMediaUploadStatus, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback, type UploadCoordinates } from '@/features/media-upload/lib/upload-types'
 import { persistNewUpload, persistUploadMetadata, removePersistedUpload, restoreUploads } from '@/features/media-upload/lib/durable-upload-store'
 import { createClient } from '@/lib/supabase'
 import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
@@ -20,7 +20,8 @@ export interface MediaUploadQueueController {
   activeClientId: string | null
   isPaused: boolean
   registerDraftUpdatedAt: (draftId: string, updatedAt: string) => void
-  queueUploads: (files: File[], target: MediaUploadTarget) => void
+  queueUploads: (files: File[], target: MediaUploadTarget, fallbackCoordinates?: UploadCoordinates | null) => void
+  updateUploadCoordinates: (clientId: string, coordinates: UploadCoordinates) => void
   retryUpload: (clientId: string) => void
   removeUpload: (clientId: string) => Promise<void>
   resumeQueue: () => void
@@ -147,10 +148,9 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
         let preparedFile = entry.file
         let gpsData = upload.gpsData
         if (!entry.isPrepared) {
-          [preparedFile, gpsData] = await Promise.all([
-            preprocessFile(entry.file),
-            extractGpsFromFile(entry.file),
-          ])
+          const extractedGpsData = await extractGpsFromFile(entry.file)
+          gpsData = extractedGpsData || upload.gpsData
+          preparedFile = await preprocessFile(entry.file)
           const userId = userIdRef.current
           if (!userId) throw new Error('Prepared photo could not be saved on this device')
           const preparedUpload = upload.uploadedImageId
@@ -391,7 +391,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
 
   startNextUploadRef.current = startNextUpload
 
-  const queueUploadsAfterConsent = useCallback((files: File[], target: MediaUploadTarget) => {
+  const queueUploadsAfterConsent = useCallback((files: File[], target: MediaUploadTarget, fallbackCoordinates?: UploadCoordinates | null) => {
     const existingCount = Object.values(uploadsRef.current).filter((upload) => {
       if (upload.target.kind !== target.kind) return false
       return target.kind === 'draft'
@@ -414,6 +414,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       uploadedBucket: null,
       uploadedPath: null,
       gpsData: null,
+      missingExif: false,
       captureDate: null,
       error: null,
       attachedRecordId: null,
@@ -436,11 +437,9 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
         const upload = createdUploads[index]
         const file = acceptedFiles[index]
         try {
-          const [preparedFile, gpsData] = await Promise.all([
-            preprocessFile(file),
-            extractGpsFromFile(file),
-          ])
-          const preparedUpload = { ...upload, gpsData }
+          const gpsData = await extractGpsFromFile(file)
+          const preparedFile = await preprocessFile(file)
+          const preparedUpload = { ...upload, gpsData: gpsData || fallbackCoordinates || null, missingExif: !gpsData }
           if (await persistNewUpload(userId, preparedUpload, preparedFile)) {
             durableRecords.push({ upload: preparedUpload, file: preparedFile })
             queueEntriesRef.current.set(upload.clientId, { clientId: upload.clientId, target, file: preparedFile, isPrepared: true })
@@ -464,9 +463,15 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     })()
   }, [updateUpload])
 
-  const queueUploads = useCallback((files: File[], target: MediaUploadTarget) => {
-    void requireConsent(() => queueUploadsAfterConsent(files, target))
+  const queueUploads = useCallback((files: File[], target: MediaUploadTarget, fallbackCoordinates?: UploadCoordinates | null) => {
+    void requireConsent(() => queueUploadsAfterConsent(files, target, fallbackCoordinates))
   }, [queueUploadsAfterConsent, requireConsent])
+
+  const updateUploadCoordinates = useCallback((clientId: string, coordinates: UploadCoordinates) => {
+    if (!Number.isFinite(coordinates.latitude) || !Number.isFinite(coordinates.longitude)) return
+    if (coordinates.latitude < -90 || coordinates.latitude > 90 || coordinates.longitude < -180 || coordinates.longitude > 180) return
+    updateUpload(clientId, (current) => ({ ...current, gpsData: coordinates }))
+  }, [updateUpload])
 
   const retryUpload = useCallback((clientId: string) => {
     const entry = queueEntriesRef.current.get(clientId)
@@ -616,6 +621,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
     isPaused,
     registerDraftUpdatedAt,
     queueUploads,
+    updateUploadCoordinates,
     retryUpload,
     removeUpload,
     resumeQueue,
