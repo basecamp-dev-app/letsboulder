@@ -13,6 +13,7 @@ const PACKS = 'packs'
 const VERSIONS = 'versions'
 const ASSETS = 'assets'
 const JOBS = 'jobs'
+export const OFFLINE_FAILED_JOB_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -163,13 +164,13 @@ export class OfflinePackDatabase {
     await transactionDone(transaction)
   }
 
-  async failJob(versionId: string, message: string, now: string): Promise<void> {
+  async failJob(versionId: string, message: string, now: string, failureKind: OfflineDownloadJobRecord['failureKind'] = 'resumable'): Promise<void> {
     const database = await this.open()
     const transaction = database.transaction([PACKS, JOBS], 'readwrite')
     const jobs = transaction.objectStore(JOBS)
     const job = await requestResult<OfflineDownloadJobRecord | undefined>(jobs.get(versionId))
     if (job) {
-      jobs.put({ ...job, state: 'failed', error: message, updatedAt: now })
+      jobs.put({ ...job, state: 'failed', failureKind, error: message, updatedAt: now })
       const packs = transaction.objectStore(PACKS)
       const pack = await requestResult<OfflinePackRecord | undefined>(packs.get(job.packId))
       if (pack) packs.put({ ...pack, status: pack.activeVersion ? 'ready' : 'error', error: message, updatedAt: now })
@@ -209,6 +210,30 @@ export class OfflinePackDatabase {
     return assets.map((asset) => asset.url)
   }
 
+  async discardFailedVersion(versionId: string, now: string): Promise<string[]> {
+    const database = await this.open()
+    const transaction = database.transaction([PACKS, VERSIONS, ASSETS, JOBS], 'readwrite')
+    const jobs = transaction.objectStore(JOBS)
+    const job = await requestResult<OfflineDownloadJobRecord | undefined>(jobs.get(versionId))
+    if (!job || (job.state !== 'failed' && job.state !== 'cancelled')) {
+      await transactionDone(transaction)
+      return []
+    }
+    const assetsStore = transaction.objectStore(ASSETS)
+    const assets = await requestResult<OfflineAssetOwnershipRecord[]>(assetsStore.index('versionId').getAll(versionId))
+    for (const asset of assets) assetsStore.delete(asset.id)
+    transaction.objectStore(VERSIONS).delete(versionId)
+    jobs.delete(versionId)
+    const packs = transaction.objectStore(PACKS)
+    const pack = await requestResult<OfflinePackRecord | undefined>(packs.get(job.packId))
+    if (pack) {
+      if (pack.activeVersion) packs.put({ ...pack, status: 'ready', error: null, updatedAt: now })
+      else packs.delete(pack.packId)
+    }
+    await transactionDone(transaction)
+    return assets.map((asset) => asset.url)
+  }
+
   async removePack(packId: string): Promise<string[]> {
     const database = await this.open()
     const transaction = database.transaction([PACKS, VERSIONS, ASSETS, JOBS], 'readwrite')
@@ -233,7 +258,7 @@ export class OfflinePackDatabase {
     return (await requestResult(database.transaction(ASSETS).objectStore(ASSETS).index('url').count(url))) > 0
   }
 
-  async cleanOrphanRecords(): Promise<string[]> {
+  async cleanOrphanRecords(now = new Date().toISOString()): Promise<string[]> {
     const database = await this.open()
     const transaction = database.transaction([PACKS, VERSIONS, ASSETS, JOBS], 'readwrite')
     const packs = await requestResult<OfflinePackRecord[]>(transaction.objectStore(PACKS).getAll())
@@ -245,7 +270,10 @@ export class OfflinePackDatabase {
     const jobsByVersion = new Map(jobs.map((job) => [job.versionId, job]))
     const obsoleteVersions = new Set(versionRecords.filter((version) => {
       const job = jobsByVersion.get(version.id)
-      return !activeVersionIds.has(version.id) && (!job || job.state === 'complete')
+      const failedTooLong = job?.state === 'failed'
+        && Date.parse(now) - Date.parse(job.updatedAt) >= OFFLINE_FAILED_JOB_RETENTION_MS
+      const failedPermanently = job?.state === 'failed' && job.failureKind === 'permanent'
+      return !activeVersionIds.has(version.id) && (!job || job.state === 'complete' || job.state === 'cancelled' || failedTooLong || failedPermanently)
     }).map((version) => version.id))
     const orphanUrls: string[] = []
     for (const asset of assets) if (!versions.has(asset.versionId) || obsoleteVersions.has(asset.versionId)) {

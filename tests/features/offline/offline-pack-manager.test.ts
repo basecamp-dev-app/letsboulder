@@ -62,6 +62,7 @@ function createHarness(options: { failUrl?: string; cachedUrls?: string[] } = {}
       return 'climb:1:v1'
     }),
     removeVersion: vi.fn(async () => { events.push('gc'); return ['https://example.com/shared.webp'] }),
+    discardFailedVersion: vi.fn(async () => { events.push('discard'); return ['https://example.com/a.webp'] }),
     removePack: vi.fn(async () => []),
     isAssetOwned: vi.fn(async (url) => url.endsWith('/shared.webp')),
     cleanOrphanRecords: vi.fn(async () => []),
@@ -151,6 +152,7 @@ describe('offline pack manager', () => {
       getActivePack: vi.fn(async () => null),
       stage: vi.fn(), getVersion: vi.fn(), listJobs: vi.fn(async () => [staleJob]), listVersionAssets: vi.fn(),
       checkpointAsset: vi.fn(), failJob: vi.fn(), activate: vi.fn(),
+      discardFailedVersion: vi.fn(async () => ['https://example.com/old.webp']),
       removeVersion: vi.fn(async () => ['https://example.com/old.webp']), removePack: vi.fn(async () => []),
       isAssetOwned: vi.fn(async () => false), cleanOrphanRecords: vi.fn(async () => []),
     }
@@ -163,5 +165,28 @@ describe('offline pack manager', () => {
     expect(repository.removeVersion).toHaveBeenCalledWith(staleJob.versionId)
     expect(repository.activate).not.toHaveBeenCalled()
     expect(cache.remove).toHaveBeenCalledWith('https://example.com/old.webp')
+  })
+
+  test('discards only the failed version and removes its unowned partial media', async () => {
+    const { manager, repository, cache, events } = createHarness()
+    const failedJob: OfflineDownloadJobRecord = {
+      id: 'climb:1:v2', packId: 'climb:1', version: 'v2', versionId: 'climb:1:v2', state: 'failed',
+      completedAssets: 1, totalAssets: 2, downloadedBytes: 50, error: 'network interrupted', updatedAt: 'now',
+    }
+    vi.mocked(repository.listJobs).mockResolvedValueOnce([failedJob])
+
+    await manager.discardFailed('climb:1')
+
+    expect(repository.discardFailedVersion).toHaveBeenCalledWith('climb:1:v2', 'now')
+    expect(cache.remove).toHaveBeenCalledWith('https://example.com/a.webp')
+    expect(events).toContain('discard')
+  })
+
+  test('passes the current time to orphan cleanup so stale failures can be collected', async () => {
+    const { manager, repository } = createHarness()
+
+    await manager.cleanupOrphans()
+
+    expect(repository.cleanOrphanRecords).toHaveBeenCalledWith('now')
   })
 })

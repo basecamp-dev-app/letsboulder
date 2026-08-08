@@ -14,11 +14,12 @@ function formatBytes(bytes: number) {
 }
 
 export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
-  const { packs, loading, error, install, remove } = useOfflinePacks()
+  const { packs, loading, error, install, remove, discardFailed } = useOfflinePacks()
   const packId = `crag:${cragId}`
   const manifestUrl = `/api/offline-packs/crags/${encodeURIComponent(cragId)}/manifest`
   const pack = packs.find((candidate) => candidate.packId === packId)
   const ready = pack?.status === 'ready' && pack.activeVersion !== null
+  const failedDownload = pack?.error !== null && pack?.error !== undefined
   const [availableUpdate, setAvailableUpdate] = useState<OfflinePackManifest | null>(null)
   const [storageStatus, setStorageStatus] = useState<OfflineStorageStatus | null>(null)
 
@@ -67,6 +68,16 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
     }
   }
 
+  const handleDiscardFailed = async () => {
+    if (!globalThis.confirm('Discard this failed download and remove its partial media from this device?')) return
+    try {
+      await discardFailed(packId)
+      setStorageStatus(null)
+    } catch {
+      // The store exposes the error.
+    }
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2" aria-live="polite">
       {ready ? (
@@ -81,6 +92,11 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
       {ready && availableUpdate ? (
         <Button type="button" variant="outline" onClick={() => void handleUpdate()} disabled={loading} className="min-h-11 rounded-full border-amber-200 bg-amber-50 px-3 text-amber-900 shadow-none hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-900/30 dark:text-amber-200">
           <RefreshCw className="size-4" /> Update
+        </Button>
+      ) : null}
+      {failedDownload ? (
+        <Button type="button" variant="ghost" onClick={() => void handleDiscardFailed()} disabled={loading} className="min-h-11 rounded-full text-red-700 hover:text-red-800 dark:text-red-300">
+          <Trash2 className="size-4" /> Discard failed download
         </Button>
       ) : null}
       {ready ? (
