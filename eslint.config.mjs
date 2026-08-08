@@ -44,7 +44,7 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ['public/sw.js', 'public/sw-cache-utils.js'],
+    files: ['public/sw.js'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       'no-console': 'off',
