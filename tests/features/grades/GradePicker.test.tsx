@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import GradePicker from '@/features/grades/components/GradePicker'
@@ -67,7 +67,7 @@ describe('GradePicker', () => {
     const { rerender } = render(<GradePicker {...props} isOpen />)
 
     await user.click(screen.getByRole('button', { name: '7A' }))
-    await user.type(screen.getByRole('textbox', { name: '' }), '7')
+    fireEvent.change(screen.getByRole('textbox', { name: '' }), { target: { value: '7' } })
     rerender(<GradePicker {...props} isOpen={false} />)
     rerender(<GradePicker {...props} isOpen />)
 
