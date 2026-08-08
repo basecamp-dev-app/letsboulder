@@ -25,9 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: "20.20.0"
+          node-version: "22.x"
           cache: npm
           cache-dependency-path: apps/media-worker/package-lock.json
 
@@ -40,7 +40,7 @@ jobs:
         working-directory: apps/media-worker
 
       - name: Deploy production media worker
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
