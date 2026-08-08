@@ -116,13 +116,33 @@ describe('active service worker', () => {
   })
 
   it('serves a packed image from CacheStorage before the network', async () => {
-    const request = new Request('https://media.letsboulder.com/saved-topo.jpg')
+    const request = new Request('https://static.letsboulder.com/images/image-123/v2/topo.webp')
     Object.defineProperty(request, 'destination', { configurable: true, value: 'image' })
     mediaEntries.set(request.url, new Response('cached topo'))
 
     const response = await dispatch('fetch', { request })
 
     expect(await (await response)?.text()).toBe('cached topo')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not intercept unrelated remote images', async () => {
+    const request = new Request('https://images.example.com/photo.webp')
+    Object.defineProperty(request, 'destination', { configurable: true, value: 'image' })
+
+    const response = await dispatch('fetch', { request })
+
+    expect(response).toBeUndefined()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not intercept non-pack media paths on an approved CDN', async () => {
+    const request = new Request('https://static.letsboulder.com/images/image-123/original.webp')
+    Object.defineProperty(request, 'destination', { configurable: true, value: 'image' })
+
+    const response = await dispatch('fetch', { request })
+
+    expect(response).toBeUndefined()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

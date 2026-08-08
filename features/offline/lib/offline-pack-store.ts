@@ -1,5 +1,5 @@
 import { OfflinePackManager } from '@/features/offline/lib/offline-pack-manager'
-import type { OfflinePackSnapshot } from '@/features/offline/lib/offline-pack-types'
+import type { OfflinePackSnapshot, OfflineStorageStatus } from '@/features/offline/lib/offline-pack-types'
 
 export class OfflinePackStore {
   private snapshot: OfflinePackSnapshot = { loading: false, packs: [], error: null }
@@ -22,10 +22,11 @@ export class OfflinePackStore {
     })
   }
 
-  async install(manifestUrl: string): Promise<void> {
-    await this.run(async () => {
-      await this.manager.install(manifestUrl)
+  async install(manifestUrl: string): Promise<OfflineStorageStatus> {
+    return this.run(async () => {
+      const result = await this.manager.install(manifestUrl)
       this.setSnapshot({ loading: false, packs: await this.manager.list(), error: null })
+      return result.storageStatus
     })
   }
 
@@ -50,10 +51,10 @@ export class OfflinePackStore {
     })
   }
 
-  private async run(operation: () => Promise<void>): Promise<void> {
+  private async run<T>(operation: () => Promise<T>): Promise<T> {
     this.setSnapshot({ ...this.snapshot, loading: true, error: null })
     try {
-      await operation()
+      return await operation()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Offline pack operation failed'
       this.setSnapshot({ ...this.snapshot, loading: false, error: message })

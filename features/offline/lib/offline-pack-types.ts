@@ -80,6 +80,11 @@ export interface OfflineStorageStatus {
   available: number | null
 }
 
+export interface OfflinePackInstallResult {
+  active: ActiveOfflinePack
+  storageStatus: OfflineStorageStatus
+}
+
 export interface OfflinePackSnapshot {
   loading: boolean
   packs: readonly OfflinePackRecord[]
