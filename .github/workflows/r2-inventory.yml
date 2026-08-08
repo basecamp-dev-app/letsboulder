@@ -84,7 +84,7 @@ jobs:
             "$object_count" "$total_bytes" "$total_gib"
 
       - name: Upload R2 inventory
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lb-prod-media-private-inventory
           path: lb-prod-media-private-inventory.json

@@ -127,7 +127,7 @@ jobs:
 
       - name: Upload recovery manifest
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: production-media-lifecycle-recovery-${{ github.run_id }}
           path: production-media-lifecycle-recovery.json
