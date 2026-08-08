@@ -83,13 +83,17 @@ Commit the migration and regenerated `types/database.ts` together.
 
 ## Hosted Deployment (Maintainers Only)
 
-Linked commands are not part of the contributor workflow. A maintainer must deliberately select the intended dev or production project, review the dry-run, and then push:
+Linked commands are not part of the contributor workflow. Pushes to `main` run the production validation and dry-run automatically; they never apply migrations. To apply a reviewed migration, a maintainer must manually run the **Supabase Migrations** workflow from GitHub and enter the current `main` commit SHA in `commit_sha`. The workflow rejects stale or non-`main` SHAs, repeats the dry-run, and applies only after that check succeeds.
+
+For local maintainer operations, deliberately select the intended project, review the dry-run, and then push:
 
 ```bash
 npx supabase link --project-ref <project-ref>
 npx supabase db push --linked --dry-run
 npx supabase db push --linked
 ```
+
+The GitHub workflow serializes production migration runs. Do not start a second apply while one is queued or running, and never print or paste the database password or access token into logs or issue comments.
 
 ## If `db push` Fails With "Remote migration versions not found"
 
