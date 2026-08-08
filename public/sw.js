@@ -1,6 +1,7 @@
 const SHELL_CACHE = 'letsboulder-offline-shell-v2'
-const STATIC_CACHE = 'letsboulder-next-static-v2'
+const STATIC_CACHE_PREFIX = 'letsboulder-next-static-'
 const PACKED_MEDIA_CACHE = 'letsboulder-offline-immutable-v1'
+const BUILD_ASSET_MANIFEST_URL = '/sw-build-assets.json'
 const SHELL_PATHS = ['/offline', '/offline/library', '/offline/crag']
 const RETIRED_CACHE_NAMES = new Set([
   'offline-shell-v4',
@@ -12,10 +13,25 @@ const RETIRED_CACHE_NAMES = new Set([
   'letsboulder-offline-shell-v1',
   'letsboulder-next-static-v1',
 ])
+let staticCacheName
+
+async function getStaticCacheName() {
+  if (staticCacheName) return staticCacheName
+
+  const response = await fetch(BUILD_ASSET_MANIFEST_URL, { cache: 'no-store' })
+  if (!response.ok) throw new Error('Unable to load the service worker build manifest')
+  const manifest = await response.json()
+  if (typeof manifest.version !== 'string' || manifest.version.length === 0) {
+    throw new Error('Service worker build manifest has no version')
+  }
+
+  staticCacheName = `${STATIC_CACHE_PREFIX}${manifest.version}`
+  return staticCacheName
+}
 
 async function cacheShell() {
   const shellCache = await caches.open(SHELL_CACHE)
-  const staticCache = await caches.open(STATIC_CACHE)
+  const staticCache = await caches.open(await getStaticCacheName())
 
   await Promise.all(SHELL_PATHS.map(async (path) => {
     const response = await fetch(path)
@@ -36,7 +52,7 @@ async function cacheShell() {
 }
 
 async function cacheFirstStatic(request) {
-  const cache = await caches.open(STATIC_CACHE)
+  const cache = await caches.open(await getStaticCacheName())
   const cached = await cache.match(request)
   if (cached) return cached
 
@@ -88,8 +104,11 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
+    const currentStaticCache = await getStaticCacheName()
     const cacheNames = await caches.keys()
-    await Promise.all(cacheNames.filter((name) => RETIRED_CACHE_NAMES.has(name)).map((name) => caches.delete(name)))
+    await Promise.all(cacheNames
+      .filter((name) => (name.startsWith(STATIC_CACHE_PREFIX) && name !== currentStaticCache) || RETIRED_CACHE_NAMES.has(name))
+      .map((name) => caches.delete(name)))
     await self.clients.claim()
   })())
 })
