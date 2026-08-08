@@ -92,7 +92,7 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 ## CI
 
 - **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, feature structure, docs drift, typecheck, build, unit, component, and integration coverage checks
-- **Smoke tests** — Run on deployment or manual dispatch in `.github/workflows/test.yml`, `--grep @smoke`, `public` + `authenticated` projects
+- **Smoke tests** — Run on trusted deployment status or manual dispatch in `.github/workflows/test.yml`; public and authenticated `--grep @smoke` projects run in separate processes
 - **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests
 - Protected non-production E2E runs use Cloudflare Access headers when required
 
