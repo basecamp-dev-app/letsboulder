@@ -32,7 +32,7 @@ async function transitionJob(
 export async function processMediaDeletionJob(job: MediaDeletionJobRow, env: Env) {
   if (job.bucket !== env.R2_PRIVATE_BUCKET) {
     await transitionJob(env, 'fail_media_deletion_job', job, new Error('Deletion bucket is not allowlisted'))
-    return false
+    return true
   }
 
   if (job.reason === 'source_replaced' && (!job.image_id || !job.delivery_verified_at)) {
@@ -52,7 +52,7 @@ export async function processMediaDeletionJob(job: MediaDeletionJobRow, env: Env
     const orphanPrefix = new RegExp(`^images/originals/${job.image_id}/[^/]+$`)
     if (!orphanPrefix.test(job.object_key)) {
       await transitionJob(env, 'fail_media_deletion_job', job, new Error('Reconciled orphan key is not an original namespaced to the image'))
-      return false
+      return true
     }
 
     const { error: verificationError } = await createSupabaseAdminClient(env).rpc(
@@ -68,7 +68,7 @@ export async function processMediaDeletionJob(job: MediaDeletionJobRow, env: Env
       const object = await env.ORIGINALS_BUCKET.head(job.object_key)
       if (!object || object.size !== job.expected_object_bytes || object.etag !== job.expected_object_etag) {
         await transitionJob(env, 'fail_media_deletion_job', job, new Error('Reconciled orphan object no longer matches reviewed metadata'))
-        return false
+        return true
       }
     } catch (error) {
       await transitionJob(env, 'retry_media_deletion_job', job, error)
@@ -80,7 +80,7 @@ export async function processMediaDeletionJob(job: MediaDeletionJobRow, env: Env
     const namespacedPrefix = new RegExp(`^images/(?:assets|originals|staging)/${job.image_id}/`)
     if (!namespacedPrefix.test(job.object_key)) {
       await transitionJob(env, 'fail_media_deletion_job', job, new Error('Deletion key is not namespaced to the image'))
-      return false
+      return true
     }
   }
 
