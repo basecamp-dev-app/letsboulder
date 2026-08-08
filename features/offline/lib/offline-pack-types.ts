@@ -59,12 +59,14 @@ export interface OfflineDownloadJobRecord {
   packId: string
   version: string
   versionId: string
-  state: 'queued' | 'downloading' | 'failed' | 'complete'
+  state: 'queued' | 'downloading' | 'failed' | 'cancelled' | 'complete'
   completedAssets: number
   totalAssets: number
   downloadedBytes: number
   error: string | null
   updatedAt: string
+  /** Older records omit this and are treated as resumable. */
+  failureKind?: 'resumable' | 'permanent'
 }
 
 export interface ActiveOfflinePack {

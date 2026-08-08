@@ -44,6 +44,13 @@ export class OfflinePackStore {
     })
   }
 
+  async discardFailed(packId: string): Promise<void> {
+    await this.run(async () => {
+      await this.manager.discardFailed(packId)
+      this.setSnapshot({ loading: false, packs: await this.manager.list(), error: null })
+    })
+  }
+
   async resume(): Promise<void> {
     await this.run(async () => {
       await this.manager.resume()

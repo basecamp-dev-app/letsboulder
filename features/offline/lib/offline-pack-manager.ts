@@ -23,12 +23,13 @@ export interface OfflinePackRepository {
   listJobs(states?: OfflineDownloadJobRecord['state'][]): Promise<OfflineDownloadJobRecord[]>
   listVersionAssets(versionId: string): Promise<OfflineAssetOwnershipRecord[]>
   checkpointAsset(versionId: string, url: string, bytes: number, now: string): Promise<void>
-  failJob(versionId: string, message: string, now: string): Promise<void>
+  failJob(versionId: string, message: string, now: string, failureKind?: OfflineDownloadJobRecord['failureKind']): Promise<void>
   activate(versionId: string, now: string): Promise<string | null>
   removeVersion(versionId: string): Promise<string[]>
+  discardFailedVersion(versionId: string, now: string): Promise<string[]>
   removePack(packId: string): Promise<string[]>
   isAssetOwned(url: string): Promise<boolean>
-  cleanOrphanRecords(): Promise<string[]>
+  cleanOrphanRecords(now?: string): Promise<string[]>
 }
 
 export interface OfflinePackManagerOptions {
@@ -158,8 +159,20 @@ export class OfflinePackManager {
     await this.withCrossTabLock(async () => {
       await this.withPackLock(packId, async () => {
         const urls = await this.repository.removePack(packId)
-        const orphanUrls = await this.repository.cleanOrphanRecords()
+        const orphanUrls = await this.repository.cleanOrphanRecords(this.now())
         await this.removeUnowned([...urls, ...orphanUrls])
+      })
+    })
+  }
+
+  async discardFailed(packId: string): Promise<void> {
+    await this.withCrossTabLock(async () => {
+      await this.withPackLock(packId, async () => {
+        const jobs = await this.repository.listJobs(['failed', 'cancelled'])
+        const job = jobs.filter((candidate) => candidate.packId === packId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
+        if (!job) return
+        const urls = await this.repository.discardFailedVersion(job.versionId, this.now())
+        await this.removeUnowned(urls)
       })
     })
   }
@@ -169,7 +182,7 @@ export class OfflinePackManager {
   }
 
   private async cleanupOrphansUnlocked(): Promise<void> {
-    const orphanUrls = await this.repository.cleanOrphanRecords()
+    const orphanUrls = await this.repository.cleanOrphanRecords(this.now())
     await this.removeUnowned(orphanUrls)
     const cachedUrls = await this.cache.keys()
     await this.removeUnowned(cachedUrls)
@@ -217,7 +230,11 @@ export class OfflinePackManager {
         await this.removeUnowned(oldUrls)
       }
     } catch (error) {
-      await this.repository.failJob(versionId, errorMessage(error), this.now())
+      const message = errorMessage(error)
+      const failureKind = message.startsWith('Asset response ') || message.startsWith('Offline pack is incomplete') || message.startsWith('Offline pack has pending assets')
+        ? 'permanent'
+        : 'resumable'
+      await this.repository.failJob(versionId, message, this.now(), failureKind)
       throw error
     }
   }

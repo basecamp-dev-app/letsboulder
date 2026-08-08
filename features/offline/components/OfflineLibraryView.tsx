@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useOfflinePacks } from '@/features/offline/hooks/use-offline-packs'
 
 export default function OfflineLibraryView() {
-  const { packs, loading, error, update, remove } = useOfflinePacks()
+  const { packs, loading, error, update, remove, discardFailed } = useOfflinePacks()
 
   const handleUpdate = async (packId: string, displayName: string) => {
     if (!globalThis.confirm(`Check for and download updates to ${displayName}?`)) return
@@ -17,6 +17,11 @@ export default function OfflineLibraryView() {
   const handleRemove = async (packId: string, displayName: string) => {
     if (!globalThis.confirm(`Remove ${displayName} from this device?`)) return
     await remove(packId).catch(() => undefined)
+  }
+
+  const handleDiscardFailed = async (packId: string, displayName: string) => {
+    if (!globalThis.confirm(`Discard the failed download for ${displayName} and remove its partial media?`)) return
+    await discardFailed(packId).catch(() => undefined)
   }
 
   return (
@@ -70,6 +75,8 @@ export default function OfflineLibraryView() {
                           <Button type="button" variant="outline" disabled={loading} onClick={() => void handleUpdate(pack.packId, pack.displayName)} className="rounded-xl"><RefreshCw aria-hidden="true" /> Update</Button>
                           <Button type="button" variant="ghost" disabled={loading} onClick={() => void handleRemove(pack.packId, pack.displayName)} className="rounded-xl text-red-700 hover:text-red-800 dark:text-red-300"><Trash2 aria-hidden="true" /> Remove</Button>
                         </div>
+                      ) : pack.error !== null ? (
+                        <Button type="button" variant="outline" disabled={loading} onClick={() => void handleDiscardFailed(pack.packId, pack.displayName)} className="mt-5 w-full rounded-xl text-red-700 dark:text-red-300"><Trash2 aria-hidden="true" /> Discard failed download</Button>
                       ) : null}
                     </div>
                   </li>

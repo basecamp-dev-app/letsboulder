@@ -23,6 +23,7 @@ export function useOfflinePacks() {
     install: offlinePackStore.install.bind(offlinePackStore),
     update: offlinePackStore.update.bind(offlinePackStore),
     remove: offlinePackStore.remove.bind(offlinePackStore),
+    discardFailed: offlinePackStore.discardFailed.bind(offlinePackStore),
     resume: offlinePackStore.resume.bind(offlinePackStore),
     refresh: offlinePackStore.refresh.bind(offlinePackStore),
   }
