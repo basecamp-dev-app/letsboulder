@@ -38,12 +38,12 @@ jobs:
       BASELINE_RUN_ID: ${{ inputs.baseline_run_id }}
       BASELINE_ARTIFACT_DIGEST: ${{ inputs.baseline_artifact_digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Initialize health manifest
         run: printf '%s\n' '{"schemaVersion":1,"entries":[],"summary":{"checked":0,"passed":0,"existingFailures":0,"newFailures":1},"fatalError":"Verification did not start"}' > "$MEDIA_HEALTH_OUTPUT"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '20.20.0'
           cache: npm
@@ -90,7 +90,7 @@ jobs:
 
       - name: Download optional baseline
         if: inputs.baseline_run_id != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: production-media-http-health
           path: health-baseline
@@ -102,7 +102,7 @@ jobs:
 
       - name: Upload health manifest
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: production-media-http-health
           path: production-media-http-health.json
