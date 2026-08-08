@@ -58,7 +58,8 @@ BEGIN
     c.sub_area,
     extensions.ST_Distance(c.location, query_point) AS distance_meters
   FROM public.crags c
-  WHERE c.location IS NOT NULL
+  WHERE c.deleted_at IS NULL
+    AND c.location IS NOT NULL
     AND extensions.ST_DWithin(c.location, query_point, p_radius_meters)
   ORDER BY c.location OPERATOR(extensions.<->) query_point, c.id
   LIMIT p_limit;

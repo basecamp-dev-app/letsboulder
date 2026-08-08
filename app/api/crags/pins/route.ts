@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchViewportMapFeaturesWithClient, getViewportMapClient } from '@/lib/supabase-server'
+import { fetchViewportMapFeaturesWithClient, getServerClientFromRequest, getViewportMapClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
 import { serverEnv } from '@/lib/env.server'
+import { isCurrentUserAdmin } from '@/lib/profile-rpc'
 
 export const revalidate = 60
 
@@ -30,11 +31,20 @@ function parseViewport(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const includePending = serverEnv.NEXT_PUBLIC_ALLOW_PENDING_IMAGES
   const viewport = parseViewport(request)
 
   if (viewport === undefined) {
     return NextResponse.json({ error: 'north, south, east, west, and integer zoom (0-22) must form valid bounds' }, { status: 400 })
+  }
+
+  let includePending = false
+  if (serverEnv.NEXT_PUBLIC_ALLOW_PENDING_IMAGES) {
+    const requestSupabase = getServerClientFromRequest(request)
+    const { data: user, error: authError } = await requestSupabase.auth.getUser()
+    if (!authError && user.user) {
+      const { data: isAdmin, error: adminError } = await isCurrentUserAdmin(requestSupabase)
+      includePending = !adminError && isAdmin === true
+    }
   }
 
   const supabase = getViewportMapClient()
