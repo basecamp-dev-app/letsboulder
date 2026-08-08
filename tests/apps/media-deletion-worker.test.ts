@@ -59,13 +59,25 @@ describe('media deletion worker', () => {
 
   it('fails an unknown bucket without touching R2', async () => {
     const deleteObject = vi.fn(async () => undefined)
-    await processMediaDeletionJob(job, createEnv(deleteObject, 'different-private-bucket'))
+    await expect(processMediaDeletionJob(job, createEnv(deleteObject, 'different-private-bucket'))).resolves.toBe(true)
 
     expect(deleteObject).not.toHaveBeenCalled()
     expect(rpc).toHaveBeenCalledWith('fail_media_deletion_job', {
       p_job_id: job.id,
       p_claim_token: job.claim_token,
       p_error: 'Deletion bucket is not allowlisted',
+    })
+  })
+
+  it('continues draining after terminally failing an invalid bucket job', async () => {
+    rpc.mockResolvedValueOnce({ data: job, error: null })
+    rpc.mockResolvedValueOnce({ data: null, error: null })
+
+    await expect(drainMediaDeletionOutbox(createEnv(undefined, 'different-private-bucket'))).resolves.toBe(1)
+    expect(rpc).toHaveBeenCalledTimes(3)
+    expect(rpc).toHaveBeenLastCalledWith('claim_media_deletion_job', {
+      worker_name: 'media-worker-deletion-scheduled',
+      lease_seconds: 900,
     })
   })
 

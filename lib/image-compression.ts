@@ -19,6 +19,14 @@ const DEFAULTS = {
   convertHeic: false,
 } as const
 
+function outputExtension(fileType: string): string {
+  if (fileType === 'image/jpeg' || fileType === 'image/jpg') return '.jpg'
+  if (fileType === 'image/svg+xml') return '.svg'
+
+  const subtype = fileType.split('/')[1]?.split(';')[0]
+  return subtype && /^[a-z0-9]+$/i.test(subtype) ? `.${subtype}` : '.bin'
+}
+
 export async function compressImage(file: File, options: ImageCompressionOptions): Promise<File> {
   if (typeof document === 'undefined') {
     throw new Error('compressImage requires a browser environment')
@@ -35,13 +43,15 @@ export async function compressImage(file: File, options: ImageCompressionOptions
   } = options
 
   let sourceData: string | ArrayBuffer | null = null
-  let outputFileName = file.name
+  const extension = outputExtension(fileType)
+  const outputFileName = /\.[^.]+$/.test(file.name)
+    ? file.name.replace(/\.[^.]+$/, extension)
+    : `${file.name}${extension}`
 
   if (convertHeic && isHeicFile(file)) {
     try {
       const jpegBlob = await convertHeicToJpegBlob(file)
       sourceData = await blobToDataURL(jpegBlob)
-      outputFileName = file.name.replace(/\.(heic|heif)$/i, '.jpg')
     } catch {
       throw new Error('Failed to convert HEIC image. Please try a different file.')
     }
@@ -56,6 +66,10 @@ export async function compressImage(file: File, options: ImageCompressionOptions
       img.onload = async () => {
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Failed to get 2D canvas context'))
+          return
+        }
 
         let { width, height } = img
         if (width > height) {
@@ -70,9 +84,9 @@ export async function compressImage(file: File, options: ImageCompressionOptions
 
         canvas.width = width
         canvas.height = height
-        ctx?.drawImage(img, 0, 0, width, height)
+        ctx.drawImage(img, 0, 0, width, height)
 
-        const targetSize = maxSizeKB ? maxSizeKB * 1024 : undefined
+        const targetSize = maxSizeKB === undefined ? undefined : maxSizeKB * 1024
         let quality = initialQuality
 
         while (quality >= minQuality) {
@@ -90,7 +104,7 @@ export async function compressImage(file: File, options: ImageCompressionOptions
             )
           })
 
-          if (!targetSize || blob.size <= targetSize || quality === minQuality) {
+          if (!targetSize || blob.size <= targetSize) {
             let resultFile = new File([blob], outputFileName, {
               type: fileType,
               lastModified: Date.now(),
@@ -102,6 +116,11 @@ export async function compressImage(file: File, options: ImageCompressionOptions
             }
 
             resolve(resultFile)
+            return
+          }
+
+          if (quality === minQuality) {
+            reject(new Error(`Failed to compress image below ${maxSizeKB} KB`))
             return
           }
 
