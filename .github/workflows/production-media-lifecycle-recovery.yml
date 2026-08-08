@@ -107,7 +107,7 @@ jobs:
           fi
 
       - name: Download verified lifecycle health artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: production-media-lifecycle-health
           path: lifecycle-health
