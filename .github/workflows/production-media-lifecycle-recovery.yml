@@ -54,7 +54,6 @@ jobs:
       SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
       SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
       SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
-      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SOURCE_RUN_ID: ${{ inputs.health_run_id }}
       ARTIFACT_DIGEST: ${{ inputs.health_artifact_digest }}
       RECOVERY_KIND: ${{ inputs.recovery_kind }}
@@ -120,10 +119,12 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install --prefer-offline
+        run: npm ci --prefer-offline
 
       - name: Revalidate and recover selected lifecycle jobs
         run: npx tsx scripts/media/recover-production-lifecycle.ts
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Upload recovery manifest
         if: always()

@@ -43,6 +43,7 @@ jobs:
     name: Enqueue media backfill jobs
     runs-on: ubuntu-latest
     environment: Production
+    timeout-minutes: 75
     env:
       DRY_RUN: ${{ inputs.dry_run }}
       SAMPLE_IMAGE_ID: ${{ inputs.sample_image_id }}
@@ -50,9 +51,6 @@ jobs:
       MAX_ROWS: ${{ inputs.max_rows }}
       VERIFY_WAIT_SECONDS: ${{ inputs.verify_wait_seconds }}
       PSQL_SSLMODE: require
-      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      CF_MEDIA_WORKER_URL: ${{ secrets.CF_MEDIA_WORKER_URL }}
-      CF_MEDIA_WORKER_SECRET: ${{ secrets.CF_MEDIA_WORKER_SECRET }}
       SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
       SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
       SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
@@ -67,6 +65,10 @@ jobs:
           fi
 
       - name: Validate required configuration
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          CF_MEDIA_WORKER_URL: ${{ secrets.CF_MEDIA_WORKER_URL }}
+          CF_MEDIA_WORKER_SECRET: ${{ secrets.CF_MEDIA_WORKER_SECRET }}
         run: |
           required_vars=(CF_MEDIA_WORKER_URL CF_MEDIA_WORKER_SECRET SUPABASE_DB_HOST SUPABASE_DB_USER SUPABASE_DB_NAME SUPABASE_DB_PORT PGPASSWORD)
           for var in "${required_vars[@]}"; do
@@ -85,6 +87,18 @@ jobs:
             echo "::error::max_rows must be empty or a positive integer"
             exit 1
           fi
+          if [ -n "$MAX_ROWS" ] && [ "$MAX_ROWS" -gt 1000 ]; then
+            echo '::error::max_rows must not exceed 1000'
+            exit 1
+          fi
+          if [ "$BATCH_SIZE" -gt 1000 ]; then
+            echo '::error::batch_size must not exceed 1000'
+            exit 1
+          fi
+          if [ "$VERIFY_WAIT_SECONDS" -gt 3600 ]; then
+            echo '::error::verify_wait_seconds must not exceed 3600'
+            exit 1
+          fi
 
           if [ -n "$SAMPLE_IMAGE_ID" ] && ! [[ "$SAMPLE_IMAGE_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
             echo "::error::sample_image_id must be a UUID"
@@ -98,6 +112,8 @@ jobs:
 
       - name: Select affected rows and infer purpose
         shell: bash
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           limit="$BATCH_SIZE"
           if [ -n "$MAX_ROWS" ] && [ "$MAX_ROWS" -lt "$limit" ]; then
@@ -157,7 +173,6 @@ jobs:
 
           count=$(jq 'length' selected-images.json)
           echo "Selected $count candidate rows"
-          jq '.' selected-images.json
 
           if [ "$count" -eq 0 ]; then
             echo "::warning::No matching rows found"
@@ -166,6 +181,10 @@ jobs:
       - name: Enqueue worker jobs
         if: ${{ inputs.dry_run == 'false' }}
         shell: bash
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          CF_MEDIA_WORKER_URL: ${{ secrets.CF_MEDIA_WORKER_URL }}
+          CF_MEDIA_WORKER_SECRET: ${{ secrets.CF_MEDIA_WORKER_SECRET }}
         run: |
           success=0
           failure=0
@@ -211,7 +230,7 @@ jobs:
             else
               failure=$((failure + 1))
               failed_ids+=("$image_id")
-              printf '::error::Failed to enqueue %s (HTTP %s): %s\n' "$image_id" "$status_code" "$(cat "$response_file")"
+              printf '::error::Failed to enqueue %s (HTTP %s)\n' "$image_id" "$status_code"
             fi
 
             rm -f "$response_file"
@@ -226,6 +245,8 @@ jobs:
       - name: Verify post-enqueue DB state
         if: ${{ inputs.dry_run == 'false' }}
         shell: bash
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           if [ "$VERIFY_WAIT_SECONDS" -gt 0 ]; then
             echo "Waiting $VERIFY_WAIT_SECONDS seconds for worker finalization"
@@ -263,7 +284,7 @@ jobs:
 
           verified=$(printf '%s' "$verified" | tr -d '\n')
           echo "$verified" > verified-images.json
-          jq '.' verified-images.json
+          echo "Verified image rows: $(jq 'length' verified-images.json)"
 
           unresolved_count=$(jq '[.[] | select(.processing_status != "ready" or .processed_at == null or .optimized_key == null or (.url | startswith("private://")) or .variants == {})] | length' verified-images.json)
           if [ "$unresolved_count" -gt 0 ]; then
