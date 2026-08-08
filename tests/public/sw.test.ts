@@ -10,6 +10,7 @@ const deleteCache = vi.fn(async () => true)
 const claim = vi.fn(async () => undefined)
 const skipWaiting = vi.fn(async () => undefined)
 const fetchMock = vi.fn()
+const staticCacheName = 'letsboulder-next-static-test-release'
 
 function cacheFor(entries: Map<string, Response>) {
   return {
@@ -32,7 +33,7 @@ vi.stubGlobal('self', {
 })
 vi.stubGlobal('caches', {
   open: vi.fn(async (name: string) => name === 'letsboulder-offline-shell-v2' ? shellCache : name === 'letsboulder-offline-immutable-v1' ? mediaCache : staticCache),
-  keys: vi.fn(async () => ['offline-shell-v4', 'runtime-transient-v2', 'offline-build-assets-custom', 'unrelated-cache']),
+  keys: vi.fn(async () => ['offline-shell-v4', 'runtime-transient-v2', staticCacheName, 'letsboulder-next-static-old-release', 'unrelated-cache']),
   delete: deleteCache,
   match: vi.fn(async (request: Request) => shellEntries.get(request.url)),
 })
@@ -59,6 +60,7 @@ describe('active service worker', () => {
     vi.clearAllMocks()
     fetchMock.mockImplementation(async (input: string | Request | URL) => {
       const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+      if (url === '/sw-build-assets.json') return new Response(JSON.stringify({ version: 'test-release' }))
       if (url.startsWith('/offline')) return new Response('<script src="/_next/static/chunks/offline.js"></script>')
       return new Response('asset')
     })
@@ -79,18 +81,20 @@ describe('active service worker', () => {
   it('does not install when a required shell cannot be cached', async () => {
     fetchMock.mockImplementation(async (input: string | Request | URL) => {
       const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+      if (url === '/sw-build-assets.json') return new Response(JSON.stringify({ version: 'test-release' }))
       return url === '/offline/library' ? new Response('unavailable', { status: 503 }) : new Response('ok')
     })
 
     await expect(dispatch('install')).rejects.toThrow('Unable to cache offline shell')
   })
 
-  it('deletes only explicitly named retired caches and claims clients', async () => {
+  it('deletes retired and previous static caches while preserving the current static cache', async () => {
     await dispatch('activate')
 
     expect(deleteCache).toHaveBeenCalledWith('offline-shell-v4')
     expect(deleteCache).toHaveBeenCalledWith('runtime-transient-v2')
-    expect(deleteCache).not.toHaveBeenCalledWith('offline-build-assets-custom')
+    expect(deleteCache).toHaveBeenCalledWith('letsboulder-next-static-old-release')
+    expect(deleteCache).not.toHaveBeenCalledWith(staticCacheName)
     expect(deleteCache).not.toHaveBeenCalledWith('unrelated-cache')
     expect(claim).toHaveBeenCalledOnce()
   })

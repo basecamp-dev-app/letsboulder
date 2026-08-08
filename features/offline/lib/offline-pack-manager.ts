@@ -102,16 +102,18 @@ export class OfflinePackManager {
 
   async install(manifestUrl: string): Promise<ActiveOfflinePack> {
     const manifest = await this.loadManifest(manifestUrl)
-    await this.withPackLock(manifest.packId, async () => {
-      const status = await this.storageStatus(true)
-      const requiredBytes = await this.requiredDownloadBytes(manifest)
-      if (status.available !== null && requiredBytes > status.available * 0.9) {
-        throw new Error('Not enough device storage for this offline pack')
-      }
-      const current = await this.repository.getActivePack(manifest.packId)
-      if (current?.version.version === manifest.version) return
-      await this.repository.stage(manifest, this.now())
-      await this.downloadAndActivate(offlineVersionId(manifest.packId, manifest.version))
+    await this.withCrossTabLock(async () => {
+      await this.withPackLock(manifest.packId, async () => {
+        const status = await this.storageStatus(true)
+        const requiredBytes = await this.requiredDownloadBytes(manifest)
+        if (status.available !== null && requiredBytes > status.available * 0.9) {
+          throw new Error('Not enough device storage for this offline pack')
+        }
+        const current = await this.repository.getActivePack(manifest.packId)
+        if (current?.version.version === manifest.version) return
+        await this.repository.stage(manifest, this.now())
+        await this.downloadAndActivate(offlineVersionId(manifest.packId, manifest.version))
+      })
     })
     const active = await this.repository.getActivePack(manifest.packId)
     if (!active) throw new Error('Offline pack activation failed')
@@ -125,35 +127,43 @@ export class OfflinePackManager {
   }
 
   async resume(): Promise<void> {
-    await this.cleanupOrphans()
-    const jobs = await this.repository.listJobs(['queued', 'downloading', 'failed'])
-    const latestByPack = new Map<string, OfflineDownloadJobRecord>()
-    const discardedUrls: string[] = []
-    for (const job of jobs) {
-      const pack = await this.repository.getPack(job.packId)
-      const supersededByActive = pack?.activeVersion && pack.activeVersion !== job.version
-        && pack.error === null && pack.updatedAt >= job.updatedAt
-      const current = latestByPack.get(job.packId)
-      if (supersededByActive || (current && current.updatedAt >= job.updatedAt)) {
-        discardedUrls.push(...await this.repository.removeVersion(job.versionId))
-      } else {
-        if (current) discardedUrls.push(...await this.repository.removeVersion(current.versionId))
-        latestByPack.set(job.packId, job)
+    await this.withCrossTabLock(async () => {
+      await this.cleanupOrphansUnlocked()
+      const jobs = await this.repository.listJobs(['queued', 'downloading', 'failed'])
+      const latestByPack = new Map<string, OfflineDownloadJobRecord>()
+      const discardedUrls: string[] = []
+      for (const job of jobs) {
+        const pack = await this.repository.getPack(job.packId)
+        const supersededByActive = pack?.activeVersion && pack.activeVersion !== job.version
+          && pack.error === null && pack.updatedAt >= job.updatedAt
+        const current = latestByPack.get(job.packId)
+        if (supersededByActive || (current && current.updatedAt >= job.updatedAt)) {
+          discardedUrls.push(...await this.repository.removeVersion(job.versionId))
+        } else {
+          if (current) discardedUrls.push(...await this.repository.removeVersion(current.versionId))
+          latestByPack.set(job.packId, job)
+        }
       }
-    }
-    await this.removeUnowned(discardedUrls)
-    await runBounded([...latestByPack.values()], 1, (job) => this.withPackLock(job.packId, () => this.downloadAndActivate(job.versionId)))
+      await this.removeUnowned(discardedUrls)
+      await runBounded([...latestByPack.values()], 1, (job) => this.withPackLock(job.packId, () => this.downloadAndActivate(job.versionId)))
+    })
   }
 
   async remove(packId: string): Promise<void> {
-    await this.withPackLock(packId, async () => {
-      const urls = await this.repository.removePack(packId)
-      const orphanUrls = await this.repository.cleanOrphanRecords()
-      await this.removeUnowned([...urls, ...orphanUrls])
+    await this.withCrossTabLock(async () => {
+      await this.withPackLock(packId, async () => {
+        const urls = await this.repository.removePack(packId)
+        const orphanUrls = await this.repository.cleanOrphanRecords()
+        await this.removeUnowned([...urls, ...orphanUrls])
+      })
     })
   }
 
   async cleanupOrphans(): Promise<void> {
+    await this.withCrossTabLock(() => this.cleanupOrphansUnlocked())
+  }
+
+  private async cleanupOrphansUnlocked(): Promise<void> {
     const orphanUrls = await this.repository.cleanOrphanRecords()
     await this.removeUnowned(orphanUrls)
     const cachedUrls = await this.cache.keys()
@@ -226,5 +236,10 @@ export class OfflinePackManager {
       release()
       if (this.operations.get(packId) === queued) this.operations.delete(packId)
     }
+  }
+
+  private async withCrossTabLock<T>(operation: () => Promise<T>): Promise<T> {
+    if (!('navigator' in globalThis) || !navigator.locks) return operation()
+    return navigator.locks.request('offline-pack-lock', operation)
   }
 }

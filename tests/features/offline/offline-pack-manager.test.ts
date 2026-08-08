@@ -9,6 +9,9 @@ import type {
   OfflinePackRecord,
 } from '@/features/offline/lib/offline-pack-types'
 
+const lockRequest = vi.fn(async (_name: string, callback: () => Promise<unknown>) => callback())
+vi.stubGlobal('navigator', { locks: { request: lockRequest } })
+
 function manifestResponse(): Response {
   return new Response(JSON.stringify({
     offline_pack: {
@@ -91,6 +94,7 @@ describe('offline pack manager', () => {
     expect(events.filter((event) => event.startsWith('checkpoint:'))).toHaveLength(2)
     expect(events.indexOf('activate')).toBeLessThan(events.indexOf('gc'))
     expect(cache.remove).not.toHaveBeenCalledWith('https://example.com/shared.webp')
+    expect(lockRequest).toHaveBeenCalledWith('offline-pack-lock', expect.any(Function))
   })
 
   test('keeps the durable job unactivated when a download is interrupted', async () => {
