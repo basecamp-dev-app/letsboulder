@@ -2,11 +2,17 @@
   "name": "climbing-app",
   "version": "0.1.0",
   "overrides": {
-    "fast-xml-parser": "^5.5.8",
-    "tar": "^7.5.12",
+    "@babel/core": "^7.29.7",
+    "body-parser": "^2.3.0",
+    "fast-uri": "^4.1.2",
+    "fast-xml-parser": "^5.10.1",
     "flatted": "^3.4.2",
-    "undici": "^7.24.5",
-    "path-to-regexp": "8.4.0"
+    "form-data": "^4.0.6",
+    "js-yaml": "^4.3.1",
+    "nanoid": "^6.0.1",
+    "path-to-regexp": "8.4.0",
+    "tar": "^7.5.22",
+    "undici": "^7.29.0"
   },
   "scripts": {
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --turbopack",
@@ -42,7 +48,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-visually-hidden": "^1.2.4",
-    "@sentry/nextjs": "^10.47.0",
+    "@sentry/nextjs": "^10.69.0",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.87.1",
     "@tanstack/react-query": "^5.90.21",
@@ -64,14 +70,14 @@
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.7.0",
     "maplibre-gl": "^5.24.0",
-    "next": "^16.2.6",
+    "next": "^16.3.0",
     "p-limit": "^7.3.0",
     "piexifjs": "^1.0.6",
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "recharts": "^3.6.0",
     "resend": "^6.12.4",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.3",
     "supabase": "^2.76.14",
     "supercluster": "^8.0.1",
     "tailwind-merge": "^3.4.0",
@@ -79,7 +85,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260305.0",
+    "@cloudflare/workers-types": "^5.20260808.1",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
@@ -101,8 +107,8 @@
     "tailwindcss": "^4",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5",
-    "vite": "^8.0.5",
+    "vite": "^8.2.1",
     "vitest": "^4.0.18",
-    "wrangler": "^4.95.0"
+    "wrangler": "^4.120.0"
   }
 }
