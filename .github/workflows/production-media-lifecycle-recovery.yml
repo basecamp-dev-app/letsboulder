@@ -1,0 +1,135 @@
+name: Production Media Lifecycle Recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      health_run_id:
+        description: Reviewed Production Media Lifecycle Health run ID
+        required: true
+        type: string
+      health_artifact_digest:
+        description: Exact API-reported sha256 digest for the reviewed health artifact
+        required: true
+        type: string
+      recovery_kind:
+        description: Narrow lifecycle surface to recover
+        required: true
+        type: choice
+        options:
+          - ingest_job
+          - deletion_job
+      recovery_ids:
+        description: Explicit comma-separated job UUIDs (maximum 25)
+        required: true
+        type: string
+      confirmation:
+        description: Type RECOVER_MEDIA_LIFECYCLE exactly
+        required: true
+        type: string
+      dry_run:
+        description: Revalidate exact snapshots without invoking a recovery RPC
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-media-lifecycle-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    name: Guarded production media lifecycle recovery
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+      SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
+      SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
+      SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SOURCE_RUN_ID: ${{ inputs.health_run_id }}
+      ARTIFACT_DIGEST: ${{ inputs.health_artifact_digest }}
+      RECOVERY_KIND: ${{ inputs.recovery_kind }}
+      RECOVERY_IDS: ${{ inputs.recovery_ids }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      LIFECYCLE_HEALTH_INPUT: lifecycle-health/production-media-lifecycle-health.json
+      RECOVERY_OUTPUT: production-media-lifecycle-recovery.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize recovery manifest
+        run: printf '%s\n' '{"schemaVersion":1,"dryRun":true,"selected":[],"recovered":[],"readOnly":true,"fatalError":"Recovery did not start"}' > "$RECOVERY_OUTPUT"
+
+      - name: Validate dispatch authorization
+        shell: bash
+        run: |
+          if [ "$CONFIRMATION" != 'RECOVER_MEDIA_LIFECYCLE' ]; then
+            echo '::error::Confirmation must exactly equal RECOVER_MEDIA_LIFECYCLE'
+            exit 1
+          fi
+          if ! [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]] || ! [[ "$ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo '::error::Health run ID or artifact digest is invalid'
+            exit 1
+          fi
+
+      - name: Verify reviewed health run and digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          run_json="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID")"
+          conclusion="$(jq -r '.conclusion' <<< "$run_json")"
+          if [ "$(jq -r '.name' <<< "$run_json")" != 'Production Media Lifecycle Health' ] \
+            || [ "$(jq -r '.path' <<< "$run_json")" != '.github/workflows/production-media-lifecycle-health.yml' ] \
+            || [ "$(jq -r '.status' <<< "$run_json")" != 'completed' ] \
+            || { [ "$conclusion" != 'success' ] && [ "$conclusion" != 'failure' ]; } \
+            || [ "$(jq -r '.head_repository.full_name' <<< "$run_json")" != "$GITHUB_REPOSITORY" ] \
+            || [ "$(jq -r '.head_branch' <<< "$run_json")" != 'main' ] \
+            || [ "$(jq -r '.head_sha' <<< "$run_json")" != "$GITHUB_SHA" ]; then
+            echo '::error::Health run is not a completed same-repository main run for this SHA'
+            exit 1
+          fi
+          artifacts_json="$(gh api --paginate "/repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" --slurp)"
+          match_count="$(jq '[.[].artifacts[] | select(.name == "production-media-lifecycle-health" and .expired == false)] | length' <<< "$artifacts_json")"
+          api_digest="$(jq -r '[.[].artifacts[] | select(.name == "production-media-lifecycle-health" and .expired == false)][0].digest // ""' <<< "$artifacts_json")"
+          if [ "$match_count" != '1' ] || [ "$api_digest" != "$ARTIFACT_DIGEST" ]; then
+            echo '::error::Health artifact association or digest mismatch'
+            exit 1
+          fi
+
+      - name: Download verified lifecycle health artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: production-media-lifecycle-health
+          path: lifecycle-health
+          run-id: ${{ inputs.health_run_id }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.20.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --prefer-offline
+
+      - name: Revalidate and recover selected lifecycle jobs
+        run: npx tsx scripts/media/recover-production-lifecycle.ts
+
+      - name: Upload recovery manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-media-lifecycle-recovery-${{ github.run_id }}
+          path: production-media-lifecycle-recovery.json
+          if-no-files-found: error
+          retention-days: 30

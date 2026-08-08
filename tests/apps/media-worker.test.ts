@@ -1,21 +1,31 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const { deletionRpc } = vi.hoisted(() => ({
-  deletionRpc: vi.fn(async () => ({ data: null, error: null })),
+const { deletionRpc, workerFrom, workerRpc } = vi.hoisted(() => ({
+  deletionRpc: vi.fn<(name: string, args: Record<string, unknown>) => Promise<{ data: null; error: null }>>(async () => ({ data: null, error: null })),
+  workerFrom: vi.fn(),
+  workerRpc: vi.fn<(name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }>>(),
 }))
 
 vi.mock('@/apps/media-worker/src/supabase', () => ({
-  createSupabaseAdminClient: () => ({ rpc: deletionRpc }),
+  createSupabaseAdminClient: () => ({
+    from: workerFrom,
+    rpc: (name: string, args: Record<string, unknown>) => name.includes('deletion')
+      ? deletionRpc(name, args)
+      : workerRpc(name, args),
+  }),
 }))
 
 import { processMediaDeletionJob } from '@/apps/media-worker/src/deletion-outbox'
-import { getReadyDeliveryObjectKey, markMediaJobsCompletedByImage, processJob } from '@/apps/media-worker/src/index'
+import { getReadyDeliveryObjectKey, processJob } from '@/apps/media-worker/src/index'
+import mediaWorker from '@/apps/media-worker/src/index'
 import type { MediaDeletionJobRow } from '@/apps/media-worker/src/schema'
 
 const IMAGE_ID = '11111111-1111-4111-8111-111111111111'
 const USER_ID = '22222222-2222-4222-8222-222222222222'
 const BUCKET = 'private-media'
 const SOURCE_KEY = `images/staging/${IMAGE_ID}/source.jpg`
+const MEDIA_JOB_ID = '33333333-3333-4333-8333-333333333333'
+const CLAIM_TOKEN = '55555555-5555-4555-8555-555555555555'
 
 function createProcessingHarness(options: { failCommitOnce?: boolean; deliveryResponse?: () => Response } = {}) {
   const events: string[] = []
@@ -89,7 +99,9 @@ function createProcessingHarness(options: { failCommitOnce?: boolean; deliveryRe
     return { output }
   })
   const images = { input: vi.fn(() => ({ transform })) }
-  const fetchDelivery = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+  const fetchDelivery = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    void input
+    void init
     events.push('fetch')
     return options.deliveryResponse?.() ?? new Response(new Uint8Array([1]), {
       status: 200,
@@ -119,49 +131,64 @@ function createProcessingHarness(options: { failCommitOnce?: boolean; deliveryRe
   return { bucket, dependencies, env, events, fetchDelivery, image, images, job, output, stored, supabase, transform }
 }
 
-describe('media worker durable job synchronization', () => {
-  it('completes active durable jobs after queue processing', async () => {
-    const inStatuses = vi.fn(async () => ({ error: null }))
-    const eqImage = vi.fn(() => ({ in: inStatuses }))
-    const update = vi.fn(() => ({ eq: eqImage }))
-    const supabase = {
-      from: vi.fn(() => ({ update })),
-    }
-
-    await markMediaJobsCompletedByImage(supabase as never, 'image-1')
-
-    expect(supabase.from).toHaveBeenCalledWith('media_jobs')
-    expect(eqImage).toHaveBeenCalledWith('image_id', 'image-1')
-    expect(inStatuses).toHaveBeenCalledWith('status', ['queued', 'processing'])
-    expect(update).toHaveBeenCalledWith({
-      status: 'completed',
-      locked_at: null,
-      locked_by: null,
-      last_error: null,
-    })
-  })
-
-  it('surfaces synchronization failures so the queue message retries', async () => {
-    const supabase = {
-      from: vi.fn(() => ({
-        update: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            in: vi.fn(async () => ({ error: new Error('database unavailable') })),
-          })),
-        })),
-      })),
-    }
-
-    await expect(markMediaJobsCompletedByImage(supabase as never, 'image-1'))
-      .rejects.toThrow('database unavailable')
-  })
-})
-
 describe('media worker canonical WebP processing', () => {
+  it('claims a targeted durable job and ignores the wake-up payload as authoritative data', async () => {
+    const harness = createProcessingHarness()
+    Object.assign(harness.image, {
+      processing_status: 'ready',
+      optimized_bucket: BUCKET,
+      optimized_key: 'images/assets/canonical.webp',
+      optimized_mime: 'image/webp',
+      optimized_bytes: 4,
+      optimized_width: 2560,
+      optimized_height: 1920,
+      variants: { detail: { webp: { path: '/stored-delivery' } } },
+      url: '/images/assets/canonical.webp?variant=detail&format=webp',
+      original_deleted_at: new Date().toISOString(),
+    })
+    const claimedJob = {
+      id: MEDIA_JOB_ID,
+      image_id: IMAGE_ID,
+      job_type: 'ingest_image' as const,
+      status: 'processing' as const,
+      payload: harness.job,
+      attempts: 1,
+      max_attempts: 8,
+      run_at: new Date().toISOString(),
+      locked_at: new Date().toISOString(),
+      locked_by: 'media-worker-queue',
+      claim_token: CLAIM_TOKEN,
+      lease_expires_at: new Date(Date.now() + 300_000).toISOString(),
+      last_error: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    workerFrom.mockImplementation(harness.supabase.from)
+    workerRpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+      if (name === 'claim_media_job_for_image') return { data: claimedJob, error: null }
+      return harness.supabase.rpc(name, args)
+    })
+    const message = { body: { imageId: IMAGE_ID }, ack: vi.fn(), retry: vi.fn() }
+
+    await mediaWorker.queue({ messages: [message] }, harness.env as never)
+
+    expect(workerRpc).toHaveBeenCalledWith('claim_media_job_for_image', {
+      worker_name: 'media-worker-queue',
+      p_image_id: IMAGE_ID,
+      lease_seconds: 300,
+    })
+    expect(workerRpc).toHaveBeenCalledWith('complete_media_job', {
+      p_job_id: MEDIA_JOB_ID,
+      p_claim_token: CLAIM_TOKEN,
+    })
+    expect(message.ack).toHaveBeenCalledOnce()
+    expect(message.retry).not.toHaveBeenCalled()
+  })
+
   it('puts and verifies canonical bytes before commit without deleting the source', async () => {
     const harness = createProcessingHarness()
 
-    await processJob(harness.job, harness.env as never, harness.dependencies)
+    await processJob(harness.job, harness.env as never, harness.dependencies, { jobId: MEDIA_JOB_ID, claimToken: CLAIM_TOKEN })
 
     const putEvent = harness.events.find(event => event.startsWith('put:'))
     const rpcEvent = harness.events.find(event => event.startsWith('rpc:'))
@@ -190,6 +217,8 @@ describe('media worker canonical WebP processing', () => {
         }),
       }),
       p_url: expect.stringContaining('/canonical.webp?variant=detail&format=webp'),
+      p_media_job_id: MEDIA_JOB_ID,
+      p_claim_token: CLAIM_TOKEN,
     }))
     expect(harness.images.input).toHaveBeenCalledOnce()
     expect(harness.transform).toHaveBeenCalledWith({ width: 2560, fit: 'scale-down' })
@@ -200,6 +229,8 @@ describe('media worker canonical WebP processing', () => {
     expect(harness.supabase.rpc).toHaveBeenCalledWith('verify_media_replacement_delivery', {
       p_job_id: '33333333-3333-4333-8333-333333333333',
       p_expected_optimized_key: putEvent?.replace('put:', ''),
+      p_media_job_id: MEDIA_JOB_ID,
+      p_claim_token: CLAIM_TOKEN,
     })
     expect(harness.bucket.delete).not.toHaveBeenCalled()
   })
@@ -207,10 +238,10 @@ describe('media worker canonical WebP processing', () => {
   it('does not delete before a successful commit and overwrites the same orphan on retry', async () => {
     const harness = createProcessingHarness({ failCommitOnce: true })
 
-    await expect(processJob(harness.job, harness.env as never, harness.dependencies)).rejects.toThrow('commit unavailable')
+    await expect(processJob(harness.job, harness.env as never, harness.dependencies, { jobId: MEDIA_JOB_ID, claimToken: CLAIM_TOKEN })).rejects.toThrow('commit unavailable')
     expect(harness.bucket.delete).not.toHaveBeenCalled()
 
-    await processJob(harness.job, harness.env as never, harness.dependencies)
+    await processJob(harness.job, harness.env as never, harness.dependencies, { jobId: MEDIA_JOB_ID, claimToken: CLAIM_TOKEN })
 
     const putKeys = harness.bucket.put.mock.calls.map(([key]) => key)
     expect(putKeys).toHaveLength(2)
@@ -225,6 +256,7 @@ describe('media worker canonical WebP processing', () => {
       { ...harness.job, originalKey: 'images/staging/stale.jpg' },
       harness.env as never,
       harness.dependencies,
+      { jobId: MEDIA_JOB_ID, claimToken: CLAIM_TOKEN },
     )).rejects.toThrow('does not match')
 
     expect(harness.bucket.head).not.toHaveBeenCalled()
@@ -249,7 +281,7 @@ describe('media worker canonical WebP processing', () => {
       url,
     })
 
-    await processJob(harness.job, harness.env as never, harness.dependencies)
+    await processJob(harness.job, harness.env as never, harness.dependencies, { jobId: MEDIA_JOB_ID, claimToken: CLAIM_TOKEN })
 
     expect(harness.bucket.head).not.toHaveBeenCalled()
     expect(harness.bucket.put).not.toHaveBeenCalled()
@@ -261,11 +293,15 @@ describe('media worker canonical WebP processing', () => {
       p_optimized_height: 1920,
       p_manifest: variants,
       p_url: url,
+      p_media_job_id: MEDIA_JOB_ID,
+      p_claim_token: CLAIM_TOKEN,
     }))
     expect(String(harness.fetchDelivery.mock.calls[0]?.[0])).toBe(`https://media.example${url}`)
     expect(harness.supabase.rpc).toHaveBeenCalledWith('verify_media_replacement_delivery', {
       p_job_id: '33333333-3333-4333-8333-333333333333',
       p_expected_optimized_key: optimizedKey,
+      p_media_job_id: MEDIA_JOB_ID,
+      p_claim_token: CLAIM_TOKEN,
     })
   })
 
@@ -275,7 +311,7 @@ describe('media worker canonical WebP processing', () => {
     harness.image.visibility = 'public'
     harness.image.status = 'approved'
 
-    await processJob(harness.job, harness.env as never, harness.dependencies)
+    await processJob(harness.job, harness.env as never, harness.dependencies, { jobId: MEDIA_JOB_ID, claimToken: CLAIM_TOKEN })
 
     expect(harness.bucket.put).toHaveBeenCalledOnce()
     expect(harness.supabase.rpc).toHaveBeenCalledWith('commit_media_webp', expect.any(Object))
@@ -309,7 +345,7 @@ describe('media worker canonical WebP processing', () => {
   ])('retries without verifying or deleting after a public $name', async ({ response, error }) => {
     const harness = createProcessingHarness({ deliveryResponse: response })
 
-    await expect(processJob(harness.job, harness.env as never, harness.dependencies)).rejects.toThrow(error)
+    await expect(processJob(harness.job, harness.env as never, harness.dependencies, { jobId: MEDIA_JOB_ID, claimToken: CLAIM_TOKEN })).rejects.toThrow(error)
 
     expect(harness.supabase.rpc).not.toHaveBeenCalledWith('verify_media_replacement_delivery', expect.any(Object))
     expect(harness.bucket.delete).not.toHaveBeenCalled()

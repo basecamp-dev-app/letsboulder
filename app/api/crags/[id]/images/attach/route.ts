@@ -3,30 +3,24 @@ import { z } from 'zod'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { isMediaPubliclyDeliverable, MEDIA_NOT_READY_CODE, MEDIA_NOT_READY_RESPONSE } from '@/lib/media/readiness'
-
 import { parseWithSchema } from '@/lib/api-validation'
+import { revalidatePublicCrag } from '@/features/crags/server/crag-cache-tags'
+import type { Database } from '@/types/database'
 
 interface AttachCragImageInput {
   uploaded_image_id: string
 }
 
-interface UploadedImageRow {
-  id: string
-  created_by: string | null
-  storage_bucket: string | null
-  storage_path: string | null
-  width: number | null
-  height: number | null
-  latitude: number | null
-  longitude: number | null
-  processing_status: string
-  moderation_status: string | null
-  visibility: string
-  status: string
-}
+type UploadedImageRow = Pick<Database['public']['Tables']['images']['Row'],
+  'id' | 'created_by' | 'optimized_bucket' | 'optimized_key' | 'optimized_mime' | 'optimized_bytes' |
+  'optimized_width' | 'optimized_height' | 'latitude' | 'longitude' | 'processing_status' |
+  'moderation_status' | 'visibility' | 'status' | 'upload_purpose' | 'upload_crag_id' | 'variants' | 'url'>
+
+type CragImageRow = Pick<Database['public']['Tables']['crag_images']['Row'],
+  'id' | 'crag_id' | 'url' | 'width' | 'height' | 'source_image_id' | 'linked_image_id' | 'created_at'>
 
 const attachCragImagesSchema = z.object({
-  images: z.array(z.object({ uploaded_image_id: z.string().min(1) })).min(1, 'images must be a non-empty array of uploaded_image_id values'),
+  images: z.array(z.object({ uploaded_image_id: z.string().uuid() })).min(1, 'images must be a non-empty array of uploaded_image_id values'),
 })
 
 function normalizeImages(value: unknown): AttachCragImageInput[] | null {
@@ -83,10 +77,10 @@ export async function POST(
       return NextResponse.json({ error: 'Crag not found' }, { status: 404 })
     }
 
-    const uploadedImageIds = images.map((image) => image.uploaded_image_id)
+    const uploadedImageIds = Array.from(new Set(images.map((image) => image.uploaded_image_id)))
     const { data: uploadedRows, error: uploadedError } = await supabase
       .from('images')
-      .select('id, created_by, storage_bucket, storage_path, width, height, latitude, longitude, processing_status, moderation_status, visibility, status')
+      .select('id, created_by, optimized_bucket, optimized_key, optimized_mime, optimized_bytes, optimized_width, optimized_height, latitude, longitude, processing_status, moderation_status, visibility, status, upload_purpose, upload_crag_id, variants, url')
       .in('id', uploadedImageIds)
 
     if (uploadedError) {
@@ -98,29 +92,52 @@ export async function POST(
       uploadedById.set(row.id, row)
     }
 
-    const insertRows = uploadedImageIds.map((imageId) => {
+    for (const imageId of uploadedImageIds) {
       const uploaded = uploadedById.get(imageId)
-      if (!uploaded) {
-        throw new Error(`Uploaded image not found: ${imageId}`)
+      if (!uploaded) throw new Error(`Uploaded image not found: ${imageId}`)
+      if (uploaded.created_by !== userId) throw new Error('Unauthorized uploaded image')
+      if (uploaded.upload_purpose !== 'crag_image' || uploaded.upload_crag_id !== cragId) {
+        throw new Error('Uploaded image is not authorized for this crag')
       }
-
-      if (uploaded.created_by !== userId) {
-        throw new Error('Unauthorized uploaded image')
-      }
-
-      if (!isMediaPubliclyDeliverable(uploaded)) {
+      if (!isMediaPubliclyDeliverable(uploaded)
+        || !uploaded.optimized_bucket
+        || !uploaded.optimized_key
+        || uploaded.optimized_mime !== 'image/webp'
+        || (uploaded.optimized_bytes ?? 0) <= 0
+        || (uploaded.optimized_width ?? 0) <= 0
+        || (uploaded.optimized_height ?? 0) <= 0
+        || !uploaded.variants
+        || typeof uploaded.variants !== 'object'
+        || Array.isArray(uploaded.variants)
+        || !uploaded.url) {
         throw new Error(MEDIA_NOT_READY_CODE)
       }
+    }
 
-      if (!uploaded.storage_bucket || !uploaded.storage_path) {
-        throw new Error('Uploaded image storage path is incomplete')
+    const { data: existingRows, error: existingError } = await supabase
+      .from('crag_images')
+      .select('id, crag_id, url, width, height, source_image_id, linked_image_id, created_at')
+      .eq('crag_id', cragId)
+      .or(`linked_image_id.in.(${uploadedImageIds.join(',')}),source_image_id.in.(${uploadedImageIds.join(',')})`)
+
+    if (existingError) {
+      return createErrorResponse(existingError, 'Failed to resolve attached crag images')
+    }
+
+    const existingImageIds = new Set((existingRows || []).flatMap((row) => [row.linked_image_id, row.source_image_id].filter((id): id is string => Boolean(id))))
+    const insertRows = uploadedImageIds.filter((imageId) => !existingImageIds.has(imageId)).map((imageId) => {
+      const uploaded = uploadedById.get(imageId) as UploadedImageRow & {
+        optimized_bucket: string
+        optimized_key: string
+        optimized_width: number
+        optimized_height: number
       }
 
       return {
         crag_id: cragId,
-        url: `private://${uploaded.storage_bucket}/${uploaded.storage_path}`,
-        width: uploaded.width,
-        height: uploaded.height,
+        url: uploaded.url,
+        width: uploaded.optimized_width,
+        height: uploaded.optimized_height,
         latitude: uploaded.latitude,
         longitude: uploaded.longitude,
         source_image_id: uploaded.id,
@@ -128,22 +145,31 @@ export async function POST(
       }
     })
 
-    const { data: insertedRows, error: insertError } = await supabase
-      .from('crag_images')
-      .insert(insertRows)
-      .select('id, crag_id, url, width, height, source_image_id, linked_image_id, created_at')
+    let insertedRows: CragImageRow[] = []
+    if (insertRows.length > 0) {
+      const { data, error: insertError } = await supabase
+        .from('crag_images')
+        .insert(insertRows)
+        .select('id, crag_id, url, width, height, source_image_id, linked_image_id, created_at')
 
-    if (insertError) {
-      return createErrorResponse(insertError, 'Failed to attach crag images')
+      if (insertError) {
+        return createErrorResponse(insertError, 'Failed to attach crag images')
+      }
+      insertedRows = (data || []) as CragImageRow[]
     }
 
-    return NextResponse.json({ success: true, images: insertedRows || [] }, { status: 201 })
+    revalidatePublicCrag(cragId)
+    return NextResponse.json({ success: true, images: [...(existingRows || []), ...insertedRows] }, { status: insertRows.length > 0 ? 201 : 200 })
   } catch (error) {
     if (error instanceof Error && error.message === MEDIA_NOT_READY_CODE) {
       return NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 })
     }
     if (error instanceof Error && error.message === 'Unauthorized uploaded image') {
       return NextResponse.json({ error: 'Unauthorized uploaded image' }, { status: 403 })
+    }
+
+    if (error instanceof Error && error.message === 'Uploaded image is not authorized for this crag') {
+      return NextResponse.json({ error: error.message }, { status: 403 })
     }
 
     if (error instanceof Error && error.message.startsWith('Uploaded image')) {

@@ -73,7 +73,19 @@ function buildPayload(row) {
   }
 }
 
-async function enqueuePayload(payload) {
+async function enqueuePayload(supabase, payload) {
+  const { error } = await supabase.rpc('queue_media_ingest_job', {
+    p_image_id: payload.imageId,
+    p_original_bucket: payload.originalBucket,
+    p_original_key: payload.originalKey,
+    p_storage_provider: payload.storageProvider,
+    p_purpose: payload.purpose,
+    p_triggered_by_user_id: payload.triggeredByUserId,
+    p_trigger: 'backfill',
+    p_auto_approve: false,
+  })
+  if (error) throw error
+
   const workerUrl = getRequiredEnv('CF_MEDIA_WORKER_URL').replace(/\/$/, '')
   const workerSecret = getRequiredEnv('CF_MEDIA_WORKER_SECRET')
   const response = await fetch(`${workerUrl}/enqueue`, {
@@ -172,7 +184,7 @@ async function main() {
   }
 
   for (const candidate of candidates) {
-    await enqueuePayload(candidate)
+    await enqueuePayload(supabase, candidate)
   }
 
   console.log(`Queued ${candidates.length} backfill job(s)`)

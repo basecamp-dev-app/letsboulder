@@ -24,6 +24,7 @@
     "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json",
     "typecheck:media-worker": "npm --prefix apps/media-worker run check",
     "test:unit": "vitest run --config vitest.config.ts",
+    "test": "npm run test:unit",
     "test:components": "vitest run --config vitest.component.config.ts",
     "test:database": "vitest run --config vitest.database.config.ts",
     "test:integration": "vitest run --config vitest.config.ts --mode integration",

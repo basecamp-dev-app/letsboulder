@@ -186,6 +186,18 @@ jobs:
               --arg triggeredByUserId "$created_by" \
               '{imageId: $imageId, originalBucket: $originalBucket, originalKey: $originalKey, storageProvider: "r2", purpose: $purpose, triggeredByUserId: $triggeredByUserId, trigger: "backfill"}')
 
+            durable_job=$(psql \
+              "host=$SUPABASE_DB_HOST port=$SUPABASE_DB_PORT user=$SUPABASE_DB_USER dbname=$SUPABASE_DB_NAME sslmode=$PSQL_SSLMODE" \
+              --no-align --tuples-only --quiet \
+              -v ON_ERROR_STOP=1 \
+              -c "set role service_role; select set_config('request.jwt.claims', '{\"role\":\"service_role\"}', false); select id from public.queue_media_ingest_job('$image_id'::uuid, '$original_bucket', '$original_key', 'r2', '$purpose', '$created_by'::uuid, 'backfill', false); reset role")
+            if [ -z "$durable_job" ]; then
+              failure=$((failure + 1))
+              failed_ids+=("$image_id")
+              printf '::error::Failed to create durable ingest job for %s\n' "$image_id"
+              continue
+            fi
+
             response_file=$(mktemp)
             status_code=$(curl -sS -o "$response_file" -w '%{http_code}' \
               -X POST "${CF_MEDIA_WORKER_URL%/}/enqueue" \

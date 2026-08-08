@@ -1,5 +1,4 @@
 import { notifyNewSubmission } from '@/lib/discord'
-import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { makeUniqueSlug, fetchUsedSlugs } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { serverEnv } from '@/lib/env.server'
@@ -153,15 +152,10 @@ export async function submitRoute(request: NextRequest) {
         return Response.json({ error: 'Primary image missing' }, { status: 400 })
       }
 
-      for (const image of body.images) {
-        if (!(await userOwnsUploadedObject(supabase, userId, image.uploadedBucket, image.uploadedPath))) {
-          return Response.json({ error: 'Invalid image path owner' }, { status: 403 })
-        }
-      }
-
       const newResult = await executeNewImageSubmission({
         supabase,
         supabaseAdmin,
+        userId,
         createErrorResponse: submissionErrorResponse,
         body,
         validatedNewImages,

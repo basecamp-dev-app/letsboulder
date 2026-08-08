@@ -77,7 +77,7 @@ describe('resumable media uploads', () => {
       const userId = await createUser(client)
       const imageId = randomUUID()
       const stagingKey = `images/staging/${imageId}/${randomUUID()}/original.jpg`
-      const immutableKey = `images/assets/${imageId}/checksum/original.jpg`
+       const immutableKey = `images/assets/${imageId}/${'a'.repeat(64)}/original.jpg`
       await client.query(
         `insert into public.images (
            id, url, created_by, status, storage_provider, storage_bucket, storage_path,
@@ -89,14 +89,19 @@ describe('resumable media uploads', () => {
       )
       await authenticate(client, userId)
 
-      await client.query('select public.finalize_media_upload($1, $2, $3)', [imageId, immutableKey, 'checksum'])
-      await client.query('select public.finalize_media_upload($1, $2, $3)', [imageId, immutableKey, 'checksum'])
+       await client.query('select public.finalize_media_upload($1, $2, $3)', [imageId, immutableKey, 'a'.repeat(64)])
+       await client.query('select public.finalize_media_upload($1, $2, $3)', [imageId, immutableKey, 'a'.repeat(64)])
 
       await client.query('reset role')
       const image = await client.query('select original_key, processing_status from public.images where id = $1', [imageId])
-      const jobs = await client.query("select id from public.media_jobs where image_id = $1 and job_type = 'ingest_image'", [imageId])
-      expect(image.rows[0]).toEqual({ original_key: immutableKey, processing_status: 'queued' })
-      expect(jobs.rowCount).toBe(1)
+       const jobs = await client.query("select id from public.media_jobs where image_id = $1 and job_type = 'ingest_image'", [imageId])
+       const stagingJobs = await client.query(
+         "select reason, object_key from public.media_deletion_jobs where image_id = $1",
+         [imageId],
+       )
+       expect(image.rows[0]).toEqual({ original_key: immutableKey, processing_status: 'queued' })
+       expect(jobs.rowCount).toBe(1)
+       expect(stagingJobs.rows).toEqual([{ reason: 'staging_replaced', object_key: stagingKey }])
     })
   })
 })

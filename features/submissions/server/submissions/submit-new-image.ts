@@ -3,6 +3,12 @@ import { isMediaNotReadyError, isMediaPubliclyDeliverable, MEDIA_NOT_READY_RESPO
 import type { PreparedRoute, NewSubmissionImage } from '@/features/submissions/server/submissions/submit-route-validation'
 import type { UnifiedSubmissionResult } from '@/features/submissions/server/submissions/submit-shared'
 import type { ExecutorDependencies, RoutePayloadItem } from '@/features/submissions/server/submissions/submit-types'
+import type { Database } from '@/types/database'
+
+type UploadedImageRow = Pick<Database['public']['Tables']['images']['Row'],
+  'id' | 'created_by' | 'optimized_bucket' | 'optimized_key' | 'optimized_mime' | 'optimized_bytes' |
+  'optimized_width' | 'optimized_height' | 'processing_status' | 'moderation_status' | 'visibility' |
+  'status' | 'upload_purpose'>
 
 export async function executeNewImageSubmission(input: ExecutorDependencies & {
   body: {
@@ -16,27 +22,61 @@ export async function executeNewImageSubmission(input: ExecutorDependencies & {
   routePayload: RoutePayloadItem[]
   normalizedRouteType: string | null
   preparedRoutes: PreparedRoute[]
+  userId: string
 }) {
-  const { supabase, supabaseAdmin, body, validatedNewImages, primaryNewImage, normalizedFaceDirectionsByImage, routePayload, normalizedRouteType, preparedRoutes } = input
+  const { supabase, supabaseAdmin, body, validatedNewImages, normalizedFaceDirectionsByImage, routePayload, normalizedRouteType, preparedRoutes, userId } = input
 
-  const uploadedImageIds = validatedNewImages.map((image) => image.uploadedImageId)
+  const uploadedImageIds = Array.from(new Set(validatedNewImages.map((image) => image.uploadedImageId)))
   const { data: uploadedRows, error: uploadedError } = await supabase
     .from('images')
-    .select('id, processing_status, moderation_status, visibility, status')
+    .select('id, created_by, optimized_bucket, optimized_key, optimized_mime, optimized_bytes, optimized_width, optimized_height, processing_status, moderation_status, visibility, status, upload_purpose')
     .in('id', uploadedImageIds)
 
   if (uploadedError) {
     return { error: input.createErrorResponse(uploadedError, 'Error validating uploaded media') }
   }
 
-  if ((uploadedRows || []).length !== uploadedImageIds.length || !(uploadedRows || []).every(isMediaPubliclyDeliverable)) {
+  const authoritativeById = new Map(((uploadedRows || []) as UploadedImageRow[]).map((row) => [row.id, row]))
+  const allImagesAreOwnedForSubmission = uploadedImageIds.every((imageId) => {
+    const row = authoritativeById.get(imageId)
+    return row?.created_by === userId && row.upload_purpose === 'submission_image'
+  })
+  if (authoritativeById.size !== uploadedImageIds.length || !allImagesAreOwnedForSubmission) {
+    return { error: NextResponse.json({ error: 'Invalid uploaded image owner or purpose' }, { status: 403 }) }
+  }
+
+  const allImagesAreCanonicalReady = uploadedImageIds.every((imageId) => {
+    const row = authoritativeById.get(imageId)
+    return row !== undefined
+      && isMediaPubliclyDeliverable(row)
+      && Boolean(row.optimized_bucket && row.optimized_key)
+      && row.optimized_mime === 'image/webp'
+      && (row.optimized_bytes ?? 0) > 0
+      && (row.optimized_width ?? 0) > 0
+      && (row.optimized_height ?? 0) > 0
+  })
+  if (!allImagesAreCanonicalReady) {
     return { error: NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 }) }
   }
 
-  const cleanupUploadedBlobs = validatedNewImages.map((img) => ({
-    bucket: img.uploadedBucket,
-    path: img.uploadedPath,
-  }))
+  const resolvedImages = validatedNewImages.map((image) => {
+    const row = authoritativeById.get(image.uploadedImageId) as UploadedImageRow & {
+      optimized_bucket: string
+      optimized_key: string
+      optimized_width: number
+      optimized_height: number
+    }
+    return {
+      ...image,
+      uploadedBucket: row.optimized_bucket,
+      uploadedPath: row.optimized_key,
+      width: row.optimized_width,
+      height: row.optimized_height,
+      naturalWidth: row.optimized_width,
+      naturalHeight: row.optimized_height,
+    }
+  })
+  const primaryNewImage = resolvedImages[body.primaryIndex]
 
   const primaryPayload = {
     image_id: primaryNewImage.uploadedImageId,
@@ -54,7 +94,7 @@ export async function executeNewImageSubmission(input: ExecutorDependencies & {
     sector_id: body.sectorId || null,
   }
 
-  const supplementaryPayload = validatedNewImages
+  const supplementaryPayload = resolvedImages
     .map((img, index) => ({ img, index }))
     .filter(({ index }) => index !== body.primaryIndex)
     .map(({ img, index }) => ({
@@ -148,7 +188,6 @@ export async function executeNewImageSubmission(input: ExecutorDependencies & {
       supplementaryCragImageIds,
       firstClimbId: createdClimbIds[0],
       firstRouteId: createdRouteLineIds[0],
-      cleanupUploadedBlobs,
     },
   }
 }

@@ -92,11 +92,13 @@ const API_EXECUTABLE_DEFINERS = [
 const RESTRICTED_FUNCTIONS = [
   'add_correction_type_value(text)',
   'add_correction_type_value(text,text)',
-  'claim_media_job(text)',
+  'claim_media_job(text,integer)',
+  'claim_media_job_for_image(text,uuid,integer)',
   'claim_media_deletion_job(text,integer)',
   'cleanup_orphan_route_uploads(interval,integer)',
-  'commit_media_webp(uuid,text,text,text,text,text,bigint,integer,integer,jsonb,text)',
+  'commit_media_webp(uuid,text,text,text,text,text,bigint,integer,integer,jsonb,text,uuid,uuid)',
   'complete_media_deletion_job(uuid,uuid)',
+  'complete_media_job(uuid,uuid)',
   'create_submission_routes_atomic(uuid,uuid,text,jsonb)',
   'create_submission_routes_service(uuid,uuid,uuid,text,jsonb)',
   'delete_account_atomic(uuid,text,boolean)',
@@ -104,11 +106,15 @@ const RESTRICTED_FUNCTIONS = [
   'enforce_open_data_consent()',
   'initialize_climb_grade_vote(uuid,uuid,character varying)',
   'fail_media_deletion_job(uuid,uuid,text)',
+  'fail_media_job(uuid,uuid,text)',
   'prune_media_deletion_jobs(integer,integer)',
   'require_open_data_consent()',
   'update_submission_crag_metadata(uuid,text,text,text)',
   'record_contribution_event(uuid,text,integer,text,uuid,uuid,uuid,uuid,uuid,jsonb,text)',
   'retry_media_deletion_job(uuid,uuid,text)',
+  'retry_media_job(uuid,uuid,text)',
+  'recover_media_ingest_jobs(jsonb,bigint,text)',
+  'recover_media_deletion_jobs(jsonb,bigint,text)',
   'soft_delete_published_submission(uuid[],uuid)',
   'update_own_submitted_routes(uuid,jsonb)',
   'update_submission_image_metadata(uuid,double precision,double precision,text[])',
@@ -116,18 +122,24 @@ const RESTRICTED_FUNCTIONS = [
 ]
 
 const SERVICE_FUNCTIONS = [
-  'claim_media_job(text)',
+  'claim_media_job(text,integer)',
+  'claim_media_job_for_image(text,uuid,integer)',
   'claim_media_deletion_job(text,integer)',
   'cleanup_orphan_route_uploads(interval,integer)',
-  'commit_media_webp(uuid,text,text,text,text,text,bigint,integer,integer,jsonb,text)',
+  'commit_media_webp(uuid,text,text,text,text,text,bigint,integer,integer,jsonb,text,uuid,uuid)',
   'complete_media_deletion_job(uuid,uuid)',
+  'complete_media_job(uuid,uuid)',
   'create_submission_routes_service(uuid,uuid,uuid,text,jsonb)',
   'delete_account_atomic(uuid,text,boolean)',
   'initialize_climb_grade_vote(uuid,uuid,character varying)',
   'fail_media_deletion_job(uuid,uuid,text)',
+  'fail_media_job(uuid,uuid,text)',
   'prune_media_deletion_jobs(integer,integer)',
   'record_contribution_event(uuid,text,integer,text,uuid,uuid,uuid,uuid,uuid,jsonb,text)',
   'retry_media_deletion_job(uuid,uuid,text)',
+  'retry_media_job(uuid,uuid,text)',
+  'recover_media_ingest_jobs(jsonb,bigint,text)',
+  'recover_media_deletion_jobs(jsonb,bigint,text)',
   'soft_delete_published_submission(uuid[],uuid)',
 ]
 
@@ -205,8 +217,8 @@ async function createProfile(client: PoolClient, isPublic: boolean) {
 
 beforeAll(async () => {
   const migration = await pool.query(
-    `select to_regprocedure('public.get_own_profile()') is not null
-       and to_regprocedure('public.claim_media_job(text)') is not null as installed`,
+     `select to_regprocedure('public.get_own_profile()') is not null
+        and to_regprocedure('public.claim_media_job(text,integer)') is not null as installed`,
   )
   if (!migration.rows[0].installed) {
     throw new Error('Profile and function privilege hardening migration is not installed')
