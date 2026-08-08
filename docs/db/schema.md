@@ -602,7 +602,9 @@ npm --prefix apps/media-worker run check
 bash docs/verify.sh
 ```
 
-Linked database commands are maintainer deployment operations, not part of the local development workflow. Maintainers must select the intended hosted project, inspect the dry-run, and only then push:
+Linked database commands are maintainer deployment operations, not part of the local development workflow. The `Supabase Migrations` GitHub workflow runs a production dry-run for migration pushes to `main`; it does not apply them automatically. To apply, a maintainer manually dispatches that workflow with the current `main` commit SHA. The workflow verifies the SHA, repeats the dry-run, and then applies migrations. Production runs are serialized.
+
+For local maintainer operations, select the intended hosted project, inspect the dry-run, and only then push:
 
 ```bash
 npx supabase link --project-ref <project-ref>

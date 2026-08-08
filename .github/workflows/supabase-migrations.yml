@@ -7,23 +7,47 @@ on:
     paths:
       - 'supabase/migrations/**'
   workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Current main commit SHA to validate and apply'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: supabase-migrations-${{ github.ref }}
+  group: supabase-migrations-production
   cancel-in-progress: false
 
 jobs:
   migrate-prod:
-    name: Dry run Supabase migrations (Production)
+    name: Validate Supabase migrations (Production)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: Production
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.commit_sha || github.sha }}
           fetch-depth: 0
+
+      - name: Verify selected commit is current main
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SELECTED_COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$SELECTED_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::commit_sha must be a full 40-character commit SHA.'
+            exit 1
+          fi
+          git fetch origin main --quiet
+          MAIN_SHA=$(git rev-parse origin/main)
+          if [[ "$SELECTED_COMMIT_SHA" != "$MAIN_SHA" ]]; then
+            echo "::error::Selected commit is not the current main commit ($MAIN_SHA)."
+            exit 1
+          fi
 
       - name: Install migration tooling
         run: |
@@ -87,13 +111,27 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Preview migrations
-        run: timeout 15m supabase db push --linked --include-all --dry-run --debug
+        run: timeout 15m supabase db push --linked --include-all --dry-run
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
 
+      - name: Verify selected commit is still current main
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SELECTED_COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          MAIN_SHA=$(git rev-parse origin/main)
+          if [[ "$SELECTED_COMMIT_SHA" != "$MAIN_SHA" ]]; then
+            echo "::error::Main changed during validation ($MAIN_SHA); run the dry-run again."
+            exit 1
+          fi
+
       - name: Apply migrations
-        run: timeout 15m supabase db push --linked --include-all --debug
+        if: github.event_name == 'workflow_dispatch'
+        run: timeout 15m supabase db push --linked --include-all
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
