@@ -1,18 +1,28 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchViewportMapFeaturesWithClient, getViewportMapClient, reportError } = vi.hoisted(() => ({
+const {
+  fetchViewportMapFeaturesWithClient,
+  getServerClientFromRequest,
+  getViewportMapClient,
+  isCurrentUserAdmin,
+  reportError,
+} = vi.hoisted(() => ({
   fetchViewportMapFeaturesWithClient: vi.fn(),
+  getServerClientFromRequest: vi.fn(() => ({ auth: { getUser: vi.fn() } })),
   getViewportMapClient: vi.fn(() => ({ client: true })),
+  isCurrentUserAdmin: vi.fn(),
   reportError: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase-server', () => ({
   fetchViewportMapFeaturesWithClient,
+  getServerClientFromRequest,
   getViewportMapClient,
 }))
 
 vi.mock('@/lib/errors', () => ({ reportError }))
+vi.mock('@/lib/profile-rpc', () => ({ isCurrentUserAdmin }))
 vi.mock('@/lib/env.server', () => ({
   serverEnv: { NEXT_PUBLIC_ALLOW_PENDING_IMAGES: true },
 }))
@@ -27,6 +37,10 @@ describe('GET /api/crags/pins', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     fetchViewportMapFeaturesWithClient.mockResolvedValue([])
+    getServerClientFromRequest.mockReturnValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-id' } }, error: null }) },
+    })
+    isCurrentUserAdmin.mockResolvedValue({ data: true, error: null })
   })
 
   it('requires a complete viewport', async () => {
@@ -48,6 +62,25 @@ describe('GET /api/crags/pins', () => {
     }, true)
     expect(getViewportMapClient).toHaveBeenCalledTimes(2)
     expect(response.headers.get('Cache-Control')).toBe('public, s-maxage=60, stale-while-revalidate=300')
+  })
+
+  it('does not include pending images for unauthenticated callers', async () => {
+    getServerClientFromRequest.mockReturnValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }) },
+    })
+
+    await GET(request('?north=50&south=40&west=-10&east=0&zoom=12'))
+
+    expect(fetchViewportMapFeaturesWithClient).toHaveBeenCalledWith(expect.anything(), expect.anything(), false)
+    expect(isCurrentUserAdmin).not.toHaveBeenCalled()
+  })
+
+  it('does not include pending images for authenticated non-admin callers', async () => {
+    isCurrentUserAdmin.mockResolvedValue({ data: false, error: null })
+
+    await GET(request('?north=50&south=40&west=-10&east=0&zoom=12'))
+
+    expect(fetchViewportMapFeaturesWithClient).toHaveBeenCalledWith(expect.anything(), expect.anything(), false)
   })
 
   it.each([

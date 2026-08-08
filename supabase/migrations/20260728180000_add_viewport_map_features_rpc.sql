@@ -82,6 +82,9 @@ BEGIN
     FROM bounded_crags c
     JOIN public.images i ON i.crag_id = c.id
       AND i.status <> 'deleted'
+      AND i.processing_status = 'ready'
+      AND i.moderation_status IN ('approved', 'skipped')
+      AND i.visibility = 'public'
       AND (i.status = 'approved' OR (include_pending AND i.status = 'pending'))
       AND i.latitude IS NOT NULL AND i.longitude IS NOT NULL
     GROUP BY c.id, c.name, c.location, c.slug, c.country_code, c.route_count
