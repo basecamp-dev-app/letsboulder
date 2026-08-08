@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import type { OfflineMediaCache } from '@/features/offline/lib/offline-pack-cache'
 import { OfflinePackManager, type OfflinePackRepository } from '@/features/offline/lib/offline-pack-manager'
 import type {
@@ -84,17 +84,37 @@ function createHarness(options: { failUrl?: string; cachedUrls?: string[] } = {}
 }
 
 describe('offline pack manager', () => {
+  beforeEach(() => {
+    vi.stubGlobal('navigator', { locks: { request: lockRequest } })
+  })
+
   test('downloads, checkpoints, activates, then garbage collects without deleting shared media', async () => {
     const { manager, cache, events } = createHarness()
 
     const result = await manager.install('https://example.com/manifest')
 
-    expect(result.pack.activeVersion).toBe('v2')
+    expect(result.active.pack.activeVersion).toBe('v2')
     expect(events.indexOf('stage')).toBeLessThan(events.indexOf('activate'))
     expect(events.filter((event) => event.startsWith('checkpoint:'))).toHaveLength(2)
     expect(events.indexOf('activate')).toBeLessThan(events.indexOf('gc'))
     expect(cache.remove).not.toHaveBeenCalledWith('https://example.com/shared.webp')
     expect(lockRequest).toHaveBeenCalledWith('offline-pack-lock', expect.any(Function))
+  })
+
+  test('returns the browser persistence result after installation', async () => {
+    vi.stubGlobal('navigator', {
+      locks: { request: lockRequest },
+      storage: {
+        estimate: vi.fn(async () => ({ quota: 100 * 1024 * 1024, usage: 100 })),
+        persisted: vi.fn(async () => false),
+        persist: vi.fn(async () => true),
+      },
+    })
+    const { manager } = createHarness()
+
+    const result = await manager.install('https://example.com/manifest')
+
+    expect(result.storageStatus).toMatchObject({ persisted: true, persistenceRequested: true })
   })
 
   test('keeps the durable job unactivated when a download is interrupted', async () => {

@@ -1,12 +1,12 @@
 'use client'
 
-import { Download, RefreshCw, Trash2 } from 'lucide-react'
+import { Download, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useOfflinePacks } from '@/features/offline/hooks/use-offline-packs'
 import { fetchOfflinePackManifest } from '@/features/offline/lib/offline-pack-manifest'
-import type { OfflinePackManifest } from '@/features/offline/lib/offline-pack-types'
+import type { OfflinePackManifest, OfflineStorageStatus } from '@/features/offline/lib/offline-pack-types'
 
 function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.ceil(bytes / 1024))} KB`
@@ -20,6 +20,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
   const pack = packs.find((candidate) => candidate.packId === packId)
   const ready = pack?.status === 'ready' && pack.activeVersion !== null
   const [availableUpdate, setAvailableUpdate] = useState<OfflinePackManifest | null>(null)
+  const [storageStatus, setStorageStatus] = useState<OfflineStorageStatus | null>(null)
 
   useEffect(() => {
     let active = true
@@ -35,8 +36,9 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
   }, [manifestUrl, pack?.activeVersion, ready])
 
   const handleInstall = async () => {
+    setStorageStatus(null)
     try {
-      await install(manifestUrl)
+      setStorageStatus(await install(manifestUrl))
     } catch {
       // The shared store exposes the actionable error beside the control.
     }
@@ -47,7 +49,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
     const confirmed = globalThis.confirm(`Update this offline guide? The latest pack is up to ${formatBytes(availableUpdate.estimatedBytes)}.`)
     if (!confirmed) return
     try {
-      await install(manifestUrl)
+      setStorageStatus(await install(manifestUrl))
       setAvailableUpdate(null)
     } catch {
       // The active version remains available and the store exposes the error.
@@ -59,6 +61,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
     try {
       await remove(packId)
       setAvailableUpdate(null)
+      setStorageStatus(null)
     } catch {
       // The store exposes the error and retains any still-active version.
     }
@@ -84,6 +87,19 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
         <Button type="button" variant="ghost" size="icon" onClick={() => void handleRemove()} disabled={loading} aria-label="Remove offline guide" title="Remove offline guide" className="size-11 rounded-full text-stone-500 hover:text-red-700 dark:text-gray-400 dark:hover:text-red-300">
           <Trash2 className="size-4" />
         </Button>
+      ) : null}
+      {storageStatus ? (
+        <div className="basis-full rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100" role="status">
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-medium">{storageStatus.persisted === true ? 'Protected storage enabled' : 'Browser may evict this content'}</p>
+            <Button type="button" variant="ghost" size="icon-sm" onClick={() => setStorageStatus(null)} aria-label="Dismiss storage status" className="-mr-1 -mt-1 rounded-full">
+              <X aria-hidden="true" />
+            </Button>
+          </div>
+          {storageStatus.persisted !== true ? (
+            <p className="mt-2 text-xs leading-5 text-emerald-900/80 dark:text-emerald-100/80">For reliable offline storage on iPhone, use your browser&apos;s Share menu and choose <strong>Add to Home Screen</strong>.</p>
+          ) : null}
+        </div>
       ) : null}
       {error ? <span className="max-w-56 text-xs text-red-700 dark:text-red-300">{error}</span> : null}
     </div>

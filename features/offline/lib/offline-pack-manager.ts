@@ -7,6 +7,7 @@ import type {
   OfflineDownloadJobRecord,
   OfflinePackManifest,
   OfflinePackRecord,
+  OfflinePackInstallResult,
   OfflineStorageStatus,
 } from '@/features/offline/lib/offline-pack-types'
 
@@ -100,11 +101,13 @@ export class OfflinePackManager {
     return { persisted, persistenceRequested, quota, usage, available: quota !== null && usage !== null ? Math.max(0, quota - usage) : null }
   }
 
-  async install(manifestUrl: string): Promise<ActiveOfflinePack> {
+  async install(manifestUrl: string): Promise<OfflinePackInstallResult> {
     const manifest = await this.loadManifest(manifestUrl)
+    let storageStatus: OfflineStorageStatus | null = null
     await this.withCrossTabLock(async () => {
       await this.withPackLock(manifest.packId, async () => {
         const status = await this.storageStatus(true)
+        storageStatus = status
         const requiredBytes = await this.requiredDownloadBytes(manifest)
         if (status.available !== null && requiredBytes > status.available * 0.9) {
           throw new Error('Not enough device storage for this offline pack')
@@ -117,13 +120,15 @@ export class OfflinePackManager {
     })
     const active = await this.repository.getActivePack(manifest.packId)
     if (!active) throw new Error('Offline pack activation failed')
-    return active
+    if (!storageStatus) throw new Error('Offline storage status unavailable')
+    return { active, storageStatus }
   }
 
   async update(packId: string): Promise<ActiveOfflinePack> {
     const pack = await this.repository.getPack(packId)
     if (!pack) throw new Error('Offline pack is not installed')
-    return this.install(pack.manifestUrl)
+    const result = await this.install(pack.manifestUrl)
+    return result.active
   }
 
   async resume(): Promise<void> {

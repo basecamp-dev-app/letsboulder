@@ -3,6 +3,12 @@ const STATIC_CACHE_PREFIX = 'letsboulder-next-static-'
 const PACKED_MEDIA_CACHE = 'letsboulder-offline-immutable-v1'
 const BUILD_ASSET_MANIFEST_URL = '/sw-build-assets.json'
 const SHELL_PATHS = ['/offline', '/offline/library', '/offline/crag']
+const APPROVED_MEDIA_ORIGINS = new Set([
+  self.location.origin,
+  'https://static.dev.letsboulder.com',
+  'https://static.letsboulder.com',
+])
+const PACKED_MEDIA_PATH = /^\/images\/[^/]+\/v\d+\/[^/]+\.webp$/
 const RETIRED_CACHE_NAMES = new Set([
   'offline-shell-v4',
   'offline-climb-packs-v3',
@@ -73,6 +79,12 @@ async function cacheFirstPackedMedia(request) {
   }
 }
 
+function isPackedMediaRequest(request, url) {
+  return request.destination === 'image'
+    && APPROVED_MEDIA_ORIGINS.has(url.origin)
+    && PACKED_MEDIA_PATH.test(url.pathname)
+}
+
 async function navigationNetworkFirst(request) {
   try {
     const response = await fetch(request)
@@ -126,7 +138,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(navigationNetworkFirst(request))
   } else if (url.origin === self.location.origin && url.pathname.startsWith('/_next/static/')) {
     event.respondWith(cacheFirstStatic(request))
-  } else if (request.destination === 'image') {
+  } else if (isPackedMediaRequest(request, url)) {
     event.respondWith(cacheFirstPackedMedia(request))
   }
 })
