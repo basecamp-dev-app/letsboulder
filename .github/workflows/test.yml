@@ -182,7 +182,7 @@ jobs:
 
       - name: Resolve Playwright base URL
         id: resolve_base_url
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             // Smoke tests only run on deployment_status or workflow_dispatch
