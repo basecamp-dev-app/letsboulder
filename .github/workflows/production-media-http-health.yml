@@ -43,7 +43,7 @@ jobs:
       - name: Initialize health manifest
         run: printf '%s\n' '{"schemaVersion":1,"entries":[],"summary":{"checked":0,"passed":0,"existingFailures":0,"newFailures":1},"fatalError":"Verification did not start"}' > "$MEDIA_HEALTH_OUTPUT"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20.20.0'
           cache: npm

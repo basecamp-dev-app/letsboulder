@@ -60,7 +60,7 @@ jobs:
       - name: Initialize result manifest
         run: printf '%s\n' '{"schemaVersion":1,"fatalError":"Migration did not start"}' > "$MIGRATION_RESULT"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20.20.0'
           cache: npm

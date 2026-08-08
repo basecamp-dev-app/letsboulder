@@ -37,7 +37,7 @@ jobs:
           printf '%s\n' '{"fatalError":"Reconciliation did not start"}' > "$RECONCILIATION_OUTPUT"
           printf '%s\n' '{"schemaVersion":1,"readOnly":true,"summary":{"critical":1,"status":"critical"},"findings":[],"fatalError":"Lifecycle health did not start"}' > "$LIFECYCLE_HEALTH_OUTPUT"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20.20.0'
           cache: npm
