@@ -172,6 +172,7 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
     star_rating: starRating,
     notes,
     grade_vote_baseline: gradeOpinion ? normalizeGrade(climbRow.grade) : null,
+    updated_at: new Date().toISOString(),
   }
 
   const { error: updateError } = await supabase

@@ -30,6 +30,8 @@ import { useToast } from '@/hooks/use-toast'
 import LightweightCragMap from '@/components/LightweightCragMap'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { getPendingMutations, queueMutation } from '@/features/offline/lib/mutation-outbox'
+import { replayPendingMutations } from '@/features/offline/lib/mutation-sync'
 
 type ExportMode = 'image' | 'selected-route' | 'all-routes'
 
@@ -126,6 +128,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const { toasts, addToast, removeToast } = useToast()
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
   const [userPresent, setUserPresent] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [pendingLogClimbIds, setPendingLogClimbIds] = useState<Set<string>>(new Set())
   const [selectedClimbLogged, setSelectedClimbLogged] = useState(false)
   const [selectedClimbLog, setSelectedClimbLog] = useState<{ gradeOpinion: GradeOpinion | null; starRating: number | null; notes: string | null } | null>(null)
   const [communityNotesCount, setCommunityNotesCount] = useState(0)
@@ -198,6 +202,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       if (session?.user) {
         startTransition(() => {
           setUserPresent(true)
+          setUserId(session.user.id)
           setHasHydratedAuth(true)
         })
         void syncAdminStatus(true)
@@ -210,6 +215,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
       startTransition(() => {
         setUserPresent(!!user)
+        setUserId(user?.id ?? null)
         setHasHydratedAuth(true)
       })
       void syncAdminStatus(!!user)
@@ -221,6 +227,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
       startTransition(() => {
         setUserPresent(!!session?.user)
+        setUserId(session?.user?.id ?? null)
         setHasHydratedAuth(true)
       })
       void syncAdminStatus(!!session?.user)
@@ -240,6 +247,42 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       window.removeEventListener('offline', updateOnlineStatus)
     }
   }, [])
+
+  useEffect(() => {
+    if (!userId) {
+      setPendingLogClimbIds(new Set())
+      return
+    }
+
+    const refreshPendingState = async () => {
+      const records = await getPendingMutations(userId)
+      const climbIds = new Set<string>()
+      for (const record of records) {
+        if (record.operationType !== 'LOG_CLIMB' || !record.payload || typeof record.payload !== 'object') continue
+        const payload = record.payload as { climbIds?: unknown }
+        if (Array.isArray(payload.climbIds)) {
+          for (const climbId of payload.climbIds) if (typeof climbId === 'string') climbIds.add(climbId)
+        }
+      }
+      setPendingLogClimbIds(climbIds)
+    }
+
+    const replay = async () => {
+      if (window.navigator.onLine === false) return
+      await replayPendingMutations(userId)
+      await refreshPendingState()
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ownLogbookSummaryQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ownLogbookLogsQueryKeyPrefix }),
+        queryClient.invalidateQueries({ queryKey: ownLogbookSubmissionsQueryKey }),
+      ])
+    }
+
+    void refreshPendingState()
+    void replay()
+    window.addEventListener('online', replay)
+    return () => window.removeEventListener('online', replay)
+  }, [queryClient, userId])
 
   const fetchRoutesForImageIds = useCallback(async (imageIds: string[]) => {
     const targets = imageIds.filter((imageId) => {
@@ -473,6 +516,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     setPendingStarRating(null)
     setPendingNotes('')
     setIsWantToTrySaved(false)
+    setSelectedClimbLogged(pendingLogClimbIds.has(activeClimbId ?? ''))
     setLoadingSelectedClimbState(Boolean(activeEffectiveClimbId && userPresent))
 
     if (!activeClimbId || !activeEffectiveClimbId || !userPresent) return
@@ -500,7 +544,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
         if (!error) {
           const log = toLoggedClimbInfo(data)
-          setSelectedClimbLogged(!!data)
+          setSelectedClimbLogged(!!data || pendingLogClimbIds.has(activeClimbId))
           setSelectedClimbLog(log)
           setSelectedClimbHasSavedFeedback(!!data && (!!log?.gradeOpinion || log?.starRating !== null || !!log?.notes))
           setSelectedClimbFeedbackCollapsed(!!data)
@@ -518,7 +562,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
     void fetchData()
     return () => { cancelled = true }
-  }, [activeClimbId, activeEffectiveClimbId, userPresent])
+  }, [activeClimbId, activeEffectiveClimbId, pendingLogClimbIds, userPresent])
 
   useEffect(() => {
     if (!activeEffectiveClimbId) {
@@ -789,13 +833,25 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   }, [])
 
   const handleLog = useCallback(async (style: 'flash' | 'top' | 'try', notes?: string) => {
-    if (!activeClimbId || !userPresent || isOnline !== true) return false
+    if (!activeClimbId || !userPresent) return false
 
     const targetClimbId = activeClimbId
     const climbedOn = new Date().toLocaleDateString('en-CA')
+    const mutationId = crypto.randomUUID()
+    const createdAt = new Date().toISOString()
+    const payload = { climbIds: [targetClimbId], style, notes: notes || undefined, climbedOn }
     setLogging(true)
     try {
-      const result = await logRoutesAction([targetClimbId], style, notes || undefined, climbedOn)
+      if (isOnline !== true) {
+        if (!userId) return false
+        await queueMutation({ mutationId, userId, operationType: 'LOG_CLIMB', payload, createdAt })
+        setPendingLogClimbIds((current) => new Set(current).add(targetClimbId))
+        setSelectedClimbLogged(true)
+        addToast('Climb logged locally. Pending sync.', 'success')
+        return true
+      }
+
+      const result = await logRoutesAction([targetClimbId], style, notes || undefined, climbedOn, mutationId, createdAt)
       if (!result.success) throw new Error(result.error)
 
       if (activeClimbIdRef.current !== targetClimbId) {
@@ -816,12 +872,19 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       addToast(`Logged as ${style === 'flash' ? 'Flash' : style === 'top' ? 'Top' : 'Try'}`, 'success')
       return true
     } catch {
+      if (window.navigator.onLine === false && userId) {
+        await queueMutation({ mutationId, userId, operationType: 'LOG_CLIMB', payload, createdAt })
+        setPendingLogClimbIds((current) => new Set(current).add(targetClimbId))
+        setSelectedClimbLogged(true)
+        addToast('Climb logged locally. Pending sync.', 'success')
+        return true
+      }
       addToast('Could not log this climb. Check your signal and retry.', 'error')
       return false
     } finally {
       setLogging(false)
     }
-  }, [activeClimbId, addToast, isOnline, queryClient, selectedClimbLog?.notes, userPresent])
+  }, [activeClimbId, addToast, isOnline, queryClient, selectedClimbLog?.notes, userId, userPresent])
 
   const applySavedFeedback = useCallback((payload: {
     updatedGrade?: string
@@ -1129,6 +1192,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         imageLatitude={null}
         imageLongitude={null}
         selectedClimbLogged={selectedClimbLogged}
+        selectedClimbPendingSync={pendingLogClimbIds.has(activeClimbId ?? '')}
         selectedClimbLog={selectedClimbLog}
         selectedClimbHasSavedFeedback={selectedClimbHasSavedFeedback}
         selectedClimbFeedbackCollapsed={selectedClimbFeedbackCollapsed}

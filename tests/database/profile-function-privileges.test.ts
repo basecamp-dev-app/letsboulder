@@ -67,6 +67,7 @@ const API_EXECUTABLE_DEFINERS = [
   'is_current_user_admin()',
   'is_submission_collaborator(uuid,uuid)',
   'is_submission_draft_collaborator(uuid,uuid)',
+  'log_routes_idempotent(uuid,uuid[],text,text,date,timestamp with time zone)',
   'log_submission_edit(uuid,uuid,text,text,jsonb,jsonb)',
   'log_submission_edit(uuid,uuid,text,text,jsonb,jsonb,text,text,text[],text[])',
   'promote_draft_to_submission(uuid)',

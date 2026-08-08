@@ -56,6 +56,7 @@ interface ClimbInfoPanelProps {
   imageLatitude: number | null
   imageLongitude: number | null
   selectedClimbLogged: boolean
+  selectedClimbPendingSync?: boolean
   selectedClimbLog: LoggedClimbInfo | null
   selectedClimbHasSavedFeedback: boolean
   selectedClimbFeedbackCollapsed: boolean
@@ -107,6 +108,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     imageLatitude,
     imageLongitude,
     selectedClimbLogged,
+    selectedClimbPendingSync = false,
     selectedClimbLog,
     selectedClimbFeedbackCollapsed,
     selectedClimbRatingSummary,
@@ -194,7 +196,8 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             <button onClick={onShare} disabled={!selectedClimb} className="inline-flex size-11 items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Share climb" title={selectedClimb ? 'Share climb' : 'Select a route to share'}>
               <Share2 className="w-5 h-5" />
             </button>
-            {!loadingSelectedClimbState && selectedClimbLogged ? <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 rounded-full text-sm font-medium">Logged</span> : null}
+            {!loadingSelectedClimbState && selectedClimbPendingSync ? <span role="status" className="px-3 py-1 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 rounded-full text-sm font-medium">Pending sync</span> : null}
+            {!loadingSelectedClimbState && selectedClimbLogged && !selectedClimbPendingSync ? <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 rounded-full text-sm font-medium">Logged</span> : null}
           </div>
         </div>
 
@@ -210,7 +213,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
               <>
                 <p className="text-gray-400 text-sm">
                   {!loggingOnline && selectedRouteExists
-                    ? 'Logging requires a connection.'
+                    ? 'Offline mode: logs will sync when you reconnect.'
                     : selectedRouteExists
                     ? 'Route selected - choose an option below'
                     : canAddRoutes
@@ -219,13 +222,13 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                 </p>
 
                 <div className="grid grid-cols-3 gap-2">
-                  <button onClick={() => onLog('flash')} disabled={logging || !loggingOnline || !selectedClimb} className="min-h-12 rounded-xl bg-yellow-600 px-4 py-2 font-medium text-white transition-colors hover:bg-yellow-500 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button onClick={() => onLog('flash')} disabled={logging || !selectedClimb} className="min-h-12 rounded-xl bg-yellow-600 px-4 py-2 font-medium text-white transition-colors hover:bg-yellow-500 disabled:cursor-not-allowed disabled:opacity-50">
                     Flash
                   </button>
-                  <button onClick={() => onLog('top')} disabled={logging || !loggingOnline || !selectedClimb} className="min-h-12 rounded-xl bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button onClick={() => onLog('top')} disabled={logging || !selectedClimb} className="min-h-12 rounded-xl bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">
                     Send
                   </button>
-                  <button onClick={() => onLog('try')} disabled={logging || !loggingOnline || !selectedClimb} className="min-h-12 rounded-xl bg-gray-700 px-4 py-2 font-medium text-white transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button onClick={() => onLog('try')} disabled={logging || !selectedClimb} className="min-h-12 rounded-xl bg-gray-700 px-4 py-2 font-medium text-white transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50">
                     Try
                   </button>
                 </div>
