@@ -57,7 +57,22 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Validate build env
+      - name: Validate PR build env
+        if: github.event_name == 'pull_request'
+        run: |
+          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY)
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required PR build environment variable: $var"
+              exit 1
+            fi
+          done
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: anon-test-key
+
+      - name: Validate trusted build env
+        if: github.event_name != 'pull_request'
         run: |
           required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY)
           for var in "${required_vars[@]}"; do
@@ -70,7 +85,15 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
-      - name: Build
+      - name: Build PR
+        if: github.event_name == 'pull_request'
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: anon-test-key
+
+      - name: Build trusted
+        if: github.event_name != 'pull_request'
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
