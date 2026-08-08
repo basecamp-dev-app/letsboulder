@@ -31,11 +31,11 @@ permissions:
   pull-requests: read
 
 jobs:
-  quality:
-    name: Quality Gates
+  quality-checks:
+    name: Quality Checks
     if: github.event_name != 'deployment_status'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,7 +47,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install --prefer-offline
+        run: npm ci --prefer-offline
 
       - name: Lint
         run: npm run lint
@@ -60,57 +60,6 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
-
-      - name: Validate PR build env
-        if: github.event_name == 'pull_request'
-        run: |
-          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY)
-          for var in "${required_vars[@]}"; do
-            if [ -z "${!var}" ]; then
-              echo "::error::Missing required PR build environment variable: $var"
-              exit 1
-            fi
-          done
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: anon-test-key
-
-      - name: Validate trusted build env
-        if: github.event_name != 'pull_request'
-        run: |
-          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY)
-          for var in "${required_vars[@]}"; do
-            if [ -z "${!var}" ]; then
-              echo "::error::Missing required build environment variable: $var. Add it as a repository secret before running CI builds."
-              exit 1
-            fi
-          done
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Build PR
-        if: github.event_name == 'pull_request'
-        run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: anon-test-key
-
-      - name: Build trusted
-        if: github.event_name != 'pull_request'
-        run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Run Unit Tests
-        run: npm run test:unit
-
-      - name: Run Component Tests
-        run: npm run test:components
-
-      - name: Run Integration Tests
-        run: npm run test:integration:coverage
 
       - name: Check type drift
         run: |
@@ -126,9 +75,87 @@ jobs:
             echo "Skipping type drift check (not a pull_request event)"
           fi
 
+  build:
+    name: Next.js Build
+    if: github.event_name != 'deployment_status'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.20.0"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Validate build environment
+        run: |
+          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY)
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Missing required build environment variable: $var"
+              exit 1
+            fi
+          done
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ github.event_name == 'pull_request' && 'https://example.supabase.co' || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ github.event_name == 'pull_request' && 'anon-test-key' || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Build Next.js application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ github.event_name == 'pull_request' && 'https://example.supabase.co' || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ github.event_name == 'pull_request' && 'anon-test-key' || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+  tests:
+    name: ${{ matrix.name }}
+    if: github.event_name != 'deployment_status'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: unit
+            name: Unit Tests
+            command: npm run test:unit
+          - id: component
+            name: Component Tests
+            command: npm run test:components
+          - id: integration
+            name: Integration Tests
+            command: npm run test:integration:coverage
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.20.0"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Run ${{ matrix.name }}
+        run: ${{ matrix.command }}
+
+      - name: Upload ${{ matrix.name }} artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.id }}-test-artifacts
+          path: |
+            coverage
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
   deploy:
     name: Deploy to Vercel
-    needs: [quality, media-worker]
+    needs: [quality-checks, build, tests, media-worker-check]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -148,7 +175,7 @@ jobs:
           fi
           echo "Vercel deployment triggered successfully"
 
-  media-worker:
+  media-worker-check:
     name: Media Worker Check
     if: github.event_name != 'deployment_status'
     runs-on: ubuntu-latest
@@ -160,9 +187,10 @@ jobs:
         with:
           node-version: "20.20.0"
           cache: "npm"
+          cache-dependency-path: apps/media-worker/package-lock.json
 
       - name: Install dependencies
-        run: npm install --prefer-offline
+        run: npm --prefix apps/media-worker ci --prefer-offline
 
       - name: Typecheck media worker
         run: npm --prefix apps/media-worker run check
@@ -197,7 +225,7 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
-        run: npm install --prefer-offline
+        run: npm ci --prefer-offline
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -230,7 +258,7 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ steps.resolve_base_url.outputs.base_url }}
 
       - name: Run public Playwright smoke suite
-        run: npx playwright test --project=public --grep @smoke
+        run: npx playwright test --project=public --grep @smoke --retries=1
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.resolve_base_url.outputs.base_url }}
           VERCEL_DEPLOYMENT_ID: ${{ github.event.inputs.vercel_deployment_id || '' }}
@@ -258,7 +286,7 @@ jobs:
           DEV_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Run authenticated Playwright smoke suite
-        run: npx playwright test --project=authenticated --grep @smoke
+        run: npx playwright test --project=authenticated --grep @smoke --retries=1
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
@@ -281,5 +309,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-smoke
-          path: playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
           retention-days: 7

@@ -99,7 +99,7 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 Run the CI-equivalent quality sequence locally with the same commands (the build requires the public Supabase environment variables):
 
 ```bash
-npm install --prefer-offline
+npm ci --prefer-offline
 npm run lint
 npm run check:features
 bash docs/verify.sh
@@ -108,10 +108,11 @@ npm run build
 npm run test:unit
 npm run test:components
 npm run test:integration:coverage
+npm --prefix apps/media-worker ci --prefer-offline
 npm --prefix apps/media-worker run check
 ```
 
-Database tests and Playwright are separate from the quality job. Deployment smoke runs use `npx playwright test --project=public --project=authenticated --grep @smoke`; the production nightly disables global setup and runs only a fixed anonymous public file list.
+Database tests and Playwright are separate from the quality jobs. Deployment smoke runs use `npx playwright test --project=public --project=authenticated --grep @smoke --retries=1`; the production nightly disables global setup, runs only a fixed anonymous public file list, and allows one retry. CI uploads unit/component test artifacts and Playwright reports/traces when available.
 
 ## Conventions
 
