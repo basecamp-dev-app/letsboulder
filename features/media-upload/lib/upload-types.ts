@@ -45,6 +45,7 @@ export interface MediaUploadItem {
   uploadedBucket: string | null
   uploadedPath: string | null
   gpsData: { latitude: number; longitude: number } | null
+  missingExif: boolean
   captureDate: string | null
   error: string | null
   attachedRecordId: string | null
@@ -57,6 +58,8 @@ export interface QueueEntry {
   file: File
   isPrepared: boolean
 }
+
+export type UploadCoordinates = { latitude: number; longitude: number }
 
 export interface DraftAttachResponse {
   error?: string

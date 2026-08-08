@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { useMediaUploadQueueController } from '@/features/media-upload/hooks/use-media-upload-queue-controller'
-import { isMediaUploadPending, isSameTarget, type MediaUploadItem, type MediaUploadTarget, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
+import { isMediaUploadPending, isSameTarget, type MediaUploadItem, type MediaUploadTarget, type UploadCompleteCallback, type UploadCoordinates } from '@/features/media-upload/lib/upload-types'
 
 export type { MediaUploadItem, MediaUploadStatus, MediaUploadTarget, UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
 
@@ -10,7 +10,8 @@ interface MediaUploadManagerValue {
   uploads: MediaUploadItem[]
   activeClientId: string | null
   isPaused: boolean
-  queueUploads: (files: File[], target: MediaUploadTarget) => void
+  queueUploads: (files: File[], target: MediaUploadTarget, fallbackCoordinates?: UploadCoordinates | null) => void
+  updateUploadCoordinates: (clientId: string, coordinates: UploadCoordinates) => void
   getUploadsForDraft: (draftId: string) => MediaUploadItem[]
   getUploadsForCrag: (cragId: string) => MediaUploadItem[]
   retryUpload: (clientId: string) => void
@@ -36,6 +37,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     isPaused,
     registerDraftUpdatedAt,
     queueUploads,
+    updateUploadCoordinates,
     retryUpload,
     removeUpload,
     resumeQueue,
@@ -98,6 +100,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     activeClientId,
     isPaused,
     queueUploads,
+    updateUploadCoordinates,
     getUploadsForDraft,
     getUploadsForCrag,
     retryUpload,
@@ -109,7 +112,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     isQueuePaused,
     getActiveUpload,
     subscribeToUploadComplete,
-  }), [activeClientId, getActiveUpload, getUploadsForCrag, getUploadsForDraft, hasFailedUploads, hasPendingUploads, isPaused, isQueuePaused, queueUploads, registerDraftUpdatedAt, removeUpload, resumeQueue, retryUpload, subscribeToUploadComplete, uploadsList])
+  }), [activeClientId, getActiveUpload, getUploadsForCrag, getUploadsForDraft, hasFailedUploads, hasPendingUploads, isPaused, isQueuePaused, queueUploads, registerDraftUpdatedAt, removeUpload, resumeQueue, retryUpload, subscribeToUploadComplete, updateUploadCoordinates, uploadsList])
 
   return <MediaUploadManagerContext.Provider value={value}>{children}</MediaUploadManagerContext.Provider>
 }
@@ -128,7 +131,8 @@ export function useDraftUploadManager() {
     uploads: context.uploads,
     activeClientId: context.activeClientId,
     isPaused: context.isPaused,
-    queueDraftUploads: (files: File[], draftId: string) => context.queueUploads(files, { kind: 'draft', draftId }),
+    queueDraftUploads: (files: File[], draftId: string, fallbackCoordinates?: UploadCoordinates | null) => context.queueUploads(files, { kind: 'draft', draftId }, fallbackCoordinates),
+    updateUploadCoordinates: context.updateUploadCoordinates,
     getUploadsForDraft: context.getUploadsForDraft,
     retryUpload: context.retryUpload,
     removeUpload: context.removeUpload,

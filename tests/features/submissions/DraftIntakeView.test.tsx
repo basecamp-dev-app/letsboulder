@@ -10,6 +10,7 @@ const mockRemoveToast = vi.fn()
 const mockCreateSubmissionDraftAction = vi.fn()
 const mockCsrfFetch = vi.fn()
 const mockQueueDraftUploads = vi.fn()
+const mockUpdateUploadCoordinates = vi.fn()
 const mockRegisterDraftUpdatedAt = vi.fn()
 const mockGetUploadsForDraft = vi.fn()
 const mockResumeQueue = vi.fn()
@@ -46,6 +47,7 @@ vi.mock('@/lib/media/draft-signed-urls', () => ({
 vi.mock('@/features/media-upload/hooks/use-draft-upload-manager', () => ({
   useDraftUploadManager: () => ({
     queueDraftUploads: mockQueueDraftUploads,
+    updateUploadCoordinates: mockUpdateUploadCoordinates,
     registerDraftUpdatedAt: mockRegisterDraftUpdatedAt,
     getUploadsForDraft: mockGetUploadsForDraft,
     resumeQueue: mockResumeQueue,
@@ -68,6 +70,7 @@ function createUpload(overrides: Partial<MediaUploadItem> = {}): MediaUploadItem
     uploadedBucket: null,
     uploadedPath: null,
     gpsData: null,
+    missingExif: false,
     captureDate: null,
     error: null,
     attachedRecordId: 'image-1',
@@ -113,7 +116,7 @@ describe('DraftIntakeView', () => {
       expect(mockCreateSubmissionDraftAction).toHaveBeenCalled()
       expect(mockCreateSubmissionDraftAction).toHaveBeenCalledWith(expect.objectContaining({ cragId: 'crag-1' }))
       expect(mockRegisterDraftUpdatedAt).toHaveBeenCalledWith('draft-1', '2026-04-04T00:00:00.000Z')
-      expect(mockQueueDraftUploads).toHaveBeenCalledWith([expect.objectContaining({ name: 'one.jpg' })], 'draft-1')
+       expect(mockQueueDraftUploads).toHaveBeenCalledWith([expect.objectContaining({ name: 'one.jpg' })], 'draft-1', null)
     })
   })
 
@@ -133,6 +136,30 @@ describe('DraftIntakeView', () => {
     await user.click(continueButton)
 
     expect(mockReplace).toHaveBeenCalledWith('/logbook/drafts/draft-1/edit')
+  })
+
+  it('shows editable coordinates for uploads without EXIF GPS', async () => {
+    const user = userEvent.setup()
+    mockGetUploadsForDraft.mockReturnValue([createUpload({
+      clientId: 'missing-gps',
+      fileName: 'missing-gps.jpg',
+      status: 'UPLOADING',
+      missingExif: true,
+      gpsData: { latitude: 48.1, longitude: 2.2 },
+      attachedRecordId: null,
+    })])
+
+    render(<DraftIntakeView cragId="crag-1" initialCenter={[48.1, 2.2]} />)
+
+    const latitude = await screen.findByRole('spinbutton', { name: 'Latitude for missing-gps.jpg' })
+    const longitude = screen.getByRole('spinbutton', { name: 'Longitude for missing-gps.jpg' })
+    expect(latitude).toHaveValue(48.1)
+    expect(longitude).toHaveValue(2.2)
+
+    await user.clear(latitude)
+    await user.type(latitude, '48.25')
+
+    expect(mockUpdateUploadCoordinates).toHaveBeenLastCalledWith('missing-gps', { latitude: 48.25, longitude: 2.2 })
   })
 
   it('keeps continue disabled while uploads are still in flight', async () => {

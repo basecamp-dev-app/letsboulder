@@ -8,6 +8,6 @@ const DraftIntakeView = dynamic(
   { ssr: false, loading: () => <DraftIntakeLoadingShell /> }
 )
 
-export default function DraftIntakeClient({ cragId }: { cragId: string | null }) {
-  return <DraftIntakeView cragId={cragId} />
+export default function DraftIntakeClient({ cragId, initialCenter }: { cragId: string | null; initialCenter: [number, number] | null }) {
+  return <DraftIntakeView cragId={cragId} initialCenter={initialCenter} />
 }

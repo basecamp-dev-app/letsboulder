@@ -19,5 +19,9 @@ export default async function SubmitPage({
     redirect(`/auth?redirect_to=${encodeURIComponent(returnTo)}`)
   }
 
-  return <DraftIntakeClient cragId={cragId} />
+  const cragCenter = cragId
+    ? (await supabase.from('crags').select('latitude, longitude').eq('id', cragId).maybeSingle()).data
+    : null
+
+  return <DraftIntakeClient cragId={cragId} initialCenter={cragCenter?.latitude != null && cragCenter.longitude != null ? [cragCenter.latitude, cragCenter.longitude] : null} />
 }

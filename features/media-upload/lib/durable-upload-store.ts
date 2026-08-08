@@ -92,6 +92,7 @@ export async function restoreUploads(userId: string): Promise<RestoredUpload[]> 
       const file = new File([blob], record.item.fileName, { type: blob.type, lastModified: record.lastModified })
       const item: MediaUploadItem = {
         ...record.item,
+        missingExif: record.item.missingExif ?? record.item.gpsData === null,
         status: record.item.status === 'READY' ? 'READY' : 'QUEUED',
         progress: record.item.status === 'READY' ? 100 : 0,
         error: null,
