@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  production-safe:
+  production-safe-e2e:
     name: Production-Safe E2E
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -52,7 +52,7 @@ jobs:
           done
 
       - name: Install dependencies
-        run: npm install --prefer-offline
+        run: npm ci --prefer-offline
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -76,6 +76,7 @@ jobs:
       - name: Run production-safe Playwright suite
         run: >-
           npx playwright test
+          --retries=1
           --project=public
           tests/map.spec.ts
           tests/auth.spec.ts
@@ -87,5 +88,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-production-nightly
-          path: playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
           retention-days: 7

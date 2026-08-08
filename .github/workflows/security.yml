@@ -13,9 +13,10 @@ permissions:
   contents: read
 
 jobs:
-  audit:
+  dependency-audit:
     name: Dependency audits
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -23,6 +24,9 @@ jobs:
         with:
           node-version: '20.20.0'
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            apps/media-worker/package-lock.json
 
       - name: Install root dependencies
         run: npm ci --ignore-scripts
