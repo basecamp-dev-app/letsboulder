@@ -44,6 +44,10 @@ vi.mock('@/lib/media/draft-signed-urls', () => ({
   loadDraftSignedUrls: vi.fn(async () => new Map([['private-bucket:images/originals/upload-1/route.jpg', 'https://example.com/route.jpg']])),
 }))
 
+vi.mock('@/components/LightweightCragMap', () => ({
+  default: () => null,
+}))
+
 vi.mock('@/features/media-upload/hooks/use-draft-upload-manager', () => ({
   useDraftUploadManager: () => ({
     queueDraftUploads: mockQueueDraftUploads,
@@ -151,13 +155,16 @@ describe('DraftIntakeView', () => {
 
     render(<DraftIntakeView cragId="crag-1" initialCenter={[48.1, 2.2]} />)
 
+    const input = document.querySelector('input[type="file"]')
+    expect(input).not.toBeNull()
+    await user.upload(input as HTMLInputElement, createFile('missing-gps.jpg', 'image/jpeg'))
+
     const latitude = await screen.findByRole('spinbutton', { name: 'Latitude for missing-gps.jpg' })
     const longitude = screen.getByRole('spinbutton', { name: 'Longitude for missing-gps.jpg' })
     expect(latitude).toHaveValue(48.1)
     expect(longitude).toHaveValue(2.2)
 
-    await user.clear(latitude)
-    await user.type(latitude, '48.25')
+    fireEvent.change(latitude, { target: { value: '48.25' } })
 
     expect(mockUpdateUploadCoordinates).toHaveBeenLastCalledWith('missing-gps', { latitude: 48.25, longitude: 2.2 })
   })

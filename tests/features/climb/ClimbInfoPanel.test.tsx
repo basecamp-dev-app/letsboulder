@@ -349,7 +349,9 @@ describe('ClimbInfoPanel', () => {
     expect(onLog.mock.calls).toEqual([['flash'], ['top'], ['try']])
   })
 
-  it('disables logging controls and explains when logging is offline', () => {
+  it('keeps logging available and explains offline sync behavior', async () => {
+    const user = userEvent.setup()
+    const onLog = vi.fn()
     renderPanel({
       selectedClimb: {
         id: 'climb-1',
@@ -361,11 +363,15 @@ describe('ClimbInfoPanel', () => {
       selectedRouteExists: true,
       canAddRoutes: false,
       loggingOnline: false,
+      onLog,
     })
 
-    expect(screen.getByText('Logging requires a connection.')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Flash' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Try' })).toBeDisabled()
+    expect(screen.getByText('Offline mode: logs will sync when you reconnect.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Flash' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Try' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Flash' }))
+    expect(onLog).toHaveBeenCalledWith('flash')
   })
 })
