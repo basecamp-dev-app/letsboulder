@@ -59,11 +59,12 @@ describe('ServiceWorkerRegistration', () => {
   })
 
   it('prompts instead of activating a waiting service worker immediately', async () => {
-    const { waiting } = createServiceWorkerMock()
+    const { serviceWorker, waiting } = createServiceWorkerMock()
 
     render(<ServiceWorkerRegistration />)
 
     expect(await screen.findByText('Update available')).toBeInTheDocument()
+    expect(serviceWorker.register).toHaveBeenCalledWith('/sw.js', { scope: '/' })
     expect(waiting.postMessage).not.toHaveBeenCalled()
   })
 

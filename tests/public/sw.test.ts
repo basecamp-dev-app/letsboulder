@@ -104,6 +104,12 @@ describe('active service worker', () => {
     expect(skipWaiting).toHaveBeenCalledOnce()
   })
 
+  it('does not handle the retired destructive auth-cache message', async () => {
+    await dispatch('message', { data: { type: 'CLEAR_AUTH_CACHES' } })
+
+    expect(deleteCache).not.toHaveBeenCalled()
+  })
+
   it('uses the crag shell for an offline viewer navigation with an id query', async () => {
     shellEntries.set('/offline/crag', new Response('saved crag shell'))
     fetchMock.mockRejectedValueOnce(new Error('offline'))
