@@ -55,7 +55,7 @@ jobs:
       CONFIRMATION: ${{ inputs.confirmation }}
       DRY_RUN: ${{ inputs.dry_run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Initialize result manifest
         run: printf '%s\n' '{"schemaVersion":1,"fatalError":"Migration did not start"}' > "$MIGRATION_RESULT"

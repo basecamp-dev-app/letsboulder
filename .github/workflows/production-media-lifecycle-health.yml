@@ -30,7 +30,7 @@ jobs:
       RECONCILIATION_INPUT: production-media-reconciliation.json
       LIFECYCLE_HEALTH_OUTPUT: production-media-lifecycle-health.json
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Initialize artifacts
         run: |

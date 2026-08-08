@@ -64,7 +64,7 @@ jobs:
       LIFECYCLE_HEALTH_INPUT: lifecycle-health/production-media-lifecycle-health.json
       RECOVERY_OUTPUT: production-media-lifecycle-recovery.json
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Initialize recovery manifest
         run: printf '%s\n' '{"schemaVersion":1,"dryRun":true,"selected":[],"recovered":[],"readOnly":true,"fatalError":"Recovery did not start"}' > "$RECOVERY_OUTPUT"

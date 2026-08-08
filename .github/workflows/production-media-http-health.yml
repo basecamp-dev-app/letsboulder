@@ -38,7 +38,7 @@ jobs:
       BASELINE_RUN_ID: ${{ inputs.baseline_run_id }}
       BASELINE_ARTIFACT_DIGEST: ${{ inputs.baseline_artifact_digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Initialize health manifest
         run: printf '%s\n' '{"schemaVersion":1,"entries":[],"summary":{"checked":0,"passed":0,"existingFailures":0,"newFailures":1},"fatalError":"Verification did not start"}' > "$MEDIA_HEALTH_OUTPUT"

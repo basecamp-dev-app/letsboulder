@@ -83,7 +83,7 @@ jobs:
       MIGRATION_RUN_ID: ${{ inputs.migration_run_id }}
       WORKER_DEPLOYMENT_RUN_ID: ${{ inputs.worker_deployment_run_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Initialize result manifests
         shell: bash
