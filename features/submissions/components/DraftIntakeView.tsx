@@ -278,10 +278,10 @@ export default function DraftIntakeView({ cragId = null, initialCenter = null }:
   const failedCount = uploads.filter((u) => u.status === 'FAILED').length
   const processingCount = uploads.filter((u) => u.status === 'PROCESSING' || u.status === 'MODERATING').length
   const totalCount = uploads.length
-  const hasInFlightUploads = uploads.some((upload) => isMediaUploadPending(upload.status))
+  const hasUnattachedPendingUploads = uploads.some((upload) => isMediaUploadPending(upload.status) && !upload.attachedRecordId)
   const hasAnyImages = galleryImages.length > 0
   const hasAttachedImages = draftImages.length > 0
-  const canContinueToEditor = hasAttachedImages && !hasInFlightUploads
+  const canContinueToEditor = hasAttachedImages && !hasUnattachedPendingUploads
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -372,7 +372,7 @@ export default function DraftIntakeView({ cragId = null, initialCenter = null }:
                     disabled={!canContinueToEditor}
                     className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {hasInFlightUploads ? 'Finish uploads to continue' : 'Continue to editor'}
+                    {hasUnattachedPendingUploads ? 'Finish uploads to continue' : 'Continue to editor'}
                   </button>
                   <button
                     type="button"

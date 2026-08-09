@@ -169,14 +169,14 @@ describe('DraftIntakeView', () => {
     expect(mockUpdateUploadCoordinates).toHaveBeenLastCalledWith('missing-gps', { latitude: 48.25, longitude: 2.2 })
   })
 
-  it('keeps continue disabled while uploads are still in flight', async () => {
+  it('opens the editor while an attached upload is still processing', async () => {
     const user = userEvent.setup()
 
     mockGetUploadsForDraft.mockReturnValue([
       createUpload({
         clientId: 'uploading-1',
-        status: 'UPLOADING',
-        progress: 48,
+        status: 'PROCESSING',
+        progress: 90,
         attachedRecordId: 'image-1',
       }),
     ])
@@ -186,6 +186,26 @@ describe('DraftIntakeView', () => {
     const input = document.querySelector('input[type="file"]')
     expect(input).not.toBeNull()
 
+    await user.upload(input as HTMLInputElement, createFile('one.jpg', 'image/jpeg'))
+
+    const continueButton = await screen.findByRole('button', { name: 'Continue to editor' })
+    expect(continueButton).toBeEnabled()
+    await user.click(continueButton)
+    expect(mockReplace).toHaveBeenCalledWith('/logbook/drafts/draft-1/edit')
+  })
+
+  it('keeps continue disabled for a pending upload that is not attached', async () => {
+    const user = userEvent.setup()
+
+    mockGetUploadsForDraft.mockReturnValue([createUpload({
+      status: 'PROCESSING',
+      attachedRecordId: null,
+    })])
+
+    render(<DraftIntakeView />)
+
+    const input = document.querySelector('input[type="file"]')
+    expect(input).not.toBeNull()
     await user.upload(input as HTMLInputElement, createFile('one.jpg', 'image/jpeg'))
 
     const continueButton = await screen.findByRole('button', { name: 'Finish uploads to continue' })

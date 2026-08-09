@@ -27,7 +27,7 @@ const SOURCE_KEY = `images/staging/${IMAGE_ID}/source.jpg`
 const MEDIA_JOB_ID = '33333333-3333-4333-8333-333333333333'
 const CLAIM_TOKEN = '55555555-5555-4555-8555-555555555555'
 
-function createProcessingHarness(options: { failCommitOnce?: boolean; deliveryResponse?: () => Response } = {}) {
+function createProcessingHarness(options: { failCommitOnce?: boolean; deliveryResponse?: () => Response; transformError?: Error } = {}) {
   const events: string[] = []
   const stored = new Map<string, { size: number; contentType: string }>()
   let commitAttempts = 0
@@ -91,9 +91,12 @@ function createProcessingHarness(options: { failCommitOnce?: boolean; deliveryRe
     }),
     get: vi.fn(async (key: string) => key === SOURCE_KEY ? { body: new ReadableStream() } : null),
   }
-  const output = vi.fn(async () => ({
-    response: () => new Response(new Uint8Array([1, 2, 3, 4]), { headers: { 'Content-Type': 'image/webp' } }),
-  }))
+  const output = vi.fn(async () => {
+    if (options.transformError) throw options.transformError
+    return {
+      response: () => new Response(new Uint8Array([1, 2, 3, 4]), { headers: { 'Content-Type': 'image/webp' } }),
+    }
+  })
   const transform = vi.fn(() => {
     events.push('resize')
     return { output }
@@ -181,6 +184,44 @@ describe('media worker canonical WebP processing', () => {
       p_job_id: MEDIA_JOB_ID,
       p_claim_token: CLAIM_TOKEN,
     })
+    expect(message.ack).toHaveBeenCalledOnce()
+    expect(message.retry).not.toHaveBeenCalled()
+  })
+
+  it('marks quota-exhausted transformations failed instead of requeueing them', async () => {
+    const harness = createProcessingHarness({ transformError: new Error('IMAGES_TRANSFORM_ERROR 9422: Free unique transformations by account has been exhausted') })
+    const claimedJob = {
+      id: MEDIA_JOB_ID,
+      image_id: IMAGE_ID,
+      job_type: 'ingest_image' as const,
+      status: 'processing' as const,
+      payload: harness.job,
+      attempts: 4,
+      max_attempts: 5,
+      run_at: new Date().toISOString(),
+      locked_at: new Date().toISOString(),
+      locked_by: 'media-worker-queue',
+      claim_token: CLAIM_TOKEN,
+      lease_expires_at: new Date(Date.now() + 300_000).toISOString(),
+      last_error: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    workerFrom.mockImplementation(harness.supabase.from)
+    workerRpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+      if (name === 'claim_media_job_for_image') return { data: claimedJob, error: null }
+      return harness.supabase.rpc(name, args)
+    })
+    const message = { body: { imageId: IMAGE_ID }, ack: vi.fn(), retry: vi.fn() }
+
+    await mediaWorker.queue({ messages: [message] }, harness.env as never)
+
+    expect(workerRpc).toHaveBeenCalledWith('fail_media_job', {
+      p_job_id: MEDIA_JOB_ID,
+      p_claim_token: CLAIM_TOKEN,
+      p_error: 'IMAGES_TRANSFORM_ERROR 9422: Free unique transformations by account has been exhausted',
+    })
+    expect(workerRpc).not.toHaveBeenCalledWith('retry_media_job', expect.any(Object))
     expect(message.ack).toHaveBeenCalledOnce()
     expect(message.retry).not.toHaveBeenCalled()
   })

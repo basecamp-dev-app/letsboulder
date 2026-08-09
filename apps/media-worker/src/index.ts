@@ -71,6 +71,10 @@ function stringifyError(error: unknown): string {
   return 'Unknown media job error'
 }
 
+function isCloudflareTransformQuotaError(error: unknown): boolean {
+  return stringifyError(error).includes('IMAGES_TRANSFORM_ERROR 9422')
+}
+
 function buildMediaPath(originalKey: string, variant: MediaVariantKey, format: MediaFormatKey): string {
   const originPath = `/${originalKey.split('/').map(encodeURIComponent).join('/')}`
   return `${originPath}?variant=${variant}&format=${format}`
@@ -356,7 +360,16 @@ async function claimMediaJob(supabase: ReturnType<typeof createSupabaseAdminClie
     ? { worker_name: workerName, p_image_id: imageId, lease_seconds: MEDIA_JOB_LEASE_SECONDS }
     : { worker_name: workerName, lease_seconds: MEDIA_JOB_LEASE_SECONDS })
   if (error) throw error
-  if (!data || typeof data !== 'object' || !('id' in data) || data.id === null) return null
+  if (!data || typeof data !== 'object' || !('id' in data) || data.id === null) {
+    console.log('Media job claim returned no due job', { workerName, imageId: imageId ?? null })
+    return null
+  }
+  console.log('Claimed media job', {
+    workerName,
+    imageId: 'image_id' in data && typeof data.image_id === 'string' ? data.image_id : imageId ?? null,
+    jobId: data.id,
+    attempts: 'attempts' in data ? data.attempts : null,
+  })
   return data as MediaJobRow | null
 }
 
@@ -387,6 +400,7 @@ async function processClaimedMediaJob(job: MediaJobRow, env: Env) {
   const parsed = mediaIngestJobSchema.safeParse(job.payload)
 
   if (!parsed.success) {
+    console.error('Failing media job with invalid payload', { jobId: job.id, imageId: job.image_id })
     await failMediaJobPermanently(supabase, job, new Error('Invalid media ingest payload'))
     return
   }
@@ -395,8 +409,26 @@ async function processClaimedMediaJob(job: MediaJobRow, env: Env) {
     await processJob(parsed.data, env, undefined, { jobId: job.id, claimToken: job.claim_token })
     const { error } = await supabase.rpc('complete_media_job', { p_job_id: job.id, p_claim_token: job.claim_token })
     if (error) throw error
+    console.log('Completed media job', { jobId: job.id, imageId: job.image_id, attempts: job.attempts })
   } catch (error) {
+    const errorMessage = stringifyError(error)
+    if (isCloudflareTransformQuotaError(error)) {
+      console.error('Failing media job because Cloudflare Images transformation quota is exhausted', {
+        jobId: job.id,
+        imageId: job.image_id,
+        attempts: job.attempts,
+        error: errorMessage,
+      })
+      await failMediaJobPermanently(supabase, job, error)
+      return
+    }
     await markMediaJobForRetry(supabase, job, error)
+    console.warn('Requeued media job after processing failure', {
+      jobId: job.id,
+      imageId: job.image_id,
+      attempts: job.attempts,
+      error: errorMessage,
+    })
   }
 }
 
@@ -411,6 +443,7 @@ async function drainMediaOutbox(env: Env, workerName = OUTBOX_WORKER_NAME, limit
     processed += 1
   }
 
+  console.log('Drained media outbox', { workerName, limit, processed })
   return processed
 }
 
@@ -634,7 +667,8 @@ export default {
 
   async scheduled(_controller: unknown, env: Env) {
     try {
-      await drainMediaOutbox(env)
+      const processed = await drainMediaOutbox(env)
+      console.log('Completed scheduled media drain', { processed })
     } catch (error) {
       console.error('Failed to drain media outbox', error)
     }
