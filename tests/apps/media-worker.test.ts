@@ -47,6 +47,29 @@ describe('media transformation requests', () => {
   })
 })
 
+describe('media worker fetch routing', () => {
+  it('returns 404 for unknown paths without touching media origins or R2', async () => {
+    const originFetch = vi.spyOn(globalThis, 'fetch')
+    const originals = {
+      get: vi.fn(),
+      head: vi.fn(),
+    }
+
+    const response = await mediaWorker.fetch(new Request('https://media.example/packed.php'), {
+      R2_ORIGIN_URL: 'https://private-origin.example',
+      INTERNAL_ORIGIN_SECRET: 'secret',
+      ORIGINALS_BUCKET: originals,
+    } as never)
+
+    expect(response.status).toBe(404)
+    expect(await response.text()).toBe('Not found')
+    expect(originFetch).not.toHaveBeenCalled()
+    expect(originals.get).not.toHaveBeenCalled()
+    expect(originals.head).not.toHaveBeenCalled()
+    originFetch.mockRestore()
+  })
+})
+
 function createProcessingHarness(options: { failCommitOnce?: boolean; deliveryResponse?: () => Response; transformError?: Error } = {}) {
   const events: string[] = []
   const stored = new Map<string, { size: number; contentType: string }>()

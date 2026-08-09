@@ -599,7 +599,7 @@ async function handleMedia(request: Request, env: Env, url: URL) {
   }
 
   if (!width) {
-    return json({ error: 'Invalid variant' }, { status: 400 })
+    return new Response('Not found', { status: 404 })
   }
 
   const formatParam = url.searchParams.get('format')
