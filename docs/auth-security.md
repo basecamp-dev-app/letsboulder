@@ -51,6 +51,7 @@ The exact limits live in code and may change without a docs update when operatio
 | `publicSearch` | 1 min | 100 |
 | `sensitive` | 1 hr | 10 |
 | `strict` | 1 min | 5 |
+| `imageGpsDiagnostic` | 1 min | 10 |
 
 - `rateLimit(request, configKey, userId?)` checks limits keyed by userId or IP
 - `createRateLimitResponse(result, retryAfter?)` returns 429 with `X-RateLimit-*` headers

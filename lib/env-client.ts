@@ -6,6 +6,7 @@ type ClientEnv = {
   NEXT_PUBLIC_SITE_URL?: string
   NEXT_PUBLIC_ALLOW_PENDING_IMAGES: boolean
   NEXT_PUBLIC_DEBUG_IMAGE_UPLOADS: boolean
+  NEXT_PUBLIC_DEBUG_IMAGE_GPS: boolean
 }
 
 function readBooleanFlag(value: string | undefined, truthyValues: string[]): boolean {
@@ -20,4 +21,5 @@ export const clientEnv: ClientEnv = {
   NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   NEXT_PUBLIC_ALLOW_PENDING_IMAGES: readBooleanFlag(process.env.NEXT_PUBLIC_ALLOW_PENDING_IMAGES, ['true']),
   NEXT_PUBLIC_DEBUG_IMAGE_UPLOADS: readBooleanFlag(process.env.NEXT_PUBLIC_DEBUG_IMAGE_UPLOADS, ['1']),
+  NEXT_PUBLIC_DEBUG_IMAGE_GPS: readBooleanFlag(process.env.NEXT_PUBLIC_DEBUG_IMAGE_GPS, ['true']),
 }

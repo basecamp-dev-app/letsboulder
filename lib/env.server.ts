@@ -30,6 +30,7 @@ const serverOnlyEnvSchema = z.object({
   TEST_USER_ID: z.string().optional(),
   TEST_AUTH_PATH_SEGMENT: z.string().min(1).optional(),
   SENTRY_DSN: z.string().optional(),
+  DEBUG_IMAGE_GPS_REPORTING: z.string().optional(),
 })
 
 export type ServerEnv = SharedEnv & z.infer<typeof serverOnlyEnvSchema>
@@ -67,6 +68,7 @@ function getPlaceholderServerEnv(): ServerEnv {
     TEST_USER_ID: undefined,
     TEST_AUTH_PATH_SEGMENT: undefined,
     SENTRY_DSN: undefined,
+    DEBUG_IMAGE_GPS_REPORTING: undefined,
   }
 }
 

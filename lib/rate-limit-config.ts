@@ -26,6 +26,7 @@ export const RATE_LIMIT_TIERS: Record<string, RateLimitTier> = {
   signedUrls: { tokens: 30, windowMs: 60_000, window: '60 s', prefix: 'rl:api:signed-urls', fallbackMode: 'local-bucket' },
   uploadSessionCreate: { tokens: 12, windowMs: 60_000, window: '60 s', prefix: 'rl:api:upload-session-create', fallbackMode: 'local-bucket' },
   uploadSessionComplete: { tokens: 20, windowMs: 60_000, window: '60 s', prefix: 'rl:api:upload-session-complete', fallbackMode: 'local-bucket' },
+  imageGpsDiagnostic: { tokens: 10, windowMs: 60_000, window: '60 s', prefix: 'rl:api:image-gps-diagnostic', fallbackMode: 'local-bucket' },
 } as const
 
 /**

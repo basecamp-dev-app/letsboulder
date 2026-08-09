@@ -12,6 +12,7 @@
 | corrections | Route correction requests and voting | Yes | Yes |
 | crags | Crag CRUD, search, nearby, pins, reports, images, sectors | Optional | Yes |
 | csrf | User-bound CSRF token and cookie issuance | Yes | No |
+| diagnostics | Temporary authenticated diagnostics for Android image GPS extraction | Yes | Yes |
 | dev-logger | Local-development browser log bridge | Effectively yes | Yes |
 | feedback | Rate-limited user feedback submission | Effectively yes | Yes |
 | flags | Admin flag queue listing and resolution | Yes (admin) | Yes |
@@ -77,6 +78,10 @@ Crag CRUD operations, search, nearby queries, pin data, reports, image managemen
 ### csrf
 
 `GET /api/csrf` requires a Supabase user resolved from request cookies. It returns the signed user-bound token in `{ token }` and sets the same token as an HttpOnly `csrf_token` cookie. It is necessarily exempt from CSRF validation itself; anonymous requests receive 401.
+
+### diagnostics
+
+`POST /api/diagnostics/image-gps` is a temporary, server-gated diagnostic endpoint for the Android GPS extraction investigation. It requires an authenticated user and CSRF token, accepts only file metadata, dimensions, parser timings/statuses, and sanitized parser errors, and logs no GPS coordinates, image bytes, or EXIF contents.
 
 ### dev-logger
 
