@@ -25,6 +25,7 @@ JWT-based token system using `jose` library (`lib/csrf.ts`).
 - The browser singleton in `lib/supabase.ts` explicitly persists its Supabase session in `window.localStorage`; that browser-only state supports client Supabase calls and auth-state events.
 - Server Components, Server Actions, Route Handlers, and the proxy create `@supabase/ssr` clients from request/Next cookies only. They cannot see browser localStorage, so the presence of a browser session is not itself proof that a server request is authenticated.
 - Server-side clients do not fall back to bearer headers or internal identity headers. Ensure flows that call protected app endpoints have a cookie-backed session and always resolve the user again on the server.
+- CI E2E jobs do not accept arbitrary deployment URLs. Direct smoke URLs are restricted to the trusted HTTPS development origin; Vercel previews are resolved by deployment ID and checked against the configured project before Playwright uses them. Production-safe E2E runs use a fixed production origin and omit test and service credentials.
 
 **Internal Header Stripped:**
 - The `x-internal-user-id` header is explicitly stripped by the middleware proxy (`proxy.ts`) to prevent client-side spoofing.

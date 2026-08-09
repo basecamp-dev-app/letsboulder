@@ -265,6 +265,7 @@ jobs:
           CI: true
 
       - name: Validate authenticated smoke configuration
+        if: steps.resolve_base_url.outputs.authenticated_allowed == 'true'
         run: |
           required_vars=(TEST_API_KEY TEST_AUTH_PATH_SEGMENT TEST_USER_PASSWORD DEV_SUPABASE_SERVICE_ROLE_KEY)
           for var in "${required_vars[@]}"; do
@@ -286,6 +287,7 @@ jobs:
           DEV_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Run authenticated Playwright smoke suite
+        if: steps.resolve_base_url.outputs.authenticated_allowed == 'true'
         run: npx playwright test --project=authenticated --grep @smoke --retries=1
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -303,6 +305,11 @@ jobs:
           VERCEL_DEPLOYMENT_ID: ${{ github.event.inputs.vercel_deployment_id || '' }}
           CI: true
           ENABLE_TEST_AUTH_ENDPOINT: 'true'
+          PLAYWRIGHT_AUTHENTICATED_SMOKE: 'true'
+
+      - name: Skip authenticated Playwright smoke suite on preview
+        if: steps.resolve_base_url.outputs.authenticated_allowed != 'true'
+        run: echo 'Skipping authenticated smoke tests because the target is not an allowlisted protected hostname.'
 
       - name: Upload Playwright smoke report
         if: always()

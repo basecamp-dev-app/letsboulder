@@ -1,9 +1,11 @@
 name: Dependabot auto-merge
-on: pull_request
+on: pull_request_target
 
 permissions:
   contents: write
   pull-requests: write
+  checks: read
+  statuses: read
 
 jobs:
   dependabot:
@@ -15,18 +17,20 @@ jobs:
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Wait for required CI checks
+      - name: Wait for required CI and security checks
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: |
+          set -euo pipefail
           gh pr checks --required --watch --fail-fast "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Approve and auto-merge
+      - name: Enable protected auto-merge
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: |
-          gh pr review --approve "$PR_URL"
-          gh pr merge --auto --squash "$PR_URL"
+          set -euo pipefail
+          gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
