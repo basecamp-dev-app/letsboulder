@@ -44,17 +44,15 @@ export default function GradePicker({
   const gradePreferences = useGradePreferences()
   const [search, setSearch] = useState('')
   const [pendingGrade, setPendingGrade] = useState(currentGrade || '')
-  const [pickerSession, setPickerSession] = useState({ isOpen, currentGrade })
   const inputRef = useRef<HTMLInputElement>(null)
   const openedAtRef = useRef<number>(0)
 
-  if (pickerSession.isOpen !== isOpen || (isOpen && pickerSession.currentGrade !== currentGrade)) {
-    setPickerSession({ isOpen, currentGrade })
-    if (isOpen) {
-      setPendingGrade(currentGrade || '')
-      setSearch('')
-    }
-  }
+  useEffect(() => {
+    if (!isOpen) return
+
+    setPendingGrade(currentGrade || '')
+    setSearch('')
+  }, [currentGrade, isOpen])
 
   const gradeSystem = useMemo(() => {
     if (gradeSystemProp) return gradeSystemProp
@@ -91,7 +89,8 @@ export default function GradePicker({
     inputRef.current?.focus()
   }, [isOpen])
 
-  const handleBackdropClose = () => {
+  const handleBackdropClose = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return
     if (Date.now() - openedAtRef.current < 150) return
     onClose()
   }

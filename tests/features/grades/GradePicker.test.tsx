@@ -10,7 +10,6 @@ vi.mock('@/features/grades/hooks/useGradeSystem', () => ({
 
 describe('GradePicker', () => {
   it('does not select a browsed grade when cancelled', async () => {
-    const user = userEvent.setup()
     const onClose = vi.fn()
     const onSelect = vi.fn()
 
@@ -24,15 +23,14 @@ describe('GradePicker', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: '7A' }))
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: '7A' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(onSelect).not.toHaveBeenCalled()
     expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('commits the pending grade once when saved', async () => {
-    const user = userEvent.setup()
     const onClose = vi.fn()
     const onSelect = vi.fn()
 
@@ -46,10 +44,10 @@ describe('GradePicker', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: '7A' }))
+    fireEvent.click(screen.getByRole('button', { name: '7A' }))
     expect(onSelect).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Save Grade' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Grade' }))
 
     expect(onSelect).toHaveBeenCalledOnce()
     expect(onSelect).toHaveBeenCalledWith('7A')
@@ -57,7 +55,6 @@ describe('GradePicker', () => {
   })
 
   it('resets the pending grade and search when reopened', async () => {
-    const user = userEvent.setup()
     const props = {
       onClose: vi.fn(),
       onSelect: vi.fn(),
@@ -66,7 +63,7 @@ describe('GradePicker', () => {
     }
     const { rerender } = render(<GradePicker {...props} isOpen />)
 
-    await user.click(screen.getByRole('button', { name: '7A' }))
+    fireEvent.click(screen.getByRole('button', { name: '7A' }))
     fireEvent.change(screen.getByRole('textbox', { name: '' }), { target: { value: '7' } })
     rerender(<GradePicker {...props} isOpen={false} />)
     rerender(<GradePicker {...props} isOpen />)
