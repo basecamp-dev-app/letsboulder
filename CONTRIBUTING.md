@@ -62,7 +62,7 @@ This project uses conventional commits when practical:
 - Run `npm run test:unit` for unit tests that cover your change
 - Run `npm run test:components` for React component changes
 - Run `npm run test:integration` for integration coverage when relevant
-- Install Playwright browsers with `npx playwright install chromium webkit`, then run `npx playwright test` when the change touches user flows
+- Install dependencies reproducibly with `npm ci --prefer-offline`; install the media-worker lockfile separately with `npm --prefix apps/media-worker ci --prefer-offline`. Install Playwright browsers with `npx playwright install chromium webkit`, then run `npx playwright test` when the change touches user flows
 - Run `npm --prefix apps/media-worker run check` for Worker or media-contract changes
 
 ## Database Changes
@@ -71,7 +71,7 @@ This project uses conventional commits when practical:
 - Never edit Supabase dashboard directly
 - Reset local Supabase and run `npm run test:database` for migrations, RLS, triggers, and RPC changes
 - Regenerate types with `npx supabase gen types typescript --local > types/database.ts`
-- Hosted pushes are maintainer-only; pushes to `main` trigger a production dry-run, while applying requires manually dispatching the `Supabase Migrations` workflow with the current `main` commit SHA. For local pushes, verify the linked project and run `npx supabase db push --linked --dry-run` first
+- Hosted pushes are maintainer-only; pushes to `main` trigger a production dry-run and never apply migrations. Applying requires manually dispatching the `Supabase Migrations` workflow with the current `main` commit SHA; the workflow validates that SHA again immediately before applying. For local pushes, verify the linked project and run `npx supabase db push --linked --dry-run` first
 
 ## PR Verification Checklist
 
