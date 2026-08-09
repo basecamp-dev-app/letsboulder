@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { validateTrustedBaseUrl } from '@/scripts/playwright/deployment-url'
+import {
+  isAuthenticatedTrustedBaseUrl,
+  validateAuthenticatedBaseUrl,
+  validateTrustedBaseUrl,
+} from '@/scripts/playwright/deployment-url'
 
 describe('validateTrustedBaseUrl', () => {
   it('accepts the trusted development origin', () => {
@@ -10,13 +14,22 @@ describe('validateTrustedBaseUrl', () => {
     expect(validateTrustedBaseUrl('https://letsboulder-preview.vercel.app', true)).toBe('https://letsboulder-preview.vercel.app')
   })
 
+  it('rejects Vercel deployments for authenticated tests', () => {
+    expect(() => validateAuthenticatedBaseUrl('https://letsboulder-preview.vercel.app')).toThrow()
+    expect(isAuthenticatedTrustedBaseUrl('https://letsboulder-preview.vercel.app')).toBe(false)
+    expect(validateAuthenticatedBaseUrl('https://dev.letsboulder.com')).toBe('https://dev.letsboulder.com')
+  })
+
   it.each([
     'https://attacker.vercel.app',
     'https://dev.letsboulder.com.attacker.example',
+    'https://dev.letsboulder.com@attacker.example',
+    'https://dev.letsboulder.com:444',
     'http://dev.letsboulder.com',
     'https://user:password@dev.letsboulder.com',
     'https://dev.letsboulder.com:443',
     'https://dev.letsboulder.com/path',
+    'https://dev.letsboulder.com/%2F',
     'https://dev.letsboulder.com/?inject=1',
     'https://localhost:3000',
   ])('rejects unsafe URL %s', url => {

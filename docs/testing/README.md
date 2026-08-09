@@ -59,21 +59,23 @@ tests/
 - `mobile-safari` — mobile Safari viewport
 - `mobile-chrome` — mobile Chrome viewport
 
+CI installs the lockfile exactly with `npm ci --prefer-offline`; use the same command locally when reproducing CI. The media worker is a separate package and is installed with `npm --prefix apps/media-worker ci --prefer-offline`.
+
 Install the configured browsers once after dependencies:
 
 ```bash
-npm install
+npm ci --prefer-offline
 npx playwright install chromium webkit
 ```
 
-Local Playwright starts `npm run dev` automatically unless an existing `PLAYWRIGHT_BASE_URL` server is reused. Run all projects with `npx playwright test`, or select projects explicitly, for example `npx playwright test --project=public --project=mobile-safari`.
+Local Playwright starts `npm run dev` automatically unless an existing `PLAYWRIGHT_BASE_URL` server is reused. In CI, direct URLs must be `https://dev.letsboulder.com`; a preview must be supplied by Vercel deployment ID and resolved through the Vercel API. Arbitrary URLs, query strings, credentials, ports, and paths are rejected. Run all projects with `npx playwright test`, or select projects explicitly, for example `npx playwright test --project=public --project=mobile-safari`.
 
 ## Database Tests
 
 Install dependencies, start the lockfile-pinned local Supabase stack, and reset it so every current migration is installed before running database tests:
 
 ```bash
-npm install
+npm ci --prefer-offline
 npx supabase start
 npx supabase db reset
 npm run test:database
@@ -93,7 +95,7 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 
 - **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, feature structure, docs drift, typecheck, build, unit, component, and integration coverage checks
 - **Smoke tests** — Run on trusted deployment status or manual dispatch in `.github/workflows/test.yml`; public and authenticated `--grep @smoke` projects run in separate processes
-- **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests
+- **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests; test-auth and service credentials are intentionally absent
 - Protected non-production E2E runs use Cloudflare Access headers when required
 
 Run the CI-equivalent quality sequence locally with the same commands (the build requires the public Supabase environment variables):
@@ -112,7 +114,7 @@ npm --prefix apps/media-worker ci --prefer-offline
 npm --prefix apps/media-worker run check
 ```
 
-Database tests and Playwright are separate from the quality jobs. Deployment smoke runs use `npx playwright test --project=public --project=authenticated --grep @smoke --retries=1`; the production nightly disables global setup, runs only a fixed anonymous public file list, and allows one retry. CI uploads unit/component test artifacts and Playwright reports/traces when available.
+Database tests and Playwright are separate from the quality jobs. Deployment smoke runs use `npx playwright test --project=public --project=authenticated --grep @smoke --retries=1`; the production nightly disables global setup, runs only a fixed anonymous public file list, and allows one retry. CI uploads unit/component test artifacts and Playwright reports/traces when available. Artifacts contain test output only and are retained for seven days.
 
 ## Conventions
 

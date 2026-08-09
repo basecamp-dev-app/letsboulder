@@ -2,7 +2,7 @@ import { chromium } from 'playwright'
 import path from 'path'
 import fs from 'fs'
 import { createClient } from '@supabase/supabase-js'
-import { validateTrustedBaseUrl } from '@/scripts/playwright/deployment-url'
+import { validateAuthenticatedBaseUrl, validateTrustedBaseUrl } from '@/scripts/playwright/deployment-url'
 
 const SEEDED_PLACE_SLUG_PUBLIC = 'e2e-seeded-place-public'
 const SEEDED_PLACE_SLUG_AUTH = 'e2e-seeded-place-auth'
@@ -82,6 +82,7 @@ async function globalSetup() {
   const baseURL = process.env.CI
     ? validateTrustedBaseUrl(configuredBaseUrl, Boolean(process.env.VERCEL_DEPLOYMENT_ID?.trim()))
     : configuredBaseUrl
+  if (process.env.CI) validateAuthenticatedBaseUrl(baseURL)
   
   const testApiKey = process.env.TEST_API_KEY?.trim()
   const testUserId = process.env.TEST_USER_ID?.trim()
@@ -103,9 +104,7 @@ async function globalSetup() {
     return
   }
 
-  const authIdentity = testUserEmail || `${testUserId!.slice(0, 8)}...${testUserId!.slice(-4)}`
-
-  console.log(`Setting up authenticated session for ${authIdentity} against ${baseURL}`)
+  console.log(`Setting up authenticated session against ${baseURL}`)
 
   const browser = await chromium.launch()
   const context = await browser.newContext()
@@ -113,7 +112,7 @@ async function globalSetup() {
   try {
     const authUrl = new URL(`/api/test/${testAuthPathSegment}/auth`, baseURL)
 
-    console.log(`Authenticating via ${authUrl.toString()}`)
+    console.log('Authenticating test user')
 
     const bodyData: Record<string, string> = { api_key: testApiKey }
     if (testUserId) bodyData.user_id = testUserId
@@ -143,25 +142,19 @@ async function globalSetup() {
       const contentType = response.headers()['content-type'] || 'unknown'
       if (contentType.includes('text/html')) {
         throw new Error(
-          `Auth failed: ${response.status()} HTML response from /api/test/${testAuthPathSegment}/auth (likely Cloudflare challenge). ` +
+          `Auth failed: ${response.status()} HTML response (likely Cloudflare challenge). ` +
           'Ensure CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET are present in Playwright job env.'
         )
       }
 
-      const errorText = await response.text()
-      throw new Error(`Auth failed: ${response.status()} - ${errorText.slice(0, 400)}`)
+      throw new Error(`Auth failed: ${response.status()} (${contentType})`)
     }
 
     const data = await response.json()
     
     if (!data.success) {
-      throw new Error(`Auth failed: ${data.error} - ${data.details}`)
+      throw new Error(`Auth failed: ${data.error}`)
     }
-
-    console.log(`Authenticated as: ${data.user.email} (${data.user.id})`)
-
-    const cookies = context.cookies()
-    console.log(`Cookies set: ${(await cookies).map(c => c.name).join(', ')}`)
 
     const storageStatePath = path.join(process.cwd(), 'playwright', '.auth', 'user.json')
     
