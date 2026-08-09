@@ -16,8 +16,10 @@ try {
     encoding: 'utf8',
   })
 
-  if (result.status !== 0) {
-    process.stderr.write(result.stderr || 'Supabase type generation failed.\n')
+  if (result.error || result.status !== 0) {
+    process.stderr.write(
+      result.error?.message || result.stderr || 'Supabase type generation failed. Start local Supabase and try again.\n',
+    )
     process.exit(result.status ?? 1)
   }
 

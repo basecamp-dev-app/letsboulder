@@ -24,7 +24,7 @@
 - `npm run test:integration` — `vitest run --config vitest.config.ts --mode integration`
 - `npm run test:e2e` — `playwright test` (append Playwright options after `--`)
 - `npm run test:database` — `vitest run --config vitest.database.config.ts`
-- `npm run check:type-drift` — generate types from local Supabase in memory and compare them with `types/database.ts`
+- `npm run check:type-drift` — generate types from local Supabase and compare them with `types/database.ts` without modifying the tracked file
 
 ## What Runs Locally
 
@@ -32,7 +32,7 @@
 - Component tests run every `tests/**/*.test.tsx` file under jsdom with `tests/vitest.component.setup.ts`; unit/integration config handles `tests/**/*.test.ts` in Node and excludes `tests/database/**`.
 - Database tests require local Supabase to be running with the current migrations applied, normally after a local database reset. They default to `postgresql://postgres:postgres@127.0.0.1:54322/postgres`; use `TEST_DATABASE_URL` only for another disposable test database.
 - Database tests refuse non-loopback hosts. `TEST_DATABASE_ALLOW_NON_LOCAL=true` is an explicit escape hatch and must never point at shared, staging, or production data.
-- `npm run check:type-drift` has the same local Supabase prerequisite as database tests. It fails when the committed generated types do not match the running local schema.
+- `npm run check:type-drift` has the same local Supabase prerequisite as database tests. It fails when the committed generated types do not match the running local schema. A missing or unavailable local Supabase instance is also a failure, rather than a skipped check.
 - `immutable-wiki-revisions.test.ts` verifies baseline capture, grouped entity commits, parent chains, RFC 6902 patches, hashes, database immutability, account anonymization, rollback lineage, and stale-head conflicts.
 - Public Playwright tests can run locally with standard app/env setup.
 - Authenticated Playwright tests require the test auth environment variables and the `/api/test/[segment]/auth` endpoint.
@@ -97,6 +97,8 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 ## CI
 
 - **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, feature structure, docs drift, typecheck, build, unit, component, and integration coverage checks
+- **Generated type drift** — A dedicated CI job starts the pinned local Supabase stack, resets it from every committed migration, and runs `npm run check:type-drift` on every PR, push, and manual workflow run. This validates generated content rather than only checking whether `types/database.ts` changed alongside a migration, and it also covers direct pushes where the old PR-only heuristic did not run.
+- **CI cost tradeoff** — Local Supabase requires Docker images and a migration reset, so this adds a few minutes and a separate Ubuntu runner. Keeping it as one isolated job avoids starting Supabase for every quality/test job while making migration changes fail closed when generated types are stale.
 - **Smoke tests** — Run on trusted deployment status or manual dispatch in `.github/workflows/test.yml`; public and authenticated `--grep @smoke` projects run in separate processes
 - **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests; test-auth and service credentials are intentionally absent
 - Protected non-production E2E runs use Cloudflare Access headers when required
@@ -109,6 +111,9 @@ npm run lint
 npm run check:features
 bash docs/verify.sh
 npm run typecheck
+npx supabase start
+npx supabase db reset
+npm run check:type-drift
 npm run build
 npm run test:unit
 npm run test:components

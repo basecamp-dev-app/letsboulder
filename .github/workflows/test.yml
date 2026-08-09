@@ -61,19 +61,34 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Check type drift
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            MIGRATIONS_CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} -- supabase/migrations/ | wc -l)
-            TYPES_CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} -- types/database.ts | wc -l)
-            if [ "$MIGRATIONS_CHANGED" -gt 0 ] && [ "$TYPES_CHANGED" -eq 0 ]; then
-              echo "::error::Migrations were changed but types/database.ts was not regenerated. Run 'supabase gen types typescript --local > types/database.ts' and commit the result."
-              exit 1
-            fi
-            echo "Type drift check passed (migrations: $MIGRATIONS_CHANGED changed, types: $TYPES_CHANGED changed)"
-          else
-            echo "Skipping type drift check (not a pull_request event)"
-          fi
+  generated-type-drift:
+    name: Generated Database Type Drift
+    if: github.event_name != 'deployment_status'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20.20.0"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Start local Supabase
+        run: npx supabase start
+
+      - name: Reset local database
+        run: npx supabase db reset
+
+      - name: Check generated database types
+        run: npm run check:type-drift
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop || true
 
   build:
     name: Next.js Build
@@ -155,7 +170,7 @@ jobs:
 
   deploy:
     name: Deploy to Vercel
-    needs: [quality-checks, build, tests, media-worker-check]
+    needs: [quality-checks, generated-type-drift, build, tests, media-worker-check]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
