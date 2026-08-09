@@ -47,7 +47,7 @@ If prod is the most correct schema, make prod the canonical source of truth and 
 2. Apply the resulting migrations to dev.
 3. Rebuild local from migrations.
 
-Always use `--dry-run` before pushing schema changes to a hosted Supabase project.
+Always use `--dry-run` before pushing schema changes to a hosted Supabase project. A dry-run is a preview only and must not be treated as evidence that an apply occurred.
 
 ## Golden Path (Local Verification)
 
@@ -83,7 +83,7 @@ Commit the migration and regenerated `types/database.ts` together.
 
 ## Hosted Deployment (Maintainers Only)
 
-Linked commands are not part of the contributor workflow. Pushes to `main` run the production validation and dry-run automatically; they never apply migrations. To apply a reviewed migration, a maintainer must manually run the **Supabase Migrations** workflow from GitHub and enter the current `main` commit SHA in `commit_sha`. The workflow rejects stale or non-`main` SHAs, repeats the dry-run, and applies only after that check succeeds.
+Linked commands are not part of the contributor workflow. Pushes to `main` run the production validation and dry-run automatically; they never apply migrations. To apply a reviewed migration, a maintainer must manually run the **Supabase Migrations** workflow from GitHub and enter the current `main` commit SHA in `commit_sha`. The workflow rejects malformed, stale, or non-`main` SHAs, repeats the dry-run, rechecks that `main` did not move, and applies only after that check succeeds. The workflow's Production environment approval remains part of the manual apply step.
 
 For local maintainer operations, deliberately select the intended project, review the dry-run, and then push:
 

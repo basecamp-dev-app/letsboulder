@@ -13,10 +13,13 @@ describe('validateTrustedBaseUrl', () => {
   it.each([
     'https://attacker.vercel.app',
     'https://dev.letsboulder.com.attacker.example',
+    'https://dev.letsboulder.com@attacker.example',
+    'https://dev.letsboulder.com:444',
     'http://dev.letsboulder.com',
     'https://user:password@dev.letsboulder.com',
     'https://dev.letsboulder.com:443',
     'https://dev.letsboulder.com/path',
+    'https://dev.letsboulder.com/%2F',
     'https://dev.letsboulder.com/?inject=1',
     'https://localhost:3000',
   ])('rejects unsafe URL %s', url => {
