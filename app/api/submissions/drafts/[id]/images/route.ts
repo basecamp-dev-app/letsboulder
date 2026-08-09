@@ -6,6 +6,7 @@ import { appendDraftImages } from '@/features/submissions/server/drafts/draft-im
 import { parseWithSchema } from '@/lib/api-validation'
 
 const draftAppendImageSchema = z.object({
+  uploaded_image_id: z.string().uuid().optional(),
   storage_bucket: z.string().min(1),
   storage_path: z.string().min(1),
   gps_data: z.object({

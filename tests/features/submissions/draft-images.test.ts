@@ -1,5 +1,13 @@
 import { describe, expect, test, vi } from 'vitest'
 
+const { userOwnsUploadedObject } = vi.hoisted(() => ({
+  userOwnsUploadedObject: vi.fn(async () => false),
+}))
+
+vi.mock('@/lib/media/ownership', () => ({
+  userOwnsUploadedObject,
+}))
+
 import { appendDraftImages } from '@/features/submissions/server/drafts/draft-images'
 
 describe('appendDraftImages', () => {
@@ -49,11 +57,36 @@ describe('appendDraftImages', () => {
     })
 
     expect(response.status).toBe(200)
+    expect(userOwnsUploadedObject).not.toHaveBeenCalled()
     expect(rpc).toHaveBeenCalledWith('append_submission_draft_images_atomic', expect.objectContaining({
       p_images: [expect.objectContaining({
         uploaded_image_id: uploadedImageId,
         linked_image_id: uploadedImageId,
       })],
     }))
+  })
+
+  test('rejects legacy path-only attachments when ownership validation fails', async () => {
+    const response = await appendDraftImages({
+      supabase: {} as never,
+      userId: 'user-1',
+      draftId: 'draft-1',
+      requestBody: {
+        images: [{
+          storage_bucket: 'staging',
+          storage_path: 'drafts/draft-1/image.jpg',
+        }],
+        expected_updated_at: '2026-08-02T00:00:00.000Z',
+      },
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid uploaded path owner' })
+    expect(userOwnsUploadedObject).toHaveBeenCalledWith(
+      {},
+      'user-1',
+      'staging',
+      'drafts/draft-1/image.jpg'
+    )
   })
 })
