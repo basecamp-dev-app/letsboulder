@@ -18,6 +18,7 @@ env:
 jobs:
   review:
     name: Review pull request
+    environment: Production
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
