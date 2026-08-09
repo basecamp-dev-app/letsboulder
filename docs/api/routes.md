@@ -41,6 +41,97 @@
 
 CSRF applies to mutating requests unless explicitly exempted. Because `/api/csrf` issues tokens only to an authenticated cookie session, a route configured with `requireUser: false` but default CSRF is still effectively authenticated for browser mutations. Public read endpoints may live in a group with authenticated writes.
 
+## Endpoint Inventory
+
+This is the canonical path inventory for route handlers under `app/api/**/route.ts`. Methods and security behavior remain documented in the group details below and are not inferred by the documentation verifier.
+
+<!-- API ROUTES START -->
+```text
+/api/admin/gyms
+/api/admin/gyms/[id]/floor-plan
+/api/admin/gyms/[id]/starter-routes
+/api/admin/images/[imageId]/move-crag
+/api/auth/signout
+/api/climbs/[id]/correction
+/api/climbs/[id]/recent-tops
+/api/climbs/[id]/star-rating
+/api/climbs/[id]/status
+/api/climbs/[id]/verify
+/api/climbs/[id]/video-betas
+/api/comments
+/api/community/places/[slug]/contributors
+/api/community/places/[slug]/posts
+/api/community/places/[slug]/rankings
+/api/community/places/[slug]/recent-sends
+/api/community/posts/[postId]/engagement
+/api/corrections/[id]/vote
+/api/crags
+/api/crags/[id]
+/api/crags/[id]/contributors
+/api/crags/[id]/images
+/api/crags/[id]/images/attach
+/api/crags/[id]/rankings
+/api/crags/[id]/sectors
+/api/crags/nearby
+/api/crags/pins
+/api/crags/search
+/api/crags/search-by-id
+/api/csrf
+/api/dev-logger
+/api/diagnostics/image-gps
+/api/feedback
+/api/flags
+/api/flags/[id]/resolve
+/api/gym-admin/gyms
+/api/gym-admin/gyms/[id]/starter-routes
+/api/image-first/community-notes
+/api/image-first/pins
+/api/images/[id]
+/api/images/[id]/faces
+/api/images/[id]/flags
+/api/images/search
+/api/location-tags/search
+/api/locations/detect
+/api/locations/reverse
+/api/locations/search
+/api/logbook/contributions
+/api/media/[bucket]/[...path]
+/api/media/private
+/api/media/upload-sessions
+/api/media/upload-sessions/[imageId]
+/api/media/upload-sessions/[imageId]/complete
+/api/moderation/queue
+/api/moderation/queue/[id]/vote
+/api/notifications
+/api/offline-packs/crags/[cragId]/manifest
+/api/offline-tiles/[layer]/[z]/[x]/[y]
+/api/places
+/api/places/nearby
+/api/places/search
+/api/profile
+/api/rankings
+/api/regions/by-location
+/api/regions/search
+/api/routes/[id]/grades
+/api/routes/submit
+/api/settings/delete
+/api/settings/initiate-delete
+/api/social/instagram
+/api/submissions
+/api/submissions/collaborate/[token]
+/api/submissions/drafts/[id]
+/api/submissions/drafts/[id]/images
+/api/submissions/drafts/[id]/images/[imageId]
+/api/submissions/drafts/[id]/publish
+/api/submissions/drafts/[id]/routes
+/api/submissions/drafts/collaborate/[token]
+/api/test/[segment]/auth
+/api/uploads/signed-url
+/api/uploads/signed-urls/batch
+/api/welcome-email
+```
+<!-- API ROUTES END -->
+
 ## Route Group Details
 
 ### admin
@@ -154,7 +245,7 @@ Legacy raster tile serving retained during the offline retirement window. No aut
 
 Place management, nearby search, and search. Read operations are public; write operations require authentication. Uses CSRF protection.
 
-- `places/route` — place CRUD operations
+- `places` — place CRUD operations
 - `places/nearby` — find places near a location
 - `places/search` — search places by query
 

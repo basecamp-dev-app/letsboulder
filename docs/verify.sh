@@ -59,7 +59,7 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-# 2. Route table vs actual directories that contain route.ts files
+# 2. Route table vs actual top-level route groups
 TABLE_ROUTES=$(sed -nE 's/^\| ([a-z][a-z-]*) \|.*/\1/p' "$ROOT/docs/api/routes.md" | sort)
 ACTUAL_DIRS=$(find "$ROOT/app/api" -mindepth 1 -maxdepth 1 -type d | while read -r dir; do
   if find "$dir" -name "route.ts" -print -quit | grep -q .; then
@@ -78,6 +78,30 @@ else
   fi
   if [ -n "$EXTRA" ]; then
     echo "DRIFT: routes.md lists non-existent routes: $EXTRA"
+    ERRORS=$((ERRORS + 1))
+  fi
+fi
+
+# 3. Canonical endpoint inventory vs every nested route.ts path
+DOCUMENTED_PATHS=$(awk '
+  /^<!-- API ROUTES START -->$/ { in_inventory = 1; next }
+  /^<!-- API ROUTES END -->$/ { in_inventory = 0 }
+  in_inventory && /^\/api\// { print }
+' "$ROOT/docs/api/routes.md" | sort)
+ACTUAL_PATHS=$(find "$ROOT/app/api" -type f -name "route.ts" -print \
+  | sed -E "s#^$ROOT/app/api/(.*)/route\\.ts#/api/\1#" | sort)
+MISSING_PATHS=$(comm -23 <(printf '%s\n' "$ACTUAL_PATHS") <(printf '%s\n' "$DOCUMENTED_PATHS"))
+EXTRA_PATHS=$(comm -13 <(printf '%s\n' "$ACTUAL_PATHS") <(printf '%s\n' "$DOCUMENTED_PATHS"))
+
+if [ -z "$MISSING_PATHS" ] && [ -z "$EXTRA_PATHS" ]; then
+  echo "OK: Endpoint inventory matches app/api/**/route.ts paths"
+else
+  if [ -n "$MISSING_PATHS" ]; then
+    echo "DRIFT: routes.md missing endpoint paths: $MISSING_PATHS"
+    ERRORS=$((ERRORS + 1))
+  fi
+  if [ -n "$EXTRA_PATHS" ]; then
+    echo "DRIFT: routes.md lists non-existent endpoint paths: $EXTRA_PATHS"
     ERRORS=$((ERRORS + 1))
   fi
 fi
