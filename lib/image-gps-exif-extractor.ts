@@ -3,9 +3,23 @@ import { isJpegBuffer, parseGpsFromExifJpeg, parseGpsWithPiexif } from '@/lib/im
 import { toGpsData } from '@/lib/image-gps-coordinate-parser'
 
 function gpsDebug(step: string, payload: unknown) {
-  void step
-  void payload
-  return
+  if (process.env.NEXT_PUBLIC_DEBUG_IMAGE_GPS !== 'true') return
+  // Diagnostics are temporary and opt-in because image metadata can be sensitive.
+  // eslint-disable-next-line no-console
+  console.warn('[image-gps]', { step, ...payload as Record<string, unknown> })
+}
+
+function describeError(error: unknown): { name: string; message: string } {
+  if (error instanceof Error) return { name: error.name, message: error.message }
+  return { name: 'UnknownError', message: String(error) }
+}
+
+function debugContext(debugLabel: string | undefined, extra: Record<string, unknown> = {}) {
+  return {
+    file: debugLabel || 'unknown',
+    userAgent: typeof navigator === 'undefined' ? 'unknown' : navigator.userAgent,
+    ...extra,
+  }
 }
 
 function summarizeMetadata(value: unknown): unknown {
@@ -28,10 +42,10 @@ async function extractGpsFromBlob(blob: Blob, debugLabel?: string): Promise<GpsD
     const gpsData = await exifr.gps(blob)
     gpsDebug('exifr.gps(blob) raw', summarizeMetadata(gpsData))
     const parsedGps = toGpsData(gpsData)
-    gpsDebug('exifr.gps(blob) parsed', parsedGps)
+    gpsDebug('exifr.gps(blob) parsed', summarizeMetadata(parsedGps))
     if (parsedGps) return parsedGps
-  } catch {
-    gpsDebug('exifr.gps(blob) error', { file: debugLabel || 'unknown' })
+  } catch (error) {
+    gpsDebug('exifr.gps(blob) error', debugContext(debugLabel, { error: describeError(error) }))
   }
 
   try {
@@ -50,20 +64,20 @@ async function extractGpsFromBlob(blob: Blob, debugLabel?: string): Promise<GpsD
     ])
     gpsDebug('explicit tags(blob) raw', summarizeMetadata(explicitTagData))
     const parsedGps = toGpsData(explicitTagData)
-    gpsDebug('explicit tags(blob) parsed', parsedGps)
+    gpsDebug('explicit tags(blob) parsed', summarizeMetadata(parsedGps))
     if (parsedGps) return parsedGps
-  } catch {
-    gpsDebug('explicit tags(blob) error', { file: debugLabel || 'unknown' })
+  } catch (error) {
+    gpsDebug('explicit tags(blob) error', debugContext(debugLabel, { error: describeError(error) }))
   }
 
   try {
     const exifData = await exifr.parse(blob, { tiff: true, exif: true, gps: true, xmp: true })
     gpsDebug('structured parse(blob) raw', summarizeMetadata(exifData))
     const parsedGps = toGpsData(exifData)
-    gpsDebug('structured parse(blob) parsed', parsedGps)
+    gpsDebug('structured parse(blob) parsed', summarizeMetadata(parsedGps))
     if (parsedGps) return parsedGps
-  } catch {
-    gpsDebug('structured parse(blob) error', { file: debugLabel || 'unknown' })
+  } catch (error) {
+    gpsDebug('structured parse(blob) error', debugContext(debugLabel, { error: describeError(error) }))
   }
 
   return null
@@ -71,18 +85,18 @@ async function extractGpsFromBlob(blob: Blob, debugLabel?: string): Promise<GpsD
 
 export async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string, mimeType?: string): Promise<GpsData | null> {
   const exifr = (await import('exifr')).default
-  gpsDebug('start', { file: debugLabel || 'unknown', bytes: buffer.byteLength })
+  gpsDebug('start', debugContext(debugLabel, { bytes: buffer.byteLength, mimeType: mimeType || 'unknown' }))
 
   try {
     const gpsData = await exifr.gps(buffer)
     gpsDebug('exifr.gps raw', summarizeMetadata(gpsData))
     const parsedGps = toGpsData(gpsData)
-    gpsDebug('exifr.gps parsed', parsedGps)
+    gpsDebug('exifr.gps parsed', summarizeMetadata(parsedGps))
     if (parsedGps) {
       return parsedGps
     }
-  } catch {
-    gpsDebug('exifr.gps error', { file: debugLabel || 'unknown' })
+  } catch (error) {
+    gpsDebug('exifr.gps error', debugContext(debugLabel, { error: describeError(error) }))
   }
 
   try {
@@ -101,30 +115,30 @@ export async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: str
     ])
     gpsDebug('explicit tags raw', summarizeMetadata(explicitTagData))
     const parsedGps = toGpsData(explicitTagData)
-    gpsDebug('explicit tags parsed', parsedGps)
+    gpsDebug('explicit tags parsed', summarizeMetadata(parsedGps))
     if (parsedGps) return parsedGps
-  } catch {
-    gpsDebug('explicit tags error', { file: debugLabel || 'unknown' })
+  } catch (error) {
+    gpsDebug('explicit tags error', debugContext(debugLabel, { error: describeError(error) }))
   }
 
   try {
     const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true, xmp: true })
     gpsDebug('structured parse raw', summarizeMetadata(exifData))
     const parsedGps = toGpsData(exifData)
-    gpsDebug('structured parse parsed', parsedGps)
+    gpsDebug('structured parse parsed', summarizeMetadata(parsedGps))
     if (parsedGps) return parsedGps
-  } catch {
-    gpsDebug('structured parse error', { file: debugLabel || 'unknown' })
+  } catch (error) {
+    gpsDebug('structured parse error', debugContext(debugLabel, { error: describeError(error) }))
   }
 
   try {
     const exifData = await exifr.parse(buffer)
     gpsDebug('full parse raw', summarizeMetadata(exifData))
     const parsedGps = toGpsData(exifData)
-    gpsDebug('full parse parsed', parsedGps)
+    gpsDebug('full parse parsed', summarizeMetadata(parsedGps))
     if (parsedGps) return parsedGps
-  } catch {
-    gpsDebug('full parse error', { file: debugLabel || 'unknown' })
+  } catch (error) {
+    gpsDebug('full parse error', debugContext(debugLabel, { error: describeError(error) }))
   }
 
   const canUseJpegFallback = mimeType === 'image/jpeg' || mimeType === 'image/jpg' || isJpegBuffer(buffer)
@@ -132,43 +146,48 @@ export async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: str
 
   try {
     const piexifGps = await parseGpsWithPiexif(buffer)
-    gpsDebug('piexif parsed', piexifGps)
+    gpsDebug('piexif parsed', summarizeMetadata(piexifGps))
     if (piexifGps) return piexifGps
-  } catch {
-    gpsDebug('piexif fallback error', { file: debugLabel || 'unknown' })
+  } catch (error) {
+    gpsDebug('piexif fallback error', debugContext(debugLabel, { error: describeError(error) }))
   }
 
   try {
     const fallbackGps = parseGpsFromExifJpeg(buffer)
-    gpsDebug('jpeg exif fallback parsed', fallbackGps)
+    gpsDebug('jpeg exif fallback parsed', summarizeMetadata(fallbackGps))
     return fallbackGps
-  } catch {
-    gpsDebug('jpeg exif fallback error', { file: debugLabel || 'unknown' })
+  } catch (error) {
+    gpsDebug('jpeg exif fallback error', debugContext(debugLabel, { error: describeError(error) }))
     return null
   }
 }
 
 export async function extractGpsFromFile(file: File): Promise<GpsData | null> {
   const debugLabel = `${file.name} (${file.type || 'unknown'})`
+  const fileContext = { size: file.size, lastModified: file.lastModified }
+
+  try {
+    const buffer = await file.arrayBuffer()
+    gpsDebug('arrayBuffer ready', debugContext(debugLabel, fileContext))
+    const gpsFromBuffer = await extractGpsFromBuffer(buffer, debugLabel, file.type)
+    if (gpsFromBuffer) {
+      gpsDebug('gps source selected', debugContext(debugLabel, { ...fileContext, source: 'original-buffer' }))
+      return gpsFromBuffer
+    }
+  } catch (error) {
+    gpsDebug('arrayBuffer extraction error', debugContext(debugLabel, { ...fileContext, error: describeError(error) }))
+  }
 
   try {
     const gpsFromBlob = await extractGpsFromBlob(file, debugLabel)
     if (gpsFromBlob) {
-      gpsDebug('gps source selected', { source: 'original-blob', gps: gpsFromBlob })
+      gpsDebug('gps source selected', debugContext(debugLabel, { ...fileContext, source: 'original-blob' }))
       return gpsFromBlob
     }
-  } catch {
-    gpsDebug('extractGpsFromBlob error', { file: debugLabel })
+  } catch (error) {
+    gpsDebug('extractGpsFromBlob error', debugContext(debugLabel, { ...fileContext, error: describeError(error) }))
   }
 
-  try {
-    const buffer = await file.arrayBuffer()
-    const gpsFromBuffer = await extractGpsFromBuffer(buffer, debugLabel, file.type)
-    if (gpsFromBuffer) {
-      gpsDebug('gps source selected', { source: 'original-buffer', gps: gpsFromBuffer })
-    }
-    return gpsFromBuffer
-  } catch {
-    return null
-  }
+  gpsDebug('gps not found', debugContext(debugLabel, fileContext))
+  return null
 }
