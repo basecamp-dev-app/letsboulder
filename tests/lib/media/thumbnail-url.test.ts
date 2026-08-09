@@ -77,4 +77,12 @@ describe('buildThumbnailUrl', () => {
       }
     )).not.toContain('lb-media=app')
   })
+
+  test('uses the same snapped variant for repeated requests', async () => {
+    const { buildThumbnailUrl } = await import('@/lib/media/thumbnail-url')
+    const source = '/images/originals/test/original.jpg'
+
+    expect(buildThumbnailUrl(source, 641, 70)).toBe(buildThumbnailUrl(source, 1280, 70))
+    expect(buildThumbnailUrl(source, 641, 70)).toContain('variant=detail')
+  })
 })

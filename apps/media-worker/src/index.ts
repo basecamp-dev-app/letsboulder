@@ -81,6 +81,31 @@ function buildMediaPath(originalKey: string, variant: MediaVariantKey, format: M
   return `${originPath}?variant=${variant}&format=${format}`
 }
 
+export function buildImageTransformRequest(
+  originUrl: string,
+  internalOriginSecret: string,
+  width: number,
+  format: 'avif' | 'auto' | 'jpeg' | 'webp',
+): { input: string; init: RequestInit } {
+  return {
+    input: originUrl,
+    init: {
+      headers: { 'X-Internal-Secret': internalOriginSecret },
+      cf: {
+        image: { width, format, fit: 'scale-down', metadata: 'none' },
+      },
+    } as RequestInit,
+  }
+}
+
+export function buildTransformedMediaHeaders(init?: HeadersInit): Headers {
+  const headers = new Headers(init)
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  headers.set('Vary', 'Accept')
+  headers.set('Access-Control-Allow-Origin', '*')
+  return headers
+}
+
 export function getReadyDeliveryObjectKey(
   image: Pick<ImageRow, 'optimized_key' | 'original_key' | 'processing_status'>,
 ): string | null {
@@ -583,17 +608,8 @@ async function handleMedia(request: Request, env: Env, url: URL) {
     : 'webp'
   const originUrl = `${env.R2_ORIGIN_URL}/${objectKey.split('/').map(encodeURIComponent).join('/')}`
 
-  const response = await fetch(originUrl, {
-    cf: {
-      cacheTtl: 0,
-      image: {
-        width,
-        format,
-        fit: 'scale-down',
-        metadata: 'none',
-      },
-    },
-  } as RequestInit & { cf: { cacheTtl: number; image: { width: number; format: string; fit: 'scale-down'; metadata: 'none' } } })
+  const transformRequest = buildImageTransformRequest(originUrl, env.INTERNAL_ORIGIN_SECRET, width, format)
+  const response = await fetch(transformRequest.input, transformRequest.init)
 
   if (!response.ok) {
     const fallback = await env.ORIGINALS_BUCKET.get(objectKey)
@@ -608,10 +624,7 @@ async function handleMedia(request: Request, env: Env, url: URL) {
     return new Response(fallback.body, { status: 200, headers })
   }
 
-  const headers = new Headers(response.headers)
-  headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-  headers.set('Vary', 'Accept')
-  headers.set('Access-Control-Allow-Origin', '*')
+  const headers = buildTransformedMediaHeaders(response.headers)
   return new Response(response.body, { status: response.status, headers })
 }
 

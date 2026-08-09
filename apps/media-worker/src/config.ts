@@ -15,6 +15,14 @@ export const MEDIA_FORMATS = {
 export type MediaVariantKey = keyof typeof MEDIA_VARIANT_WIDTHS
 export type MediaFormatKey = keyof typeof MEDIA_FORMATS
 
+export function getVariantForWidth(width: number): MediaVariantKey {
+  for (const variant of Object.keys(MEDIA_VARIANT_WIDTHS) as MediaVariantKey[]) {
+    if (width <= MEDIA_VARIANT_WIDTHS[variant]) return variant
+  }
+
+  return 'full'
+}
+
 export function getVariantWidth(variant: string | null): number | null {
   if (!variant) return null
   return MEDIA_VARIANT_WIDTHS[variant as MediaVariantKey] ?? null

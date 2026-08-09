@@ -3,6 +3,7 @@ import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
+import { getVariantForWidth, getVariantWidth } from '@/apps/media-worker/src/config'
 import { createR2Client } from '@/lib/media/r2'
 import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
@@ -55,7 +56,7 @@ export async function OPTIONS() {
 
 export const runtime = 'nodejs'
 
-const MAX_WIDTH = 2400
+const MAX_WIDTH = 2560
 const DEFAULT_QUALITY = 85
 const MAX_TRANSFORM_SIZE = 50 * 1024 * 1024 // 50 MB
 
@@ -117,7 +118,9 @@ async function transformImage(
     return null
   }
 
-  const width = widthParam ? Math.min(widthParam, MAX_WIDTH) : null
+  const width = widthParam
+    ? Math.min(getVariantWidth(getVariantForWidth(widthParam)) || MAX_WIDTH, MAX_WIDTH)
+    : null
   const outputFormat = pickOutputFormat(request, contentType, requestedFormat)
   let pipeline = sharp(bytes, { failOn: 'none' }).rotate()
 

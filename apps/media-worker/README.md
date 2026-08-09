@@ -38,7 +38,11 @@ Deletion is a separate scheduled flow. Canonical commit transactionally queues t
 | `/origin/*` | `ORIGINALS_BUCKET` | Requires `X-Internal-Secret`; raw private bytes |
 | `POST /enqueue` | `MEDIA_QUEUE` | Requires `Authorization: Bearer <INGRESS_SECRET>` |
 
-Cloudflare canonical creation and variant requests use `metadata: 'none'`. Browser preparation also disables EXIF preservation, but the repository does not independently validate stripping for every Cloudflare output/cache path.
+Canonical WebP creation relies on WebP's metadata-discarding output behavior. Request-time delivery explicitly uses `metadata: 'none'`; browser preparation also disables EXIF preservation, but the repository does not independently validate stripping for every Cloudflare output/cache path.
+
+## Free-Tier Budget And Monitoring
+
+The current Cloudflare Images Free plan allows 5,000 unique transformations per calendar month. A source plus parameter set is unique; repeated requests count once per month, and `format=auto` counts once across negotiated formats. Delivery is bounded to `thumb`, `card`, `detail`, `topo`, and `full` widths. Watch the Images transformation metric, Worker 9422 errors, cache hit ratio, and transformed response content types before and after deployments.
 
 ## Environments
 

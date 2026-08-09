@@ -15,7 +15,7 @@
 ## Canonical WebP Commit
 
 1. Ingest validates that the job locator still matches the image's immutable original locator and that the source exists in the configured private bucket.
-2. Cloudflare Image Resizing reads that source and produces a scale-down WebP at maximum width 2560 px, quality 82, and `metadata: 'none'`.
+2. Cloudflare Image Resizing reads that source and produces a scale-down WebP at maximum width 2560 px and quality 82. WebP output does not retain EXIF metadata; request-time delivery also explicitly sets `metadata: 'none'`.
 3. The Worker hashes the returned bytes, writes them as `images/assets/<image UUID>/<SHA-256>/canonical.webp` in the same private R2 bucket, then verifies the stored size and `image/webp` content type.
 4. Only after verification does service-only `commit_media_webp(...)` lock the image and atomically store the canonical locator and dimensions, virtual manifest, URL, and ready/public state; switch linked and exact locator-matched draft/public delivery locators to the canonical WebP; and enqueue the old source in `media_deletion_jobs` with reason `source_replaced`.
 5. The Worker then performs an anonymous `GET` through the production media hostname and requires a non-empty image response. Only `verify_media_replacement_delivery(...)` records that proof on the deletion job, and both canonical commit and verification require the active ingest claim token. Unverified source-replacement jobs cannot be claimed, and canonical ingest never deletes the source directly.
@@ -50,7 +50,7 @@ Database-first deployment is still preferred, but mixed-version rollout order is
 2. The Next.js loader (`lib/media/cloudflare-loader.ts`) selects a named width and builds a URL under `NEXT_PUBLIC_MEDIA_CDN_URL`.
 3. `static.dev.letsboulder.com` or `static.letsboulder.com` routes the request to the media Worker.
 4. For ready public image paths, the Worker prefers `images.optimized_key` and invokes Cloudflare Image Resizing against that private canonical WebP. Legacy ready rows without optimized metadata temporarily resolve to their original until backfill commits a canonical WebP; committed rows never fall back after source deletion.
-5. Cloudflare returns and caches the transformed response. No processed image variant is written to the public R2 bucket by the active pipeline.
+5. Cloudflare returns and caches the transformed response. The Worker Cache is enabled and transformed responses use stable named widths, `format=auto`, and immutable URLs. No processed image variant is written to the public R2 bucket by the active pipeline.
 
 `GET /origin/<key>` is an internal, secret-protected raw-private-object endpoint. It is not the public image-delivery path.
 
@@ -74,7 +74,15 @@ Attachment timing differs by target:
 - GPS is extracted client-side from the selected original before EXIF-stripped prepared bytes replace it in the durable queue, and is stored in explicit `images` columns when extraction succeeds. The upload contract can also persist a supplied capture date, although the current shared queue initializes that field to null.
 - Every supported upload is prepared as a bounded JPEG with EXIF preservation disabled. The prepared source remains private and should still be treated as sensitive despite that client-side stripping request.
 - HEIC/HEIF is converted to JPEG in a Web Worker (with a main-thread fallback) before the common JPEG compression step. The source HEIC is not uploaded.
-- Public transformed delivery requests set Cloudflare Image Resizing `metadata: 'none'`, which is intended to strip metadata from delivered variants. This repository does not independently verify every Cloudflare format/cache behavior, so do not treat that setting as proof that every delivered response is EXIF-free.
+- Public transformed delivery requests set Cloudflare Image Resizing `metadata: 'none'`, which strips invisible metadata from JPEG output; WebP and other non-JPEG outputs discard metadata by format. This repository does not independently verify every Cloudflare format/cache behavior, so do not treat that setting as proof that every delivered response is EXIF-free.
+
+## Transformation Budget And Monitoring
+
+The Cloudflare Images Free plan currently includes 5,000 unique transformations per calendar month. A unique transformation is a source image plus its transformation parameters; repeat requests for the same source and parameters count once during that month. `format=auto` counts as one transformation even when Cloudflare negotiates AVIF for some clients and WebP for others. New transformations return error 9422 after the allowance is exhausted, while cached responses continue to work.
+
+The application bounds production delivery to five named widths: 240, 640, 1280, 2048, and 2560 pixels. The planning upper bound is one canonical ingest transformation plus five delivery transformations per source. Actual usage depends on how many sources receive each variant and whether the monthly cache is warm.
+
+Monitor the Cloudflare Images transformation metric and 9422 responses monthly, and use Worker observability logs to track transform failures and raw fallbacks. Monitor cache hit ratio for `static.letsboulder.com` and verify `Vary: Accept`, immutable cache headers, negotiated content types, non-empty image responses, and representative mobile/desktop sizes after deployment. Roll back by redeploying the prior Worker and application versions; the immutable canonical WebPs remain valid delivery sources.
 
 ## Moderation Boundary
 

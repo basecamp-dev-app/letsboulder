@@ -1,4 +1,4 @@
-import { MEDIA_VARIANT_WIDTHS, type MediaVariantKey } from '@/apps/media-worker/src/config'
+import { getVariantForWidth, type MediaVariantKey } from '@/apps/media-worker/src/config'
 import { clientEnv } from '@/lib/env-client'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 
@@ -8,14 +8,8 @@ export interface BuildThumbnailOptions {
 }
 
 const API_MEDIA_PREFIX = '/api/media/'
-const VARIANT_ORDER: MediaVariantKey[] = ['thumb', 'card', 'detail', 'topo', 'full']
-
 function snapWidthToVariant(width: number): MediaVariantKey {
-  for (const variant of VARIANT_ORDER) {
-    if (width <= MEDIA_VARIANT_WIDTHS[variant]) return variant
-  }
-
-  return 'full'
+  return getVariantForWidth(width)
 }
 
 function getMediaHost(): string | null {

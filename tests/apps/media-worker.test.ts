@@ -16,7 +16,7 @@ vi.mock('@/apps/media-worker/src/supabase', () => ({
 }))
 
 import { processMediaDeletionJob } from '@/apps/media-worker/src/deletion-outbox'
-import { getReadyDeliveryObjectKey, processJob } from '@/apps/media-worker/src/index'
+import { buildImageTransformRequest, buildTransformedMediaHeaders, getReadyDeliveryObjectKey, processJob } from '@/apps/media-worker/src/index'
 import mediaWorker from '@/apps/media-worker/src/index'
 import type { MediaDeletionJobRow } from '@/apps/media-worker/src/schema'
 
@@ -26,6 +26,26 @@ const BUCKET = 'private-media'
 const SOURCE_KEY = `images/staging/${IMAGE_ID}/source.jpg`
 const MEDIA_JOB_ID = '33333333-3333-4333-8333-333333333333'
 const CLAIM_TOKEN = '55555555-5555-4555-8555-555555555555'
+
+describe('media transformation requests', () => {
+  it('uses a stable authenticated request shape', () => {
+    const first = buildImageTransformRequest('https://origin.example/image.webp', 'secret', 640, 'auto')
+    const second = buildImageTransformRequest('https://origin.example/image.webp', 'secret', 640, 'auto')
+
+    expect(first).toEqual(second)
+    expect(first.init).toEqual({
+      headers: { 'X-Internal-Secret': 'secret' },
+      cf: { image: { width: 640, format: 'auto', fit: 'scale-down', metadata: 'none' } },
+    })
+
+    expect(Object.fromEntries(buildTransformedMediaHeaders({ 'Content-Type': 'image/avif' }))).toEqual({
+      'access-control-allow-origin': '*',
+      'cache-control': 'public, max-age=31536000, immutable',
+      'content-type': 'image/avif',
+      vary: 'Accept',
+    })
+  })
+})
 
 function createProcessingHarness(options: { failCommitOnce?: boolean; deliveryResponse?: () => Response; transformError?: Error } = {}) {
   const events: string[] = []
