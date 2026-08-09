@@ -11,11 +11,15 @@ echo "=== Doc Verification ==="
 
 # 0. Required documentation and package commands referenced by contributor docs
 for path in \
+  "AGENTS.md" \
   "README.md" \
   "LOCAL_SETUP.md" \
   "CONTRIBUTING.md" \
   "docs/README.md" \
   "docs/architecture.md" \
+  "docs/feature-structure.md" \
+  "docs/testing/README.md" \
+  "docs/db/schema.md" \
   "docs/open-data-exports.md" \
   "docs/submission-workflow.md" \
   "docs/media-pipeline.md" \
@@ -31,7 +35,7 @@ if ! node "$ROOT/scripts/verify-markdown-links.mjs"; then
   ERRORS=$((ERRORS + 1))
 fi
 
-for script in lint typecheck check:features test:unit test:components test:database test:integration; do
+for script in lint typecheck check:features check:csrf-fetch check:type-drift test:unit test:components test:database test:integration test:integration:coverage test:e2e build; do
   if ! node -e "const p=require('$ROOT/package.json'); process.exit(p.scripts?.['$script'] ? 0 : 1)"; then
     echo "DRIFT: documented package script is missing: $script"
     ERRORS=$((ERRORS + 1))

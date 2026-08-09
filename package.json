@@ -21,6 +21,7 @@
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "eslint --cache --concurrency auto",
     "check:csrf-fetch": "node scripts/check-api-mutation-fetches.mjs",
+    "check:type-drift": "node scripts/check-generated-types.mjs",
     "lint:features": "eslint --cache --concurrency auto features/ --rule 'local-rules/consistent-feature-structure: warn'",
     "check:features": "npx tsx scripts/check-feature-compliance.ts",
     "export:public-data": "tsx scripts/public-data/export.ts",
@@ -34,7 +35,8 @@
     "test:components": "vitest run --config vitest.component.config.ts",
     "test:database": "vitest run --config vitest.database.config.ts",
     "test:integration": "vitest run --config vitest.config.ts --mode integration",
-    "test:integration:coverage": "vitest run --config vitest.config.ts --mode integration --coverage"
+    "test:integration:coverage": "vitest run --config vitest.config.ts --mode integration --coverage",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1104.0",

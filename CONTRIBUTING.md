@@ -29,13 +29,16 @@ This project uses conventional commits when practical:
 
 ## Code Style
 
-- Imports: `@/` prefix (third-party first)
+- Imports: third-party first, then `@/` absolute imports for application code. Same-directory relative imports are acceptable within feature internals, tests, and `apps/media-worker`.
 - Strings: Single quotes
 - Components: PascalCase, `'use client'` directive
-- Files: kebab-case for non-components
+- Files: PascalCase for reusable `.tsx` components; kebab-case for utilities, hooks, actions, scripts, and other non-component files.
+- Tests use `.test.ts`/`.test.tsx`; Playwright E2E tests use `.spec.ts`, and authenticated tests use `.auth.spec.ts`.
 - Never use `any` — use `unknown` + Type Guard
 - Avoid committing `console.log` in app code
 - Prefer Server Actions for UI mutations, Route Handlers for public API/webhooks
+
+See `AGENTS.md` for the complete directory map, source-of-truth rules, and implementation constraints.
 
 ## Logging
 
@@ -55,15 +58,15 @@ This project uses conventional commits when practical:
 
 ## Testing
 
-- Run `npm run lint` before opening a PR
-- Run `npm run typecheck` before opening a PR
-- Run `npm run check:features` when changing feature boundaries
-- Run `npm run check:csrf-fetch` before opening client-side API mutation changes
-- Run `npm run test:unit` for unit tests that cover your change
-- Run `npm run test:components` for React component changes
-- Run `npm run test:integration` for integration coverage when relevant
-- Install dependencies reproducibly with `npm ci --prefer-offline`; install the media-worker lockfile separately with `npm --prefix apps/media-worker ci --prefer-offline`. Install Playwright browsers with `npx playwright install chromium webkit`, then run `npx playwright test` when the change touches user flows
-- Run `npm --prefix apps/media-worker run check` for Worker or media-contract changes
+Use the smallest relevant checks during development, then run the complete quality sequence before opening a PR. The test prerequisites and CI-equivalent sequence are maintained in [`docs/testing/README.md`](docs/testing/README.md).
+
+- Always: `npm run lint`, `npm run typecheck`, and `bash docs/verify.sh`
+- Feature boundary changes: `npm run check:features`
+- Client API mutation changes: `npm run check:csrf-fetch`
+- Unit or component changes: the matching Vitest script
+- Database or migration changes: reset local Supabase, run `npm run check:type-drift`, and run `npm run test:database`
+- Worker or media contract changes: `npm --prefix apps/media-worker run check`
+- User-flow changes: install Playwright browsers and run `npm run test:e2e -- --project=<name>` for the relevant Playwright project
 
 ## Database Changes
 
@@ -95,5 +98,8 @@ npm run test:unit        # Unit tests
 npm run test:components  # React component tests
 npm run test:integration # Integration tests
 npm run test:database    # Local Supabase database tests
+npm run test:e2e         # Playwright E2E tests
 bash docs/verify.sh      # Documentation drift checks
 ```
+
+For first-time setup, use [`LOCAL_SETUP.md`](LOCAL_SETUP.md). For the full CI-equivalent command sequence, use [`docs/testing/README.md`](docs/testing/README.md) rather than duplicating it here.

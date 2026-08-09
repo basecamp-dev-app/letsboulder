@@ -77,6 +77,8 @@ npm run test:integration
 npm run build
 ```
 
+Use `CONTRIBUTING.md` to choose checks for a specific change and `docs/testing/README.md` for test prerequisites, Playwright projects, database tests, and the CI-equivalent sequence.
+
 Database work requires a current local stack:
 
 ```bash
@@ -86,7 +88,7 @@ npm run typecheck
 npm run test:database
 ```
 
-See `docs/testing/README.md` for test prerequisites and `docs/db/migrations.md` for the schema-change workflow.
+See `docs/db/migrations.md` for the schema-change workflow. Do not use hosted-project commands for normal local development.
 
 ## Admin Access
 

@@ -2,6 +2,16 @@
 
 Use this index to find the authoritative description of each subsystem. Code and committed Supabase migrations remain the final source of truth; update the corresponding document when behavior changes.
 
+## How To Navigate
+
+- Start with `app/` for a URL or page, then follow the owning `features/<domain>/` directory.
+- Start with `app/api/` and `docs/api/routes.md` for an HTTP endpoint. Keep route handlers thin when the behavior belongs to a feature server module.
+- Start with `supabase/migrations/` for database behavior. `types/database.ts` is generated from the local schema and must not be edited manually.
+- Start with `apps/media-worker/` for Cloudflare Worker behavior; it is an independent package with its own dependency installation and typecheck.
+- Start with `tests/` to find executable contracts. Test suffixes and suite boundaries are documented in [Testing](testing/README.md).
+
+When documentation and implementation disagree, verify the implementation and tests first, then update the document and its drift check rather than introducing a second convention.
+
 ## Start Here
 
 | Topic | Document | Source of truth |

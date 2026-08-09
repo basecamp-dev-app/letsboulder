@@ -24,6 +24,7 @@ interface RoutePoint {
 
 export const MAX_ROUTES_PER_DAY = 5
 
+// This layer coordinates HTTP parsing and side effects; mode-specific database writes stay in the execution modules below.
 async function runSubmissionSideEffects(
   supabase: ReturnType<typeof getServerClientFromRequest>,
   input: { imageId: string; cragId: string | null; userId: string; executionResult: SubmissionExecutionResult }

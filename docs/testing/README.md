@@ -22,7 +22,9 @@
 - `npm run test:unit` — `vitest run --config vitest.config.ts`
 - `npm run test:components` — `vitest run --config vitest.component.config.ts`
 - `npm run test:integration` — `vitest run --config vitest.config.ts --mode integration`
+- `npm run test:e2e` — `playwright test` (append Playwright options after `--`)
 - `npm run test:database` — `vitest run --config vitest.database.config.ts`
+- `npm run check:type-drift` — generate types from local Supabase in memory and compare them with `types/database.ts`
 
 ## What Runs Locally
 
@@ -30,6 +32,7 @@
 - Component tests run every `tests/**/*.test.tsx` file under jsdom with `tests/vitest.component.setup.ts`; unit/integration config handles `tests/**/*.test.ts` in Node and excludes `tests/database/**`.
 - Database tests require local Supabase to be running with the current migrations applied, normally after a local database reset. They default to `postgresql://postgres:postgres@127.0.0.1:54322/postgres`; use `TEST_DATABASE_URL` only for another disposable test database.
 - Database tests refuse non-loopback hosts. `TEST_DATABASE_ALLOW_NON_LOCAL=true` is an explicit escape hatch and must never point at shared, staging, or production data.
+- `npm run check:type-drift` has the same local Supabase prerequisite as database tests. It fails when the committed generated types do not match the running local schema.
 - `immutable-wiki-revisions.test.ts` verifies baseline capture, grouped entity commits, parent chains, RFC 6902 patches, hashes, database immutability, account anonymization, rollback lineage, and stale-head conflicts.
 - Public Playwright tests can run locally with standard app/env setup.
 - Authenticated Playwright tests require the test auth environment variables and the `/api/test/[segment]/auth` endpoint.

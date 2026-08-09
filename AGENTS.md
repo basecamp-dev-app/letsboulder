@@ -11,8 +11,23 @@
   Do not output more than 10 lines of unchanged code surrounding a fix.
 </constraint>
 
+## Repository Map
+
+- `app/`: Next.js route entrypoints, route-local composition, and route-local UI only.
+- `features/<domain>/`: product behavior, domain UI, hooks, validation, server orchestration, and domain types.
+- `components/`: shared app shell and reusable UI; `components/ui/` contains owned shadcn primitives.
+- `lib/`: cross-feature technical utilities and platform integrations; do not put product-domain logic here.
+- `types/`: generated database types and shared application contracts.
+- `scripts/`: maintenance, export, verification, and operational tooling.
+- `tests/`: Vitest unit/component/database tests and Playwright E2E tests.
+- `apps/media-worker/`: independent Cloudflare Worker package with its own `package.json` and lockfile.
+- `supabase/migrations/`: canonical database schema history; `types/database.ts` is generated output.
+- `docs/`: subsystem contracts and operational workflows; start at `docs/README.md`.
+
+When locating code, start with the route or feature named in the task, then follow its owning feature/server module and tests. Do not infer behavior from similarly named legacy files without checking the documented canonical caller.
+
 <forbidden_actions>
-  - DO NOT use relative imports. ALWAYS use `@/`.
+  - Use `@/` absolute imports across application code and between features. Relative imports are allowed for files within the same small module boundary, tests, and the independent `apps/media-worker` package.
   - Prioritize Database['public']['Tables'][...] types from supabase gen types for DB rows and query surfaces; app-level mapped view models are acceptable when they improve readability.
   - DO NOT use `any`. Use `unknown` + Type Guard for non-DB payloads.
   - Use `console.log` freely during development. ESLint warns on them to remind you to clean up before merge. Allowed in test setup and script files.
@@ -52,6 +67,7 @@ npx supabase start
 npx supabase db reset
 npx supabase gen types typescript --local > types/database.ts
 npm run typecheck
+npm run check:type-drift
 npm run test:database
 ```
 
@@ -59,10 +75,20 @@ Run `npm --prefix apps/media-worker run check` when database contracts used by t
 
 ## Code Style
 
-- Imports: `@/` prefix (third-party first)
+- Imports: third-party first, then `@/` absolute imports for application modules; same-directory relative imports are acceptable in tests, feature internals, and `apps/media-worker`.
 - Strings: Single quotes
 - Components: PascalCase, 'use client' directive
-- Files: kebab-case for non-components
+- Files: PascalCase for reusable `.tsx` components; kebab-case for utilities, hooks, actions, scripts, and other non-component files.
+- Route-local files may follow the Next.js route convention (`page.tsx`, `layout.tsx`, `loading.tsx`, and similar).
+- Test files use `.test.ts`/`.test.tsx`; Playwright tests use `.spec.ts`, with `.auth.spec.ts` for authenticated flows.
+
+## Source Of Truth
+
+- Runtime behavior is defined by code and tests; documentation describes the intended contract and must be updated when behavior changes.
+- Database behavior is defined by committed migrations. Regenerate `types/database.ts` locally after schema changes; never hand-edit generated database types.
+- Public route inventory is documented in `docs/api/routes.md`; route handlers remain under `app/api/**`.
+- Feature ownership is checked by `npm run check:features`; see `docs/feature-structure.md` for allowed nested feature layouts.
+- If documents disagree, prefer the committed implementation and update the stale document as part of the same change.
 
 ### File Naming Rules
 - **`.tsx` component files:** PascalCase (e.g., `LogbookView.tsx`, `CragSelector.tsx`)

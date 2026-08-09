@@ -14,6 +14,7 @@ import type {
 const DEFAULT_CONCURRENCY = 4
 const UNKNOWN_ASSET_ALLOWANCE_BYTES = 5 * 1024 * 1024
 
+// The repository abstracts IndexedDB and Cache API details so install/activation rules remain testable without browsers.
 export interface OfflinePackRepository {
   listPacks(): Promise<OfflinePackRecord[]>
   getPack(packId: string): Promise<OfflinePackRecord | null>

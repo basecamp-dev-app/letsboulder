@@ -39,6 +39,23 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology.
 - **Network resilience**: Online-first loading with explicit connection and retry states
 - **Open data**: Signed nightly ODbL snapshots in a dedicated public R2 bucket
 
+### Repository Map
+
+Use this map to find the right place for a change:
+
+| Need | Start here | Then check |
+|---|---|---|
+| Route/page behavior | `app/` | Owning `features/<domain>/` and `tests/app/` |
+| Product-domain behavior | `features/<domain>/` | Its `server/`, `actions.ts`, hooks, and tests |
+| Shared UI or app shell | `components/` | `components/ui/` and component tests |
+| Cross-feature technical code | `lib/` | Existing patterns in `docs/patterns.md` |
+| API behavior | `app/api/` | `docs/api/routes.md` and `tests/api/` |
+| Database behavior | `supabase/migrations/` | `docs/db/schema.md`, database tests, and generated `types/database.ts` |
+| Media processing | `apps/media-worker/` | `docs/media-pipeline.md` and the worker README |
+| Maintenance and verification | `scripts/` and `docs/verify.sh` | `package.json` scripts |
+
+For the authoritative topic index, see [docs/README.md](docs/README.md). For contribution and validation rules, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Getting Started
 
 See [LOCAL_SETUP.md](LOCAL_SETUP.md) for full local development setup.

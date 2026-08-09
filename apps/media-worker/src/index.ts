@@ -7,6 +7,7 @@ const OUTBOX_WORKER_NAME = 'media-worker-scheduled'
 const OUTBOX_DRAIN_LIMIT = 10
 const MEDIA_JOB_LEASE_SECONDS = 300
 
+// Keep this worker contract narrow and local; the worker is an independent package and does not import app types.
 interface ImageRow {
   id: string
   created_by: string | null
