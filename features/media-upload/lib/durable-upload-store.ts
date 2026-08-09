@@ -3,7 +3,6 @@ import type { MediaUploadItem, QueueEntry } from '@/features/media-upload/lib/up
 import { uploadDebugError } from '@/lib/media/upload-debug'
 
 const metadataStore = createStore('letsboulder-contributions', 'media-queue')
-const blobStore = createStore('letsboulder-contributions', 'media-blobs')
 
 interface PersistedUploadMetadata {
   schemaVersion: 1 | 2
@@ -19,6 +18,10 @@ export interface RestoredUpload {
 
 function key(userId: string, clientId: string) {
   return `${userId}:${clientId}`
+}
+
+function blobKey(userId: string, clientId: string) {
+  return `${key(userId, clientId)}:blob`
 }
 
 function canUseIndexedDb() {
@@ -37,13 +40,14 @@ function isMetadata(value: unknown): value is PersistedUploadMetadata {
 export async function persistNewUpload(userId: string, item: MediaUploadItem, file: File): Promise<boolean> {
   if (!canUseIndexedDb()) return false
   const storageKey = key(userId, item.clientId)
+  const storedBlobKey = blobKey(userId, item.clientId)
   const persistedItem = { ...item, previewUrl: undefined }
   const [previousBlob, previousMetadata] = await Promise.all([
-    get<Blob>(storageKey, blobStore).catch(() => undefined),
+    get<Blob>(storedBlobKey, metadataStore).catch(() => undefined),
     get<unknown>(storageKey, metadataStore).catch(() => undefined),
   ])
   try {
-    await set(storageKey, file, blobStore)
+    await set(storedBlobKey, file, metadataStore)
     delete persistedItem.previewUrl
     await set(storageKey, { schemaVersion: 2, userId, item: persistedItem, lastModified: file.lastModified } satisfies PersistedUploadMetadata, metadataStore)
     return true
@@ -56,8 +60,8 @@ export async function persistNewUpload(userId: string, item: MediaUploadItem, fi
     })
     await Promise.all([
       previousBlob === undefined
-        ? del(storageKey, blobStore).catch(() => undefined)
-        : set(storageKey, previousBlob, blobStore).catch(() => undefined),
+        ? del(storedBlobKey, metadataStore).catch(() => undefined)
+        : set(storedBlobKey, previousBlob, metadataStore).catch(() => undefined),
       previousMetadata === undefined
         ? del(storageKey, metadataStore).catch(() => undefined)
         : set(storageKey, previousMetadata, metadataStore).catch(() => undefined),
@@ -85,7 +89,7 @@ export async function removePersistedUpload(userId: string, clientId: string): P
   const storageKey = key(userId, clientId)
   await Promise.all([
     del(storageKey, metadataStore).catch(() => undefined),
-    del(storageKey, blobStore).catch(() => undefined),
+    del(blobKey(userId, clientId), metadataStore).catch(() => undefined),
   ])
 }
 
@@ -94,7 +98,7 @@ export async function restoreUploads(userId: string): Promise<RestoredUpload[]> 
   try {
     const records: unknown[] = await values(metadataStore)
     const restored = await Promise.all(records.filter(isMetadata).filter((record) => record.userId === userId).map(async (record) => {
-      const blob = await get<Blob>(key(userId, record.item.clientId), blobStore)
+      const blob = await get<Blob>(blobKey(userId, record.item.clientId), metadataStore)
       if (!(blob instanceof Blob)) return null
       const file = new File([blob], record.item.fileName, { type: blob.type, lastModified: record.lastModified })
       const item: MediaUploadItem = {
