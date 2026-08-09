@@ -1,5 +1,5 @@
 {
-  "name": "climbing-app",
+  "name": "letsboulder",
   "version": "0.1.0",
   "overrides": {
     "@babel/core": "^7.29.7",
