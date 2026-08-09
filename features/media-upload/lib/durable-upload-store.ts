@@ -1,5 +1,6 @@
 import { createStore, del, get, set, values } from 'idb-keyval'
 import type { MediaUploadItem, QueueEntry } from '@/features/media-upload/lib/upload-types'
+import { uploadDebugError } from '@/lib/media/upload-debug'
 
 const metadataStore = createStore('letsboulder-contributions', 'media-queue')
 const blobStore = createStore('letsboulder-contributions', 'media-blobs')
@@ -46,7 +47,13 @@ export async function persistNewUpload(userId: string, item: MediaUploadItem, fi
     delete persistedItem.previewUrl
     await set(storageKey, { schemaVersion: 2, userId, item: persistedItem, lastModified: file.lastModified } satisfies PersistedUploadMetadata, metadataStore)
     return true
-  } catch {
+  } catch (error) {
+    uploadDebugError('indexeddb-persist-failed', error, {
+      clientId: item.clientId,
+      fileName: item.fileName,
+      fileSize: file.size,
+      fileType: file.type,
+    })
     await Promise.all([
       previousBlob === undefined
         ? del(storageKey, blobStore).catch(() => undefined)

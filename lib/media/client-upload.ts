@@ -1,5 +1,5 @@
 import { csrfFetch } from '@/lib/csrf-client'
-import { uploadDebug } from '@/lib/media/upload-debug'
+import { uploadDebug, uploadDebugError } from '@/lib/media/upload-debug'
 import type { MediaStatusResponse } from '@/lib/media/types'
 
 interface UploadSessionRequest {
@@ -189,7 +189,9 @@ export async function createMediaUploadSession(payload: UploadSessionRequest, si
 
   const data = await parseJson<UploadSessionResponse & { error?: string }>(response)
   if (!response.ok || !data) {
-    throw new Error(data?.error || 'Failed to create upload session')
+    const error = new Error(data?.error || `Failed to create upload session (status ${response.status})`)
+    uploadDebugError('upload-session-create-failed', error, { status: response.status })
+    throw error
   }
 
   return data
@@ -238,7 +240,10 @@ export async function uploadFileToMediaSession(uploadUrl: string, uploadHeaders:
     }
   }
 
-  uploadDebug('xhr-upload-failed-final', { message: lastError?.message || 'Upload failed' })
+  uploadDebugError('xhr-upload-failed-final', lastError || new Error('Upload failed'), {
+    fileSize: file.size,
+    contentType: file.type || 'application/octet-stream',
+  })
   throw lastError || new Error('Upload failed')
 }
 
@@ -252,7 +257,9 @@ export async function completeMediaUploadSession(imageId: string, purpose: Uploa
 
   const data = await parseJson<MediaStatusResponse & { error?: string }>(response)
   if (!response.ok || !data) {
-    throw new Error(data?.error || 'Failed to finalize upload session')
+    const error = new Error(data?.error || `Failed to finalize upload session (status ${response.status})`)
+    uploadDebugError('upload-session-complete-failed', error, { imageId, status: response.status })
+    throw error
   }
 
   return data
@@ -262,7 +269,9 @@ export async function getMediaUploadStatus(imageId: string, signal?: AbortSignal
   const response = await fetch(`/api/media/upload-sessions/${encodeURIComponent(imageId)}`, { signal })
   const data = await parseJson<MediaStatusResponse & { error?: string }>(response)
   if (!response.ok || !data) {
-    throw new Error(data?.error || 'Failed to get upload status')
+    const error = new Error(data?.error || `Failed to get upload status (status ${response.status})`)
+    uploadDebugError('upload-status-failed', error, { imageId, status: response.status })
+    throw error
   }
 
   return data

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { extractGpsFromFile } from '@/lib/image-gps'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, getMediaUploadStatus, pollMediaUploadStatus, uploadFileToMediaSession } from '@/lib/media/client-upload'
-import { uploadDebug } from '@/lib/media/upload-debug'
+import { uploadDebug, uploadDebugError } from '@/lib/media/upload-debug'
 import { createAttachUpload } from '@/features/media-upload/lib/attach-upload'
 import { enqueueUploads, prepareRetryQueue, removeUploadEntry, resetQueuedUpload } from '@/features/media-upload/lib/media-upload-controller-helpers'
 import { buildPreviewUrl, getImageDimensions, preprocessFile } from '@/features/media-upload/lib/preprocess-image'
@@ -276,11 +276,14 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       setTimeout(() => revokePreviewUrl(previewClientId), 10000)
     } catch (error) {
       const isAbortError = error instanceof DOMException ? error.name === 'AbortError' : error instanceof Error && error.name === 'AbortError'
-      uploadDebug('process-active-entry-error', {
+      uploadDebugError('process-active-entry-error', error, {
         clientId: entry.clientId,
         imageId: uploadSessionImageId,
         isAbortError,
-        message: error instanceof Error ? error.message : 'Unknown upload error',
+        fileName: entry.file.name,
+        fileSize: entry.file.size,
+        fileType: entry.file.type,
+        online: window.navigator.onLine,
       })
 
       if (isAbortError) {
@@ -445,8 +448,13 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
             queueEntriesRef.current.set(upload.clientId, { clientId: upload.clientId, target, file: preparedFile, isPrepared: true })
             continue
           }
-        } catch {
-          // Report preparation and durable-storage failures through the queue item.
+        } catch (error) {
+          uploadDebugError('queue-preparation-failed', error, {
+            clientId: upload.clientId,
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type,
+          })
         }
         failedUploads.push({ ...upload, status: 'FAILED', error: 'This photo could not be prepared and saved on this device. Free storage space, then select it again.' })
       }

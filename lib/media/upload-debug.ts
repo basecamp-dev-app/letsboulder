@@ -1,4 +1,5 @@
 import { clientEnv } from '@/lib/env-client'
+import { reportError } from '@/lib/errors'
 
 function isUploadDebugEnabled(): boolean {
   return clientEnv.NEXT_PUBLIC_DEBUG_IMAGE_UPLOADS
@@ -34,4 +35,17 @@ export function uploadDebug(event: string, details?: Record<string, unknown>) {
   if (!isOnRelevantRoute()) return
 
   console.debug(`[upload-debug] ${event}`, details ? sanitizeDetails(details) : {})
+}
+
+export function uploadDebugError(event: string, error: unknown, details?: Record<string, unknown>) {
+  const sanitizedDetails = details ? sanitizeDetails(details) : {}
+  uploadDebug(event, {
+    ...sanitizedDetails,
+    error: error instanceof Error ? error.message : String(error),
+  })
+  reportError(error, {
+    message: `[upload-debug] ${event}`,
+    tags: { feature: 'media-upload' },
+    extra: sanitizedDetails,
+  })
 }

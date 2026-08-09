@@ -54,6 +54,7 @@ vi.mock('@/features/media-upload/lib/durable-upload-store', () => ({
 
 vi.mock('@/lib/media/upload-debug', () => ({
   uploadDebug: vi.fn(),
+  uploadDebugError: vi.fn(),
 }))
 
 vi.mock('@/features/media-upload/lib/preprocess-image', () => ({
