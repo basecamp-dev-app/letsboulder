@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 import path from 'path'
 import dotenv from 'dotenv'
-import { validateTrustedBaseUrl } from '@/scripts/playwright/deployment-url'
+import { validateAuthenticatedBaseUrl, validateTrustedBaseUrl } from '@/scripts/playwright/deployment-url'
 
 dotenv.config({ path: path.resolve(__dirname, 'tests/.env.test') })
 
@@ -9,6 +9,9 @@ const configuredBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3
 const resolvedBaseUrl = process.env.CI
   ? validateTrustedBaseUrl(configuredBaseUrl, Boolean(process.env.VERCEL_DEPLOYMENT_ID?.trim()))
   : configuredBaseUrl
+if (process.env.CI && process.env.PLAYWRIGHT_AUTHENTICATED_SMOKE === 'true') {
+  validateAuthenticatedBaseUrl(resolvedBaseUrl)
+}
 const skipGlobalSetup = process.env.PLAYWRIGHT_SKIP_GLOBAL_SETUP === 'true'
 
 if (process.env.CI && !process.env.PLAYWRIGHT_BASE_URL?.trim()) {
@@ -47,6 +50,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         storageState: path.resolve(__dirname, 'playwright/.auth/user.json'),
+        trace: 'off',
         ...(process.env.CF_ACCESS_CLIENT_ID || process.env.CF_ACCESS_CLIENT_SECRET || process.env.INTERNAL_TEST_KEY ? {
           extraHTTPHeaders: {
             ...(process.env.CF_ACCESS_CLIENT_ID ? { 'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID } : {}),

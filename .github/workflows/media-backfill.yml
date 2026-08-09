@@ -120,12 +120,7 @@ jobs:
             limit="$MAX_ROWS"
           fi
 
-          sample_filter=""
-          if [ -n "$SAMPLE_IMAGE_ID" ]; then
-            sample_filter="AND i.id = '$SAMPLE_IMAGE_ID'::uuid"
-          fi
-
-          query=$(cat <<SQL
+          query=$(cat <<'SQL'
           WITH candidate_images AS (
             SELECT
               i.id,
@@ -154,9 +149,9 @@ jobs:
               AND i.optimized_key IS NULL
               AND i.status <> 'deleted'
               AND i.created_by IS NOT NULL
-              $sample_filter
+              AND (NULLIF(:'sample_image_id', '') IS NULL OR i.id = NULLIF(:'sample_image_id', '')::uuid)
             ORDER BY i.created_at ASC
-            LIMIT $limit
+            LIMIT :'row_limit'::integer
           )
           SELECT COALESCE(json_agg(row_to_json(candidate_images)), '[]'::json)::text
           FROM candidate_images;
@@ -166,6 +161,8 @@ jobs:
           selected=$(psql \
             "host=$SUPABASE_DB_HOST port=$SUPABASE_DB_PORT user=$SUPABASE_DB_USER dbname=$SUPABASE_DB_NAME sslmode=$PSQL_SSLMODE" \
             --no-align --tuples-only --quiet \
+            -v sample_image_id="$SAMPLE_IMAGE_ID" \
+            -v row_limit="$limit" \
             -c "$query")
 
           selected=$(printf '%s' "$selected" | tr -d '\n')
@@ -209,7 +206,12 @@ jobs:
               "host=$SUPABASE_DB_HOST port=$SUPABASE_DB_PORT user=$SUPABASE_DB_USER dbname=$SUPABASE_DB_NAME sslmode=$PSQL_SSLMODE" \
               --no-align --tuples-only --quiet \
               -v ON_ERROR_STOP=1 \
-              -c "set role service_role; select set_config('request.jwt.claims', '{\"role\":\"service_role\"}', false); select id from public.queue_media_ingest_job('$image_id'::uuid, '$original_bucket', '$original_key', 'r2', '$purpose', '$created_by'::uuid, 'backfill', false); reset role")
+              -v image_id="$image_id" \
+              -v original_bucket="$original_bucket" \
+              -v original_key="$original_key" \
+              -v purpose="$purpose" \
+              -v created_by="$created_by" \
+              -c "set role service_role; select set_config('request.jwt.claims', '{\"role\":\"service_role\"}', false); select id from public.queue_media_ingest_job(:'image_id'::uuid, :'original_bucket', :'original_key', 'r2', :'purpose', :'created_by'::uuid, 'backfill', false); reset role")
             if [ -z "$durable_job" ]; then
               failure=$((failure + 1))
               failed_ids+=("$image_id")
@@ -253,13 +255,13 @@ jobs:
             sleep "$VERIFY_WAIT_SECONDS"
           fi
 
-          ids_sql=$(jq -r ".[].id | \"'\(.)'\"" selected-images.json | paste -sd, -)
-          if [ -z "$ids_sql" ]; then
+          selected_ids=$(jq -c '[.[].id]' selected-images.json)
+          if [ "$selected_ids" = '[]' ]; then
             echo '::warning::No selected rows to verify'
             exit 0
           fi
 
-          verify_query=$(cat <<SQL
+          verify_query=$(cat <<'SQL'
           SELECT json_agg(row_to_json(verified_rows))::text
           FROM (
             SELECT
@@ -271,7 +273,10 @@ jobs:
               optimized_key,
               variants
             FROM public.images
-            WHERE id::text IN (${ids_sql})
+            WHERE id IN (
+              SELECT value::uuid
+              FROM jsonb_array_elements_text(:'selected_ids'::jsonb)
+            )
             ORDER BY id ASC
           ) AS verified_rows;
           SQL
@@ -280,6 +285,7 @@ jobs:
           verified=$(psql \
             "host=$SUPABASE_DB_HOST port=$SUPABASE_DB_PORT user=$SUPABASE_DB_USER dbname=$SUPABASE_DB_NAME sslmode=$PSQL_SSLMODE" \
             --no-align --tuples-only --quiet \
+            -v selected_ids="$selected_ids" \
             -c "$verify_query")
 
           verified=$(printf '%s' "$verified" | tr -d '\n')

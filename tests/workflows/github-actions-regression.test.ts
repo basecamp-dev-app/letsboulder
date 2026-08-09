@@ -43,6 +43,53 @@ describe('GitHub Actions security contracts', () => {
     expect(backfill).toContain('verify_wait_seconds must be a non-negative integer')
   })
 
+  it('keeps authenticated Playwright credentials off preview deployments', () => {
+    const deploymentUrl = script('../playwright/deployment-url.ts')
+    const playwrightWorkflow = workflow('test.yml')
+    const playwrightConfig = readFileSync(path.join(root, 'playwright.config.ts'), 'utf8')
+    const globalSetup = readFileSync(path.join(root, 'global-setup.ts'), 'utf8')
+
+    expect(deploymentUrl).toContain('authenticated_allowed=')
+    expect(deploymentUrl).toContain('AUTHENTICATED_TRUSTED_HOSTS')
+    expect(playwrightWorkflow).toContain("if: steps.resolve_base_url.outputs.authenticated_allowed == 'true'")
+    expect(playwrightWorkflow).toContain("if: steps.resolve_base_url.outputs.authenticated_allowed != 'true'")
+    expect(playwrightWorkflow).toContain("PLAYWRIGHT_AUTHENTICATED_SMOKE: 'true'")
+    expect(playwrightConfig).toContain('validateAuthenticatedBaseUrl(resolvedBaseUrl)')
+    expect(playwrightConfig).toContain("trace: 'off'")
+    expect(globalSetup).toContain('validateAuthenticatedBaseUrl(baseURL)')
+    expect(globalSetup).not.toContain('Authenticating via ${authUrl.toString()}')
+    expect(globalSetup).not.toContain('Cookies set:')
+  })
+
+  it('parameterizes all media backfill SQL inputs', () => {
+    const backfill = workflow('media-backfill.yml')
+    const hostileValues = [
+      "bucket' OR 1=1 --",
+      'key; touch /tmp/pwned',
+      'line\none-\u2603',
+      '$(whoami) `id` && rm -rf /',
+    ]
+
+    expect(backfill).toContain("-v sample_image_id=\"$SAMPLE_IMAGE_ID\"")
+    expect(backfill).toContain("-v original_bucket=\"$original_bucket\"")
+    expect(backfill).toContain("-v original_key=\"$original_key\"")
+    expect(backfill).toContain("-v selected_ids=\"$selected_ids\"")
+    expect(backfill).toContain("NULLIF(:'sample_image_id', '')::uuid")
+    expect(backfill).toContain("jsonb_array_elements_text(:'selected_ids'::jsonb)")
+
+    for (const value of hostileValues) expect(backfill).not.toContain(value)
+    expect(backfill).not.toMatch(/queue_media_ingest_job\('\$\{?image_id|queue_media_ingest_job\('\$image_id/)
+    expect(backfill).not.toContain('IN (${ids_sql})')
+    expect(backfill).not.toContain("'$SAMPLE_IMAGE_ID'::uuid")
+  })
+
+  it('retains strict UUID validation before parameterized SQL execution', () => {
+    const backfill = workflow('media-backfill.yml')
+    expect(backfill).toContain('sample_image_id must be a UUID')
+    expect(backfill).toMatch(/SAMPLE_IMAGE_ID.*\^\[0-9a-fA-F-\]\{36\}\$/s)
+    expect(backfill).toContain("NULLIF(:'sample_image_id', '')::uuid")
+  })
+
   it('keeps dry-run paths read-only and before mutation calls', () => {
     const canonical = script('migrate-canonical-webp.ts')
     const orphans = script('enqueue-reconciled-orphans.ts')
