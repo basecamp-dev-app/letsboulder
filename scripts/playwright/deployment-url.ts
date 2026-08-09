@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 
 const DEFAULT_TRUSTED_HOSTS = ['dev.letsboulder.com']
+const AUTHENTICATED_TRUSTED_HOSTS = new Set(DEFAULT_TRUSTED_HOSTS)
 
 export function validateTrustedBaseUrl(rawUrl: string, allowVercelHost = false): string {
   const value = rawUrl.trim()
@@ -26,6 +27,24 @@ export function validateTrustedBaseUrl(rawUrl: string, allowVercelHost = false):
   }
 
   return parsed.origin
+}
+
+export function validateAuthenticatedBaseUrl(rawUrl: string): string {
+  const baseUrl = validateTrustedBaseUrl(rawUrl)
+  const hostname = new URL(baseUrl).hostname.toLowerCase()
+  if (!AUTHENTICATED_TRUSTED_HOSTS.has(hostname)) {
+    throw new Error('Authenticated Playwright tests require a protected trusted deployment origin')
+  }
+  return baseUrl
+}
+
+export function isAuthenticatedTrustedBaseUrl(rawUrl: string): boolean {
+  try {
+    validateAuthenticatedBaseUrl(rawUrl)
+    return true
+  } catch {
+    return false
+  }
 }
 
 type VercelDeployment = {
@@ -70,7 +89,10 @@ export async function resolvePlaywrightBaseUrl(): Promise<string> {
 async function main() {
   const baseUrl = await resolvePlaywrightBaseUrl()
   const outputPath = process.env.GITHUB_OUTPUT
-  if (outputPath) fs.appendFileSync(outputPath, `base_url=${baseUrl}\n`)
+  if (outputPath) {
+    fs.appendFileSync(outputPath, `base_url=${baseUrl}\n`)
+    fs.appendFileSync(outputPath, `authenticated_allowed=${isAuthenticatedTrustedBaseUrl(baseUrl)}\n`)
+  }
   else process.stdout.write(`${baseUrl}\n`)
 }
 

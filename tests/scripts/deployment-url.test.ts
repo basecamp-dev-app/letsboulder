@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { validateTrustedBaseUrl } from '@/scripts/playwright/deployment-url'
+import {
+  isAuthenticatedTrustedBaseUrl,
+  validateAuthenticatedBaseUrl,
+  validateTrustedBaseUrl,
+} from '@/scripts/playwright/deployment-url'
 
 describe('validateTrustedBaseUrl', () => {
   it('accepts the trusted development origin', () => {
@@ -8,6 +12,12 @@ describe('validateTrustedBaseUrl', () => {
 
   it('accepts a verified Vercel deployment host when explicitly enabled', () => {
     expect(validateTrustedBaseUrl('https://letsboulder-preview.vercel.app', true)).toBe('https://letsboulder-preview.vercel.app')
+  })
+
+  it('rejects Vercel deployments for authenticated tests', () => {
+    expect(() => validateAuthenticatedBaseUrl('https://letsboulder-preview.vercel.app')).toThrow()
+    expect(isAuthenticatedTrustedBaseUrl('https://letsboulder-preview.vercel.app')).toBe(false)
+    expect(validateAuthenticatedBaseUrl('https://dev.letsboulder.com')).toBe('https://dev.letsboulder.com')
   })
 
   it.each([
