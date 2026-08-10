@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { Session, User, UserResponse } from '@supabase/supabase-js'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -18,24 +19,60 @@ import {
 } from '@/features/legal/actions/open-data-consent'
 import { OpenDataConsentContext } from '@/features/legal/hooks/use-open-data-consent'
 import type { ContributionIntent } from '@/features/legal/types/open-data-consent'
+import { createClient } from '@/lib/supabase'
+
+interface ValidConsentCache {
+  userId: string
+  requiredVersion: string
+}
 
 export function OpenDataConsentProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [knownValid, setKnownValid] = useState(false)
   const [requiredVersion, setRequiredVersion] = useState<string | null>(null)
   const pendingIntent = useRef<ContributionIntent | null>(null)
+  const validConsent = useRef<ValidConsentCache | null>(null)
+  const currentUserId = useRef<string | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    function handleAuthChange(user: User | null) {
+      const nextUserId = user?.id ?? null
+      if (currentUserId.current === nextUserId) return
+
+      currentUserId.current = nextUserId
+      validConsent.current = null
+      pendingIntent.current = null
+      setRequiredVersion(null)
+      setError(null)
+      setOpen(false)
+    }
+
+    void supabase.auth.getUser().then(({ data: { user } }: UserResponse) => {
+      handleAuthChange(user)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
+      handleAuthChange(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   async function requireConsent(intent: ContributionIntent) {
-    if (knownValid) {
+    const { data: { user } } = await createClient().auth.getUser()
+    const cachedConsent = validConsent.current
+    if (user && requiredVersion && cachedConsent && cachedConsent.userId === user.id && cachedConsent.requiredVersion === requiredVersion) {
       await intent()
       return
     }
 
     const status = await getOpenDataConsentStatusAction()
     if (status.success && status.data?.isValid) {
-      setKnownValid(true)
+      if (user) validConsent.current = { userId: user.id, requiredVersion: status.data.requiredVersion }
+      setRequiredVersion(status.data.requiredVersion)
       await intent()
       return
     }
@@ -66,7 +103,8 @@ export function OpenDataConsentProvider({ children }: { children: ReactNode }) {
 
     const intent = pendingIntent.current
     pendingIntent.current = null
-    setKnownValid(true)
+    const { data: { user } } = await createClient().auth.getUser()
+    if (user) validConsent.current = { userId: user.id, requiredVersion: result.data.requiredVersion }
     setOpen(false)
     if (intent) await intent()
   }
