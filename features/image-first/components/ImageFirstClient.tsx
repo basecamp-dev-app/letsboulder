@@ -6,10 +6,10 @@ import Image from 'next/image'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import { useImageNavigation } from '@/features/image-first/hooks/use-image-navigation'
+import { useSelectedClimbState } from '@/features/image-first/hooks/use-selected-climb-state'
 import { ImageFirstCanvasCarousel, ImageFirstDeferredSections, ImageFirstFooterRail } from '@/features/image-first/components/image-first-sections'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
 import { normalizePoints } from '@/lib/canvasMath'
-import type { Database } from '@/types/database'
 import { createClient } from '@/lib/supabase'
 import { isCurrentUserAdmin } from '@/lib/profile-rpc'
 import type { RouteLine, RoutePoint } from '@/types/domain'
@@ -22,7 +22,6 @@ import { logRoutesAction } from '@/features/logbook/actions/log-routes'
 import { ownLogbookLogsQueryKeyPrefix, ownLogbookSubmissionsQueryKey, ownLogbookSummaryQueryKey } from '@/features/logbook/lib/queries'
 import { saveClimbAction } from '@/features/saved/actions/save-climb'
 import { unsaveClimbAction } from '@/features/saved/actions/unsave-climb'
-import { isClimbSavedByUser } from '@/features/saved/lib/queries'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 import { ToastContainer } from '@/components/ui/toast'
@@ -40,19 +39,6 @@ interface SelectedPinImageRailProps {
   activeImageId: string | null
   imageMap: Record<string, { src: string; width: number; height: number }>
   onSelectImage: (imageId: string) => void
-}
-
-type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']
-
-function toLoggedClimbInfo(row: UserClimbRow | null): { gradeOpinion: 'soft' | 'agree' | 'hard' | null; starRating: number | null; notes: string | null } | null {
-  if (!row) return null
-  return {
-    gradeOpinion: row.grade_opinion === 'soft' || row.grade_opinion === 'agree' || row.grade_opinion === 'hard'
-      ? row.grade_opinion
-      : null,
-    starRating: row.star_rating,
-    notes: row.notes,
-  }
 }
 
 function SelectedPinImageRail({ pin, activeImageId, imageMap, onSelectImage }: SelectedPinImageRailProps) {
@@ -132,28 +118,15 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [userPresent, setUserPresent] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
   const [pendingLogClimbIds, setPendingLogClimbIds] = useState<Set<string>>(new Set())
-  const [selectedClimbLogged, setSelectedClimbLogged] = useState(false)
-  const [selectedClimbLog, setSelectedClimbLog] = useState<{ gradeOpinion: GradeOpinion | null; starRating: number | null; notes: string | null } | null>(null)
-  const [communityNotesCount, setCommunityNotesCount] = useState(0)
-  const [communityNotes, setCommunityNotes] = useState<Array<{ userId: string; displayName: string; notes: string; createdAt: string | null }>>([])
-  const [communityNotesExpanded, setCommunityNotesExpanded] = useState(false)
-  const [selectedClimbRatingSummary, setSelectedClimbRatingSummary] = useState<{ rating_avg: number | null; rating_count: number } | null>(null)
-  const [selectedClimbHasSavedFeedback, setSelectedClimbHasSavedFeedback] = useState(false)
-  const [selectedClimbFeedbackCollapsed, setSelectedClimbFeedbackCollapsed] = useState(true)
-  const [pendingGradeOpinion, setPendingGradeOpinion] = useState<GradeOpinion | null>(null)
-  const [pendingStarRating, setPendingStarRating] = useState<number | null>(null)
-  const [pendingNotes, setPendingNotes] = useState('')
   const [savingFeedback, setSavingFeedback] = useState(false)
   const [logging, setLogging] = useState(false)
   const [isOnline, setIsOnline] = useState<boolean | null>(null)
   const [savingWantToTry, setSavingWantToTry] = useState(false)
-  const [loadingSelectedClimbState, setLoadingSelectedClimbState] = useState(false)
   const [downloadingPost, setDownloadingPost] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [notesDialogOpen, setNotesDialogOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [flagOpen, setFlagOpen] = useState(false)
-  const [isWantToTrySaved, setIsWantToTrySaved] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
     const primaryId = linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId
@@ -457,6 +430,35 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   const activeClimbId = activeRouteMeta?.climbId || null
   const activeEffectiveClimbId = activeRouteMeta?.effectiveClimbId || null
+  const {
+    selectedClimbLogged,
+    setSelectedClimbLogged,
+    selectedClimbLog,
+    setSelectedClimbLog,
+    selectedClimbRatingSummary,
+    selectedClimbHasSavedFeedback,
+    setSelectedClimbHasSavedFeedback,
+    selectedClimbFeedbackCollapsed,
+    setSelectedClimbFeedbackCollapsed,
+    pendingGradeOpinion,
+    setPendingGradeOpinion,
+    pendingStarRating,
+    setPendingStarRating,
+    pendingNotes,
+    setPendingNotes,
+    loadingSelectedClimbState,
+    isWantToTrySaved,
+    setIsWantToTrySaved,
+    communityNotesCount,
+    communityNotes,
+    communityNotesExpanded,
+    setCommunityNotesExpanded,
+  } = useSelectedClimbState({
+    activeClimbId,
+    activeEffectiveClimbId,
+    pendingLogClimbIds,
+    userPresent,
+  })
   const activeClimbIdRef = useRef(activeClimbId)
 
   useEffect(() => {
@@ -548,130 +550,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
     router.replace(nextHref, { scroll: false })
   }, [activePrimaryImageId, activeRouteMeta, countryCode, cragSlug, pathname, resolvedActiveRouteId, router])
-
-  useEffect(() => {
-    setSelectedClimbLogged(false)
-    setSelectedClimbLog(null)
-    setSelectedClimbHasSavedFeedback(false)
-    setSelectedClimbFeedbackCollapsed(true)
-    setPendingGradeOpinion(null)
-    setPendingStarRating(null)
-    setPendingNotes('')
-    setIsWantToTrySaved(false)
-    setSelectedClimbLogged(pendingLogClimbIds.has(activeClimbId ?? ''))
-    setLoadingSelectedClimbState(Boolean(activeEffectiveClimbId && userPresent))
-
-    if (!activeClimbId || !activeEffectiveClimbId || !userPresent) return
-
-    const supabase = createClient()
-    let cancelled = false
-
-    const fetchData = async () => {
-      try {
-        const { data: userData } = await supabase.auth.getUser()
-        const userId = userData.user?.id
-        if (!userId) return
-
-        const [{ data, error }, saved] = await Promise.all([
-          supabase
-            .from('user_climbs')
-            .select('grade_opinion, star_rating, notes')
-            .eq('user_id', userId)
-            .eq('climb_id', activeEffectiveClimbId)
-            .maybeSingle(),
-          isClimbSavedByUser(supabase, userId, activeClimbId),
-        ])
-
-        if (cancelled) return
-
-        if (!error) {
-          const log = toLoggedClimbInfo(data)
-          setSelectedClimbLogged(!!data || pendingLogClimbIds.has(activeClimbId))
-          setSelectedClimbLog(log)
-          setSelectedClimbHasSavedFeedback(!!data && (!!log?.gradeOpinion || log?.starRating !== null || !!log?.notes))
-          setSelectedClimbFeedbackCollapsed(!!data)
-          setPendingGradeOpinion(log?.gradeOpinion ?? null)
-          setPendingStarRating(log?.starRating ?? null)
-          setPendingNotes(log?.notes ?? '')
-        }
-        setIsWantToTrySaved(saved)
-      } catch {
-        // Keep the synchronously reset state when route-state requests fail.
-      } finally {
-        if (!cancelled) setLoadingSelectedClimbState(false)
-      }
-    }
-
-    void fetchData()
-    return () => { cancelled = true }
-  }, [activeClimbId, activeEffectiveClimbId, pendingLogClimbIds, userPresent])
-
-  useEffect(() => {
-    if (!activeEffectiveClimbId) {
-      setSelectedClimbRatingSummary(null)
-      return
-    }
-
-    let cancelled = false
-
-    const fetchRatingSummary = async () => {
-      const response = await fetch(`/api/climbs/${encodeURIComponent(activeEffectiveClimbId)}/star-rating`)
-      if (!response.ok) {
-        if (!cancelled) setSelectedClimbRatingSummary(null)
-        return
-      }
-
-      const json = await response.json() as { rating_avg?: number | null; rating_count?: number | null }
-      if (cancelled) return
-
-      setSelectedClimbRatingSummary({
-        rating_avg: typeof json.rating_avg === 'number' ? json.rating_avg : null,
-        rating_count: typeof json.rating_count === 'number' ? json.rating_count : 0,
-      })
-    }
-
-    void fetchRatingSummary()
-    return () => { cancelled = true }
-  }, [activeEffectiveClimbId])
-
-  useEffect(() => {
-    if (!activeEffectiveClimbId) return
-
-    let cancelled = false
-
-    const fetchCommunityNotes = async () => {
-      const response = await fetch(`/api/image-first/community-notes?effectiveClimbId=${encodeURIComponent(activeEffectiveClimbId)}`)
-      if (!response.ok) {
-        if (!cancelled) {
-          setCommunityNotesCount(0)
-          setCommunityNotes([])
-        }
-        return
-      }
-
-      const json = await response.json() as {
-        notes?: Array<{ userId: string; displayName: string; notes: string; createdAt: string | null }>
-      }
-
-      if (cancelled) return
-
-      const notes = (json.notes || []).map((note) => ({
-        userId: note.userId,
-        displayName: note.displayName,
-        notes: note.notes,
-        createdAt: note.createdAt,
-      }))
-
-      setCommunityNotesCount(notes.length)
-      setCommunityNotes(notes)
-      setCommunityNotesExpanded(false)
-    }
-
-    void fetchCommunityNotes()
-    return () => {
-      cancelled = true
-    }
-  }, [activeEffectiveClimbId])
 
   const allRoutesFlat = useMemo(
     () => Object.values(routesByImageId).flat(),
@@ -926,7 +804,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     } finally {
       setLogging(false)
     }
-  }, [activeClimbId, addToast, isOnline, queryClient, selectedClimbLog?.notes, userId, userPresent])
+  }, [activeClimbId, addToast, isOnline, queryClient, selectedClimbLog?.notes, setPendingNotes, setSelectedClimbFeedbackCollapsed, setSelectedClimbLogged, userId, userPresent])
 
   const applySavedFeedback = useCallback((payload: {
     updatedGrade?: string
@@ -946,7 +824,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     if (activeClimbId && payload.gradeUpdated && payload.updatedGrade) {
       updateLocalClimbGrade(activeClimbId, payload.updatedGrade)
     }
-  }, [activeClimbId, pendingNotes, updateLocalClimbGrade])
+  }, [activeClimbId, pendingNotes, setSelectedClimbFeedbackCollapsed, setSelectedClimbHasSavedFeedback, setSelectedClimbLog, updateLocalClimbGrade])
 
   const handleSaveFeedback = useCallback(async () => {
     if (!activeClimbId || !userPresent) return
@@ -984,7 +862,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     } finally {
       setSavingFeedback(false)
     }
-  }, [activeClimbId, addToast, applySavedFeedback, pendingGradeOpinion, pendingNotes, pendingStarRating, userPresent])
+  }, [activeClimbId, addToast, applySavedFeedback, pendingGradeOpinion, pendingNotes, pendingStarRating, setPendingNotes, userPresent])
 
   const handleGradeOpinionSelect = useCallback(async (gradeOpinion: GradeOpinion) => {
     if (!activeClimbId || !userPresent) return
@@ -1018,7 +896,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     } finally {
       setSavingFeedback(false)
     }
-  }, [activeClimbId, addToast, applySavedFeedback, pendingStarRating, userPresent])
+  }, [activeClimbId, addToast, applySavedFeedback, pendingStarRating, setPendingGradeOpinion, userPresent])
 
   const handleStarRatingSelect = useCallback(async (starRating: number | null) => {
     if (!activeClimbId || !userPresent) return
@@ -1052,7 +930,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     } finally {
       setSavingFeedback(false)
     }
-  }, [activeClimbId, addToast, applySavedFeedback, pendingGradeOpinion, userPresent])
+  }, [activeClimbId, addToast, applySavedFeedback, pendingGradeOpinion, setPendingStarRating, userPresent])
 
   const handleGoToLogbook = useCallback(() => {
     router.push('/logbook')
@@ -1121,7 +999,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     } finally {
       setSavingWantToTry(false)
     }
-  }, [activeClimbId, addToast, handleGoToAuth, isWantToTrySaved, queryClient, userPresent])
+  }, [activeClimbId, addToast, handleGoToAuth, isWantToTrySaved, queryClient, setIsWantToTrySaved, userPresent])
 
   const handleDownloadInstagramPost = useCallback(async (mode: ExportMode) => {
     if (!isAdmin || !activeImageId || downloadingPost) return
