@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import type { MouseEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { useGradeSystem } from '@/lib/grades/preferences'
 import { formatGradeForDisplay } from '@/lib/grade-display'
@@ -134,7 +134,6 @@ export interface UseCragPageFiltersParams {
   cragCenter: [number, number] | null
   routeHrefBase: string | null
   routesLoadState: 'idle' | 'loading' | 'loaded' | 'error'
-  initialSelectedImageId?: string | null
 }
 
 export interface UseCragPageFiltersResult {
@@ -207,9 +206,10 @@ export function useCragPageFilters({
   cragCenter,
   routeHrefBase,
   routesLoadState,
-  initialSelectedImageId = null,
 }: UseCragPageFiltersParams): UseCragPageFiltersResult {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const gradeSystem = useGradeSystem()
 
   const [routeSort, setRouteSort] = useState<'sends' | 'rating' | 'grade' | 'name'>('sends')
@@ -224,7 +224,14 @@ export function useCragPageFilters({
   const [searchModalOpen, setSearchModalOpen] = useState(false)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
   const [sortModalOpen, setSortModalOpen] = useState(false)
-  const [selectedImageId, setSelectedImageId] = useState<string | null>(initialSelectedImageId)
+  const selectedImageId = searchParams.get('image')
+  const setSelectedImageId = useCallback((imageId: string | null) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (imageId) params.set('image', imageId)
+    else params.delete('image')
+    const query = params.toString()
+    router.replace(`${pathname}${query ? `?${query}` : ''}`, { scroll: false })
+  }, [pathname, router, searchParams])
 
   const viewCenter = cragCenter
 
@@ -336,7 +343,7 @@ export function useCragPageFilters({
     setSelectedDirections([])
     setSelectedRouteTypes([])
     setTopoOnly(false)
-  }, [])
+  }, [setSelectedImageId])
 
   const hasActiveRouteFilters = useMemo(() => Boolean(
     selectedImageId || minGrade || maxGrade || minRating || minSends || searchQuery.trim() || selectedDirections.length > 0 || selectedRouteTypes.length > 0 || topoOnly

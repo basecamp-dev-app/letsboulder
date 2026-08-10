@@ -99,9 +99,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     heroImage,
     initialRoutes,
     navigationContext: initialNavigationContext,
-    initialClimbId,
-    initialRouteId,
-    initialRouteSlug,
     countryCode,
     cragId,
     cragSlug,
@@ -134,11 +131,22 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   })
   const fetchedRouteImageIdsRef = useRef(new Set<string>(Object.keys({ [linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId]: true })))
   const idlePreloadStartedRef = useRef(false)
-  const initialRouteSelectionRef = useRef({
-    routeId: initialRouteId,
-    routeSlug: initialRouteSlug,
-    climbId: initialClimbId,
-  })
+  const activeDisplayImageId = useMemo(() => {
+    const pathImageId = pathname?.split('/').pop()
+    return navigationContext.orderedImageIds.find((imageId) => imageId === pathImageId || linkedImageIdByDisplayId[imageId] === pathImageId)
+      || heroImage.displayImageId
+  }, [heroImage.displayImageId, linkedImageIdByDisplayId, navigationContext.orderedImageIds, pathname])
+  const handleActiveImageIndexChange = useCallback((index: number) => {
+    const displayImageId = navigationContext.orderedImageIds[index]
+    if (!displayImageId) return
+
+    const imageId = linkedImageIdByDisplayId[displayImageId] || displayImageId
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('climb')
+    params.delete('route')
+    const query = params.toString()
+    router.push(`/${countryCode}/${cragSlug}/i/${imageId}${query ? `?${query}` : ''}`, { scroll: false })
+  }, [countryCode, cragSlug, linkedImageIdByDisplayId, navigationContext.orderedImageIds, router, searchParams])
 
   const {
     activeImageIndex,
@@ -150,6 +158,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   } = useImageNavigation({
     orderedImageIds: navigationContext.orderedImageIds,
     startIndex: navigationContext.startIndex,
+    selectedImageId: activeDisplayImageId,
+    onActiveImageIndexChange: handleActiveImageIndexChange,
     linkedImageIdByDisplayId,
     stacks: navigationContext.stacks,
     sectorMarkers: navigationContext.sectorMarkers,
@@ -386,40 +396,23 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   const activeRoutes = useMemo(() => routesByImageId[activePrimaryImageId] || [], [activePrimaryImageId, routesByImageId])
 
-  const seededActiveRouteId = useMemo(() => {
+  const resolvedActiveRouteId = useMemo(() => {
     if (activeRoutes.length === 0) return null
 
-    const routeQuery = initialRouteSelectionRef.current.routeSlug || initialRouteSelectionRef.current.routeId
+    const routeQuery = searchParams.get('route')
     if (routeQuery) {
       const queryMatch = activeRoutes.find((route) => route.climbSlug === routeQuery || route.routeId === routeQuery)
       if (queryMatch) return queryMatch.routeId
     }
 
-    const climbQueryId = initialRouteSelectionRef.current.climbId
+    const climbQueryId = searchParams.get('climb')
     if (climbQueryId) {
       const climbMatch = activeRoutes.find((route) => route.climbId === climbQueryId)
       if (climbMatch) return climbMatch.routeId
     }
 
     return activeRoutes[0]?.routeId || null
-  }, [activeRoutes])
-
-  const [resolvedActiveRouteId, setResolvedActiveRouteId] = useState<string | null>(seededActiveRouteId)
-
-  useEffect(() => {
-    if (activeRoutes.length === 0) {
-      setResolvedActiveRouteId(null)
-      return
-    }
-
-    setResolvedActiveRouteId((current) => {
-      if (current && activeRoutes.some((route) => route.routeId === current)) {
-        return current
-      }
-
-      return seededActiveRouteId
-    })
-  }, [activeRoutes, seededActiveRouteId])
+  }, [activeRoutes, searchParams])
 
   const activeRouteMeta = useMemo(
     () => activeRoutes.find((route) => route.routeId === resolvedActiveRouteId) || null,
@@ -523,33 +516,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       }
     }
   }, [fetchRoutesForImageIds, linkedImageIdByDisplayId, navigationContext.orderedImageIds])
-
-  useEffect(() => {
-    if (!activePrimaryImageId) return
-
-    const currentUrl = new URL(window.location.href)
-    const currentPathImageId = pathname?.split('/').pop()
-    const currentRouteQuery = currentUrl.searchParams.get('route')
-    const nextRouteQuery = activeRouteMeta?.climbSlug || resolvedActiveRouteId
-
-    const params = new URLSearchParams(currentUrl.search)
-    params.delete('climb')
-    if (nextRouteQuery) params.set('route', nextRouteQuery)
-    else params.delete('route')
-
-    const nextHref = `/${countryCode}/${cragSlug}/i/${activePrimaryImageId}${params.toString() ? `?${params.toString()}` : ''}`
-    const currentHref = `${currentUrl.pathname}${currentUrl.search}`
-
-    if (currentPathImageId === activePrimaryImageId && currentRouteQuery === (nextRouteQuery || null) && currentHref === nextHref) {
-      return
-    }
-
-    if (currentHref === nextHref) {
-      return
-    }
-
-    router.replace(nextHref, { scroll: false })
-  }, [activePrimaryImageId, activeRouteMeta, countryCode, cragSlug, pathname, resolvedActiveRouteId, router])
 
   const allRoutesFlat = useMemo(
     () => Object.values(routesByImageId).flat(),
@@ -670,8 +636,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   const handleSelectImage = useCallback((imageId: string) => {
     const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
-    if (nextIndex >= 0) setActiveImageIndex(nextIndex)
-  }, [navigationContext.orderedImageIds, setActiveImageIndex])
+    if (nextIndex >= 0) handleActiveImageIndexChange(nextIndex)
+  }, [handleActiveImageIndexChange, navigationContext.orderedImageIds])
 
   const visibleRoutes = useMemo(() => {
     const filteredRoutes = activeRoutes.filter(route => route.imageId === activePrimaryImageId)
@@ -742,15 +708,14 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   }, [activePrimaryImageId, router, userPresent])
 
   const handleRouteSelect = useCallback((routeId: string | null) => {
-    if (routeId) {
-      initialRouteSelectionRef.current = {
-        routeId: null,
-        routeSlug: null,
-        climbId: null,
-      }
-      setResolvedActiveRouteId(routeId)
-    }
-  }, [])
+    const params = new URLSearchParams(searchParams.toString())
+    const route = activeRoutes.find((candidate) => candidate.routeId === routeId)
+    if (route) params.set('route', route.climbSlug || route.routeId)
+    else params.delete('route')
+    params.delete('climb')
+    const query = params.toString()
+    router.push(`/${countryCode}/${cragSlug}/i/${activePrimaryImageId}${query ? `?${query}` : ''}`, { scroll: false })
+  }, [activePrimaryImageId, activeRoutes, countryCode, cragSlug, router, searchParams])
 
   const handleLog = useCallback(async (style: 'flash' | 'top' | 'try', notes?: string) => {
     if (!activeClimbId || !userPresent) return false

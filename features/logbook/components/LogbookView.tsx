@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useGradeSystem } from '@/lib/grades/preferences'
@@ -42,7 +42,6 @@ interface LogbookViewProps {
   profile?: LogbookProfile
   submissions: Submission[]
   submissionCounts?: OwnerSubmissionCounts
-  initialSubmissionsExpanded?: boolean
   savedClimbs: SavedClimb[]
   savedCrags: SavedCrag[]
   hasMoreLogs: boolean
@@ -55,7 +54,6 @@ interface LogbookViewProps {
   onDeleteDraft: (draftId: string) => void | Promise<void>
   onPublishDraft: (draftId: string) => void | Promise<void>
   onDeleteSubmission: (canonicalImageId: string) => void | Promise<void>
-  onExpandSubmissions?: () => void
   onLoadMoreLogs: () => void | Promise<void>
 }
 
@@ -72,7 +70,6 @@ export default function LogbookView({
   profile,
   submissions,
   submissionCounts,
-  initialSubmissionsExpanded = false,
   savedClimbs,
   savedCrags,
   hasMoreLogs,
@@ -85,13 +82,13 @@ export default function LogbookView({
   onDeleteDraft,
   onPublishDraft,
   onDeleteSubmission,
-  onExpandSubmissions,
   onLoadMoreLogs,
 }: LogbookViewProps) {
   const gradeSystem = useGradeSystem()
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [isSubmissionsExpanded, setIsSubmissionsExpanded] = useState(initialSubmissionsExpanded)
+  const isSubmissionsExpanded = searchParams.get('section') === 'submissions'
 
   useEffect(() => {
     if (!isSubmissionsExpanded || searchParams.get('section') !== 'submissions') return
@@ -269,8 +266,9 @@ export default function LogbookView({
           publishingDraftId={publishingDraftId}
           deletingSubmissionId={deletingSubmissionId}
           onExpand={() => {
-            setIsSubmissionsExpanded(true)
-            onExpandSubmissions?.()
+            const params = new URLSearchParams(searchParams.toString())
+            params.set('section', 'submissions')
+            router.push(`${pathname}?${params.toString()}`, { scroll: false })
           }}
           onDeleteDraft={onDeleteDraft}
           onPublishDraft={onPublishDraft}

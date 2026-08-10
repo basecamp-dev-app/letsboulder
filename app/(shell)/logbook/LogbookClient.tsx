@@ -41,7 +41,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const { addToast } = useToast()
-  const [isSubmissionsExpanded, setIsSubmissionsExpanded] = useState(searchParams.get('section') === 'submissions')
+  const isSubmissionsExpanded = searchParams.get('section') === 'submissions'
   const hydratedInitialData = initialData
     ? {
          user,
@@ -325,7 +325,6 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
       profile={profile}
       submissions={submissions}
       submissionCounts={submissionCounts}
-      initialSubmissionsExpanded={isSubmissionsExpanded}
       savedClimbs={savedClimbs}
       savedCrags={savedCrags}
       hasMoreLogs={Boolean(logsQuery.hasNextPage)}
@@ -338,7 +337,6 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
       onDeleteDraft={handleDeleteDraft}
       onPublishDraft={handlePublishDraft}
       onDeleteSubmission={handleDeleteSubmission}
-      onExpandSubmissions={() => setIsSubmissionsExpanded(true)}
       onLoadMoreLogs={() => void logsQuery.fetchNextPage()}
     />
   )

@@ -7,10 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CragAccessPanel } from '@/features/crags/components/CragAccessPanel'
 import CragPageClient from '@/features/crags/components/CragPageClient'
 
-const navigationMocks = vi.hoisted(() => ({ searchParams: new URLSearchParams() }))
+const navigationMocks = vi.hoisted(() => ({
+  replace: vi.fn(),
+  searchParams: new URLSearchParams(),
+}))
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: navigationMocks.replace }),
   usePathname: () => '/gb/test-crag',
   useSearchParams: () => navigationMocks.searchParams,
 }))
@@ -47,6 +50,7 @@ vi.mock('@/lib/supabase', () => ({
 
 describe('CragPageClient selected image flow', () => {
   beforeEach(() => {
+    navigationMocks.replace.mockReset()
     navigationMocks.searchParams = new URLSearchParams()
   })
 
@@ -108,12 +112,7 @@ describe('CragPageClient selected image flow', () => {
 
     fireEvent.click(map)
 
-    expect(screen.getByText('2 images')).toBeTruthy()
-    expect(screen.getByText('No topo yet. Open an image to add route data.')).toBeTruthy()
-    expect(screen.getAllByRole('img')).toHaveLength(2)
-    for (const thumbnail of screen.getAllByRole('img')) {
-      expect(thumbnail.getAttribute('loading')).toBe('lazy')
-    }
+    expect(navigationMocks.replace).toHaveBeenCalledWith('/gb/test-crag?image=primary-image', { scroll: false })
   })
 
   it('hydrates the selected image from the URL while route refresh is unavailable', () => {

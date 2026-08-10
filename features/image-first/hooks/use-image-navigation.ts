@@ -1,22 +1,31 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import useEmblaCarousel from 'embla-carousel-react'
 
 export function useImageNavigation({
   orderedImageIds,
   startIndex,
+  selectedImageId,
+  onActiveImageIndexChange,
   linkedImageIdByDisplayId,
   stacks,
   sectorMarkers,
 }: {
   orderedImageIds: string[]
   startIndex: number
+  selectedImageId: string | null
+  onActiveImageIndexChange: (index: number) => void
   linkedImageIdByDisplayId: Record<string, string>
   stacks: Array<{ stackId: string; imageIds: string[] }>
   sectorMarkers: Record<string, { name: string; firstImageId: string }>
 }) {
-  const [activeImageIndex, setActiveImageIndex] = useState(startIndex)
+  const activeImageIndex = Math.max(
+    0,
+    orderedImageIds.indexOf(selectedImageId || '') >= 0
+      ? orderedImageIds.indexOf(selectedImageId || '')
+      : Math.min(startIndex, orderedImageIds.length - 1)
+  )
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: false,
     align: 'start',
@@ -46,14 +55,14 @@ export function useImageNavigation({
 
     const handleSelect = () => {
       const nextIndex = emblaApi.selectedScrollSnap()
-      setActiveImageIndex((currentIndex) => (currentIndex === nextIndex ? currentIndex : nextIndex))
+      if (nextIndex !== activeImageIndex) onActiveImageIndexChange(nextIndex)
     }
 
     emblaApi.on('select', handleSelect)
     return () => {
       emblaApi.off('select', handleSelect)
     }
-  }, [activeImageIndex, emblaApi])
+  }, [activeImageIndex, emblaApi, onActiveImageIndexChange])
 
   return {
     activeImageIndex,
@@ -63,7 +72,7 @@ export function useImageNavigation({
     activeStack,
     emblaApi,
     emblaRef,
-    setActiveImageIndex,
+    setActiveImageIndex: onActiveImageIndexChange,
     isFirst: activeImageIndex === 0,
     isLast: activeImageIndex === orderedImageIds.length - 1,
   }

@@ -1,7 +1,7 @@
 'use client'
 
-import { Suspense, useEffect, useMemo } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import CragMapView from '@/features/crags/components/CragMapView'
 import SelectedPinImageTray from '@/features/crags/components/SelectedPinImageTray'
 import { CragAccessPanel } from '@/features/crags/components/CragAccessPanel'
@@ -29,18 +29,6 @@ interface CragPageClientProps {
   initialMapImagesComplete?: boolean
   initialPayloadLoadedAt?: number
   communityPlace?: CommunityPlaceInfo | null
-  initialSelectedImageId?: string | null
-}
-
-function SelectedImageSearchParam({ onChange }: { onChange: (imageId: string | null) => void }) {
-  const searchParams = useSearchParams()
-  const imageId = searchParams.get('image')
-
-  useEffect(() => {
-    onChange(imageId)
-  }, [imageId, onChange])
-
-  return null
 }
 
 export default function CragPageClient({
@@ -58,7 +46,6 @@ export default function CragPageClient({
   initialMapImagesComplete = false,
   initialPayloadLoadedAt,
   communityPlace,
-  initialSelectedImageId = null,
 }: CragPageClientProps) {
   const router = useRouter()
   const {
@@ -108,7 +95,6 @@ export default function CragPageClient({
     cragCenter,
     routeHrefBase,
     routesLoadState,
-    initialSelectedImageId,
   })
 
   const actions = useCragPageActions({
@@ -140,11 +126,6 @@ export default function CragPageClient({
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {initialSelectedImageId === null ? (
-        <Suspense fallback={null}>
-          <SelectedImageSearchParam onChange={filters.setSelectedImageId} />
-        </Suspense>
-      ) : null}
       {actions.toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">
           {actions.toast}

@@ -18,7 +18,6 @@ interface CragPageShellProps {
   initialMapImagesComplete?: boolean
   initialPayloadLoadedAt?: number
   communityPlace?: CommunityPlaceInfo | null
-  initialSelectedImageId?: string | null
 }
 
 export default function CragPageShell(props: CragPageShellProps) {
