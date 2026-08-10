@@ -409,7 +409,7 @@ describe('loadInitialCragRouteData', () => {
     const result = await loadInitialCragRouteData(supabase as never, 'crag-1')
 
     expect(result.initialImages.map((image) => image.id)).toEqual(['image-1', 'image-2'])
-    expect(result.initialMapImagesComplete).toBe(true)
+    expect(result.initialMapImagesComplete).toBe(false)
   })
 
   it('includes the selected image in the critical SSR image set', async () => {

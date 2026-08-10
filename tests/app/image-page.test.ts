@@ -67,6 +67,8 @@ describe('app/[country]/[crag]/i/[imageId]/page', () => {
         isPrimary: true,
       }],
       navigationContext: {
+        cragId: 'crag-1',
+        loadedCount: 1,
         orderedImageIds: ['image-1'],
         startIndex: 0,
         imageMap: { 'image-1': { src: 'https://static.letsboulder.com/image.webp', width: 1600, height: 1200 } },

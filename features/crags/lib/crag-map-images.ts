@@ -30,6 +30,7 @@ export type CragMapImageLinkRow = Pick<CragImageTableRow, 'linked_image_id' | 's
 
 const IMAGE_PAGE_SIZE = 500
 const IMAGE_ID_BATCH_SIZE = 200
+const INITIAL_IMAGE_LIMIT = 48
 const IMAGE_SELECT = 'id, url, latitude, longitude, created_at, is_verified, verification_count, is_primary, parent_image_id, submission_id, processing_status, moderation_status, visibility, status, route_lines(count)'
 
 class ImageFamilies {
@@ -158,12 +159,15 @@ export function buildCragMapImages(rows: CragMapImageRow[], links: CragMapImageL
 
 export async function loadPublicCragMapImages(
   supabase: SupabaseClient<Database>,
-  cragId: string
+  cragId: string,
+  options?: { initialOnly?: boolean }
 ): Promise<ImageData[]> {
   const directRows: CragMapImageRow[] = []
   const links: CragMapImageLinkRow[] = []
 
   for (let from = 0; ; from += IMAGE_PAGE_SIZE) {
+    const pageSize = options?.initialOnly ? Math.min(INITIAL_IMAGE_LIMIT - directRows.length, IMAGE_PAGE_SIZE) : IMAGE_PAGE_SIZE
+    if (pageSize <= 0) break
     const { data, error } = await supabase
       .from('images')
       .select(IMAGE_SELECT)
@@ -174,13 +178,15 @@ export async function loadPublicCragMapImages(
       .eq('visibility', 'public')
       .order('created_at', { ascending: false })
       .order('id', { ascending: true })
-      .range(from, from + IMAGE_PAGE_SIZE - 1)
+      .range(from, from + pageSize - 1)
 
     if (error) throw error
     const page = (data || []) as CragMapImageRow[]
     directRows.push(...page)
-    if (page.length < IMAGE_PAGE_SIZE) break
+    if (page.length < pageSize || options?.initialOnly) break
   }
+
+  if (options?.initialOnly) return buildCragMapImages(directRows, links)
 
   for (let from = 0; ; from += IMAGE_PAGE_SIZE) {
     const { data, error } = await supabase

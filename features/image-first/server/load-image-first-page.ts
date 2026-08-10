@@ -100,6 +100,7 @@ type ResolvedImageRecord = {
 }
 
 const ROUTE_PAGE_IMAGE_WIDTH = 1200
+const INITIAL_NAVIGATION_IMAGE_LIMIT = 48
 
 interface RouteLineRow {
   id: string
@@ -308,6 +309,7 @@ export async function buildImageFirstPayload(args: {
           .select('id, url, width, height, created_at, latitude, longitude')
           .eq('crag_id', image.cragId)
           .order('created_at', { ascending: false })
+          .limit(INITIAL_NAVIGATION_IMAGE_LIMIT)
 
         if (error) throw error
         return (data || []) as Array<{
@@ -338,6 +340,19 @@ export async function buildImageFirstPayload(args: {
     })(),
     getImageAttribution(image.canonicalId),
   ])
+
+  const heroWasAddedToNavigation = !cragImages.some((row) => row.id === image.canonicalId)
+  if (heroWasAddedToNavigation) {
+    cragImages.unshift({
+      id: image.canonicalId,
+      url: image.staticUrl,
+      width: image.width,
+      height: image.height,
+      created_at: null,
+      latitude: image.latitude,
+      longitude: image.longitude,
+    })
+  }
 
   const linkedImageIdByDisplayId: Record<string, string> = {}
   for (const row of cragImageRows) {
@@ -442,6 +457,8 @@ export async function buildImageFirstPayload(args: {
       },
       initialRoutes,
       navigationContext: {
+        cragId: image.cragId,
+        loadedCount: cragImages.length - (heroWasAddedToNavigation ? 1 : 0),
         orderedImageIds: ordered.orderedImageIds,
         startIndex,
         imageMap,

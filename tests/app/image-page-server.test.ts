@@ -54,7 +54,9 @@ vi.mock('@supabase/ssr', () => ({
           return {
             eq: () => ({
               maybeSingle: async () => ({ data: state.rawImage, error: null }),
-              order: async () => ({ data: state.cragImagesForCrag.length > 0 ? state.cragImagesForCrag : [state.rawImage], error: null }),
+              order: () => ({
+                limit: async () => ({ data: state.cragImagesForCrag.length > 0 ? state.cragImagesForCrag : [state.rawImage], error: null }),
+              }),
             }),
           }
         }

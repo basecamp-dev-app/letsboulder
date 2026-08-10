@@ -37,6 +37,8 @@ export interface ImageFirstPayload {
   }
   initialRoutes: ImageFirstRouteLine[]
   navigationContext: {
+    cragId: string
+    loadedCount: number
     orderedImageIds: string[]
     startIndex: number
     imageMap: Record<string, { src: string; width: number; height: number }>

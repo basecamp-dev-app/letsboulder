@@ -112,7 +112,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const {
     heroImage,
     initialRoutes,
-    navigationContext,
+    navigationContext: initialNavigationContext,
     initialClimbId,
     initialRouteId,
     initialRouteSlug,
@@ -120,6 +120,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     cragId,
     cragSlug,
   } = payload
+  const [navigationContext, setNavigationContext] = useState(initialNavigationContext)
+  const navigationLoadingRef = useRef(false)
   const { linkedImageIdByDisplayId } = navigationContext
   const router = useRouter()
   const pathname = usePathname()
@@ -179,6 +181,46 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     stacks: navigationContext.stacks,
     sectorMarkers: navigationContext.sectorMarkers,
   })
+
+  useEffect(() => {
+    if (activeImageIndex < navigationContext.orderedImageIds.length - 4 || navigationLoadingRef.current) return
+    navigationLoadingRef.current = true
+
+    fetch(`/api/image-first/images?cragId=${encodeURIComponent(navigationContext.cragId)}&offset=${navigationContext.loadedCount}`)
+      .then((response) => response.ok ? response.json() as Promise<{
+        images?: Array<{ id: string; url: string; src: string; width: number | null; height: number | null; created_at: string | null; latitude: number | null; longitude: number | null }>
+        nextOffset?: number
+        hasMore?: boolean
+      }> : Promise.reject(new Error('navigation request failed')))
+      .then((result) => {
+        const rows = result.images || []
+        if (rows.length === 0) return
+        setNavigationContext((current) => {
+          const existing = new Set(current.orderedImageIds)
+          const nextRows = rows.filter((row) => !existing.has(row.id))
+          const nextMap = { ...current.imageMap }
+          for (const row of nextRows) {
+            nextMap[row.id] = {
+              src: row.src,
+              width: row.width ?? 1600,
+              height: row.height ?? 1200,
+            }
+          }
+          const nextIds = [...current.orderedImageIds, ...nextRows.map((row) => row.id)]
+          return {
+            ...current,
+            loadedCount: result.nextOffset ?? current.loadedCount + rows.length,
+            orderedImageIds: nextIds,
+            imageMap: nextMap,
+            stacks: [...current.stacks, ...nextRows.map((row) => ({ stackId: `stack:${row.id}`, imageIds: [row.id] }))],
+          }
+        })
+      })
+      .catch(() => {})
+      .finally(() => {
+        navigationLoadingRef.current = false
+      })
+  }, [activeImageIndex, navigationContext])
 
   useEffect(() => {
     const supabase = createClient()

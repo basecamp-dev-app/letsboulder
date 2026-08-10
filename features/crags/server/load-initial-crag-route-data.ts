@@ -54,7 +54,7 @@ export async function loadInitialCragRouteData(
 ): Promise<InitialCragRouteData> {
   const [{ data: routeData, error: routeError }, mapImages] = await Promise.all([
     supabase.rpc('get_crag_route_intelligence', { p_crag_id: cragId }),
-    loadPublicCragMapImages(supabase, cragId),
+    loadPublicCragMapImages(supabase, cragId, { initialOnly: true }),
   ])
   if (routeError) throw routeError
   const baseRoutes = formatCragRoutes(routeData || [])
@@ -185,7 +185,7 @@ export async function loadInitialCragRouteData(
       initialCragCenter,
       initialRouteTargetsComplete,
       initialCriticalImagesComplete: true,
-      initialMapImagesComplete: true,
+      initialMapImagesComplete: false,
       loadedAt: Date.now(),
     }
   }
@@ -217,7 +217,7 @@ export async function loadInitialCragRouteData(
     initialCragCenter,
     initialRouteTargetsComplete,
     initialCriticalImagesComplete: true,
-    initialMapImagesComplete: true,
+    initialMapImagesComplete: false,
     loadedAt: Date.now(),
   }
 }

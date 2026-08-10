@@ -3,7 +3,7 @@ import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import { getCragCacheTag } from '@/features/crags/server/crag-cache-tags'
 
-const PUBLIC_CRAG_REVALIDATE_SECONDS = 60
+const PUBLIC_CRAG_REVALIDATE_SECONDS = 300
 
 export function getCachedInitialCragRouteData(
   cragId: string,
