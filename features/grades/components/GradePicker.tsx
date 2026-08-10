@@ -29,7 +29,7 @@ interface GradePickerProps {
   mode?: 'select' | 'vote'
 }
 
-export default function GradePicker({
+function GradePickerDialog({
   isOpen,
   onClose,
   onSelect,
@@ -46,13 +46,6 @@ export default function GradePicker({
   const [pendingGrade, setPendingGrade] = useState(currentGrade || '')
   const inputRef = useRef<HTMLInputElement>(null)
   const openedAtRef = useRef<number>(0)
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    setPendingGrade(currentGrade || '')
-    setSearch('')
-  }, [currentGrade, isOpen])
 
   const gradeSystem = useMemo(() => {
     if (gradeSystemProp) return gradeSystemProp
@@ -106,8 +99,6 @@ export default function GradePicker({
       onClose()
     }
   }
-
-  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-[6000] flex items-center justify-center bg-black/50 p-2 sm:p-4" onClick={handleBackdropClose}>
@@ -206,6 +197,11 @@ export default function GradePicker({
       </div>
     </div>
   )
+}
+
+export default function GradePicker(props: GradePickerProps) {
+  if (!props.isOpen) return null
+  return <GradePickerDialog {...props} />
 }
 
 export { FRENCH_GRADES }

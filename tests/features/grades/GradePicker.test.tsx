@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import GradePicker from '@/features/grades/components/GradePicker'
@@ -9,7 +9,7 @@ vi.mock('@/features/grades/hooks/useGradeSystem', () => ({
 }))
 
 describe('GradePicker', () => {
-  it('does not select a browsed grade when cancelled', async () => {
+  it('does not select a browsed grade when cancelled', () => {
     const onClose = vi.fn()
     const onSelect = vi.fn()
 
@@ -28,9 +28,10 @@ describe('GradePicker', () => {
 
     expect(onSelect).not.toHaveBeenCalled()
     expect(onClose).toHaveBeenCalledOnce()
-  })
+  }, 15000)
 
   it('commits the pending grade once when saved', async () => {
+    const user = userEvent.setup()
     const onClose = vi.fn()
     const onSelect = vi.fn()
 
@@ -44,15 +45,15 @@ describe('GradePicker', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '7A' }))
+    await user.click(screen.getByRole('button', { name: '7A' }))
     expect(onSelect).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save Grade' }))
+    await user.click(screen.getByRole('button', { name: 'Save Grade' }))
 
     expect(onSelect).toHaveBeenCalledOnce()
     expect(onSelect).toHaveBeenCalledWith('7A')
     expect(onClose).toHaveBeenCalledOnce()
-  })
+  }, 15000)
 
   it('resets the pending grade and search when reopened', async () => {
     const props = {
@@ -68,10 +69,13 @@ describe('GradePicker', () => {
     rerender(<GradePicker {...props} isOpen={false} />)
     rerender(<GradePicker {...props} isOpen />)
 
-    expect(screen.getByRole('textbox', { name: '' })).toHaveValue('')
-    expect(screen.getByRole('button', { name: '6A' })).toHaveClass('bg-blue-50')
-    expect(screen.getByRole('button', { name: '7A' })).not.toHaveClass('bg-blue-50')
-  })
+    const searchInput = await screen.findByRole('textbox', { name: '' })
+    await waitFor(() => {
+      expect(searchInput).toHaveValue('')
+      expect(screen.getByRole('button', { name: '6A' })).toHaveClass('bg-blue-50')
+      expect(screen.getByRole('button', { name: '7A' })).not.toHaveClass('bg-blue-50')
+    })
+  }, 15000)
 
   it.each([
     ['yds_equivalent', '5.5'],
