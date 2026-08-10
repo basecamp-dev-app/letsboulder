@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { EditableRoute, FloorPlan, GymListItem } from '../types'
+import type { EditableRoute, FloorPlan, GymListItem } from '../types/gym-admin-types'
 import { reportError } from '@/lib/errors'
 
 interface UseGymAdminDataReturn {

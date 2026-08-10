@@ -1,7 +1,7 @@
 'use client'
 
 import { MouseEvent, useCallback, useState } from 'react'
-import type { EditableRoute, FloorPlan } from '../types'
+import type { EditableRoute, FloorPlan } from '../types/gym-admin-types'
 
 interface UseGymAdminCanvasParams {
   activeFloorPlan: FloorPlan | null

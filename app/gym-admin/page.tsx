@@ -6,8 +6,8 @@ import { Loader2, Save } from 'lucide-react'
 import { useGymAdminData } from '@/features/gym-admin/hooks/use-gym-admin-data'
 import { useGymAdminActions } from '@/features/gym-admin/hooks/use-gym-admin-actions'
 import { useGymAdminCanvas } from '@/features/gym-admin/hooks/use-gym-admin-canvas'
-import { DISCIPLINE_OPTIONS } from '@/features/gym-admin/types'
-import type { EditableRoute } from '@/features/gym-admin/types'
+import { DISCIPLINE_OPTIONS } from '@/features/gym-admin/types/gym-admin-types'
+import type { EditableRoute } from '@/features/gym-admin/types/gym-admin-types'
 
 export default function GymAdminPage() {
   const {

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { EditableRoute, FloorPlan, GymListItem } from '../types'
+import type { EditableRoute, FloorPlan, GymListItem } from '../types/gym-admin-types'
 
 interface UseGymAdminActionsParams {
   selectedGym: GymListItem | null
