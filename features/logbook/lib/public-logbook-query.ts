@@ -1,13 +1,13 @@
 import type { InfiniteData } from '@tanstack/react-query'
-import type { LogbookClimb, LogbookLifetimeStats, LogbookProfile, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
+import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
+import type { LogbookPage } from '@/features/logbook/lib/logbook-contract'
+import type { LogbookLifetimeStats, LogbookProfile, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 import type { Submission } from '@/types/submissions'
 
-export interface PublicLogbookPageData {
-  logs: LogbookClimb[]
+export interface PublicLogbookPageData extends LogbookPage {
   progressLogs?: ProgressLogEntry[]
   lifetimeStats?: LogbookLifetimeStats
-  nextCursor: string | null
-  profile?: LogbookProfile
+  profile?: LogbookProfile | null
   submissions?: Submission[]
 }
 

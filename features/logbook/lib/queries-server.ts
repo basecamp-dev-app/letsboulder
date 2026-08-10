@@ -8,9 +8,11 @@ import type { Database } from '@/types/database'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
 import type { LogbookClimb, LogbookLifetimeStats, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
 import { fetchSavedClimbs, fetchSavedCrags } from '@/features/saved/lib/queries'
-import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 import { DETAILED_LOGBOOK_SELECT } from '@/features/logbook/lib/query-selects'
+import { PUBLIC_DETAILED_LOGBOOK_SELECT } from '@/features/logbook/lib/query-selects'
 import { getOwnProfile } from '@/lib/profile-rpc'
+import type { LogbookPermissionMode, LogbookPage, LogbookViewModel } from '@/features/logbook/lib/logbook-contract'
+import { EMPTY_OWNER_SUBMISSION_COUNTS, LOGBOOK_PAGE_SIZE } from '@/features/logbook/lib/logbook-contract'
 
 interface RawLogbookRow {
   id: string
@@ -94,20 +96,30 @@ interface DraftSubmissionRow {
 const INITIAL_LOGBOOK_LOG_LIMIT = 24
 const PROGRESS_LOG_LIMIT = 2000
 
-export interface OwnLogbookData {
-  user: User | null
-  logs: LogbookClimb[]
-  progressLogs: ProgressLogEntry[]
-  lifetimeStats: LogbookLifetimeStats
-  profile: LogbookProfile | null
-  savedClimbs: SavedClimb[]
-  savedCrags: SavedCrag[]
-  submissionCounts: {
-    all: number
-    drafts: number
-    'pending-review': number
-    published: number
-  }
+interface PublicContributionRow {
+  id: string
+  url: string
+  created_at: string
+  submission_id: string | null
+  is_anonymous_submission: boolean | null
+  contribution_credit_platform: string | null
+  contribution_credit_handle: string | null
+  crags: { name?: string; slug?: string | null; country_code?: string | null } | Array<{ name?: string; slug?: string | null; country_code?: string | null }> | null
+  route_lines: Array<{ count?: number }> | null
+}
+
+interface VisibleProfileRow extends LogbookProfile {
+  is_public: boolean
+}
+
+interface CragImageLinkRow {
+  source_image_id: string | null
+  linked_image_id: string | null
+}
+
+export type OwnLogbookData = Omit<LogbookViewModel, 'user' | 'isOwnProfile'> & {
+  user: User
+  isOwnProfile: true
 }
 
 export interface ServerLogbookSummary {
@@ -116,6 +128,103 @@ export interface ServerLogbookSummary {
   progressLogs: ProgressLogEntry[]
   lifetimeStats: LogbookLifetimeStats
   profile: LogbookProfile | null
+}
+
+function mapLogbookPageRows(rows: unknown[]): LogbookClimb[] {
+  return (rows as RawLogbookRow[]).map((log) => {
+    const routeLines = log.climbs?.route_lines
+    const cragName = routeLines?.[0]?.images?.crags?.name || 'Unknown crag'
+    const imageUrl = routeLines?.[0]?.images?.url
+    return {
+      ...log,
+      climbs: { ...log.climbs, image_url: imageUrl, crags: { name: cragName } },
+      points: log.style === 'flash' ? getGradePoints(log.climbs?.grade) + 10 : getGradePoints(log.climbs?.grade),
+    }
+  }) as LogbookClimb[]
+}
+
+export async function fetchServerLogbookPage(
+  userId: string,
+  mode: LogbookPermissionMode,
+  cursor?: string,
+): Promise<LogbookPage> {
+  const supabase = await getServerClient()
+  const select = mode === 'owner' ? DETAILED_LOGBOOK_SELECT : PUBLIC_DETAILED_LOGBOOK_SELECT
+  let query = supabase
+    .from('user_climbs')
+    .select(select)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(LOGBOOK_PAGE_SIZE)
+
+  if (cursor) query = query.lt('created_at', cursor)
+
+  const { data, error } = await query
+  if (error) throw error
+
+  const logs = mapLogbookPageRows(data || [])
+  return {
+    logs,
+    nextCursor: logs.length === LOGBOOK_PAGE_SIZE ? logs[logs.length - 1]?.created_at || null : null,
+  }
+}
+
+async function fetchPublicSubmissions(userId: string): Promise<Submission[]> {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase
+    .from('images')
+    .select('id, url, created_at, submission_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags!images_crag_id_fkey(name, slug, country_code), route_lines(count)')
+    .eq('created_by', userId)
+    .eq('is_anonymous_submission', false)
+    .in('moderation_status', ['approved', 'skipped'])
+    .not('crag_id', 'is', null)
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(24)
+  if (error) throw error
+  const rows = (data || []) as PublicContributionRow[]
+  const imageIds = rows.map((row) => row.id)
+  if (imageIds.length === 0) return []
+  const { data: links, error: linksError } = await supabase
+    .from('crag_images')
+    .select('source_image_id, linked_image_id')
+    .or(`linked_image_id.in.(${imageIds.join(',')}),source_image_id.in.(${imageIds.join(',')})`)
+  if (linksError) throw linksError
+  return groupSubmittedImages(rows, (links || []) as CragImageLinkRow[])
+}
+
+export async function fetchServerPublicLogbookData(userId: string): Promise<LogbookViewModel | null> {
+  const supabase = await getServerClient()
+  const { data: profileData, error: profileError } = await supabase.rpc('get_visible_profile', { p_user_id: userId }).single()
+  const profile = profileData as unknown as VisibleProfileRow
+  if (profileError || !profileData) return null
+  if (profile.is_public === false) return { user: null, userId, isOwnProfile: false, isPublic: false, logs: [], nextCursor: null, progressLogs: [], lifetimeStats: { totalClimbs: 0, totalFlashes: 0, totalTops: 0, totalTries: 0 }, profile, submissions: [], savedClimbs: [], savedCrags: [], submissionCounts: EMPTY_OWNER_SUBMISSION_COUNTS }
+
+  const [page, progress, stats, submissions] = await Promise.all([
+    fetchServerLogbookPage(userId, 'public'),
+    supabase.from('user_climbs').select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade)').eq('user_id', userId).order('created_at', { ascending: false }).limit(PROGRESS_LOG_LIMIT),
+    supabase.rpc('get_logbook_lifetime_stats', { p_user_id: userId }).single(),
+    fetchPublicSubmissions(userId),
+  ])
+  if (progress.error) throw progress.error
+  if (stats.error) throw stats.error
+  const lifetime = stats.data as LogbookLifetimeStatsRow | null
+  return {
+    user: null,
+    userId,
+    isOwnProfile: false,
+    isPublic: true,
+    ...page,
+    progressLogs: (progress.data || []) as unknown as ProgressLogEntry[],
+    lifetimeStats: { totalClimbs: lifetime?.total_climbs ?? 0, totalFlashes: lifetime?.total_flashes ?? 0, totalTops: lifetime?.total_tops ?? 0, totalTries: lifetime?.total_tries ?? 0 },
+    profile,
+    submissions,
+    savedClimbs: [],
+    savedCrags: [],
+    submissionCounts: EMPTY_OWNER_SUBMISSION_COUNTS,
+  }
 }
 
 async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerClient>>, userId: string): Promise<Submission[]> {
@@ -339,7 +448,10 @@ export async function fetchServerLogbookSubmissions(user: User): Promise<Submiss
 
 export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData> {
   const timing = startServerTiming('fetchServerLogbookData')
-  const { logs, progressLogs, lifetimeStats, profile } = await timeServerStep('fetchServerLogbookData', 'logs-and-profile', () => fetchServerLogbookLogsAndProfile(user.id))
+  const [{ logs, nextCursor }, { progressLogs, lifetimeStats, profile }] = await Promise.all([
+    timeServerStep('fetchServerLogbookData', 'recent-logs', () => fetchServerLogbookPage(user.id, 'owner')),
+    timeServerStep('fetchServerLogbookData', 'logs-and-profile', () => fetchServerLogbookLogsAndProfile(user.id)),
+  ])
   const submissions = await timeServerStep('fetchServerLogbookData', 'submissions', () => fetchServerLogbookSubmissions(user))
   const supabase = await getServerClient()
   const [savedClimbs, savedCrags] = await Promise.all([
@@ -357,10 +469,15 @@ export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData
 
   return {
     user,
+    userId: user.id,
+    isOwnProfile: true,
+    isPublic: true,
     logs,
+    nextCursor,
     progressLogs,
     lifetimeStats,
     profile,
+    submissions,
     savedClimbs,
     savedCrags,
     submissionCounts: {

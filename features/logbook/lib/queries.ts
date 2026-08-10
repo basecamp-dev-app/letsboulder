@@ -7,9 +7,9 @@ import type { LogbookClimb, LogbookLifetimeStats, ProgressLogEntry } from '@/fea
 import type { Database } from '@/types/database'
 import type { Submission } from '@/types/submissions'
 import { fetchSavedClimbs, fetchSavedCrags } from '@/features/saved/lib/queries'
-import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 import { getOwnProfile } from '@/lib/profile-rpc'
 import { DETAILED_LOGBOOK_SELECT } from '@/features/logbook/lib/query-selects'
+import type { LogbookViewModel } from '@/features/logbook/lib/logbook-contract'
 
 export interface LogbookProfile {
   id: string
@@ -25,20 +25,9 @@ export interface LogbookProfile {
   contributor_tier?: string | null
 }
 
-export interface OwnLogbookData {
+export type OwnLogbookData = Omit<LogbookViewModel, 'user' | 'isOwnProfile'> & {
   user: User | null
-  logs: LogbookClimb[]
-  progressLogs: ProgressLogEntry[]
-  lifetimeStats: LogbookLifetimeStats
-  profile: LogbookProfile | null
-  savedClimbs: SavedClimb[]
-  savedCrags: SavedCrag[]
-  submissionCounts: {
-    all: number
-    drafts: number
-    'pending-review': number
-    published: number
-  }
+  isOwnProfile?: true
 }
 
 interface RawProgressLogRow {
@@ -152,25 +141,6 @@ async function mapDetailedLogbookRows(
   })
 }
 
-export async function fetchOwnLogbookPage(
-  userId: string,
-  page: number,
-  pageSize = INITIAL_LOGBOOK_LOG_LIMIT,
-): Promise<LogbookClimb[]> {
-  const supabase = createClient()
-  const from = page * pageSize
-  const { data, error } = await supabase
-    .from('user_climbs')
-    .select(DETAILED_LOGBOOK_SELECT)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .range(from, from + pageSize - 1)
-
-  if (error) throw error
-  return mapDetailedLogbookRows(supabase, data || [])
-}
-
 export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<OwnLogbookData> {
   let user: User | null = passedUser ?? null
 
@@ -183,7 +153,7 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
 
     if (userError) {
       if (userError.name === 'AuthSessionMissingError' || userError.message.includes('session')) {
-        return { user: null, logs: [], progressLogs: [], lifetimeStats: emptyLifetimeStats(), profile: null, savedClimbs: [], savedCrags: [], submissionCounts: emptySubmissionCounts() }
+        return { user: null, userId: '', isOwnProfile: true, isPublic: true, logs: [], nextCursor: null, progressLogs: [], lifetimeStats: emptyLifetimeStats(), profile: null, submissions: [], savedClimbs: [], savedCrags: [], submissionCounts: emptySubmissionCounts() }
       }
       throw userError
     }
@@ -192,7 +162,7 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
   }
 
   if (!user) {
-    return { user: null, logs: [], progressLogs: [], lifetimeStats: emptyLifetimeStats(), profile: null, savedClimbs: [], savedCrags: [], submissionCounts: emptySubmissionCounts() }
+    return { user: null, userId: '', isOwnProfile: true, isPublic: true, logs: [], nextCursor: null, progressLogs: [], lifetimeStats: emptyLifetimeStats(), profile: null, submissions: [], savedClimbs: [], savedCrags: [], submissionCounts: emptySubmissionCounts() }
   }
 
   const userId = user.id
@@ -243,7 +213,11 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
 
   return {
     user,
+    userId,
+    isOwnProfile: true,
+    isPublic: true,
     logs: logsWithUrls,
+    nextCursor: logsWithUrls.length === INITIAL_LOGBOOK_LOG_LIMIT ? logsWithUrls[logsWithUrls.length - 1]?.created_at || null : null,
     progressLogs: (progressLogsData || []) as unknown as RawProgressLogRow[] as ProgressLogEntry[],
     lifetimeStats: {
       totalClimbs: lifetimeStats?.total_climbs ?? 0,
@@ -252,6 +226,7 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
       totalTries: lifetimeStats?.total_tries ?? 0,
     },
     profile: (profileData || null) as LogbookProfile | null,
+    submissions,
     savedClimbs,
     savedCrags,
     submissionCounts: {

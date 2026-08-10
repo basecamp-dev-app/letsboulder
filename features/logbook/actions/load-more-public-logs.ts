@@ -1,17 +1,14 @@
 'use server'
 
-import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
 import { z } from 'zod'
+import { loadMoreLogbookAction } from '@/features/logbook/actions/load-more-logbook'
 import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
-import { PUBLIC_DETAILED_LOGBOOK_SELECT } from '@/features/logbook/lib/query-selects'
 
 const loadMoreLogsSchema = z.object({
   userId: z.string().trim().min(1, 'User ID required'),
   cursor: z.string().trim().min(1, 'Cursor required'),
 })
-
-const PAGE_SIZE = 50
 
 export async function loadMorePublicLogsAction(
   userId: string,
@@ -22,48 +19,12 @@ export async function loadMorePublicLogsAction(
     return { success: false, error: validation.error.issues[0].message }
   }
 
-  const supabase = await getServerClient()
-
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('is_public')
-    .eq('id', userId)
-    .single()
-
-  if (!profileData || profileData.is_public === false) {
-    return { success: false, error: 'Profile not found or not public' }
-  }
-
-  const { data: logsData, error: logsError } = await supabase
-    .from('user_climbs')
-    .select(PUBLIC_DETAILED_LOGBOOK_SELECT)
-    .eq('user_id', userId)
-    .lt('created_at', cursor)
-    .order('created_at', { ascending: false })
-    .limit(PAGE_SIZE)
-
-  if (logsError) {
-    reportError(logsError, { message: 'Load more public logs error' })
+  try {
+    const result = await loadMoreLogbookAction(userId, cursor, 'public')
+    if (!result.success) return result
+    return result
+  } catch (error) {
+    reportError(error, { message: 'Load more public logs error' })
     return { success: false, error: 'Failed to load more logs' }
   }
-
-  const logsWithCrags = (logsData || []).map((log) => {
-    const routeLines = log.climbs?.route_lines as Array<{ images?: { url?: string; crags?: { name: string } } }> | undefined
-    return {
-      ...log,
-      climbs: {
-        ...log.climbs,
-        image_url: routeLines?.[0]?.images?.url,
-        crags: {
-          name: routeLines?.[0]?.images?.crags?.name || 'Unknown crag'
-        }
-      }
-    }
-  }) as LogbookClimb[]
-
-  const nextCursor = logsWithCrags.length > 0 
-    ? logsWithCrags[logsWithCrags.length - 1].created_at 
-    : null
-
-  return { success: true, logs: logsWithCrags, nextCursor }
 }

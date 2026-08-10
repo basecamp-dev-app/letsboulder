@@ -1,306 +1,47 @@
-import { cache } from 'react'
 import type { Metadata } from 'next'
-import { getServerClient } from '@/lib/supabase-server'
-import { Card, CardContent } from '@/components/ui/card'
+import { cache } from 'react'
 import Link from 'next/link'
+import { ArrowLeft, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Lock, ArrowLeft } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { fetchServerPublicLogbookData } from '@/features/logbook/lib/queries-server'
 import ProfileViewTracker from './components/ProfileViewTracker'
 import PublicLogbookClient from './PublicLogbookClient'
-import type { LogbookClimb, LogbookLifetimeStats, LogbookProfile, ProgressLogEntry } from '@/features/logbook/lib/logbook-view'
-import type { Database } from '@/types/database'
 
 export const revalidate = 60
-import type { Submission } from '@/types/submissions'
-import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
-import { PUBLIC_DETAILED_LOGBOOK_SELECT } from '@/features/logbook/lib/query-selects'
-
-const PUBLIC_LOGBOOK_PAGE_SIZE = 50
-const PUBLIC_PROGRESS_LOG_LIMIT = 2000
-
-type PublicProfileRow = Pick<Database['public']['Tables']['profiles']['Row'], 'is_public'> & LogbookProfile
-type LogbookLifetimeStatsRow = Database['public']['Functions']['get_logbook_lifetime_stats']['Returns'][number]
-
-interface PublicContributionRow {
-  id: string
-  url: string
-  created_at: string
-  submission_id: string | null
-  is_anonymous_submission: boolean | null
-  contribution_credit_platform: string | null
-  contribution_credit_handle: string | null
-  crags: { name?: string; slug?: string | null; country_code?: string | null } | Array<{ name?: string; slug?: string | null; country_code?: string | null }> | null
-  route_lines: Array<{ count?: number }> | null
-}
-
-interface CragImageLinkRow {
-  source_image_id: string | null
-  linked_image_id: string | null
-}
 
 interface PublicLogbookPageProps {
   params: Promise<{ userId: string }>
 }
 
-const getProfile = cache(async function getProfile(userId: string): Promise<PublicProfileRow | null> {
-  const supabase = await getServerClient()
-
-  const { data, error } = await supabase
-    .rpc('get_visible_profile', { p_user_id: userId })
-    .single()
-
-  if (error || !data) {
-    return null
-  }
-
-  return data as PublicProfileRow
-})
-
-async function getPublicLogs(
-  userId: string,
-  cursor?: string
-): Promise<{ logs: LogbookClimb[]; nextCursor: string | null }> {
-  const supabase = await getServerClient()
-
-  let query = supabase
-    .from('user_climbs')
-    .select(PUBLIC_DETAILED_LOGBOOK_SELECT)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(PUBLIC_LOGBOOK_PAGE_SIZE)
-
-  if (cursor) {
-    query = query.lt('created_at', cursor)
-  }
-
-  const { data: logsData, error: logsError } = await query
-
-  if (logsError || !logsData) {
-    return { logs: [], nextCursor: null }
-  }
-
-  const logsWithCrags = logsData.map((log) => {
-    const routeLines = log.climbs?.route_lines as Array<{ images?: { url?: string; crags?: { name: string } } }> | undefined
-    return {
-      ...log,
-      climbs: {
-        ...log.climbs,
-        image_url: routeLines?.[0]?.images?.url,
-        crags: {
-          name: routeLines?.[0]?.images?.crags?.name || 'Unknown crag'
-        }
-      }
-    }
-  }) as LogbookClimb[]
-
-  const nextCursor = logsWithCrags.length > 0 
-    ? logsWithCrags[logsWithCrags.length - 1].created_at 
-    : null
-
-  return { logs: logsWithCrags, nextCursor }
-}
-
-async function getPublicProgressLogs(userId: string): Promise<ProgressLogEntry[]> {
-  const supabase = await getServerClient()
-
-  const { data, error } = await supabase
-    .from('user_climbs')
-    .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(PUBLIC_PROGRESS_LOG_LIMIT)
-
-  if (error || !data) {
-    return []
-  }
-
-  return data as unknown as ProgressLogEntry[]
-}
-
-async function getPublicLifetimeStats(userId: string): Promise<LogbookLifetimeStats> {
-  const supabase = await getServerClient()
-  const { data, error } = await supabase
-    .rpc('get_logbook_lifetime_stats', { p_user_id: userId })
-    .single()
-
-  if (error || !data) {
-    return { totalClimbs: 0, totalFlashes: 0, totalTops: 0, totalTries: 0 }
-  }
-
-  const stats = data as LogbookLifetimeStatsRow
-  return {
-    totalClimbs: stats.total_climbs,
-    totalFlashes: stats.total_flashes,
-    totalTops: stats.total_tops,
-    totalTries: stats.total_tries,
-  }
-}
-
-async function getPublicSubmissions(userId: string): Promise<Submission[]> {
-  const supabase = await getServerClient()
-
-  const { data, error } = await supabase
-    .from('images')
-    .select('id, url, created_at, submission_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags!images_crag_id_fkey(name, slug, country_code), route_lines(count)')
-    .eq('created_by', userId)
-    .eq('is_anonymous_submission', false)
-    .in('moderation_status', ['approved', 'skipped'])
-    .not('crag_id', 'is', null)
-    .not('latitude', 'is', null)
-    .not('longitude', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(24)
-
-  if (error || !data) {
-    return []
-  }
-
-  const contributionRows = data as PublicContributionRow[]
-  const imageIds = contributionRows.map((row) => row.id)
-
-  let links: CragImageLinkRow[] = []
-  if (imageIds.length > 0) {
-    const idsCsv = imageIds.join(',')
-    const { data: linksData, error: linksError } = await supabase
-      .from('crag_images')
-      .select('source_image_id, linked_image_id')
-      .or(`linked_image_id.in.(${idsCsv}),source_image_id.in.(${idsCsv})`)
-
-    if (!linksError) {
-      links = (linksData || []) as CragImageLinkRow[]
-    }
-  }
-
-  return groupSubmittedImages(contributionRows, links)
-}
+const getPublicLogbookData = cache(fetchServerPublicLogbookData)
 
 function PrivateProfileCard({ username }: { username: string }) {
-  return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 px-4 py-8">
-      <Card className="max-w-sm mx-auto">
-        <CardContent className="flex flex-col items-center justify-center py-12 px-4">
-          <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
-            <Lock className="w-8 h-8 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Private Profile
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6 max-w-sm">
-            {username} has chosen to keep their logbook hidden from public view.
-          </p>
-          <Link href="/">
-            <Button variant="outline" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Map
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
-    </div>
-  )
+  return <div className="min-h-screen bg-white px-4 py-8 dark:bg-gray-950"><Card className="mx-auto max-w-sm"><CardContent className="flex flex-col items-center justify-center px-4 py-12"><Lock className="mb-4 h-8 w-8 text-gray-400" /><h3 className="mb-2 text-lg font-semibold">Private Profile</h3><p className="mb-6 text-center text-sm text-gray-500">{username} has chosen to keep their logbook hidden from public view.</p><Link href="/"><Button variant="outline" className="gap-2"><ArrowLeft className="h-4 w-4" />Back to Map</Button></Link></CardContent></Card></div>
 }
 
 function ProfileNotFound() {
-  return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 px-4 py-8">
-      <Card className="max-w-sm mx-auto">
-        <CardContent className="flex flex-col items-center justify-center py-12 px-4">
-          <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
-            <Lock className="w-8 h-8 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Profile Not Found
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6 max-w-sm">
-            This climber&apos;s profile could not be found.
-          </p>
-          <Link href="/">
-            <Button variant="outline" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Map
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
-    </div>
-  )
+  return <div className="min-h-screen bg-white px-4 py-8 dark:bg-gray-950"><Card className="mx-auto max-w-sm"><CardContent className="flex flex-col items-center justify-center px-4 py-12"><Lock className="mb-4 h-8 w-8 text-gray-400" /><h3 className="mb-2 text-lg font-semibold">Profile Not Found</h3><p className="mb-6 text-center text-sm text-gray-500">This climber&apos;s profile could not be found.</p><Link href="/"><Button variant="outline" className="gap-2"><ArrowLeft className="h-4 w-4" />Back to Map</Button></Link></CardContent></Card></div>
 }
 
 export async function generateMetadata({ params }: PublicLogbookPageProps): Promise<Metadata> {
   const { userId } = await params
-  const profile = await getProfile(userId)
-
-  if (!profile) {
-    return {
-      title: 'Profile Not Found',
-      robots: {
-        index: false,
-        follow: true,
-      },
-    }
-  }
-
-  if (profile.is_public === false) {
-    return {
-      title: `${profile.username}'s Logbook`,
-      robots: {
-        index: false,
-        follow: true,
-      },
-    }
-  }
-
+  const data = await getPublicLogbookData(userId)
+  if (!data?.profile) return { title: 'Profile Not Found', robots: { index: false, follow: true } }
+  if (!data.isPublic) return { title: `${data.profile?.username || 'Profile'}'s Logbook`, robots: { index: false, follow: true } }
   return {
-    title: `${profile.username}'s Logbook`,
-    description: `View ${profile.username}'s climbing logbook and achievements on letsboulder.`,
-    alternates: {
-      canonical: `/logbook/${userId}`,
-    },
-    robots: {
-      index: true,
-      follow: true,
-    },
-    openGraph: {
-      title: `${profile.username}'s Logbook - letsboulder`,
-      description: `View ${profile.username}'s climbing logbook and achievements on letsboulder.`,
-      url: `/logbook/${userId}`,
-    },
+    title: `${data.profile.username}'s Logbook`,
+    description: `View ${data.profile.username}'s climbing logbook and achievements on letsboulder.`,
+    alternates: { canonical: `/logbook/${userId}` },
+    robots: { index: true, follow: true },
+    openGraph: { title: `${data.profile.username}'s Logbook - letsboulder`, description: `View ${data.profile.username}'s climbing logbook and achievements on letsboulder.`, url: `/logbook/${userId}` },
   }
 }
 
 export default async function PublicLogbookPage({ params }: PublicLogbookPageProps) {
   const { userId } = await params
-  const profile = await getProfile(userId)
-
-  if (!profile) {
-    return <ProfileNotFound />
-  }
-
-  if (profile.is_public === false) {
-    return <PrivateProfileCard username={profile.username} />
-  }
-
-  const [logsResult, progressLogs, lifetimeStats, submissions] = await Promise.all([
-    getPublicLogs(userId),
-    getPublicProgressLogs(userId),
-    getPublicLifetimeStats(userId),
-    getPublicSubmissions(userId),
-  ])
-
-  return (
-    <>
-      <ProfileViewTracker />
-      <PublicLogbookClient
-        userId={userId}
-        initialPage={{
-          logs: logsResult.logs,
-          progressLogs,
-          lifetimeStats,
-          nextCursor: logsResult.nextCursor,
-          profile,
-          submissions,
-        }}
-      />
-    </>
-  )
+  const data = await getPublicLogbookData(userId)
+  if (!data) return <ProfileNotFound />
+  if (!data.isPublic) return <PrivateProfileCard username={data.profile?.username || 'This climber'} />
+  return <><ProfileViewTracker /><PublicLogbookClient userId={userId} initialPage={data} /></>
 }

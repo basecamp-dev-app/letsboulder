@@ -1,5 +1,5 @@
 import { calculateStats, getLowestGrade, type LogEntry } from '@/lib/grades'
-import type { OwnLogbookData } from '@/features/logbook/lib/queries'
+import type { LogbookViewModel } from '@/features/logbook/lib/logbook-contract'
 import type { Submission } from '@/types/submissions'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 
@@ -156,28 +156,28 @@ export function normalizeOwnerSubmissionsTab(value: string | null | undefined): 
   return 'all'
 }
 
-export function replaceOwnLogbookLogs(current: OwnLogbookData, nextLogs: LogbookClimb[]): OwnLogbookData {
+export function replaceOwnLogbookLogs(current: LogbookViewModel, nextLogs: LogbookClimb[]): LogbookViewModel {
   return {
     ...current,
     logs: nextLogs,
   }
 }
 
-export function replaceOwnLogbookSubmissions(current: OwnLogbookData, nextSubmissions: Submission[]): OwnLogbookData {
+export function replaceOwnLogbookSubmissions(current: LogbookViewModel, nextSubmissions: Submission[]): LogbookViewModel {
   return {
     ...current,
     submissionCounts: getOwnerSubmissionCounts(nextSubmissions),
   }
 }
 
-export function replaceOwnSavedClimbs(current: OwnLogbookData, nextSavedClimbs: SavedClimb[]): OwnLogbookData {
+export function replaceOwnSavedClimbs(current: LogbookViewModel, nextSavedClimbs: SavedClimb[]): LogbookViewModel {
   return {
     ...current,
     savedClimbs: nextSavedClimbs,
   }
 }
 
-export function replaceOwnSavedCrags(current: OwnLogbookData, nextSavedCrags: SavedCrag[]): OwnLogbookData {
+export function replaceOwnSavedCrags(current: LogbookViewModel, nextSavedCrags: SavedCrag[]): LogbookViewModel {
   return {
     ...current,
     savedCrags: nextSavedCrags,

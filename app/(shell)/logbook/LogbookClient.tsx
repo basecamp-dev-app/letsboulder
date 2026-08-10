@@ -8,15 +8,15 @@ import LogbookView from '@/features/logbook/components/LogbookView'
 import { useToast } from '@/features/logbook/components/Toast'
 import {
   fetchOwnLogbookSubmissions,
-  fetchOwnLogbookPage,
   fetchOwnLogbookSummary,
   ownLogbookLogsQueryKey,
   ownLogbookSubmissionsQueryKey,
   ownLogbookSummaryQueryKey,
   type OwnLogbookData,
 } from '@/features/logbook/lib/queries'
-import type { LogbookClimb } from '@/features/logbook/lib/logbook-view'
+import type { LogbookPage } from '@/features/logbook/lib/logbook-contract'
 import { deleteLogAction } from '@/features/logbook/actions/delete-log'
+import { loadMoreLogbookAction } from '@/features/logbook/actions/load-more-logbook'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { fetchOwnSubmissions } from '@/features/submissions/lib/fetch-own-submissions'
@@ -31,8 +31,6 @@ interface LogbookClientProps {
   initialData?: OwnLogbookData
 }
 
-const LOGBOOK_PAGE_SIZE = 24
-
 export default function LogbookClient({ user, initialData }: LogbookClientProps) {
   return <LogbookContent user={user} initialData={initialData} />
 }
@@ -45,18 +43,23 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
   const [isSubmissionsExpanded, setIsSubmissionsExpanded] = useState(searchParams.get('section') === 'submissions')
   const hydratedInitialData = initialData
     ? {
-        user,
-        logs: initialData.logs,
+         user,
+         userId: user.id,
+         isOwnProfile: true as const,
+         isPublic: true,
+         logs: initialData.logs,
+         nextCursor: initialData.nextCursor,
         progressLogs: initialData.progressLogs,
         lifetimeStats: initialData.lifetimeStats,
         profile: initialData.profile,
         savedClimbs: initialData.savedClimbs,
         savedCrags: initialData.savedCrags,
-        submissionCounts: initialData.submissionCounts,
+         submissionCounts: initialData.submissionCounts,
+         submissions: [],
       }
     : undefined
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery<OwnLogbookData, Error, OwnLogbookData>({
     queryKey: ownLogbookSummaryQueryKey,
     queryFn: () => fetchOwnLogbookSummary(user),
     initialData: hydratedInitialData,
@@ -73,14 +76,17 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
 
   const logsQuery = useInfiniteQuery({
     queryKey: ownLogbookLogsQueryKey(user.id),
-    initialPageParam: 0,
-    queryFn: ({ pageParam }) => fetchOwnLogbookPage(user.id, pageParam, LOGBOOK_PAGE_SIZE),
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      if (!pageParam) return { logs: initialData?.logs ?? [], nextCursor: initialData?.nextCursor ?? null }
+      const result = await loadMoreLogbookAction(user.id, pageParam, 'owner')
+      if (!result.success) throw new Error(result.error)
+      return result
+    },
     initialData: initialData
-      ? { pages: [initialData.logs], pageParams: [0] }
+      ? { pages: [{ logs: initialData.logs, nextCursor: initialData.nextCursor }], pageParams: [null] }
       : undefined,
-    getNextPageParam: (lastPage, pages) => (
-      lastPage.length === LOGBOOK_PAGE_SIZE ? pages.length : undefined
-    ),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     gcTime: 30 * 60 * 1000,
   })
 
@@ -89,7 +95,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
   const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null)
   const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null)
 
-  const logs = logsQuery.data?.pages.flat() ?? data?.logs ?? initialData?.logs ?? []
+  const logs = logsQuery.data?.pages.flatMap((page) => page.logs) ?? data?.logs ?? initialData?.logs ?? []
   const progressLogs = data?.progressLogs ?? initialData?.progressLogs ?? logs
   const lifetimeStats = data?.lifetimeStats ?? initialData?.lifetimeStats
   const profile = data?.profile ?? initialData?.profile ?? undefined
@@ -116,11 +122,11 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId)
     const previousSummary = queryClient.getQueryData<OwnLogbookData>(ownLogbookSummaryQueryKey)
-    const previousLogPages = queryClient.getQueryData<InfiniteData<LogbookClimb[], number>>(ownLogbookLogsQueryKey(user.id))
+    const previousLogPages = queryClient.getQueryData<InfiniteData<LogbookPage, string | null>>(ownLogbookLogsQueryKey(user.id))
     const deletedLog = logs.find((log) => log.id === logId)
 
-    queryClient.setQueryData<InfiniteData<LogbookClimb[], number>>(ownLogbookLogsQueryKey(user.id), (current) => current
-      ? { ...current, pages: current.pages.map((page) => page.filter((log) => log.id !== logId)) }
+    queryClient.setQueryData<InfiniteData<LogbookPage, string | null>>(ownLogbookLogsQueryKey(user.id), (current) => current
+      ? { ...current, pages: current.pages.map((page) => ({ ...page, logs: page.logs.filter((log) => log.id !== logId) })) }
       : current)
     updateOwnLogbookData((current) => ({
       ...current,

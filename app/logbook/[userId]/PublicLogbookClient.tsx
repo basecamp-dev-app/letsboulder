@@ -1,6 +1,6 @@
 'use client'
 
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import LogbookView from '@/features/logbook/components/LogbookView'
 import { useToast } from '@/hooks/use-toast'
 import { ToastContainer } from '@/components/ui/toast'
@@ -23,7 +23,7 @@ export default function PublicLogbookClient({ userId, initialPage }: PublicLogbo
   const queryClient = useQueryClient()
   const { toasts, addToast, removeToast } = useToast()
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery<PublicLogbookPageData, Error, InfiniteData<PublicLogbookPageData>, readonly ['logbook', 'public', string], string | null>({
     queryKey: publicLogbookQueryKey(userId),
     queryFn: async ({ pageParam }) => {
       if (!pageParam) {
