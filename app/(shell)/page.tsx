@@ -127,7 +127,7 @@ export default async function Home() {
 
   return (
     <>
-      <main className="min-h-screen bg-[linear-gradient(180deg,_rgba(248,250,252,0)_0%,_rgba(248,250,252,0.82)_22%,_#f8fafc_42%,_#f8fafc_100%)] dark:bg-[linear-gradient(180deg,_#020617_0%,_#020617_34%,_#020617_100%)]">
+      <div className="min-h-screen bg-[linear-gradient(180deg,_rgba(248,250,252,0)_0%,_rgba(248,250,252,0.82)_22%,_#f8fafc_42%,_#f8fafc_100%)] dark:bg-[linear-gradient(180deg,_#020617_0%,_#020617_34%,_#020617_100%)]">
         <section className="relative w-full">
           <HomeMapHero className="h-[58svh] min-h-[420px] w-full md:h-[54svh] md:min-h-[480px]" />
           <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-slate-950/20 via-slate-950/5 to-transparent" />
@@ -140,7 +140,7 @@ export default async function Home() {
         <Suspense fallback={<ContributorHighlightsFallback />}>
           <ContributorHighlightsSection />
         </Suspense>
-      </main>
+      </div>
       <JsonLd data={[siteNavigation, webSite]} />
     </>
   )
