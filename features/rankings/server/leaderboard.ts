@@ -5,15 +5,8 @@ type RankingSort = 'grade' | 'tops'
 
 type RankingsRow = Database['public']['Functions']['get_rankings_leaderboard']['Returns'][number]
 type PlaceRankingsRow = Database['public']['Functions']['get_place_rankings_leaderboard']['Returns'][number]
-type CragRankingsRow = {
-  rank: number
-  user_id: string
-  username: string
-  avatar_url: string | null
-  avg_grade: string
-  climb_count: number
-  total_users: number
-}
+type CragRankingsRow = Database['public']['Functions']['get_crag_rankings_leaderboard']['Returns'][number]
+type LeaderboardRpcRow = RankingsRow | PlaceRankingsRow | CragRankingsRow
 
 export interface LeaderboardEntry {
   rank: number
@@ -29,28 +22,12 @@ export interface LeaderboardPage {
   totalUsers: number
 }
 
-function mapLeaderboardRows(rows: Array<RankingsRow | PlaceRankingsRow> | null | undefined): LeaderboardPage {
+function mapLeaderboardRows(rows: Array<LeaderboardRpcRow> | null | undefined): LeaderboardPage {
   const leaderboard = (rows || []).map((row) => ({
     rank: Number(row.rank),
     user_id: row.user_id,
     username: row.username,
-    avatar_url: row.avatar_url,
-    avg_grade: row.avg_grade,
-    climb_count: Number(row.climb_count),
-  }))
-
-  return {
-    leaderboard,
-    totalUsers: rows && rows.length > 0 ? Number(rows[0].total_users) : 0,
-  }
-}
-
-function mapGenericLeaderboardRows(rows: Array<RankingsRow | PlaceRankingsRow | CragRankingsRow> | null | undefined): LeaderboardPage {
-  const leaderboard = (rows || []).map((row) => ({
-    rank: Number(row.rank),
-    user_id: row.user_id,
-    username: row.username,
-    avatar_url: row.avatar_url,
+    avatar_url: row.avatar_url ?? null,
     avg_grade: row.avg_grade,
     climb_count: Number(row.climb_count),
   }))
@@ -121,7 +98,7 @@ export async function loadCragRankingsLeaderboard(
     windowStart: string | null
   }
 ): Promise<{ data: LeaderboardPage | null; error: PostgrestError | null }> {
-  const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: CragRankingsRow[] | null; error: PostgrestError | null }> }).rpc('get_crag_rankings_leaderboard', {
+  const { data, error } = await supabase.rpc('get_crag_rankings_leaderboard', {
     p_crag_id: params.cragId,
     p_sort: params.sort,
     p_page: params.page,
@@ -130,7 +107,7 @@ export async function loadCragRankingsLeaderboard(
   })
 
   return {
-    data: error ? null : mapGenericLeaderboardRows(data),
+    data: error ? null : mapLeaderboardRows(data),
     error,
   }
 }

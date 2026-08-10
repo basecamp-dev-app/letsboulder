@@ -28,6 +28,8 @@ export interface RouteTargetFetchResult {
   effectiveClimbIdByClimbId: Record<string, string>
 }
 
+type CragRouteTargetPageRpcRow = Database['public']['Functions']['get_crag_route_targets_page']['Returns'][number]
+
 export interface CragRouteTargetPageRow {
   effective_climb_id: string
   climb_slug: string | null
@@ -37,6 +39,19 @@ export interface CragRouteTargetPageRow {
   navigation_image_id: string | null
   navigation_image_url: string | null
   route_image_ids: string[] | null
+}
+
+function mapCragRouteTargetPageRow(row: CragRouteTargetPageRpcRow): CragRouteTargetPageRow {
+  return {
+    effective_climb_id: row.effective_climb_id,
+    climb_slug: row.climb_slug ?? null,
+    preview_image_id: row.preview_image_id ?? null,
+    preview_image_url: row.preview_image_url ? resolveRouteImageUrl(row.preview_image_url) : null,
+    navigation_route_id: row.navigation_route_id ?? null,
+    navigation_image_id: row.navigation_image_id ?? null,
+    navigation_image_url: row.navigation_image_url ? resolveRouteImageUrl(row.navigation_image_url) : null,
+    route_image_ids: row.route_image_ids ?? null,
+  }
 }
 
 function buildCanonicalStaticImageUrl(imageId: string, fallbackUrl: string | null): string {
@@ -458,7 +473,7 @@ export async function fetchCragRouteTargetPage(
   limit: number,
   offset: number
 ) {
-  const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: CragRouteTargetPageRow[] | null; error: Error | null }> }).rpc('get_crag_route_targets_page', {
+  const { data, error } = await supabase.rpc('get_crag_route_targets_page', {
     p_crag_id: cragId,
     p_limit: limit,
     p_offset: offset,
@@ -466,17 +481,7 @@ export async function fetchCragRouteTargetPage(
 
   if (error) throw error
 
-  const resolvedRows = ((Array.isArray(data) ? data : []) as CragRouteTargetPageRow[]).map((row: CragRouteTargetPageRow) => ({
-    ...row,
-    preview_image_url: row.preview_image_url
-      ? resolveRouteImageUrl(row.preview_image_url)
-      : null,
-    navigation_image_url: row.navigation_image_url
-      ? resolveRouteImageUrl(row.navigation_image_url)
-      : null,
-  }))
-
-  return buildRouteTargetMapsFromPageRows(resolvedRows as CragRouteTargetPageRow[])
+  return buildRouteTargetMapsFromPageRows((data ?? []).map(mapCragRouteTargetPageRow))
 }
 
 export async function fetchAllCragRoutePreviews(
