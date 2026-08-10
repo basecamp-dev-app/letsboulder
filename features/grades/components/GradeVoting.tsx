@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { SELECTABLE_GRADES } from '@/lib/grade-constants'
 import type { GradeVotingProps } from '@/lib/verification-types'
-import { submitGradeVoteAction } from '@/components/grade-voting-actions'
+import { submitGradeVoteAction } from '@/features/grades/actions'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { reportError } from '@/lib/errors'

@@ -1,1 +1,1 @@
-// Barrel export for submissions/components
+export { default as SubmissionCredit } from '@/features/submissions/components/SubmissionCredit'
