@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, vi, describe, expect, it } from 'vitest'
 
@@ -33,6 +33,12 @@ function ContributionButton({ onContribute }: { onContribute: () => void }) {
   return <button type="button" onClick={() => { void requireConsent(onContribute) }}>Contribute</button>
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => { resolve = nextResolve })
+  return { promise, resolve }
+}
+
 describe('OpenDataConsentProvider', () => {
   let onAuthStateChange: (_event: string, session: { user: { id: string } } | null) => void
 
@@ -47,10 +53,15 @@ describe('OpenDataConsentProvider', () => {
 
   it('interrupts once, records consent, and resumes the pending contribution', async () => {
     const onContribute = vi.fn()
-    mocks.status.mockResolvedValue({
-      success: true,
-      data: { requiredVersion: '2026-07-29-v1', acceptedVersion: null, consentTimestamp: null, isValid: false },
-    })
+    mocks.status
+      .mockResolvedValueOnce({
+        success: true,
+        data: { requiredVersion: '2026-07-29-v1', acceptedVersion: null, consentTimestamp: null, isValid: false },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { requiredVersion: '2026-07-29-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: true },
+      })
     mocks.accept.mockResolvedValue({
       success: true,
       data: { requiredVersion: '2026-07-29-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: true },
@@ -69,28 +80,85 @@ describe('OpenDataConsentProvider', () => {
 
     await user.click(screen.getByRole('button', { name: 'Contribute' }))
     expect(onContribute).toHaveBeenCalledTimes(2)
-    expect(mocks.status).toHaveBeenCalledTimes(1)
+    expect(mocks.status).toHaveBeenCalledTimes(2)
   })
 
-  it('revalidates consent after the authenticated user changes', async () => {
+  it('requires acceptance when the terms version rolls out', async () => {
     const onContribute = vi.fn()
-    mocks.status.mockResolvedValue({
-      success: true,
-      data: { requiredVersion: '2026-07-29-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: true },
-    })
+    mocks.status
+      .mockResolvedValueOnce({
+        success: true,
+        data: { requiredVersion: '2026-07-29-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: true },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { requiredVersion: '2026-08-10-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: false },
+      })
 
     render(<OpenDataConsentProvider><ContributionButton onContribute={onContribute} /></OpenDataConsentProvider>)
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Contribute' }))
     expect(onContribute).toHaveBeenCalledTimes(1)
-    expect(mocks.status).toHaveBeenCalledTimes(1)
-
-    mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-2' } } })
-    act(() => onAuthStateChange('SIGNED_IN', { user: { id: 'user-2' } }))
 
     await user.click(screen.getByRole('button', { name: 'Contribute' }))
-    expect(onContribute).toHaveBeenCalledTimes(2)
+    expect(await screen.findByText(/2026-08-10-v1/)).toBeInTheDocument()
+    expect(onContribute).toHaveBeenCalledTimes(1)
     expect(mocks.status).toHaveBeenCalledTimes(2)
+  })
+
+  it('discards a status result when the authenticated account changes', async () => {
+    const onContribute = vi.fn()
+    const status = deferred<{
+      success: boolean
+      data: { requiredVersion: string; acceptedVersion: string | null; consentTimestamp: string | null; isValid: boolean }
+    }>()
+    mocks.status.mockReturnValueOnce(status.promise)
+
+    render(<OpenDataConsentProvider><ContributionButton onContribute={onContribute} /></OpenDataConsentProvider>)
+    const user = userEvent.setup()
+    await waitFor(() => expect(mocks.onAuthStateChange).toHaveBeenCalled())
+
+    await user.click(screen.getByRole('button', { name: 'Contribute' }))
+    await waitFor(() => expect(mocks.status).toHaveBeenCalledTimes(1))
+    act(() => onAuthStateChange('SIGNED_IN', { user: { id: 'user-2' } }))
+    await act(async () => { status.resolve({
+      success: true,
+      data: { requiredVersion: '2026-07-29-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: true },
+    }) })
+
+    expect(onContribute).not.toHaveBeenCalled()
+    expect(screen.queryByRole('heading', { name: 'Keep climbing knowledge open' })).not.toBeInTheDocument()
+  })
+
+  it('discards an acceptance result when the authenticated account changes', async () => {
+    const onContribute = vi.fn()
+    const acceptance = deferred<{
+      success: boolean
+      data: { requiredVersion: string; acceptedVersion: string | null; consentTimestamp: string | null; isValid: boolean }
+    }>()
+    mocks.status.mockResolvedValue({
+      success: true,
+      data: { requiredVersion: '2026-07-29-v1', acceptedVersion: null, consentTimestamp: null, isValid: false },
+    })
+    mocks.accept.mockReturnValueOnce(acceptance.promise)
+
+    render(<OpenDataConsentProvider><ContributionButton onContribute={onContribute} /></OpenDataConsentProvider>)
+    const user = userEvent.setup()
+    await waitFor(() => expect(mocks.onAuthStateChange).toHaveBeenCalled())
+
+    await user.click(screen.getByRole('button', { name: 'Contribute' }))
+    await screen.findByRole('heading', { name: 'Keep climbing knowledge open' })
+    await user.click(screen.getByRole('button', { name: 'Agree and continue' }))
+    await waitFor(() => expect(mocks.accept).toHaveBeenCalledWith('2026-07-29-v1'))
+
+    act(() => onAuthStateChange('SIGNED_IN', { user: { id: 'user-2' } }))
+    await act(async () => { acceptance.resolve({
+      success: true,
+      data: { requiredVersion: '2026-07-29-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: true },
+    }) })
+
+    expect(onContribute).not.toHaveBeenCalled()
+    expect(screen.queryByRole('heading', { name: 'Keep climbing knowledge open' })).not.toBeInTheDocument()
   })
 })

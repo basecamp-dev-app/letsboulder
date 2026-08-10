@@ -1,10 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Session, User, UserResponse } from '@supabase/supabase-js'
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { useLazyAuthUser } from '@/components/use-lazy-auth-user'
 import {
   Dialog,
   DialogContent,
@@ -19,59 +19,44 @@ import {
 } from '@/features/legal/actions/open-data-consent'
 import { OpenDataConsentContext } from '@/features/legal/hooks/use-open-data-consent'
 import type { ContributionIntent } from '@/features/legal/types/open-data-consent'
-import { createClient } from '@/lib/supabase'
-
-interface ValidConsentCache {
-  userId: string
-  requiredVersion: string
-}
 
 export function OpenDataConsentProvider({ children }: { children: ReactNode }) {
+  const { user, load: loadAuthUser } = useLazyAuthUser()
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [requiredVersion, setRequiredVersion] = useState<string | null>(null)
   const pendingIntent = useRef<ContributionIntent | null>(null)
-  const validConsent = useRef<ValidConsentCache | null>(null)
   const currentUserId = useRef<string | null>(null)
+  const authRevision = useRef(0)
+
+  const resetConsentState = useEffectEvent(() => {
+    pendingIntent.current = null
+    setRequiredVersion(null)
+    setError(null)
+    setOpen(false)
+    setSubmitting(false)
+  })
 
   useEffect(() => {
-    const supabase = createClient()
+    void loadAuthUser()
+  }, [loadAuthUser])
 
-    function handleAuthChange(user: User | null) {
-      const nextUserId = user?.id ?? null
-      if (currentUserId.current === nextUserId) return
+  useEffect(() => {
+    const nextUserId = user?.id ?? null
+    if (currentUserId.current === nextUserId) return
 
-      currentUserId.current = nextUserId
-      validConsent.current = null
-      pendingIntent.current = null
-      setRequiredVersion(null)
-      setError(null)
-      setOpen(false)
-    }
-
-    void supabase.auth.getUser().then(({ data: { user } }: UserResponse) => {
-      handleAuthChange(user)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
-      handleAuthChange(session?.user ?? null)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
+    currentUserId.current = nextUserId
+    authRevision.current += 1
+    resetConsentState()
+  }, [user?.id])
 
   async function requireConsent(intent: ContributionIntent) {
-    const { data: { user } } = await createClient().auth.getUser()
-    const cachedConsent = validConsent.current
-    if (user && requiredVersion && cachedConsent && cachedConsent.userId === user.id && cachedConsent.requiredVersion === requiredVersion) {
-      await intent()
-      return
-    }
-
+    const requestAuthRevision = authRevision.current
     const status = await getOpenDataConsentStatusAction()
+    if (requestAuthRevision !== authRevision.current) return
+
     if (status.success && status.data?.isValid) {
-      if (user) validConsent.current = { userId: user.id, requiredVersion: status.data.requiredVersion }
       setRequiredVersion(status.data.requiredVersion)
       await intent()
       return
@@ -91,20 +76,22 @@ export function OpenDataConsentProvider({ children }: { children: ReactNode }) {
       setError('Could not identify the current contribution terms')
       return
     }
+    const requestAuthRevision = authRevision.current
     const result = await acceptOpenDataConsentAction(requiredVersion)
+    if (requestAuthRevision !== authRevision.current) return
+
     setSubmitting(false)
 
     if (!result.success || !result.data?.isValid) {
       setError(result.error || 'Could not record your agreement')
       const status = await getOpenDataConsentStatusAction()
+      if (requestAuthRevision !== authRevision.current) return
       if (status.success && status.data) setRequiredVersion(status.data.requiredVersion)
       return
     }
 
     const intent = pendingIntent.current
     pendingIntent.current = null
-    const { data: { user } } = await createClient().auth.getUser()
-    if (user) validConsent.current = { userId: user.id, requiredVersion: result.data.requiredVersion }
     setOpen(false)
     if (intent) await intent()
   }
