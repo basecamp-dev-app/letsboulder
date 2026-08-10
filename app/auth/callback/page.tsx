@@ -182,18 +182,24 @@ function AuthCallbackContent() {
       setErrorMessage(null)
       setLoadingStep('Signing you in')
 
-      const hasSession = await checkSession()
+      try {
+        const hasSession = await checkSession()
 
-      if (hasSession) {
-        await completeAuth()
-      } else {
-        setStatus('error')
-        const errorType = searchParams.get('error')
-        if (errorType === 'access_denied') {
-          setErrorMessage('The sign-in link has expired or has already been used.')
+        if (hasSession) {
+          await completeAuth()
         } else {
-          setErrorMessage('Unable to establish a session. Please try again or request a new magic link.')
+          setStatus('error')
+          const errorType = searchParams.get('error')
+          if (errorType === 'access_denied') {
+            setErrorMessage('The sign-in link has expired or has already been used.')
+          } else {
+            setErrorMessage('Unable to establish a session. Please try again or request a new magic link.')
+          }
         }
+      } catch (error) {
+        reportError(error, { message: 'Auth callback failed' })
+        setStatus('error')
+        setErrorMessage('Unable to complete sign-in. Please try again or request a new magic link.')
       }
     }
 
@@ -212,13 +218,19 @@ function AuthCallbackContent() {
     const checkSession = createSessionChecker(startTime)
 
     const retryAuth = async () => {
-      const hasSession = await checkSession()
+      try {
+        const hasSession = await checkSession()
 
-      if (hasSession) {
-        await completeAuth()
-      } else {
+        if (hasSession) {
+          await completeAuth()
+        } else {
+          setStatus('error')
+          setErrorMessage('Unable to establish a session. Please try again or request a new magic link.')
+        }
+      } catch (error) {
+        reportError(error, { message: 'Auth callback retry failed' })
         setStatus('error')
-        setErrorMessage('Unable to establish a session. Please try again or request a new magic link.')
+        setErrorMessage('Unable to complete sign-in. Please try again or request a new magic link.')
       }
     }
 
