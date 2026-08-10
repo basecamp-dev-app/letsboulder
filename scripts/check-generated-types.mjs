@@ -8,10 +8,12 @@ const generatedTypesPath = join(root, 'types/database.ts')
 const temporaryDirectory = mkdtempSync(join(tmpdir(), 'letsboulder-db-types-'))
 const temporaryTypesPath = join(temporaryDirectory, 'database.ts')
 const normalizeGeneratedOutput = (content) => content.replace(/\n+$/, '\n')
+const localDatabaseUrl = process.env.TEST_DATABASE_URL
+  || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
 try {
   // Compare in a temporary file so this check never mutates the tracked generated output.
-  const result = spawnSync('npx', ['supabase', 'gen', 'types', 'typescript', '--local'], {
+  const result = spawnSync('npx', ['supabase', 'gen', 'types', 'typescript', '--db-url', localDatabaseUrl], {
     cwd: root,
     encoding: 'utf8',
   })

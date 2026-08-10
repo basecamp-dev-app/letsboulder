@@ -5391,6 +5391,15 @@ export type Database = {
         Args: { p_claim_token: string; p_job_id: string }
         Returns: undefined
       }
+      vote_on_climb_correction: {
+        Args: { p_correction_id: string; p_vote_type?: string }
+        Returns: {
+          approval_count: number
+          rejection_count: number
+          status: string
+          vote_action: string
+        }[]
+      }
       wiki_entity_snapshot: {
         Args: { p_entity_kind: string; p_source_id: string }
         Returns: Json

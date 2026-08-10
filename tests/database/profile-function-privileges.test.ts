@@ -91,6 +91,7 @@ const API_EXECUTABLE_DEFINERS = [
   'update_submission_image_order(uuid,jsonb)',
   'user_can_edit_submission_draft(uuid,uuid)',
   'user_can_wiki_edit_submission(uuid,uuid)',
+  'vote_on_climb_correction(uuid,text)',
 ]
 
 const RESTRICTED_FUNCTIONS = [
