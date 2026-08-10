@@ -10,8 +10,6 @@ const draftCollaboratorConfig = {
   inviteTable: 'submission_draft_collaborator_invites' as const,
   inviteResourceColumn: 'draft_id' as const,
   claimInviteRpc: 'claim_submission_draft_collaborator_invite' as const,
-  invalidInviteErrorPath: '/logbook?error=invalid-draft-collab-invite',
-  authRedirectPath: (token: string) => `/api/submissions/drafts/collaborate/${encodeURIComponent(token)}`,
   successRedirectPath: (resourceId: string) => `/logbook/drafts/${resourceId}/edit?collab=added`,
   notFoundLabel: 'Draft',
   removeErrorMessage: 'Remove draft collaborator error',
@@ -22,7 +20,7 @@ const draftCollaboratorConfig = {
   revokeInviteForbiddenMessage: 'Only the draft owner can revoke invites',
   shareForbiddenMessage: 'Only draft submissions can be shared',
   profileSelect: 'id, username, display_name, avatar_url, first_name, last_name',
-  createInvitePath: (token: string, origin: string) => `${origin}/api/submissions/drafts/collaborate/${token}`,
+  createInvitePath: (token: string, origin: string) => `${origin}/collaborate/draft/${token}`,
 }
 
 export async function listDraftCollaborators(input: {
@@ -96,18 +94,12 @@ export async function removeDraftCollaborator(input: {
 
 export async function claimDraftInvite(input: {
   supabase: ReturnType<typeof import('@supabase/ssr').createServerClient>
-  request: Request
   token: string
-  userId: string | null
-  authError: unknown
 }) {
-  const { supabase, request, token, userId, authError } = input
+  const { supabase, token } = input
   return claimCollaboratorInvite({
     supabase,
-    request,
     token,
-    userId,
-    authError,
     config: draftCollaboratorConfig,
   })
 }

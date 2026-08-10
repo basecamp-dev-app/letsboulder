@@ -48,8 +48,6 @@ function shouldSkipMiddleware(pathname: string, method: string): boolean {
     '/api/media/private',
     '/api/media/upload-sessions',
     '/api/moderation/queue',
-    '/api/submissions/drafts/collaborate',
-    '/api/submissions/collaborate',
     '/api/routes/',
   ]
 

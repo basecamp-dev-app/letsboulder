@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
-import { resolveUserIdWithFallback } from '@/lib/auth-context'
-
-interface ClaimInviteResult {
-  image_id?: string
-}
+import { withApiMiddleware } from '@/lib/csrf-server'
+import { claimCollaboratorInvite } from '@/features/submissions/server/collaboration/shared-collaborators'
 
 export async function GET(
   request: NextRequest,
@@ -17,29 +13,27 @@ export async function GET(
     return NextResponse.redirect(new URL('/logbook?error=invalid-collab-invite', request.url))
   }
 
-  const supabase = getServerClientFromRequest(request)
+  return NextResponse.redirect(new URL(`/collaborate/submission/${encodeURIComponent(tokenValue)}`, request.url))
+}
 
-  const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+const submissionInviteConfig = {
+  claimInviteRpc: 'claim_submission_collaborator_invite' as const,
+  successRedirectPath: (resourceId: string) => `/logbook/submissions/${resourceId}/edit?collab=added`,
+}
 
-  if (authError || !userId) {
-    const returnTo = `/api/submissions/collaborate/${encodeURIComponent(tokenValue)}`
-    const authUrl = new URL(`/auth?redirect_to=${encodeURIComponent(returnTo)}`, request.url)
-    return NextResponse.redirect(authUrl)
-  }
-
-  const { data, error } = await supabase.rpc('claim_submission_collaborator_invite', {
-    p_token: tokenValue,
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  const middlewareResult = await withApiMiddleware(request, {
+    unauthorizedMessage: 'Authentication required',
   })
+  if (!middlewareResult.ok) return middlewareResult.response
 
-  if (error || !data) {
-    return NextResponse.redirect(new URL('/logbook?error=invalid-collab-invite', request.url))
-  }
-
-  const claim = data as ClaimInviteResult
-  if (!claim.image_id) {
-    return NextResponse.redirect(new URL('/logbook?error=invalid-collab-invite', request.url))
-  }
-
-  const redirectUrl = new URL(`/logbook/submissions/${claim.image_id}/edit?collab=added`, request.url)
-  return NextResponse.redirect(redirectUrl)
+  const { token } = await params
+  return claimCollaboratorInvite({
+    supabase: middlewareResult.supabase,
+    token,
+    config: submissionInviteConfig,
+  })
 }

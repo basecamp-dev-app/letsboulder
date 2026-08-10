@@ -33,8 +33,6 @@ const submissionCollaboratorConfig = {
   inviteTable: 'submission_collaborator_invites' as const,
   inviteResourceColumn: 'image_id' as const,
   claimInviteRpc: 'claim_submission_collaborator_invite' as const,
-  invalidInviteErrorPath: '/logbook?error=invalid-collab-invite',
-  authRedirectPath: (token: string) => `/api/submissions/collaborate/${encodeURIComponent(token)}`,
   successRedirectPath: (resourceId: string) => `/logbook/submissions/${resourceId}/edit?collab=added`,
   notFoundLabel: 'Image',
   removeErrorMessage: 'Remove collaborator error',
@@ -45,7 +43,7 @@ const submissionCollaboratorConfig = {
   createInviteForbiddenMessage: 'Only the submission owner can create invites',
   revokeInviteForbiddenMessage: 'Only the submission owner can revoke invites',
   profileSelect: 'id, username, display_name, avatar_url',
-  createInvitePath: (token: string, origin: string) => `${origin}/api/submissions/collaborate/${token}`,
+  createInvitePath: (token: string, origin: string) => `${origin}/collaborate/submission/${token}`,
 }
 
 function getDisplayName(profile: ProfileRow | null): string {

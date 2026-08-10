@@ -12,8 +12,6 @@ interface BaseCollaboratorConfig {
   inviteTable: 'submission_collaborator_invites' | 'submission_draft_collaborator_invites'
   inviteResourceColumn: 'image_id' | 'draft_id'
   claimInviteRpc: 'claim_submission_collaborator_invite' | 'claim_submission_draft_collaborator_invite'
-  invalidInviteErrorPath: string
-  authRedirectPath: (token: string) => string
   successRedirectPath: (resourceId: string) => string
   notFoundLabel: string
   removeErrorMessage: string
@@ -32,6 +30,8 @@ interface SharedClaimResult {
   draft_id?: string
   image_id?: string
 }
+
+type ClaimInviteConfig = Pick<BaseCollaboratorConfig, 'claimInviteRpc' | 'successRedirectPath'>
 
 interface CollaboratorRow {
   user_id: string
@@ -333,23 +333,14 @@ export async function revokeCollaboratorInvite(input: {
 
 export async function claimCollaboratorInvite(input: {
   supabase: ReturnType<typeof import('@supabase/ssr').createServerClient>
-  request: Request
   token: string
-  userId: string | null
-  authError: unknown
-  config: BaseCollaboratorConfig
+  config: ClaimInviteConfig
 }) {
-  const { supabase, request, token, userId, authError, config } = input
+  const { supabase, token, config } = input
   const tokenValue = typeof token === 'string' ? token.trim() : ''
 
   if (!tokenValue) {
-    return NextResponse.redirect(new URL(config.invalidInviteErrorPath, request.url))
-  }
-
-  if (authError || !userId) {
-    const returnTo = config.authRedirectPath(tokenValue)
-    const authUrl = new URL(`/auth?redirect_to=${encodeURIComponent(returnTo)}`, request.url)
-    return NextResponse.redirect(authUrl)
+    return NextResponse.json({ error: 'Invite token is required' }, { status: 400 })
   }
 
   const { data, error } = await supabase.rpc(config.claimInviteRpc, {
@@ -357,16 +348,16 @@ export async function claimCollaboratorInvite(input: {
   })
 
   if (error || !data) {
-    return NextResponse.redirect(new URL(config.invalidInviteErrorPath, request.url))
+    return NextResponse.json({ error: 'Invalid or expired collaborator invite' }, { status: 400 })
   }
 
   const claim = data as SharedClaimResult
   const resourceId = claim.image_id || claim.draft_id
   if (!resourceId) {
-    return NextResponse.redirect(new URL(config.invalidInviteErrorPath, request.url))
+    return NextResponse.json({ error: 'Invalid collaborator invite' }, { status: 400 })
   }
 
-  return NextResponse.redirect(new URL(config.successRedirectPath(resourceId), request.url))
+  return NextResponse.json({ success: true, redirectTo: config.successRedirectPath(resourceId) })
 }
 
 export async function removeCollaborator(input: {

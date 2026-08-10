@@ -114,4 +114,19 @@ describe('proxy CSRF handling', () => {
     expect(validateCsrfToken).toHaveBeenCalledOnce()
     expect(applyProxyAuth).not.toHaveBeenCalled()
   })
+
+  test('protects collaborator invite claims with csrf and rate limiting', async () => {
+    const request = new NextRequest('https://letsboulder.com/api/submissions/collaborate/invite-token', {
+      method: 'POST',
+      headers: { 'x-csrf-token': 'valid-token' },
+    })
+    ;(validateCsrfToken as unknown as { mockResolvedValue: (value: unknown) => unknown }).mockResolvedValue(true)
+
+    const response = await proxy(request)
+
+    expect(response.status).toBe(200)
+    expect(validateCsrfToken).toHaveBeenCalledWith(request)
+    expect(applyProxyRateLimit).toHaveBeenCalledWith(request)
+    expect(applyProxyAuth).toHaveBeenCalledOnce()
+  })
 })

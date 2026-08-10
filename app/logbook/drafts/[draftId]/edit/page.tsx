@@ -272,7 +272,7 @@ export default function EditDraftPage() {
           revokingInviteId={collaboration.revokingInviteId}
           removingCollaboratorId={collaboration.removingCollaboratorId}
           latestInviteUrl={collaboration.latestInviteUrl}
-          inviteUrlPrefix="/api/submissions/drafts/collaborate"
+          inviteUrlPrefix="/collaborate/draft"
           onCreateInvite={() => { void collaboration.handleCreateInvite() }}
           onCopyInvite={(url) => { void collaboration.handleCopyInvite(url) }}
           onRevokeInvite={(inviteId) => { void collaboration.handleRevokeInvite(inviteId) }}
