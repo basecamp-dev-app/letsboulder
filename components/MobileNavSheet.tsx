@@ -6,8 +6,8 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { MOBILE_NAV_SECTIONS } from '@/lib/nav-items'
 import { suppressOverlayCleanup, useOverlayHistory } from '@/hooks/useOverlayHistory'
-import { csrfFetch } from '@/lib/csrf-client'
 import { useLazyAuthUser } from '@/components/use-lazy-auth-user'
+import { useSignOut } from '@/components/QueryProviders'
 
 interface MobileNavSheetProps {
   isOpen: boolean
@@ -47,6 +47,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
   const pathname = usePathname()
   const router = useRouter()
   const { user, load: loadAuthUser } = useLazyAuthUser()
+  const signOut = useSignOut()
 
   useOverlayHistory({ open: isOpen, onClose, id: 'mobile-nav-sheet' })
 
@@ -65,13 +66,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
   const handleSignOut = async () => {
     suppressOverlayCleanup('mobile-nav-sheet')
     onClose()
-    const response = await csrfFetch('/api/auth/signout', { method: 'POST' })
-    if (!response.ok) return
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      const channel = new BroadcastChannel('auth-cache-clear')
-      channel.postMessage({ type: 'CLEAR_AUTH_CACHES' })
-      channel.close()
-    }
+    if (!await signOut()) return
     router.replace('/')
   }
 

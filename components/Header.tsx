@@ -6,8 +6,8 @@ import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { DESKTOP_MORE_MENU_SECTIONS } from '@/lib/nav-items'
-import { csrfFetch } from '@/lib/csrf-client'
 import { useLazyAuthUser } from '@/components/use-lazy-auth-user'
+import { useSignOut } from '@/components/QueryProviders'
 
 interface SearchResult {
   type: 'crag' | 'climb'
@@ -49,6 +49,7 @@ export default function Header() {
   const headerRef = useRef<HTMLElement>(null)
   const moreButtonRef = useRef<HTMLButtonElement>(null)
   const { user, load: loadAuthUser } = useLazyAuthUser()
+  const signOut = useSignOut()
   const searchListboxId = useId()
   const moreMenuId = useId()
   const [searchQuery, setSearchQuery] = useState('')
@@ -257,13 +258,7 @@ export default function Header() {
   }
 
   const handleLogout = async () => {
-    const response = await csrfFetch('/api/auth/signout', { method: 'POST' })
-    if (!response.ok) return
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      const channel = new BroadcastChannel('auth-cache-clear')
-      channel.postMessage({ type: 'CLEAR_AUTH_CACHES' })
-      channel.close()
-    }
+    if (!await signOut()) return
     window.location.href = '/'
   }
 
