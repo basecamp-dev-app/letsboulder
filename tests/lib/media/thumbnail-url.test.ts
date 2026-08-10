@@ -22,15 +22,15 @@ describe('buildThumbnailUrl', () => {
     )
   })
 
-  test('rewrites api media urls to CDN worker urls', async () => {
+  test('keeps api media urls on the authenticated app route', async () => {
     const { buildThumbnailUrl } = await import('@/lib/media/thumbnail-url')
 
     expect(buildThumbnailUrl('/api/media/private-bucket/images/originals/test/original.jpg', 480, 70)).toBe(
-      'https://static.letsboulder.com/private-bucket/images/originals/test/original.jpg?variant=card&format=auto'
+      '/api/media/private-bucket/images/originals/test/original.jpg?w=480'
     )
   })
 
-  test('normalizes existing media worker urls to thumbnail variants', async () => {
+  test('does not convert private storage locators to public Worker URLs', async () => {
     const { buildThumbnailUrl } = await import('@/lib/media/thumbnail-url')
 
     expect(buildThumbnailUrl(
@@ -41,7 +41,7 @@ describe('buildThumbnailUrl', () => {
         storageUrl: 'private://private-bucket/images/originals/test/original.jpg',
         source: 'api-media',
       }
-    )).toBe('https://static.letsboulder.com/images/originals/test/original.jpg?variant=thumb&format=auto')
+    )).toBe('/api/media/private-bucket/images/originals/test/original.jpg?w=160')
   })
 
   test('preserves legacy static CDN variant paths for published public images', async () => {
@@ -64,7 +64,7 @@ describe('buildThumbnailUrl', () => {
     )).toBe('https://static.letsboulder.com/images/f12c807b-5554-4a9f-b59c-d09068e63ae5/v1/card.webp')
   })
 
-  test('never emits app-routed media marker for thumbnail surfaces', async () => {
+  test('keeps private media authorization on the app route', async () => {
     const { buildThumbnailUrl } = await import('@/lib/media/thumbnail-url')
 
     expect(buildThumbnailUrl(
@@ -75,7 +75,7 @@ describe('buildThumbnailUrl', () => {
         storageUrl: 'private://private-bucket/images/originals/test/original.jpg',
         source: 'api-media',
       }
-    )).not.toContain('lb-media=app')
+    )).toBe('/api/media/private-bucket/images/originals/test/original.jpg?w=480')
   })
 
   test('uses the same snapped variant for repeated requests', async () => {

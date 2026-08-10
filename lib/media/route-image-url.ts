@@ -8,13 +8,6 @@ function buildMediaHostUrl(path: string): string {
   return `${cdnUrl}${path}`
 }
 
-function buildCdnUrl(objectPath: string): string | null {
-  const cdnBaseUrl = clientEnv.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '')
-  if (!cdnBaseUrl || !objectPath) return null
-  const normalizedPath = objectPath.split('/').filter(Boolean).map((segment) => encodeURIComponent(segment)).join('/')
-  return `${cdnBaseUrl}/${normalizedPath}`
-}
-
 function buildMediaProxyPath(bucket: string, objectPath: string): string {
   const encodedPath = objectPath
     .split('/')
@@ -56,14 +49,6 @@ export function resolveRouteImageUrl(url: string | null | undefined): string {
   const bucket = withoutPrefix.slice(0, firstSlashIndex)
   const objectPath = withoutPrefix.slice(firstSlashIndex + 1)
   if (!objectPath) return url
-
-  const cdnUrl = buildCdnUrl(objectPath)
-  if (cdnUrl) {
-    if (objectPath.startsWith('images/originals/') && !objectPath.includes('?')) {
-      return `${cdnUrl}?variant=detail&format=webp`
-    }
-    return cdnUrl
-  }
 
   return buildMediaProxyPath(bucket, objectPath)
 }

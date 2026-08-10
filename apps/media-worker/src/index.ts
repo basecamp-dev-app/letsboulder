@@ -592,6 +592,27 @@ async function handleMedia(request: Request, env: Env, url: URL) {
 
     variant = url.searchParams.get('variant')
     width = getVariantWidth(variant)
+
+    // Query-style paths do not contain an image ID, so verify that the exact
+    // R2 key belongs to an anonymously deliverable image before transforming.
+    const supabase = createSupabaseAdminClient(env)
+    const { data: optimizedImage } = await supabase
+      .from('images')
+      .select('optimized_key, original_key, processing_status, visibility, status, moderation_status')
+      .eq('optimized_key', objectKey)
+      .maybeSingle()
+    const { data: image } = optimizedImage
+      ? { data: optimizedImage }
+      : await supabase
+        .from('images')
+        .select('optimized_key, original_key, processing_status, visibility, status, moderation_status')
+        .eq('original_key', objectKey)
+        .maybeSingle()
+
+    if (!image || image.processing_status !== 'ready' || image.visibility !== 'public' ||
+        image.status !== 'approved' || !['approved', 'skipped'].includes(image.moderation_status ?? '')) {
+      return new Response('Not found', { status: 404 })
+    }
   }
 
   if (!objectKey) {

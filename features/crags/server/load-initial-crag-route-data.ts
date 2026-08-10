@@ -34,7 +34,7 @@ interface HydratedImage {
 function buildInitialImage(image: ImageRow, routeLinesCount = 0): HydratedImage {
   return {
     id: image.id,
-    url: resolveRouteImageUrl(image.url),
+    url: resolveRouteImageUrl(`/images/${image.id}/v1/detail.jpg`),
     storageUrl: image.url,
     latitude: image.latitude,
     longitude: image.longitude,

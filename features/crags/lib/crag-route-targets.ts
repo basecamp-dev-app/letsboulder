@@ -41,18 +41,7 @@ export interface CragRouteTargetPageRow {
 
 function buildCanonicalStaticImageUrl(imageId: string, fallbackUrl: string | null): string {
   if (!imageId) return fallbackUrl || ''
-
-  const resolvedFallbackUrl = fallbackUrl ? resolveRouteImageUrl(fallbackUrl) : ''
-  if (resolvedFallbackUrl.startsWith('https://') || resolvedFallbackUrl.startsWith('http://')) {
-    try {
-      const parsed = new URL(resolvedFallbackUrl)
-      return `${parsed.origin}/images/${imageId}/v1/detail.jpg`
-    } catch {
-      return resolvedFallbackUrl
-    }
-  }
-
-  return `/images/${imageId}/v1/detail.jpg`
+  return resolveRouteImageUrl(`/images/${imageId}/v1/detail.jpg`)
 }
 
 export function buildRoutePreviewDisplayByClimbId(

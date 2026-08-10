@@ -47,12 +47,14 @@ Database-first deployment is still preferred, but mixed-version rollout order is
 ## Virtual Variants And Delivery
 
 1. Successful ingest stores a virtual `images.variants` manifest whose recipes point at the persisted canonical WebP. Paths describe delivery requests, not additional objects written to R2.
-2. The Next.js loader (`lib/media/cloudflare-loader.ts`) selects a named width and builds a URL under `NEXT_PUBLIC_MEDIA_CDN_URL`.
+2. The Next.js loader (`lib/media/cloudflare-loader.ts`) selects a named width and builds a URL under `NEXT_PUBLIC_MEDIA_CDN_URL` only for public Worker paths. Authenticated `/api/media/*` URLs stay on the app route and are never rewritten to the public Worker.
 3. `static.dev.letsboulder.com` or `static.letsboulder.com` routes the request to the media Worker.
 4. For ready public image paths, the Worker prefers `images.optimized_key` and invokes Cloudflare Image Resizing against that private canonical WebP. Legacy ready rows without optimized metadata temporarily resolve to their original until backfill commits a canonical WebP; committed rows never fall back after source deletion.
 5. Cloudflare returns and caches the transformed response. The Worker Cache is enabled and transformed responses use stable named widths, `format=auto`, and immutable URLs. No processed image variant is written to the public R2 bucket by the active pipeline.
 
 `GET /origin/<key>` is an internal, secret-protected raw-private-object endpoint. It is not the public image-delivery path.
+
+Query-style Worker delivery paths are additionally matched to an exact ready, approved, public `images` locator. They cannot deliver a private bucket/key. Private image transformations remain on authenticated Next media routes until the Worker has a browser-safe signed authorization protocol.
 
 ## Public Map Assets
 

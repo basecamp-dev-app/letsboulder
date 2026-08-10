@@ -235,7 +235,7 @@ export async function getCanonicalRouteFaces(
     .filter((image): image is CanonicalImageRow => typeof image?.id === 'string' && image.id.length > 0 && typeof image.url === 'string' && image.url.length > 0)
     .map((image) => ({
       ...image,
-      url: resolveRouteImageUrl(image.url),
+      url: resolveRouteImageUrl(`/images/${image.id}/v1/detail.jpg`),
     }))
 
   const imageById = new Map(images.map((image) => [image.id, image]))

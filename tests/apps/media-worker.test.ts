@@ -48,6 +48,39 @@ describe('media transformation requests', () => {
 })
 
 describe('media worker fetch routing', () => {
+  it('rejects private query-style object keys before fetching the origin', async () => {
+    const maybeSingle = vi.fn(async () => ({
+      data: {
+        optimized_key: null,
+        original_key: SOURCE_KEY,
+        processing_status: 'ready',
+        visibility: 'private',
+        status: 'pending',
+        moderation_status: null,
+      },
+      error: null,
+    }))
+    workerFrom.mockReturnValue({
+      select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle })) })),
+    })
+    const originFetch = vi.spyOn(globalThis, 'fetch')
+    const originals = { get: vi.fn(), head: vi.fn() }
+
+    const response = await mediaWorker.fetch(
+      new Request(`https://media.example/${SOURCE_KEY}?variant=card&format=auto`),
+      {
+        R2_ORIGIN_URL: 'https://private-origin.example',
+        INTERNAL_ORIGIN_SECRET: 'secret',
+        ORIGINALS_BUCKET: originals,
+      } as never
+    )
+
+    expect(response.status).toBe(404)
+    expect(originFetch).not.toHaveBeenCalled()
+    expect(originals.get).not.toHaveBeenCalled()
+    originFetch.mockRestore()
+  })
+
   it('returns 404 for unknown paths without touching media origins or R2', async () => {
     const originFetch = vi.spyOn(globalThis, 'fetch')
     const originals = {

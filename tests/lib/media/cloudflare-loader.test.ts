@@ -24,22 +24,22 @@ describe('cloudflareLoader', () => {
     })).toBe('/api/media/private-bucket/images/originals/test/original.jpg?w=640&q=70&lb-media=app')
   })
 
-  test('rewrites ordinary api media urls to the media host', async () => {
+  test('keeps ordinary api media urls on the authenticated app route', async () => {
     const { default: cloudflareLoader } = await import('@/lib/media/cloudflare-loader')
 
     expect(cloudflareLoader({
       src: '/api/media/private-bucket/images/originals/test/original.jpg?w=480&q=70',
       width: 640,
       quality: 70,
-    })).toBe('https://static.letsboulder.com/private-bucket/images/originals/test/original.jpg?variant=card&format=auto')
+    })).toBe('/api/media/private-bucket/images/originals/test/original.jpg?w=640&q=70')
   })
 
-  test('snaps nearby widths to stable named variants', async () => {
+  test('does not expose api media object keys through the Worker', async () => {
     const { default: cloudflareLoader } = await import('@/lib/media/cloudflare-loader')
 
     expect(cloudflareLoader({ src: '/api/media/private-bucket/images/test.jpg', width: 241, quality: 70 }))
-      .toBe('https://static.letsboulder.com/private-bucket/images/test.jpg?variant=card&format=auto')
+      .toBe('/api/media/private-bucket/images/test.jpg?w=241')
     expect(cloudflareLoader({ src: '/api/media/private-bucket/images/test.jpg', width: 2560, quality: 70 }))
-      .toBe('https://static.letsboulder.com/private-bucket/images/test.jpg?variant=full&format=auto')
+      .toBe('/api/media/private-bucket/images/test.jpg?w=2560')
   })
 })

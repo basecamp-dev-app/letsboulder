@@ -143,7 +143,7 @@ export function buildCragMapImages(rows: CragMapImageRow[], links: CragMapImageL
       const familySize = locatedRowsByFamily.get(families.find(row.id))?.length || 1
       return {
         id: row.id,
-        url: resolveRouteImageUrl(row.url),
+        url: resolveRouteImageUrl(`/images/${row.id}/v1/detail.jpg`),
         storageUrl: row.url,
         latitude: row.latitude,
         longitude: row.longitude,

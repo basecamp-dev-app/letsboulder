@@ -193,7 +193,9 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
         const draftSignedUrl = submission.kind === 'draft' && submission.draft_preview_bucket && submission.draft_preview_path
           ? (draftSignedUrls.get(getDraftSignedUrlCacheKey(submission.draft_preview_bucket, submission.draft_preview_path)) || '')
           : ''
-        const imageSrcRaw = resolveRouteImageUrl(submission.kind === 'draft' ? draftSignedUrl : submission.url)
+        const imageSrcRaw = submission.kind === 'draft'
+          ? resolveRouteImageUrl(draftSignedUrl)
+          : resolveRouteImageUrl(`/images/${submissionImageId}/v1/detail.jpg`)
         const imageSrc = typeof imageSrcRaw === 'string' && imageSrcRaw.trim().length > 0 ? imageSrcRaw : null
         const content = (
           <>

@@ -16,19 +16,6 @@ function getMediaHost(): string | null {
   return clientEnv.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '') || null
 }
 
-function buildWorkerVariantUrl(objectKey: string, variant: MediaVariantKey, format: string): string {
-  const mediaHost = getMediaHost()
-  if (!mediaHost) return ''
-
-  const encodedKey = objectKey
-    .split('/')
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(segment))
-    .join('/')
-
-  return `${mediaHost}/${encodedKey}?variant=${variant}&format=${format}`
-}
-
 function transformStaticVariantPath(url: string, width: number): string | null {
   let parsed: URL
   try {
@@ -60,10 +47,7 @@ function transformStaticVariantPath(url: string, width: number): string | null {
   return `${parsed.origin}${prefix}${staticVariant}.webp`
 }
 
-function convertApiMediaUrlToWorkerUrl(url: string, width: number): string {
-  const mediaHost = getMediaHost()
-  if (!mediaHost) return url
-
+function updateApiMediaUrl(url: string, width: number): string {
   let parsed: URL
   try {
     parsed = new URL(url, 'http://localhost')
@@ -73,14 +57,8 @@ function convertApiMediaUrlToWorkerUrl(url: string, width: number): string {
 
   if (!parsed.pathname.startsWith(API_MEDIA_PREFIX)) return url
 
-  const pathParts = parsed.pathname.split('/').filter(Boolean)
-  if (pathParts.length < 4) return url
-
-  const bucket = decodeURIComponent(pathParts[2] || '')
-  const objectPath = pathParts.slice(3).map(decodeURIComponent).join('/')
-  if (!bucket || !objectPath) return url
-
-  return buildWorkerVariantUrl(`${bucket}/${objectPath}`, snapWidthToVariant(width), 'auto')
+  parsed.searchParams.set('w', String(width))
+  return `${parsed.pathname}${parsed.search}`
 }
 
 function updateWorkerUrl(url: string, width: number): string {
@@ -121,7 +99,7 @@ export function buildThumbnailUrl(
   if (!resolvedUrl) return ''
 
   if (resolvedUrl.startsWith(API_MEDIA_PREFIX)) {
-    return convertApiMediaUrlToWorkerUrl(resolvedUrl, width)
+    return updateApiMediaUrl(resolvedUrl, width)
   }
 
   if (resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://')) {
