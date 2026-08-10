@@ -206,6 +206,8 @@ export default function Header() {
       clearTimeout(searchTimeoutRef.current)
       searchTimeoutRef.current = null
     }
+    searchAbortRef.current?.abort()
+    searchAbortRef.current = null
 
     const trimmedQuery = searchQuery.trim()
     if (!trimmedQuery || trimmedQuery.length < 2) {
@@ -218,7 +220,7 @@ export default function Header() {
 
     searchTimeoutRef.current = setTimeout(() => {
       void searchClimbsAndCrags(searchQuery)
-    }, 300)
+    }, 500)
 
     return () => {
       if (searchTimeoutRef.current) {

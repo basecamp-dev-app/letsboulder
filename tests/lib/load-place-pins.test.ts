@@ -21,6 +21,21 @@ describe('loadPlacePins', () => {
     )
   })
 
+  it('normalizes fractional viewport coordinates before requesting pins', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ pins: [] })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await loadPlacePins({
+      bounds: { west: -5.123456, south: 40.234567, east: 5.765432, north: 50.876543 },
+      zoom: 7.8,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/crags/pins?west=-5.123&south=40.235&east=5.765&north=50.877&zoom=7',
+      { signal: undefined }
+    )
+  })
+
   it('rejects a payload that does not match the pin/cluster union', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ pins: [{ type: 'cluster' }] }))))
 

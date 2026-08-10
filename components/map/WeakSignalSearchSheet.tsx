@@ -71,7 +71,7 @@ export default function WeakSignalSearchSheet() {
           setIsSearching(false)
         }
       }
-    }, 250)
+    }, 500)
 
     return () => {
       controller.abort()

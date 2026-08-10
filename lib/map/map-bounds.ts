@@ -12,6 +12,7 @@ export interface MapViewportQuery {
 
 const LATITUDE_LIMIT = 85.05112878
 const BOUNDS_PRECISION = 5
+const QUERY_BOUNDS_PRECISION = 3
 const MINIMUM_LATITUDE_SPAN = 0.00001
 
 function normalizeLongitude(longitude: number) {
@@ -21,6 +22,22 @@ function normalizeLongitude(longitude: number) {
 
 function roundCoordinate(value: number) {
   return Number(value.toFixed(BOUNDS_PRECISION))
+}
+
+function roundQueryCoordinate(value: number) {
+  return Number(value.toFixed(QUERY_BOUNDS_PRECISION))
+}
+
+export function normalizeViewportQuery(viewport: MapViewportQuery): MapViewportQuery {
+  return {
+    zoom: Math.max(0, Math.floor(viewport.zoom)),
+    bounds: {
+      west: roundQueryCoordinate(viewport.bounds.west),
+      south: roundQueryCoordinate(viewport.bounds.south),
+      east: roundQueryCoordinate(viewport.bounds.east),
+      north: roundQueryCoordinate(viewport.bounds.north),
+    },
+  }
 }
 
 export function normalizePaddedViewport(bounds: MapBounds, zoom: number): MapViewportQuery {

@@ -1,4 +1,4 @@
-import type { MapViewportQuery } from '@/lib/map/map-bounds'
+import { normalizeViewportQuery, type MapViewportQuery } from '@/lib/map/map-bounds'
 import type { MapPinsApiResponse, ViewportMapFeature } from '@/lib/map/place-pins'
 
 export interface MapPinsResult {
@@ -36,12 +36,13 @@ function isMapPinsSuccess(payload: unknown): payload is Extract<MapPinsApiRespon
 }
 
 export async function loadPlacePins(viewport: MapViewportQuery, signal?: AbortSignal): Promise<MapPinsResult> {
+  const normalizedViewport = normalizeViewportQuery(viewport)
   const parameters = new URLSearchParams({
-    west: String(viewport.bounds.west),
-    south: String(viewport.bounds.south),
-    east: String(viewport.bounds.east),
-    north: String(viewport.bounds.north),
-    zoom: String(viewport.zoom),
+    west: String(normalizedViewport.bounds.west),
+    south: String(normalizedViewport.bounds.south),
+    east: String(normalizedViewport.bounds.east),
+    north: String(normalizedViewport.bounds.north),
+    zoom: String(normalizedViewport.zoom),
   })
   const response = await fetch(`/api/crags/pins?${parameters}`, { signal })
   if (!response.ok) {

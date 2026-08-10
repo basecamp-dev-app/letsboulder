@@ -3,7 +3,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, X } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import MapLibreVectorMap, { type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
 import type { BrowserLocationPoint } from '@/hooks/use-browser-geolocation'
@@ -54,6 +54,7 @@ export default function InteractiveClimbingMap({
   userLocation?: BrowserLocationPoint | null
 }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [mapLoaded, setMapLoaded] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [viewport, setViewport] = useState<MapViewportQuery | null>(null)
@@ -81,8 +82,9 @@ export default function InteractiveClimbingMap({
     : null, [userLocation])
 
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
+    void queryClient.cancelQueries({ queryKey: ['map-pins'] })
     setViewport(normalizePaddedViewport(state.bounds, state.zoom))
-  }, [])
+  }, [queryClient])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

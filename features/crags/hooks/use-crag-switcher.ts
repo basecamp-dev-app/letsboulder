@@ -23,6 +23,7 @@ export function useCragSwitcher({ initialCrag }: UseCragSwitcherParams): UseCrag
 
   useEffect(() => {
     let ignore = false
+    const controller = new AbortController()
 
     async function loadCragSwitcherOptions() {
       if (!initialCrag) return
@@ -39,7 +40,10 @@ export function useCragSwitcher({ initialCrag }: UseCragSwitcherParams): UseCrag
 
       if (cragSwitcherQuery.trim().length >= 2) {
         try {
-          const response = await fetch(`/api/crags/search?q=${encodeURIComponent(cragSwitcherQuery.trim())}`)
+          const response = await fetch(`/api/crags/search?q=${encodeURIComponent(cragSwitcherQuery.trim())}`, {
+            signal: controller.signal,
+          })
+          if (!response.ok) throw new Error('Crag search failed')
           const payload = await response.json() as Array<{ id: string; name: string; slug?: string | null; regionName?: string | null; subArea?: string | null; countryCode?: string | null }>
           if (ignore) return
           const next = payload.map((item) => ({
@@ -62,7 +66,10 @@ export function useCragSwitcher({ initialCrag }: UseCragSwitcherParams): UseCrag
 
       if (typeof sourceCrag.latitude === 'number' && typeof sourceCrag.longitude === 'number') {
         try {
-          const response = await fetch(`/api/crags/nearby?lat=${sourceCrag.latitude}&lng=${sourceCrag.longitude}`)
+          const response = await fetch(`/api/crags/nearby?lat=${sourceCrag.latitude}&lng=${sourceCrag.longitude}`, {
+            signal: controller.signal,
+          })
+          if (!response.ok) throw new Error('Nearby crag lookup failed')
           const payload = await response.json() as Array<{ id: string; name: string; slug?: string | null; regionName?: string | null; subArea?: string | null; countryCode?: string | null }>
           if (ignore) return
           const next = payload.map((item) => ({
@@ -88,10 +95,14 @@ export function useCragSwitcher({ initialCrag }: UseCragSwitcherParams): UseCrag
       }
     }
 
-    void loadCragSwitcherOptions()
+    const timeoutId = window.setTimeout(() => {
+      void loadCragSwitcherOptions()
+    }, cragSwitcherQuery.trim().length >= 2 ? 500 : 0)
 
     return () => {
       ignore = true
+      controller.abort()
+      window.clearTimeout(timeoutId)
     }
   }, [cragSwitcherOpen, cragSwitcherQuery, initialCrag])
 

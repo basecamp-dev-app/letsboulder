@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 interface LocationSearchResult {
   lat?: number
@@ -11,15 +11,22 @@ export function useLocationSearch(onResolved: (latitude: number, longitude: numb
   const [searchQuery, setSearchQuery] = useState('')
   const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
+  const searchAbortRef = useRef<AbortController | null>(null)
 
   const handleSearchLocation = useCallback(async () => {
-    if (!searchQuery.trim()) return
+    const trimmedQuery = searchQuery.trim()
+    if (trimmedQuery.length < 2) return
 
+    searchAbortRef.current?.abort()
+    const controller = new AbortController()
+    searchAbortRef.current = controller
     setSearchingLocation(true)
     setLocationSearchError(null)
 
     try {
-      const response = await fetch(`/api/locations/search?q=${encodeURIComponent(searchQuery)}`)
+      const response = await fetch(`/api/locations/search?q=${encodeURIComponent(trimmedQuery)}`, {
+        signal: controller.signal,
+      })
       if (!response.ok) {
         setLocationSearchError('Search failed')
         return
@@ -33,10 +40,14 @@ export function useLocationSearch(onResolved: (latitude: number, longitude: numb
       }
 
       onResolved(first.lat, first.lon)
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
       setLocationSearchError('Failed to search location')
     } finally {
-      setSearchingLocation(false)
+      if (searchAbortRef.current === controller) {
+        searchAbortRef.current = null
+        setSearchingLocation(false)
+      }
     }
   }, [onResolved, searchQuery])
 
