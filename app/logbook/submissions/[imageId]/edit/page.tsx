@@ -58,6 +58,7 @@ export default function EditSubmittedRoutesPage() {
     undoLastPoint,
     setInteractionTool,
     setRoutes,
+    routes: routeStoreRoutes,
   } = useRouteStore(useShallow((state) => ({
     selectedRouteId: state.selectedRouteId,
     setSelectedRoute: state.setSelectedRoute,
@@ -68,6 +69,7 @@ export default function EditSubmittedRoutesPage() {
     undoLastPoint: state.undoLastPoint,
     setInteractionTool: state.setInteractionTool,
     setRoutes: state.setRoutes,
+    routes: state.routes,
   })))
   const requestedRouteId = searchParams.get('route')
   const hasPendingChanges = location.imageMetadataDirty
@@ -78,7 +80,7 @@ export default function EditSubmittedRoutesPage() {
       serializeStoredRoutes(editor.initialEditedRoutes)
     )
   useUnsavedChangesWarning(hasPendingChanges)
-  usePublishedRouteEditorSync({
+  const { commitRoutes } = usePublishedRouteEditorSync({
     activeImageId: editor.activeImageId,
     editedRoutes: editor.editedRoutes,
     setEditedRoutes: editor.setEditedRoutes,
@@ -115,12 +117,14 @@ export default function EditSubmittedRoutesPage() {
     setEditorPanelOpen(true)
   }, [editor.editedRoutes, requestedRouteId, setActiveRoute, setEditorPanelOpen, setSelectedRoute])
 
-  const handleCanvasRoutesUpdate = useCallback((routes: RouteLine[]) => {
-    editor.setEditedRoutes(routes)
-  }, [editor])
+  const handleSelectImage = useCallback((imageId: string) => {
+    commitRoutes()
+    editor.handleQuickSwitchImage(imageId)
+  }, [commitRoutes, editor])
 
   const saveAllChangesAfterConsent = useCallback(async () => {
     if (savingAllChanges || !editor.activeImageId) return
+    const editedRoutes = commitRoutes() ?? editor.editedRoutes
     setSavingAllChanges(true)
     editor.setError(null)
     editor.setSuccess(null)
@@ -133,15 +137,15 @@ export default function EditSubmittedRoutesPage() {
       }
 
       const imageMetadataChanged = location.imageMetadataDirty
-      const newRoutes = editor.editedRoutes.filter(
+      const newRoutes = editedRoutes.filter(
         (route) => !route.climb_id || route.created_at === 'draft-created'
       )
-      const existingRoutes = editor.editedRoutes.filter(
+      const existingRoutes = editedRoutes.filter(
         (route) => route.climb_id && route.created_at !== 'draft-created'
       )
 
       const routesChanged = !areSerializedRoutesEqual(
-        serializeStoredRoutes(editor.editedRoutes),
+        serializeStoredRoutes(editedRoutes),
         serializeStoredRoutes(editor.initialEditedRoutes)
       )
       const initialGradeByRouteId = new Map(
@@ -183,7 +187,7 @@ export default function EditSubmittedRoutesPage() {
         gradeVotes,
       }
       const hasCoreChanges = imageMetadataChanged || newRoutes.length > 0 || routesChanged || gradeVotes.length > 0
-      let reconciledRoutes = editor.editedRoutes
+      let reconciledRoutes = editedRoutes
 
       if (hasCoreChanges) {
         const serializedOperations = JSON.stringify(operations)
@@ -198,7 +202,7 @@ export default function EditSubmittedRoutesPage() {
         if (!result.success || !result.data) throw new Error(result.error || 'Failed to save submission changes')
         if (editor.cragId) await invalidateCragQueries(queryClient, editor.cragId)
 
-        reconciledRoutes = applyPublishedRouteIdMappings(editor.editedRoutes, result.data.routeMappings, editor.activeImageId)
+        reconciledRoutes = applyPublishedRouteIdMappings(editedRoutes, result.data.routeMappings, editor.activeImageId)
         editor.setEditedRoutes(reconciledRoutes)
         setRoutes(reconciledRoutes)
         editor.setInitialEditedRoutes(reconciledRoutes)
@@ -234,7 +238,7 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setSavingAllChanges(false)
     }
-  }, [editor, location, queryClient, savingAllChanges, setRoutes])
+  }, [commitRoutes, editor, location, queryClient, savingAllChanges, setRoutes])
 
   const handleSaveAllChanges = useCallback(() => {
     void requireConsent(saveAllChangesAfterConsent)
@@ -253,7 +257,7 @@ export default function EditSubmittedRoutesPage() {
         {editor.error ? <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">{editor.error}</div> : null}
         {editor.success ? <div className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">{editor.success}</div> : null}
         <SubmissionLocationPanel atlasSync={atlasSync} canProposeCragMetadata={!!editor.currentUserId && !!editor.cragId} cragId={editor.cragId} sourceImageId={editor.activeImageId} cragName={location.cragName} regionTag={location.regionTag} subArea={location.subArea} onProposalSubmitted={() => editor.setSuccess('Crag details proposal submitted for review')} latitude={location.latitude} onLatitudeChange={(value) => { location.setLatitude(value); editor.setLatitude(value) }} longitude={location.longitude} onLongitudeChange={(value) => { location.setLongitude(value); editor.setLongitude(value) }} searchQuery={location.searchQuery} onSearchQueryChange={location.setSearchQuery} onSearchLocation={() => { void location.handleSearchLocation() }} searchingLocation={location.searchingLocation} locationSearchError={location.locationSearchError} />
-        {editor.hasReadyData && editor.activeImageUrl ? <SubmissionWorkstation drawingAreaRef={drawingAreaRef} routeCanvasRef={routeCanvasRef} quickSwitcherImages={editor.quickSwitcherImages} activeImageId={editor.activeImageId} activeImageUrl={editor.activeImageUrl} draftPins={editor.publishedDraftPins} publishedPins={[]} initialCenter={editor.markerPosition} onSelectImage={editor.handleQuickSwitchImage} existingRouteLines={editor.editedRoutes} allowDelete={false} selectedRouteId={selectedRouteId} onSelectRoute={(routeId) => { setSelectedRoute(routeId); setActiveRoute(routeId); setEditorPanelOpen(true) }} onReorderRoutes={(routeIds) => { const reordered = routeIds.map((routeId, index) => { const route = editor.editedRoutes.find((item) => item.id === routeId); return route ? { ...route, sequence_order: index } : null }).filter((route): route is RouteLine => route !== null); handleCanvasRoutesUpdate(reordered) }} interactionTool={interactionTool === 'select' ? 'select' : 'draw'} currentPointsCount={currentPointsCount} onSetSelectTool={() => { setInteractionTool('select'); setEditorPanelOpen(true) }} onSetDrawTool={() => { setInteractionTool('draw'); setEditorPanelOpen(false) }} onUndoPoint={() => undoLastPoint()} onFinishRoute={() => routeCanvasRef.current?.finishRoute()} canvasKey={`${editor.canvasKey}:${editor.activeImageId}`} extraAction={null} onRoutesUpdate={handleCanvasRoutesUpdate} /> : null}
+        {editor.hasReadyData && editor.activeImageUrl ? <SubmissionWorkstation drawingAreaRef={drawingAreaRef} routeCanvasRef={routeCanvasRef} quickSwitcherImages={editor.quickSwitcherImages} activeImageId={editor.activeImageId} activeImageUrl={editor.activeImageUrl} draftPins={editor.publishedDraftPins} publishedPins={[]} initialCenter={editor.markerPosition} onSelectImage={handleSelectImage} existingRouteLines={routeStoreRoutes} allowDelete={false} selectedRouteId={selectedRouteId} onSelectRoute={(routeId) => { setSelectedRoute(routeId); setActiveRoute(routeId); setEditorPanelOpen(true) }} onReorderRoutes={(routeIds) => { const reordered = routeIds.map((routeId, index) => { const route = routeStoreRoutes.find((item) => item.id === routeId); return route ? { ...route, sequence_order: index } : null }).filter((route): route is RouteLine => route !== null); setRoutes(reordered) }} interactionTool={interactionTool === 'select' ? 'select' : 'draw'} currentPointsCount={currentPointsCount} onSetSelectTool={() => { setInteractionTool('select'); setEditorPanelOpen(true) }} onSetDrawTool={() => { setInteractionTool('draw'); setEditorPanelOpen(false) }} onUndoPoint={() => undoLastPoint()} onFinishRoute={() => routeCanvasRef.current?.finishRoute()} canvasKey={`${editor.canvasKey}:${editor.activeImageId}`} extraAction={null} /> : null}
         <SubmissionDetailsPanel detailsOpen={detailsOpen} onDetailsToggle={() => setDetailsOpen((open) => !open)} orientationOpen={orientationOpen} onOrientationToggle={() => setOrientationOpen((open) => !open)} faceDirections={location.faceDirections} onToggleFaceDirection={(direction) => { location.toggleFaceDirection(direction); editor.toggleFaceDirection(direction) }} owner={editor.owner} contributors={editor.contributors} history={editor.history} canEditCredit={editor.canEditContributionCredit} isAnonymous={editor.isAnonymousSubmission} onAnonymousChange={editor.setIsAnonymousSubmission} creditPlatform={editor.creditPlatform} onCreditPlatformChange={editor.setCreditPlatform} creditHandle={editor.creditHandle} onCreditHandleChange={editor.setCreditHandle} />
       </div>
     </div>

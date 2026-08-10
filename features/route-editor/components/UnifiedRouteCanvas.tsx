@@ -23,6 +23,7 @@ interface UnifiedRouteCanvasProps {
   activeRouteId?: string | null
   onRouteSelect?: (routeId: string | null) => void
   onRoutesUpdate?: (routes: RouteLine[]) => void
+  useStoreRoutes?: boolean
   onImageOrientationChange?: (orientation: 'portrait' | 'landscape') => void
   allowDelete?: boolean
   className?: string
@@ -64,6 +65,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   activeRouteId: controlledActiveRouteId,
   onRouteSelect,
   onRoutesUpdate,
+  useStoreRoutes = false,
   onImageOrientationChange,
   allowDelete = false,
   className = '',
@@ -83,6 +85,8 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     setEditorPanelOpen,
     setSelectedRoute,
     commitCurrentRoute,
+    addRoute,
+    routes: storeRoutes,
   } = useRouteStore(useShallow((state) => ({
     setActiveRoute: state.setActiveRoute,
     activeRouteId: state.activeRouteId,
@@ -96,10 +100,15 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     setEditorPanelOpen: state.setEditorPanelOpen,
     setSelectedRoute: state.setSelectedRoute,
     commitCurrentRoute: state.commitCurrentRoute,
+    addRoute: state.addRoute,
+    routes: state.routes,
   })))
   const gradePreferences = useGradePreferences()
 
-  const routes = useMemo(() => propRoutes || [], [propRoutes])
+  const routes = useMemo(
+    () => useStoreRoutes ? storeRoutes : propRoutes || [],
+    [propRoutes, storeRoutes, useStoreRoutes]
+  )
   const selectedRoute = useMemo(
     () => routes.find((route) => route.id === selectedRouteId),
     [routes, selectedRouteId]
@@ -231,7 +240,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   }, [handleCanvasPress])
 
   const handleFinishRoute = useCallback(() => {
-    if (currentPoints.length < 2 || !onRoutesUpdate) return
+    if (currentPoints.length < 2) return
 
     const nextRoute: RouteLine = {
       id: crypto.randomUUID(),
@@ -253,9 +262,10 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
       },
     }
 
-    onRoutesUpdate([...routes, nextRoute])
+    if (useStoreRoutes) addRoute(nextRoute)
+    else onRoutesUpdate?.([...routes, nextRoute])
     commitCurrentRoute()
-  }, [commitCurrentRoute, currentPoints, defaultClimbType, naturalHeight, naturalWidth, onRoutesUpdate, routes])
+  }, [addRoute, commitCurrentRoute, currentPoints, defaultClimbType, naturalHeight, naturalWidth, onRoutesUpdate, routes, useStoreRoutes])
 
   useImperativeHandle(ref, () => ({
     finishRoute: handleFinishRoute,

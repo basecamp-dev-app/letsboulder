@@ -57,7 +57,7 @@ interface SubmissionWorkstationProps {
   onQuickBarDropFiles?: (files: File[]) => void
   canvasMode?: 'edit-existing'
   defaultClimbType?: ClimbType
-  onRoutesUpdate: (routes: RouteLine[]) => void
+  onRoutesUpdate?: (routes: RouteLine[]) => void
   allowDelete?: boolean
   hideRouteActions?: boolean
 }

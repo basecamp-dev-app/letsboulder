@@ -54,6 +54,7 @@ interface UseEditDraftActionsParams {
   onRoutesChanged?: () => void
   getCheckpointRevision?: () => number
   clearCheckpointAfterSave?: (revision: number) => Promise<void>
+  prepareRoutesForSave?: () => { changed: boolean; imageId: string; routesByImageId: Record<string, DraftRoute[]> } | null
 }
 
 export function useEditDraftActions({
@@ -94,6 +95,7 @@ export function useEditDraftActions({
   onRoutesChanged,
   getCheckpointRevision,
   clearCheckpointAfterSave,
+  prepareRoutesForSave,
 }: UseEditDraftActionsParams) {
   const { requireConsent } = useOpenDataConsent()
   const router = useRouter()
@@ -232,7 +234,9 @@ export function useEditDraftActions({
   }, [cragId, draftId, hasFailedUploads, hasPendingUploads, hasValidLocation])
 
   const saveDraft = useCallback(async (options?: { overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null; forceMetadataSave?: boolean }) => {
-    const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? routesByImageId
+    const preparedRoutes = options?.overrideRoutesByImageId ? null : prepareRoutesForSave?.()
+    if (preparedRoutes?.changed) markRoutesDirty([preparedRoutes.imageId])
+    const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? preparedRoutes?.routesByImageId ?? routesByImageId
     const resolvedCragId = options?.overrideCragId ?? cragId
     const forceMetadataSave = options?.forceMetadataSave === true
     if (!draft || !draftUpdatedAt) return false
@@ -329,7 +333,7 @@ export function useEditDraftActions({
       setSavingDraft(false)
       setLocationSyncInFlight?.(false)
     }
-  }, [buildSavePayload, clearCheckpointAfterSave, cragId, currentUserId, draft, draftUpdatedAt, getCheckpointRevision, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes, setLocationSyncInFlight])
+  }, [buildSavePayload, clearCheckpointAfterSave, cragId, currentUserId, draft, draftUpdatedAt, getCheckpointRevision, markRoutesDirty, prepareRoutesForSave, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes, setLocationSyncInFlight])
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return

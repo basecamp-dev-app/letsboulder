@@ -45,6 +45,7 @@ interface UseDraftEditorActionsParams {
   setMapOpen: (value: boolean) => void
   setSwitchingImageId: (value: string | null) => void
   switchingImageLockRef: React.MutableRefObject<boolean>
+  commitRoutesBeforeImageSwitch: () => void
 }
 
 export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
@@ -86,6 +87,7 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
     setMapOpen,
     setSwitchingImageId,
     switchingImageLockRef,
+    commitRoutesBeforeImageSwitch,
   } = params
 
   const toggleImageOrientation = useCallback((direction: FaceDirection) => {
@@ -109,6 +111,7 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
     setSwitchingImageId(imageId)
 
     try {
+      commitRoutesBeforeImageSwitch()
       setActiveImageId(imageId)
       if (targetImage?.sourceKind === 'crag-image' && cragId) {
         setCanvasSource({ kind: 'crag-image', cragImageId: imageId, cragId })
@@ -122,7 +125,7 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
       switchingImageLockRef.current = false
       setSwitchingImageId(null)
     }
-  }, [activeImageId, cragId, focusDrawingArea, quickSwitcherImages, setActiveImageId, setCanvasSource, setSwitchingImageId, switchingImageLockRef])
+  }, [activeImageId, commitRoutesBeforeImageSwitch, cragId, focusDrawingArea, quickSwitcherImages, setActiveImageId, setCanvasSource, setSwitchingImageId, switchingImageLockRef])
 
   const handleReorderDraftImages = useCallback(async (imageIds: string[]) => {
     if (!draft || !draftUpdatedAt) return

@@ -1,27 +1,26 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useRouteStore } from '@/features/route-editor/store'
-import { areSerializedRoutesEqual, type RouteEditorSerializableRoute } from '@/features/route-editor/route-editor-utils'
-import { serializeStoredRoutes } from '@/features/submissions/lib/route-store-sync'
+import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-utils'
 import type { RouteLine } from '@/types/domain'
 import type { DraftRoute } from '@/features/draft-editor/lib/edit-draft-types'
 
 interface UseEditDraftRouteStoreSyncParams {
   activeDraftImageId: string | null
   existingRouteLines: RouteLine[]
+  routesByImageId: Record<string, DraftRoute[]>
   setRoutesByImageId: React.Dispatch<React.SetStateAction<Record<string, DraftRoute[]>>>
   routeType: string
-  markRoutesDirty: (imageIds: string[]) => void
 }
 
 export function useEditDraftRouteStoreSync({
   activeDraftImageId,
   existingRouteLines,
+  routesByImageId,
   setRoutesByImageId,
   routeType,
-  markRoutesDirty,
 }: UseEditDraftRouteStoreSyncParams) {
   const {
     routes: routeStoreRoutes,
@@ -40,13 +39,6 @@ export function useEditDraftRouteStoreSync({
   })))
 
   const lastSeededImageIdRef = useRef<string | null>(null)
-  // These snapshots prevent parent/store mirroring from marking our own writes dirty or creating a feedback loop.
-  const lastAppliedParentRoutesRef = useRef<RouteEditorSerializableRoute[]>([])
-  const lastPushedStoreRoutesRef = useRef<RouteEditorSerializableRoute[]>([])
-
-  const parentRoutes = useMemo(() => serializeStoredRoutes(existingRouteLines), [existingRouteLines])
-  const storeRoutes = useMemo(() => serializeStoredRoutes(routeStoreRoutes), [routeStoreRoutes])
-
   useEffect(() => {
     if (!activeDraftImageId) return
 
@@ -54,69 +46,50 @@ export function useEditDraftRouteStoreSync({
     if (!imageChanged) return
 
     lastSeededImageIdRef.current = activeDraftImageId
-    lastAppliedParentRoutesRef.current = parentRoutes
-    lastPushedStoreRoutesRef.current = parentRoutes
 
     clearCanvasState()
     setRoutes(existingRouteLines)
     setSelectedRoute(null)
     setActiveRoute(null)
     setEditorPanelOpen(false)
-  }, [activeDraftImageId, clearCanvasState, existingRouteLines, parentRoutes, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute, storeRoutes.length])
+  }, [activeDraftImageId, clearCanvasState, existingRouteLines, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
 
-  useEffect(() => {
-    if (!activeDraftImageId) return
-    if (lastSeededImageIdRef.current !== activeDraftImageId) return
-    if (areSerializedRoutesEqual(parentRoutes, lastAppliedParentRoutesRef.current)) return
-    if (areSerializedRoutesEqual(parentRoutes, lastPushedStoreRoutesRef.current)) {
-      lastAppliedParentRoutesRef.current = parentRoutes
-      return
+  const commitRoutes = useCallback(() => {
+    if (!activeDraftImageId || lastSeededImageIdRef.current !== activeDraftImageId) return null
+
+    const nextRoutes = routeStoreRoutes.map((route, index) => ({
+      id: route.id,
+      name: route.climb?.name || 'Unnamed',
+      grade: route.climb?.grade || '6A',
+      description: route.climb?.description ?? undefined,
+      climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : routeType,
+      points: route.points,
+      sequenceOrder: route.sequence_order ?? index,
+      imageWidth: route.image_width || 1200,
+      imageHeight: route.image_height || 1200,
+    }))
+    const currentRoutes = routesByImageId[activeDraftImageId] || []
+    const currentSerializedRoutes = currentRoutes.map((route) => ({
+      ...route,
+      imageWidth: route.imageWidth || 1200,
+      imageHeight: route.imageHeight || 1200,
+    }))
+    const nextSerializedRoutes = nextRoutes.map((route) => ({
+      ...route,
+      imageWidth: route.imageWidth || 1200,
+      imageHeight: route.imageHeight || 1200,
+    }))
+    if (areSerializedRoutesEqual(currentSerializedRoutes, nextSerializedRoutes)) {
+      return { changed: false, imageId: activeDraftImageId, routesByImageId }
     }
 
-    lastAppliedParentRoutesRef.current = parentRoutes
-    lastPushedStoreRoutesRef.current = parentRoutes
-    setRoutes(existingRouteLines)
-  }, [activeDraftImageId, existingRouteLines, parentRoutes, setRoutes, storeRoutes.length])
+    const nextRoutesByImageId = {
+      ...routesByImageId,
+      [activeDraftImageId]: nextRoutes,
+    }
+    setRoutesByImageId(nextRoutesByImageId)
+    return { changed: true, imageId: activeDraftImageId, routesByImageId: nextRoutesByImageId }
+  }, [activeDraftImageId, routeStoreRoutes, routeType, routesByImageId, setRoutesByImageId])
 
-  useEffect(() => {
-    if (!activeDraftImageId) return
-    if (lastSeededImageIdRef.current !== activeDraftImageId) return
-    if (areSerializedRoutesEqual(storeRoutes, parentRoutes)) return
-    if (areSerializedRoutesEqual(storeRoutes, lastPushedStoreRoutesRef.current)) return
-
-    lastPushedStoreRoutesRef.current = storeRoutes
-
-    setRoutesByImageId((prev) => {
-      const nextRoutes = routeStoreRoutes.map((route, index) => ({
-        id: route.id,
-        name: route.climb?.name || 'Unnamed',
-        grade: route.climb?.grade || '6A',
-        description: route.climb?.description ?? undefined,
-        climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : routeType,
-        points: route.points,
-        sequenceOrder: route.sequence_order ?? index,
-        imageWidth: route.image_width || 1200,
-        imageHeight: route.image_height || 1200,
-      }))
-
-      const currentRoutes = prev[activeDraftImageId] || []
-      const currentSerializedRoutes = currentRoutes.map((route) => ({
-        ...route,
-        imageWidth: route.imageWidth || 1200,
-        imageHeight: route.imageHeight || 1200,
-      }))
-      const nextSerializedRoutes = nextRoutes.map((route) => ({
-        ...route,
-        imageWidth: route.imageWidth || 1200,
-        imageHeight: route.imageHeight || 1200,
-      }))
-      if (areSerializedRoutesEqual(currentSerializedRoutes, nextSerializedRoutes)) return prev
-
-      markRoutesDirty([activeDraftImageId])
-      return {
-        ...prev,
-        [activeDraftImageId]: nextRoutes,
-      }
-    })
-  }, [activeDraftImageId, markRoutesDirty, parentRoutes, routeStoreRoutes, routeType, setRoutesByImageId, storeRoutes])
+  return { commitRoutes }
 }

@@ -151,7 +151,7 @@ export default function EditDraftPage() {
             hideRouteActions={location.mapOpen}
             onSelectImage={actions.handleQuickSwitchImage}
             onReorderImages={(imageIds) => { void actions.handleReorderDraftImages(imageIds) }}
-            existingRouteLines={derived.existingRouteLines}
+            existingRouteLines={canvas.routes}
             allowDelete={true}
             selectedRouteId={canvas.selectedRouteId}
             onSelectRoute={(routeId) => {
@@ -160,16 +160,7 @@ export default function EditDraftPage() {
               canvas.setEditorPanelOpen(true)
             }}
             onReorderRoutes={(routeIds) => {
-              if (!derived.activeDraftImageId) return
-              draft.setRoutesByImageId((prev) => {
-                const current = prev[derived.activeDraftImageId!] || []
-                const nextRoutes = resequenceRoutes(current, routeIds)
-                canvas.setRoutes(resequenceRoutes(derived.existingRouteLines, routeIds) as RouteLine[])
-                return {
-                  ...prev,
-                  [derived.activeDraftImageId!]: nextRoutes,
-                }
-              })
+              canvas.setRoutes(resequenceRoutes(canvas.routes, routeIds) as RouteLine[])
             }}
             interactionTool={canvas.interactionTool === 'select' ? 'select' : 'draw'}
             currentPointsCount={canvas.currentPointsCount}
@@ -202,7 +193,6 @@ export default function EditDraftPage() {
               onClick: () => { void actions.handleRemoveImage(derived.activeImageTab!.imageId) },
             } : undefined}
             onQuickBarDropFiles={actions.handleQuickBarDropFiles}
-            onRoutesUpdate={actions.handleCanvasRoutesUpdate}
           />
         ) : null}
 
