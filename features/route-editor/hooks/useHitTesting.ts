@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useRouteStore } from '@/features/route-editor/store'
 import { createRoutePath2D } from '@/lib/route-renderer'
@@ -20,6 +20,10 @@ export function useHitTesting(routes: RouteLine[]) {
     interactionTool: state.interactionTool,
   })))
   const pathCache = useRef<Map<string, Path2D | null>>(new Map())
+
+  useEffect(() => {
+    pathCache.current.clear()
+  }, [routes])
 
   const getPathForRoute = useCallback((route: RouteLine): Path2D | null => {
     const cached = pathCache.current.get(route.id)
