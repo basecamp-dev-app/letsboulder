@@ -4,6 +4,7 @@ import { getAverageCoordinates } from '@/features/crags/lib/crag-page-domain'
 import type { CragRouteIntelligenceRow } from '@/features/crags/lib/crag-page-domain'
 import type { CragPageCrag, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import { loadPublicCragMapImages } from '@/features/crags/lib/crag-map-images'
+import { fetchCragRouteTargetPage } from '@/features/crags/lib/crag-route-targets'
 
 export const cragKeys = {
   all: ['crag'] as const,
@@ -24,37 +25,27 @@ export interface CragImagesResult {
   routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
 }
 
-interface InitialCragImagesFallback {
-  images: ImageData[]
-  cragCenter: [number, number] | null
-  defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
-  routeImageIdsByClimbId: Record<string, string[]>
-  routePreviewByClimbId: Record<string, RoutePreview>
-  routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
-}
-
-export async function fetchCragImages(
-  id: string,
-  initialCrag: CragPageCrag | null,
-  initialFallback?: InitialCragImagesFallback
-): Promise<CragImagesResult> {
+export async function fetchCragImages(id: string): Promise<CragImagesResult> {
   const supabase = createClient()
 
-  const cragPromise = initialCrag
-    ? Promise.resolve({ data: initialCrag, error: null as null })
-    : supabase
-        .from('crags')
-        .select(`
-          *,
-          climbing_areas:region_id (id, name)
-        `)
-        .eq('id', id)
-        .single()
+  const cragPromise = supabase
+    .from('crags')
+    .select(`
+      *,
+      climbing_areas:region_id (id, name)
+    `)
+    .eq('id', id)
+    .single()
 
   const [
     { data: cragData, error: cragError },
     imagesData,
-  ] = await Promise.all([cragPromise, loadPublicCragMapImages(supabase, id)])
+    targetMaps,
+  ] = await Promise.all([
+    cragPromise,
+    loadPublicCragMapImages(supabase, id),
+    fetchCragRouteTargetPage(supabase, id, 1000000, 0),
+  ])
 
   if (cragError || !cragData) {
     throw new Error(`Crag not found: ${cragError?.message}`)
@@ -74,10 +65,10 @@ export async function fetchCragImages(
     crag: cragData,
     images: imagesData,
     cragCenter,
-    defaultRouteTargetByImageId: initialFallback?.defaultRouteTargetByImageId || {},
-    routeImageIdsByClimbId: initialFallback?.routeImageIdsByClimbId || {},
-    routePreviewByClimbId: initialFallback?.routePreviewByClimbId || {},
-    routeNavigationTargetByClimbId: initialFallback?.routeNavigationTargetByClimbId || {},
+    defaultRouteTargetByImageId: targetMaps.nextDefaultRouteTargetByImageId,
+    routeImageIdsByClimbId: targetMaps.nextRouteImageIdsByClimbId,
+    routePreviewByClimbId: targetMaps.nextRoutePreviewByClimbId,
+    routeNavigationTargetByClimbId: targetMaps.nextRouteNavigationTargetByClimbId,
   }
 }
 

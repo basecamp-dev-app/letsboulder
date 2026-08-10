@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { useCragImages } from '@/features/crags/hooks/use-crag-images'
 import { useCragRoutes } from '@/features/crags/hooks/use-crag-routes'
-import { remapRouteNavigationTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
+import { hasCompleteRouteTargets, remapRouteNavigationTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
 import type { UseCragDataParams, UseCragDataResult } from '@/features/crags/hooks/use-crag-data-types'
 
 export type { UseCragDataParams, UseCragDataResult, CragDataState } from '@/features/crags/hooks/use-crag-data-types'
@@ -18,7 +18,6 @@ export function useCragData({
   initialDefaultRouteTargetByImageId = {},
   initialRouteNavigationTargetByClimbId = {},
   initialCragCenter = null,
-  initialRouteTargetsComplete = false,
   initialPayloadLoadedAt,
 }: UseCragDataParams): UseCragDataResult {
   const imagesQuery = useCragImages({
@@ -61,7 +60,12 @@ export function useCragData({
         ? 'loaded'
         : 'idle'
   const routeTargetsHydrating = false
-  const routeTargetsComplete = initialRouteTargetsComplete || routes.length === 0
+  const routeTargetsComplete = routes.length === 0 || hasCompleteRouteTargets(
+    routes,
+    routeTargets.routeImageIdsByClimbId,
+    routeTargets.routePreviewByClimbId,
+    routeTargets.routeNavigationTargetByClimbId
+  )
 
   return {
     crag: imageData?.crag || null,

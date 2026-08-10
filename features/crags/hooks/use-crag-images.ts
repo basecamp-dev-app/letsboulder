@@ -34,14 +34,7 @@ export function useCragImages({
 
   return useQuery({
     queryKey: cragKeys.images(id),
-    queryFn: () => fetchCragImages(id, initialCrag, {
-      images: initialImages,
-      cragCenter: initialCragCenter,
-      defaultRouteTargetByImageId: initialDefaultRouteTargetByImageId,
-      routeImageIdsByClimbId: initialRouteImageIdsByClimbId,
-      routePreviewByClimbId: initialRoutePreviewByClimbId,
-      routeNavigationTargetByClimbId: initialRouteNavigationTargetByClimbId,
-    }),
+    queryFn: () => fetchCragImages(id),
     initialData: hasInitialImageData
       ? {
           crag: initialCrag!,
