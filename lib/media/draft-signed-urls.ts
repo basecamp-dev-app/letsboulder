@@ -65,6 +65,10 @@ export async function loadDraftSignedUrls(objects: DraftSignedUrlObject[]): Prom
     body: JSON.stringify({ objects: missing }),
   })
 
+  if (requestUserId !== cacheUserId) {
+    return results
+  }
+
   if (!response.ok) {
     throw new Error('Failed to load signed draft image URLs')
   }

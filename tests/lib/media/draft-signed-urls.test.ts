@@ -52,7 +52,7 @@ describe('loadDraftSignedUrls', () => {
     expect(csrfFetch).toHaveBeenCalledTimes(2)
   })
 
-  test('does not store a response that completes after an account change', async () => {
+  test('discards a response that completes after an account change', async () => {
     let resolveResponse: (response: Response) => void = () => {
       throw new Error('Response resolver was not initialized')
     }
@@ -65,11 +65,28 @@ describe('loadDraftSignedUrls', () => {
     const pending = loadDraftSignedUrls([object])
     setDraftSignedUrlCacheUserId('user-two')
     resolveResponse(signedUrlResponse('https://example.com/user-one', 4_700_000))
-    await pending
+    expect((await pending).get(key)).toBeUndefined()
 
     csrfFetch.mockResolvedValueOnce(signedUrlResponse('https://example.com/user-two', 4_700_000))
     expect((await loadDraftSignedUrls([object])).get(key)).toBe('https://example.com/user-two')
     expect(csrfFetch).toHaveBeenCalledTimes(2)
+  })
+
+  test('discards a response that completes after logout', async () => {
+    let resolveResponse: (response: Response) => void = () => {
+      throw new Error('Response resolver was not initialized')
+    }
+    csrfFetch.mockImplementationOnce(() => new Promise<Response>((resolve) => {
+      resolveResponse = resolve
+    }))
+    const { loadDraftSignedUrls, setDraftSignedUrlCacheUserId } = await import('@/lib/media/draft-signed-urls')
+
+    setDraftSignedUrlCacheUserId('user-one')
+    const pending = loadDraftSignedUrls([object])
+    setDraftSignedUrlCacheUserId(null)
+    resolveResponse(signedUrlResponse('https://example.com/user-one', 4_700_000))
+
+    expect((await pending).get(key)).toBeUndefined()
   })
 
   test('does not cache failed requests so a later load retries', async () => {
