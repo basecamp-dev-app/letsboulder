@@ -61,7 +61,7 @@ See `AGENTS.md` for the complete directory map, source-of-truth rules, and imple
 Use the smallest relevant checks during development, then run the complete quality sequence before opening a PR. The test prerequisites and CI-equivalent sequence are maintained in [`docs/testing/README.md`](docs/testing/README.md).
 
 - Always: `npm run lint`, `npm run typecheck`, and `bash docs/verify.sh`
-- Feature boundary changes: `npm run check:features`
+- Feature boundary changes: `npm run check:architecture` (and `npm run check:features` for the advisory layout report)
 - Client API mutation changes: `npm run check:csrf-fetch`
 - Unit or component changes: the matching Vitest script
 - Database or migration changes: reset local Supabase, run `npm run check:type-drift`, and run `npm run test:database`

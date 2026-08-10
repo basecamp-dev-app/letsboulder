@@ -102,9 +102,7 @@ A `types.ts` file at the feature root is acceptable alongside a `types/` directo
 
 ## Compliance
 
-Run `npx tsx scripts/check-feature-compliance.ts` to check all features and print a compliance table.
-The script exits with code 1 if any feature is missing the five standard directories across its full subtree.
-It also prints advisory notes when a requirement is satisfied only via nested sub-features rather than the feature root.
+Run `npx tsx scripts/check-feature-compliance.ts` to print the feature directory layout report. Directory layout is advisory because features only need the standard directories they use.
 
-CI enforces structural compliance via `npm run check:features`.
-`npm run lint:features` remains a local lint helper for the feature tree, but it is not the authoritative compliance gate.
+Run `npm run check:architecture` to enforce server isolation, `app/` ownership, and feature public APIs. The gate checks source files changed since the architecture baseline; when a legacy file is touched, it must meet the current rules. CI enforces this gate.
+`npm run check:features` and `npm run lint:features` are local advisory helpers for the feature tree.

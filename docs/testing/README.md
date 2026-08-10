@@ -104,7 +104,7 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 
 ## CI
 
-- **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, feature structure, docs drift, typecheck, build, unit, component, and integration coverage checks
+- **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, advisory feature layout reporting, architecture boundaries, docs drift, typecheck, build, unit, component, and integration coverage checks
 - **Generated type drift** — A dedicated CI job starts the pinned local Supabase stack, resets it from every committed migration, and runs `npm run check:type-drift` on every PR, push, and manual workflow run. This validates generated content rather than only checking whether `types/database.ts` changed alongside a migration, and it also covers direct pushes where the old PR-only heuristic did not run.
 - **CI cost tradeoff** — Local Supabase requires Docker images and a migration reset, so this adds a few minutes and a separate Ubuntu runner. Keeping it as one isolated job avoids starting Supabase for every quality/test job while making migration changes fail closed when generated types are stale.
 - **Smoke tests** — Run on trusted deployment status or manual dispatch in `.github/workflows/test.yml`; public and authenticated `--grep @smoke` projects run in separate processes
@@ -117,6 +117,7 @@ Run the CI-equivalent quality sequence locally with the same commands (the build
 npm ci --prefer-offline
 npm run lint
 npm run check:features
+npm run check:architecture
 bash docs/verify.sh
 npm run typecheck
 npx supabase start

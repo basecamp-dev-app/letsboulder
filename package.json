@@ -24,6 +24,7 @@
     "check:type-drift": "node scripts/check-generated-types.mjs",
     "lint:features": "eslint --cache --concurrency auto features/ --rule 'local-rules/consistent-feature-structure: warn'",
     "check:features": "tsx scripts/check-feature-compliance.ts",
+    "check:architecture": "tsx scripts/check-architecture.ts",
     "export:public-data": "tsx scripts/public-data/export.ts",
     "typecheck": "npm run typecheck:app && npm run typecheck:tests && npm run typecheck:scripts && npm run typecheck:media-worker",
     "typecheck:app": "tsc --noEmit -p tsconfig.json",

@@ -84,6 +84,7 @@ This is the canonical path inventory for route handlers under `app/api/**/route.
 /api/flags/[id]/resolve
 /api/gym-admin/gyms
 /api/gym-admin/gyms/[id]/starter-routes
+/api/image-first/images
 /api/image-first/community-notes
 /api/image-first/pins
 /api/images/[id]
@@ -191,6 +192,7 @@ Gym admin operations. Requires authentication with gym admin privileges. Uses CS
 Image-first route page support endpoints. Public read-only endpoints used to progressively enhance the route-page minimap after first paint. No authentication or CSRF protection.
 
 - `image-first/pins` — load image pins for a single crag within supplied map bounds using `cragId`, `north`, `south`, `east`, and `west` query params
+- `image-first/images` — load route-page image metadata using `imageId`
 - `image-first/community-notes` — load route-page community notes using `effectiveClimbId`
 
 ### images

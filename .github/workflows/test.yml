@@ -55,6 +55,9 @@ jobs:
       - name: Check feature structure
         run: npm run check:features
 
+      - name: Check architecture boundaries
+        run: npm run check:architecture
+
       - name: Verify docs drift
         run: bash docs/verify.sh
 

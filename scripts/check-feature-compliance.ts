@@ -91,7 +91,6 @@ function printTable(results: FeatureCheck[]): void {
       const missing = REQUIRED_DIRS.filter((d) => !r.effectiveDirs[d]).join(', ')
       console.log(`  - ${r.name}: missing ${missing}`)
     }
-    process.exit(1)
   }
 
   const advisoryResults = results
