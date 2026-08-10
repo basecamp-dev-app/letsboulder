@@ -7,6 +7,7 @@ export interface BatchSignedUrlResult {
   bucket: string
   path: string
   signedUrl: string | null
+  expiresAt: number
 }
 
 export interface SignedUrlBatchResponse {

@@ -10,10 +10,25 @@ interface DraftSignedUrlResponse {
     bucket?: string
     path?: string
     signedUrl?: string | null
+    expiresAt?: number
   }>
 }
 
-const signedUrlCache = new Map<string, string>()
+interface CachedDraftSignedUrl {
+  url: string
+  expiresAt: number
+  userId: string
+}
+
+const CACHE_REFRESH_BUFFER_MS = 60_000
+const signedUrlCache = new Map<string, CachedDraftSignedUrl>()
+let cacheUserId: string | null = null
+
+export function setDraftSignedUrlCacheUserId(userId: string | null): void {
+  if (cacheUserId === userId) return
+  cacheUserId = userId
+  signedUrlCache.clear()
+}
 
 export function getDraftSignedUrlCacheKey(bucket: string, path: string): string {
   return `${bucket}:${path}`
@@ -32,8 +47,8 @@ export async function loadDraftSignedUrls(objects: DraftSignedUrlObject[]): Prom
   for (const object of uniqueObjects) {
     const cacheKey = getDraftSignedUrlCacheKey(object.bucket, object.path)
     const cached = signedUrlCache.get(cacheKey)
-    if (cached) {
-      results.set(cacheKey, cached)
+    if (cached && cached.userId === cacheUserId && cached.expiresAt > Date.now() + CACHE_REFRESH_BUFFER_MS) {
+      results.set(cacheKey, cached.url)
       continue
     }
     missing.push(object)
@@ -43,6 +58,7 @@ export async function loadDraftSignedUrls(objects: DraftSignedUrlObject[]): Prom
     return results
   }
 
+  const requestUserId = cacheUserId
   const response = await csrfFetch('/api/uploads/signed-urls/batch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -60,7 +76,9 @@ export async function loadDraftSignedUrls(objects: DraftSignedUrlObject[]): Prom
     }
 
     const cacheKey = getDraftSignedUrlCacheKey(item.bucket, item.path)
-    signedUrlCache.set(cacheKey, item.signedUrl)
+    if (requestUserId && requestUserId === cacheUserId && typeof item.expiresAt === 'number' && item.expiresAt > Date.now() + CACHE_REFRESH_BUFFER_MS) {
+      signedUrlCache.set(cacheKey, { url: item.signedUrl, expiresAt: item.expiresAt, userId: requestUserId })
+    }
     results.set(cacheKey, item.signedUrl)
   }
 

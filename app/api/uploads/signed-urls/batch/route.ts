@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withApiMiddleware } from '@/lib/csrf-server'
-import { createSignedObjectUrls, isR2ManagedBucket } from '@/lib/media/object-urls'
+import { createSignedObjectUrls, isR2ManagedBucket, SIGNED_OBJECT_URL_TTL_SECONDS } from '@/lib/media/object-urls'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { getSignedUrlBatchKey, type BatchSignedUrlResult, type SignedUrlBatchRequestObject } from '@/lib/signed-url-batch'
 import { serverEnv } from '@/lib/env.server'
@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
   const signedByKey = new Map<string, string>()
 
   const signedResults = await createSignedObjectUrls(objects, supabase)
+  const expiresAt = Date.now() + SIGNED_OBJECT_URL_TTL_SECONDS * 1000
   for (const item of objects) {
     const signedUrl = signedResults.get(`${item.bucket}:${item.path}`) ?? null
     if (signedUrl) {
@@ -144,6 +145,7 @@ export async function POST(request: NextRequest) {
     bucket: item.bucket,
     path: item.path,
     signedUrl: signedByKey.get(getSignedUrlBatchKey(item.bucket, item.path)) ?? null,
+    expiresAt,
   }))
 
   return NextResponse.json({ results })

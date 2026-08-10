@@ -9,7 +9,7 @@ export interface StorageObjectRef {
 }
 
 const PRIVATE_URL_PREFIX = 'private://'
-const SIGNED_URL_TTL_SECONDS = 3600
+export const SIGNED_OBJECT_URL_TTL_SECONDS = 3600
 
 export function parsePrivateStorageUrl(url: string | null | undefined): StorageObjectRef | null {
   if (!url || !url.startsWith(PRIVATE_URL_PREFIX)) return null
@@ -38,14 +38,14 @@ export async function createSignedObjectUrl(
   supabaseSigner?: { storage: { from: (bucketName: string) => { createSignedUrl: (objectPath: string, expiresIn: number) => Promise<{ data: { signedUrl?: string | null } | null; error: { message?: string } | null }> } } }
 ): Promise<string | null> {
   if (isR2ManagedBucket(bucket)) {
-    return createPrivateReadUrl(bucket, path, SIGNED_URL_TTL_SECONDS)
+    return createPrivateReadUrl(bucket, path, SIGNED_OBJECT_URL_TTL_SECONDS)
   }
 
   if (!supabaseSigner) {
     throw new Error(`No signer available for bucket ${bucket}`)
   }
 
-  const { data, error } = await supabaseSigner.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL_SECONDS)
+  const { data, error } = await supabaseSigner.storage.from(bucket).createSignedUrl(path, SIGNED_OBJECT_URL_TTL_SECONDS)
   if (error || !data?.signedUrl) {
     return null
   }
@@ -75,7 +75,7 @@ export async function createSignedObjectUrls(
   }
 
   for (const [bucket, paths] of r2RefsByBucket.entries()) {
-    const signed = await createPrivateReadUrls(bucket, paths, SIGNED_URL_TTL_SECONDS)
+    const signed = await createPrivateReadUrls(bucket, paths, SIGNED_OBJECT_URL_TTL_SECONDS)
     for (const path of paths) {
       signedByKey.set(`${bucket}:${path}`, signed.get(path) ?? null)
     }
@@ -90,7 +90,7 @@ export async function createSignedObjectUrls(
     }
 
     const uniquePaths = Array.from(new Set(paths))
-    const { data, error } = await supabaseSigner.storage.from(bucket).createSignedUrls(uniquePaths, SIGNED_URL_TTL_SECONDS)
+    const { data, error } = await supabaseSigner.storage.from(bucket).createSignedUrls(uniquePaths, SIGNED_OBJECT_URL_TTL_SECONDS)
     if (error) {
       for (const path of uniquePaths) {
         signedByKey.set(`${bucket}:${path}`, null)

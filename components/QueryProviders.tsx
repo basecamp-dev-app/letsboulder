@@ -5,6 +5,7 @@ import type { Session, User } from '@supabase/supabase-js'
 import { QueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createIdbPersister, isCommunityQueryKey, removeLegacyPersistedQueryCache, removePersistedQueryCache } from '@/lib/query-persistence'
+import { setDraftSignedUrlCacheUserId } from '@/lib/media/draft-signed-urls'
 import { createClient } from '@/lib/supabase'
 
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
@@ -38,10 +39,12 @@ export default function QueryProviders({ children }: { children: ReactNode }) {
 
     void supabase.auth.getUser().then(({ data: { user } }: { data: { user: User | null } }) => {
       if (!mounted) return
+      setDraftSignedUrlCacheUserId(user?.id ?? null)
       setAuthScope(user?.id ?? ANON_QUERY_CACHE_SCOPE)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
+      setDraftSignedUrlCacheUserId(session?.user?.id ?? null)
       setAuthScope(session?.user?.id ?? ANON_QUERY_CACHE_SCOPE)
     })
 
