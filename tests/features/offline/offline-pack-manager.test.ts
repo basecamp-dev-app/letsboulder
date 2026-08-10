@@ -15,13 +15,18 @@ vi.stubGlobal('navigator', { locks: { request: lockRequest } })
 function manifestResponse(): Response {
   return new Response(JSON.stringify({
     offline_pack: {
-      packId: 'climb:1',
-      climbId: 'climb-1',
-      climbName: 'The Roof',
-      version: 'v2',
+       type: 'crag',
+       schemaVersion: 1,
+       minReaderVersion: 1,
+       packId: 'crag:1',
+       cragId: 'crag-1',
+       cragName: 'The Crag',
+       cragVersionHash: 'v2',
       manifestUrl: 'https://example.com/manifest',
       estimatedBytes: 100,
-      mediaUrls: ['https://example.com/a.webp', 'https://example.com/shared.webp'],
+       mediaUrls: ['https://example.com/a.webp', 'https://example.com/shared.webp'],
+       climbs: [],
+       metadata: { crag: {}, climbs: [], images: [], routeLines: [], sectors: [] },
     },
   }), { status: 200, headers: { 'content-type': 'application/json' } })
 }
@@ -64,8 +69,10 @@ function createHarness(options: { failUrl?: string; cachedUrls?: string[] } = {}
     removeVersion: vi.fn(async () => { events.push('gc'); return ['https://example.com/shared.webp'] }),
     discardFailedVersion: vi.fn(async () => { events.push('discard'); return ['https://example.com/a.webp'] }),
     removePack: vi.fn(async () => []),
-    isAssetOwned: vi.fn(async (url) => url.endsWith('/shared.webp')),
-    cleanOrphanRecords: vi.fn(async () => []),
+     isAssetOwned: vi.fn(async (url) => url.endsWith('/shared.webp')),
+     markAssetCached: vi.fn(async () => undefined),
+     setPackHealth: vi.fn(async () => undefined),
+     cleanOrphanRecords: vi.fn(async () => []),
   }
 
   const cache: OfflineMediaCache = {
@@ -154,7 +161,7 @@ describe('offline pack manager', () => {
       checkpointAsset: vi.fn(), failJob: vi.fn(), activate: vi.fn(),
       discardFailedVersion: vi.fn(async () => ['https://example.com/old.webp']),
       removeVersion: vi.fn(async () => ['https://example.com/old.webp']), removePack: vi.fn(async () => []),
-      isAssetOwned: vi.fn(async () => false), cleanOrphanRecords: vi.fn(async () => []),
+       isAssetOwned: vi.fn(async () => false), markAssetCached: vi.fn(), setPackHealth: vi.fn(async () => undefined), cleanOrphanRecords: vi.fn(async () => []),
     }
     const cache: OfflineMediaCache = {
       has: vi.fn(async () => false), download: vi.fn(), remove: vi.fn(async () => undefined), keys: vi.fn(async () => []),
@@ -180,6 +187,39 @@ describe('offline pack manager', () => {
     expect(repository.discardFailedVersion).toHaveBeenCalledWith('climb:1:v2', 'now')
     expect(cache.remove).toHaveBeenCalledWith('https://example.com/a.webp')
     expect(events).toContain('discard')
+  })
+
+  test('does not automatically retry permanent failures after restart', async () => {
+    const { manager, repository } = createHarness()
+    const permanentJob: OfflineDownloadJobRecord = {
+      id: 'crag:1:v2', packId: 'crag:1', version: 'v2', versionId: 'crag:1:v2', state: 'failed',
+      completedAssets: 0, totalAssets: 1, downloadedBytes: 0, error: 'Asset response has unexpected content type', updatedAt: 'now', failureKind: 'permanent',
+    }
+    vi.mocked(repository.listJobs).mockResolvedValueOnce([permanentJob])
+
+    await manager.resume()
+
+    expect(repository.listVersionAssets).not.toHaveBeenCalled()
+    expect(repository.activate).not.toHaveBeenCalled()
+  })
+
+  test('repairs missing active media without replacing the active version', async () => {
+    const { manager, repository, cache, events } = createHarness()
+    const activeRecord = await repository.getActivePack('crag:1')
+    expect(activeRecord).toBeNull()
+    const active = {
+      pack: { packId: 'crag:1', kind: 'crag' as const, entityId: 'crag-1', displayName: 'Crag', manifestUrl: '/manifest', activeVersion: 'v2', status: 'degraded' as const, installedAt: 'now', updatedAt: 'now', error: 'missing' },
+      version: { id: 'crag:1:v2', packId: 'crag:1', version: 'v2', state: 'active' as const, createdAt: 'now', manifest: { packId: 'crag:1', kind: 'crag' as const, entityId: 'crag-1', displayName: 'Crag', version: 'v2', manifestUrl: '/manifest', estimatedBytes: 50, assets: [{ url: 'https://example.com/a.webp', estimatedBytes: 50, mediaType: 'image/webp' }], dependentManifestUrls: [], payload: {} } },
+    }
+    vi.mocked(repository.getActivePack).mockResolvedValue(active)
+    vi.mocked(repository.listVersionAssets).mockResolvedValue([{ id: 'asset', versionId: 'crag:1:v2', packId: 'crag:1', version: 'v2', url: 'https://example.com/a.webp', estimatedBytes: 50, mediaType: 'image/webp', state: 'pending', downloadedBytes: 0 }])
+
+    await manager.repair('crag:1')
+
+    expect(cache.download).toHaveBeenCalledWith('https://example.com/a.webp', expect.anything(), 'image/webp')
+    expect(repository.markAssetCached).toHaveBeenCalled()
+    expect(repository.activate).not.toHaveBeenCalled()
+    expect(events).toContain('download:https://example.com/a.webp')
   })
 
   test('passes the current time to orphan cleanup so stale failures can be collected', async () => {

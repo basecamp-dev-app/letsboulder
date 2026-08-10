@@ -203,6 +203,8 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - **Stored data:** Pack versions activate only after every owned immutable asset is cached; removal keeps assets still owned by another installed pack.
 - **Quota:** Compare browser storage estimates against uncached incremental bytes with safety headroom. Browser persistence requests remain best-effort and the UI must surface failures.
 - **Updates:** Opening a downloaded crag checks its deterministic manifest version while online. Changed packs require user confirmation; a failed update leaves the active version intact.
+- **Recovery:** Startup, reconnect, and foreground return resume queued, downloading, and resumable failed jobs only. Permanent validation failures require explicit retry or discard.
+- **Eviction:** Active pack assets are checked in Cache API before opening. Missing media marks the guide degraded and provides repair/redownload without hiding its cached metadata or pins.
 - **Auth:** Crag packs contain public content only and are device-local, so auth changes do not remove them. Never mix personal logs, private media, signed URLs, or collaboration data into a public pack.
 - **Network routes:** Preserve the current screen when a refetch fails and provide retry controls for failed initial loads.
 - **Hosted basemap CSP:** `tiles.openfreemap.org` must remain allowed in `connect-src`, `img-src`, and `font-src`.

@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { ArrowLeft, MapPin, Mountain } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { useOfflinePacks } from '@/features/offline/hooks/use-offline-packs'
 import { OfflinePackManager } from '@/features/offline/lib/offline-pack-manager'
 import type { ActiveOfflinePack } from '@/features/offline/lib/offline-pack-types'
 import type { CragPackManifest } from '@/types/crag-pack-manifest'
@@ -112,19 +113,25 @@ function TopoFigure({ topo }: { topo: TopoImage }) {
 }
 
 export default function OfflineCragViewer() {
+  const { repair, loading } = useOfflinePacks()
   const searchParams = useSearchParams()
   const cragId = searchParams.get('id') || ''
   const validCragId = UUID_PATTERN.test(cragId)
   const [activePack, setActivePack] = useState<ActiveOfflinePack | null | undefined>(undefined)
   const [failed, setFailed] = useState(false)
+  const [missingUrls, setMissingUrls] = useState<string[]>([])
 
   useEffect(() => {
     let active = true
     if (!validCragId) return () => { active = false }
     void packReader.list()
-      .then((packs) => packs.find((pack) => pack.kind === 'crag' && pack.entityId === cragId && pack.status === 'ready'))
-      .then((pack) => pack ? packReader.getActive(pack.packId) : null)
-      .then((stored) => { if (active) setActivePack(stored) })
+      .then((packs) => packs.find((pack) => pack.kind === 'crag' && pack.entityId === cragId && pack.activeVersion !== null && pack.status !== 'error'))
+      .then((pack) => pack ? packReader.validateActive(pack.packId) : null)
+      .then((validation) => {
+        if (!active) return
+        setMissingUrls(validation?.missingUrls ?? [])
+        setActivePack(validation?.active ?? null)
+      })
       .catch(() => { if (active) setFailed(true) })
     return () => { active = false }
   }, [cragId, validCragId])
@@ -148,6 +155,8 @@ export default function OfflineCragViewer() {
   }
 
   const topos = collectTopos(manifest)
+  const missing = new Set(missingUrls)
+  const availableTopos = topos.filter((topo) => !missing.has(topo.url))
   const pins = manifest.metadata.climbs.filter((climb) => climb.coordinates.latitude !== null && climb.coordinates.longitude !== null)
 
   return (
@@ -160,9 +169,17 @@ export default function OfflineCragViewer() {
           {manifest.metadata.crag.description ? <p className="mt-4 max-w-2xl text-sm leading-6 text-emerald-50/80">{manifest.metadata.crag.description}</p> : null}
         </header>
 
+        {missingUrls.length > 0 ? (
+          <div role="alert" className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+            <p className="font-semibold">Some saved media is missing</p>
+            <p className="mt-1">The guide details and pins are still available. Repair the guide when you have a connection to redownload {missingUrls.length === 1 ? 'the missing asset' : 'the missing assets'}.</p>
+            <Button type="button" variant="outline" disabled={loading} onClick={() => void repair(activePack?.pack.packId ?? '')} className="mt-3 rounded-xl border-amber-300 bg-transparent">{loading ? 'Repairing...' : 'Repair guide'}</Button>
+          </div>
+        ) : null}
+
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
           <section aria-labelledby="topos-heading"><h2 id="topos-heading" className="text-xl font-semibold">Topos</h2>
-            {topos.length > 0 ? <div className="mt-3 space-y-5">{topos.map((topo) => <TopoFigure key={topo.id} topo={topo} />)}</div> : <p className="mt-3 rounded-2xl bg-white p-5 text-sm text-stone-600 dark:bg-gray-900 dark:text-gray-300">No cached topo images are available.</p>}
+            {availableTopos.length > 0 ? <div className="mt-3 space-y-5">{availableTopos.map((topo) => <TopoFigure key={topo.id} topo={topo} />)}</div> : <p className="mt-3 rounded-2xl bg-white p-5 text-sm text-stone-600 dark:bg-gray-900 dark:text-gray-300">No cached topo images are available.</p>}
           </section>
 
           <aside className="space-y-5">

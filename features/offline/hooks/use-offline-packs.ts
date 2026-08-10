@@ -1,9 +1,7 @@
 'use client'
 
-import { useEffect, useSyncExternalStore } from 'react'
 import { offlinePackStore } from '@/features/offline/lib/offline-pack-store'
-
-let initialized = false
+import { useSyncExternalStore } from 'react'
 
 export function useOfflinePacks() {
   const snapshot = useSyncExternalStore(
@@ -12,16 +10,11 @@ export function useOfflinePacks() {
     offlinePackStore.getServerSnapshot,
   )
 
-  useEffect(() => {
-    if (initialized) return
-    initialized = true
-    void offlinePackStore.resume().catch(() => undefined)
-  }, [])
-
   return {
     ...snapshot,
     install: offlinePackStore.install.bind(offlinePackStore),
     update: offlinePackStore.update.bind(offlinePackStore),
+    repair: offlinePackStore.repair.bind(offlinePackStore),
     remove: offlinePackStore.remove.bind(offlinePackStore),
     discardFailed: offlinePackStore.discardFailed.bind(offlinePackStore),
     resume: offlinePackStore.resume.bind(offlinePackStore),

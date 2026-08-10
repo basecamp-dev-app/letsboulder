@@ -6,6 +6,7 @@ const ChunkLoadRecovery = dynamic(() => import('@/components/ChunkLoadRecovery')
 const DevBrowserLogger = dynamic(() => import('@/components/DevBrowserLogger'), { ssr: false })
 const LastRoutePersistence = dynamic(() => import('@/components/LastRoutePersistence'), { ssr: false })
 const ServiceWorkerRegistration = dynamic(() => import('@/components/ServiceWorkerRegistration'), { ssr: false })
+const OfflinePackRecovery = dynamic(() => import('@/features/offline/components/OfflinePackRecovery'), { ssr: false })
 
 export default function RootClientUtilities() {
   return (
@@ -14,6 +15,7 @@ export default function RootClientUtilities() {
       <DevBrowserLogger />
       <LastRoutePersistence />
       <ServiceWorkerRegistration />
+      <OfflinePackRecovery />
     </>
   )
 }

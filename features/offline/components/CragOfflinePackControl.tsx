@@ -14,11 +14,12 @@ function formatBytes(bytes: number) {
 }
 
 export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
-  const { packs, loading, error, install, remove, discardFailed } = useOfflinePacks()
+  const { packs, loading, error, install, repair, remove, discardFailed } = useOfflinePacks()
   const packId = `crag:${cragId}`
   const manifestUrl = `/api/offline-packs/crags/${encodeURIComponent(cragId)}/manifest`
   const pack = packs.find((candidate) => candidate.packId === packId)
-  const ready = pack?.status === 'ready' && pack.activeVersion !== null
+  const ready = pack?.activeVersion !== null && pack?.status !== 'error'
+  const degraded = pack?.status === 'degraded'
   const failedDownload = pack?.error !== null && pack?.error !== undefined
   const [availableUpdate, setAvailableUpdate] = useState<OfflinePackManifest | null>(null)
   const [storageStatus, setStorageStatus] = useState<OfflineStorageStatus | null>(null)
@@ -29,7 +30,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
 
     void fetchOfflinePackManifest(manifestUrl)
       .then((manifest) => {
-        if (active) setAvailableUpdate(manifest.version === pack.activeVersion ? null : manifest)
+        if (active) setAvailableUpdate(manifest.version === pack?.activeVersion ? null : manifest)
       })
       .catch(() => undefined)
 
@@ -54,6 +55,14 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
       setAvailableUpdate(null)
     } catch {
       // The active version remains available and the store exposes the error.
+    }
+  }
+
+  const handleRepair = async () => {
+    try {
+      await repair(packId)
+    } catch {
+      // The store exposes the actionable error.
     }
   }
 
@@ -89,7 +98,12 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
           <Download className="size-4" /> {loading ? 'Downloading...' : pack?.status === 'error' ? 'Retry download' : 'Download offline'}
         </Button>
       )}
-      {ready && availableUpdate ? (
+      {ready && degraded ? (
+        <Button type="button" variant="outline" onClick={() => void handleRepair()} disabled={loading} className="min-h-11 rounded-full border-amber-200 bg-amber-50 px-3 text-amber-900 shadow-none hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-900/30 dark:text-amber-200">
+          <RefreshCw className="size-4" /> {loading ? 'Repairing...' : 'Repair media'}
+        </Button>
+      ) : null}
+      {ready && !degraded && availableUpdate ? (
         <Button type="button" variant="outline" onClick={() => void handleUpdate()} disabled={loading} className="min-h-11 rounded-full border-amber-200 bg-amber-50 px-3 text-amber-900 shadow-none hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-900/30 dark:text-amber-200">
           <RefreshCw className="size-4" /> Update
         </Button>

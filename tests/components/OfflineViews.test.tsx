@@ -17,12 +17,16 @@ vi.mock('@/features/offline/lib/offline-pack-manager', () => ({
   OfflinePackManager: class {
     list = listMock
     getActive = getActiveMock
+    validateActive = vi.fn(async (packId: string) => {
+      const active = await getActiveMock(packId)
+      return active ? { active, missingUrls: [] } : null
+    })
   },
 }))
 
 describe('offline standalone views', () => {
   beforeEach(() => {
-    useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null })
+    useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn() })
     listMock.mockResolvedValue([])
     getActiveMock.mockResolvedValue(null)
   })
@@ -31,6 +35,7 @@ describe('offline standalone views', () => {
     useOfflinePacksMock.mockReturnValue({
       loading: false,
       error: null,
+      repair: vi.fn(),
       packs: [{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'ready', installedAt: '2026-07-29T10:00:00.000Z', updatedAt: '2026-07-29T10:00:00.000Z', error: null }],
     })
 

@@ -1,5 +1,5 @@
 export type OfflinePackKind = 'climb' | 'crag'
-export type OfflinePackStatus = 'installing' | 'ready' | 'error'
+export type OfflinePackStatus = 'installing' | 'ready' | 'degraded' | 'error'
 
 export interface OfflinePackAsset {
   url: string
@@ -29,6 +29,8 @@ export interface OfflinePackRecord {
   activeVersion: string | null
   status: OfflinePackStatus
   installedAt: string | null
+  /** Older records predate this field and are treated as installedAt. */
+  lastSuccessfulUpdateAt?: string | null
   updatedAt: string
   error: string | null
 }
@@ -91,4 +93,9 @@ export interface OfflinePackSnapshot {
   loading: boolean
   packs: readonly OfflinePackRecord[]
   error: string | null
+}
+
+export interface OfflinePackValidation {
+  active: ActiveOfflinePack
+  missingUrls: string[]
 }

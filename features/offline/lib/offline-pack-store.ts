@@ -37,6 +37,13 @@ export class OfflinePackStore {
     })
   }
 
+  async repair(packId: string): Promise<void> {
+    await this.run(async () => {
+      await this.manager.repair(packId)
+      this.setSnapshot({ loading: false, packs: await this.manager.list(), error: null })
+    })
+  }
+
   async remove(packId: string): Promise<void> {
     await this.run(async () => {
       await this.manager.remove(packId)

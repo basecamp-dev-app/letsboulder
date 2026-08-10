@@ -77,7 +77,9 @@ async function cacheFirstPackedMedia(request) {
   if (cached) return cached
 
   try {
-    return await fetch(request)
+    const response = await fetch(request)
+    if (response.ok) await cache.put(request, response.clone())
+    return response
   } catch {
     return new Response('', { status: 504, statusText: 'Offline media unavailable' })
   }

@@ -8,6 +8,7 @@ import type {
   OfflinePackManifest,
   OfflinePackRecord,
   OfflinePackInstallResult,
+  OfflinePackValidation,
   OfflineStorageStatus,
 } from '@/features/offline/lib/offline-pack-types'
 
@@ -30,6 +31,8 @@ export interface OfflinePackRepository {
   discardFailedVersion(versionId: string, now: string): Promise<string[]>
   removePack(packId: string): Promise<string[]>
   isAssetOwned(url: string): Promise<boolean>
+  markAssetCached(versionId: string, url: string, bytes: number): Promise<void>
+  setPackHealth(packId: string, status: OfflinePackRecord['status'], error: string | null, now: string): Promise<void>
   cleanOrphanRecords(now?: string): Promise<string[]>
 }
 
@@ -87,6 +90,25 @@ export class OfflinePackManager {
     return this.repository.getActivePack(packId)
   }
 
+  async validateActive(packId: string): Promise<OfflinePackValidation | null> {
+    const active = await this.repository.getActivePack(packId)
+    if (!active) return null
+    const assets = await this.repository.listVersionAssets(active.version.id)
+    const ownedUrls = new Set(assets.map((asset) => asset.url))
+    const manifestAssets = active.version.manifest.assets.filter((asset) => !ownedUrls.has(asset.url)).map((asset) => asset.url)
+    const missingUrls: string[] = []
+    await runBounded(assets, this.concurrency, async (asset) => {
+      if (!(await this.cache.has(asset.url))) missingUrls.push(asset.url)
+    })
+    missingUrls.push(...manifestAssets)
+    if (missingUrls.length > 0) {
+      await this.repository.setPackHealth(packId, 'degraded', `${missingUrls.length} saved media ${missingUrls.length === 1 ? 'asset is' : 'assets are'} missing`, this.now())
+    } else if (active.pack.status === 'degraded') {
+      await this.repository.setPackHealth(packId, 'ready', null, this.now())
+    }
+    return { active, missingUrls }
+  }
+
   async storageStatus(requestPersistence = false): Promise<OfflineStorageStatus> {
     if (!('navigator' in globalThis) || !navigator.storage) {
       return { persisted: null, persistenceRequested: false, quota: null, usage: null, available: null }
@@ -112,7 +134,7 @@ export class OfflinePackManager {
         storageStatus = status
         const requiredBytes = await this.requiredDownloadBytes(manifest)
         if (status.available !== null && requiredBytes > status.available * 0.9) {
-          throw new Error('Not enough device storage for this offline pack')
+          throw new Error('Storage quota is too small for this offline pack')
         }
         const current = await this.repository.getActivePack(manifest.packId)
         if (current?.version.version === manifest.version) return
@@ -129,14 +151,40 @@ export class OfflinePackManager {
   async update(packId: string): Promise<ActiveOfflinePack> {
     const pack = await this.repository.getPack(packId)
     if (!pack) throw new Error('Offline pack is not installed')
-    const result = await this.install(pack.manifestUrl)
-    return result.active
+    try {
+      const result = await this.install(pack.manifestUrl)
+      return result.active
+    } catch (error) {
+      await this.repository.setPackHealth(packId, pack.activeVersion ? 'ready' : 'error', errorMessage(error), this.now())
+      throw error
+    }
+  }
+
+  async repair(packId: string): Promise<void> {
+    await this.withCrossTabLock(() => this.withPackLock(packId, async () => {
+      const active = await this.repository.getActivePack(packId)
+      if (!active) throw new Error('Offline crag is not installed')
+      try {
+        const assets = await this.repository.listVersionAssets(active.version.id)
+        const missing = [] as OfflineAssetOwnershipRecord[]
+        for (const asset of assets) if (!(await this.cache.has(asset.url))) missing.push(asset)
+        await runBounded(missing, this.concurrency, async (asset) => {
+          const bytes = await this.cache.download(asset.url, this.fetcher, asset.mediaType)
+          await this.repository.markAssetCached(active.version.id, asset.url, bytes)
+        })
+        await this.repository.setPackHealth(packId, 'ready', null, this.now())
+      } catch (error) {
+        const message = errorMessage(error)
+        await this.repository.setPackHealth(packId, 'degraded', message, this.now())
+        throw error
+      }
+    }))
   }
 
   async resume(): Promise<void> {
     await this.withCrossTabLock(async () => {
       await this.cleanupOrphansUnlocked()
-      const jobs = await this.repository.listJobs(['queued', 'downloading', 'failed'])
+      const jobs = (await this.repository.listJobs(['queued', 'downloading', 'failed'])).filter((job) => job.state !== 'failed' || job.failureKind !== 'permanent')
       const latestByPack = new Map<string, OfflineDownloadJobRecord>()
       const discardedUrls: string[] = []
       for (const job of jobs) {
@@ -153,6 +201,8 @@ export class OfflinePackManager {
       }
       await this.removeUnowned(discardedUrls)
       await runBounded([...latestByPack.values()], 1, (job) => this.withPackLock(job.packId, () => this.downloadAndActivate(job.versionId)))
+      const packs = await this.repository.listPacks()
+      await runBounded(packs.filter((pack) => pack.activeVersion !== null), this.concurrency, async (pack) => { await this.validateActive(pack.packId) })
     })
   }
 
@@ -191,6 +241,7 @@ export class OfflinePackManager {
 
   private async loadManifest(url: string): Promise<OfflinePackManifest> {
     const manifest = await fetchOfflinePackManifest(url, this.fetcher)
+    if (manifest.kind !== 'crag') throw new Error('Only crag guides can be saved offline')
     if (manifest.dependentManifestUrls.length === 0) return manifest
     const children: OfflinePackManifest[] = []
     await runBounded(manifest.dependentManifestUrls, this.concurrency, async (childUrl) => {
@@ -220,7 +271,8 @@ export class OfflinePackManager {
     if (!version) return
     try {
       const assets = await this.repository.listVersionAssets(versionId)
-      const pending = assets.filter((asset) => asset.state !== 'cached')
+       const pending: OfflineAssetOwnershipRecord[] = []
+       for (const asset of assets) if (asset.state !== 'cached' || !(await this.cache.has(asset.url))) pending.push(asset)
       await runBounded(pending, this.concurrency, async (asset) => {
         const bytes = await this.cache.has(asset.url) ? 0 : await this.cache.download(asset.url, this.fetcher, asset.mediaType)
         await this.repository.checkpointAsset(versionId, asset.url, bytes, this.now())
