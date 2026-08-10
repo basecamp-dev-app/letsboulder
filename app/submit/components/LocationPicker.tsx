@@ -70,10 +70,14 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
         if (data && data.length > 0) {
           const { lat, lon } = data[0]
           setPosition([lat, lon])
+        } else {
+          setSearchError('Location not found')
         }
+      } else {
+        setSearchError('Search failed')
       }
     } catch {
-      // Silently fail
+      setSearchError('Failed to search location')
     } finally {
       setSearching(false)
     }
@@ -130,8 +134,12 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
 
       <div className="flex gap-2">
         <div className="flex-1 relative">
+          <label htmlFor="location-search" className="sr-only">
+            Search for a location
+          </label>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
+            id="location-search"
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -171,7 +179,7 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
       )}
       
       {searchError && (
-        <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+        <div role="alert" aria-live="assertive" className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
           {searchError}
         </div>
       )}
