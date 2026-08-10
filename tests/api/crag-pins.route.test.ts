@@ -61,7 +61,7 @@ describe('GET /api/crags/pins', () => {
       north: 20, south: -20, west: 170, east: -170, zoom: 5,
     }, true)
     expect(getViewportMapClient).toHaveBeenCalledTimes(2)
-    expect(response.headers.get('Cache-Control')).toBe('public, s-maxage=60, stale-while-revalidate=300')
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
   it('does not include pending images for unauthenticated callers', async () => {
@@ -81,6 +81,16 @@ describe('GET /api/crags/pins', () => {
     await GET(request('?north=50&south=40&west=-10&east=0&zoom=12'))
 
     expect(fetchViewportMapFeaturesWithClient).toHaveBeenCalledWith(expect.anything(), expect.anything(), false)
+  })
+
+  it('uses shared caching for public-only responses', async () => {
+    getServerClientFromRequest.mockReturnValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }) },
+    })
+
+    const response = await GET(request('?north=50&south=40&west=-10&east=0&zoom=12'))
+
+    expect(response.headers.get('Cache-Control')).toBe('public, s-maxage=60, stale-while-revalidate=300')
   })
 
   it.each([
