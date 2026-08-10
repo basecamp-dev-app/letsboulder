@@ -207,7 +207,11 @@ export default function RegionSelector({
       ) : (
         <>
           <div className="relative">
+            <label htmlFor="region-search" className="sr-only">
+              Search for a region
+            </label>
             <input
+              id="region-search"
               type="text"
               value={query}
               onChange={(e) => {
@@ -227,19 +231,21 @@ export default function RegionSelector({
             {results.length > 0 && (
               <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
                 {results.map((region) => (
-                  <li
-                    key={region.id}
-                    onClick={() => handleSelect(region)}
-                    className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    <div className="font-medium text-gray-900 dark:text-gray-100">
-                      {region.name}
-                    </div>
-                    {region.country_code && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {region.country_code}
+                  <li key={region.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelect(region)}
+                      className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                    >
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                        {region.name}
                       </div>
-                    )}
+                      {region.country_code && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {region.country_code}
+                        </div>
+                      )}
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -249,27 +255,6 @@ export default function RegionSelector({
               <div className="absolute z-10 w-full mt-1 p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg text-sm text-gray-500 dark:text-gray-400 text-center">
                 No regions found matching &ldquo;{query}&rdquo;
               </div>
-            )}
-
-            {results.length > 0 && (
-              <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
-                {results.map((region) => (
-                  <li
-                    key={region.id}
-                    onClick={() => handleSelect(region)}
-                    className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    <div className="font-medium text-gray-900 dark:text-gray-100">
-                      {region.name}
-                    </div>
-                    {region.country_code && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {region.country_code}
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
             )}
 
             {query.length >= 2 && !loading && results.length === 0 && (
