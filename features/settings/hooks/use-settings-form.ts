@@ -190,6 +190,12 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
         throw new Error('Failed to save')
       }
 
+      updateGradePreferences({
+        boulder: boulderSystem,
+        route: routeSystem,
+        trad: tradSystem,
+      })
+
       syncSettingsCache({
         ...(data?.settings || {
           username: '',
@@ -247,19 +253,16 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
 
   const handleBoulderSystemChange = (next: GradeSystem) => {
     setBoulderSystem(next)
-    updateGradePreferences({ boulder: next })
     setIsDirty(true)
   }
 
   const handleRouteSystemChange = (next: GradeSystem) => {
     setRouteSystem(next)
-    updateGradePreferences({ route: next })
     setIsDirty(true)
   }
 
   const handleTradSystemChange = (next: GradeSystem) => {
     setTradSystem(next)
-    updateGradePreferences({ trad: next })
     setIsDirty(true)
   }
 
