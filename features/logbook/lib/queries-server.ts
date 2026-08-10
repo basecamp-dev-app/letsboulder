@@ -30,19 +30,6 @@ interface RawLogbookRow {
   }
 }
 
-interface RawProgressLogRow {
-  id: string
-  climb_id: string
-  style: string
-  created_at: string
-  date_climbed?: string | null
-  climbs: {
-    id: string
-    name: string | null
-    grade: string
-  } | null
-}
-
 type LogbookLifetimeStatsRow = Database['public']['Functions']['get_logbook_lifetime_stats']['Returns'][number]
 
 interface LogbookProfile {
@@ -94,7 +81,6 @@ interface DraftSubmissionRow {
 }
 
 const INITIAL_LOGBOOK_LOG_LIMIT = 24
-const PROGRESS_LOG_LIMIT = 2000
 
 interface PublicContributionRow {
   id: string
@@ -143,6 +129,21 @@ function mapLogbookPageRows(rows: unknown[]): LogbookClimb[] {
   }) as LogbookClimb[]
 }
 
+function mapProgressLogRows(logs: LogbookClimb[]): ProgressLogEntry[] {
+  return logs.map((log) => ({
+    id: log.id,
+    climb_id: log.climb_id,
+    style: log.style,
+    created_at: log.created_at,
+    date_climbed: log.date_climbed,
+    climbs: {
+      id: log.climbs.id,
+      name: log.climbs.name,
+      grade: log.climbs.grade,
+    },
+  }))
+}
+
 export async function fetchServerLogbookPage(
   userId: string,
   mode: LogbookPermissionMode,
@@ -166,6 +167,7 @@ export async function fetchServerLogbookPage(
   const logs = mapLogbookPageRows(data || [])
   return {
     logs,
+    progressLogs: mapProgressLogRows(logs),
     nextCursor: logs.length === LOGBOOK_PAGE_SIZE ? logs[logs.length - 1]?.created_at || null : null,
   }
 }
@@ -202,13 +204,11 @@ export async function fetchServerPublicLogbookData(userId: string): Promise<Logb
   if (profileError || !profileData) return null
   if (profile.is_public === false) return { user: null, userId, isOwnProfile: false, isPublic: false, logs: [], nextCursor: null, progressLogs: [], lifetimeStats: { totalClimbs: 0, totalFlashes: 0, totalTops: 0, totalTries: 0 }, profile, submissions: [], savedClimbs: [], savedCrags: [], submissionCounts: EMPTY_OWNER_SUBMISSION_COUNTS }
 
-  const [page, progress, stats, submissions] = await Promise.all([
+  const [page, stats, submissions] = await Promise.all([
     fetchServerLogbookPage(userId, 'public'),
-    supabase.from('user_climbs').select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade)').eq('user_id', userId).order('created_at', { ascending: false }).limit(PROGRESS_LOG_LIMIT),
     supabase.rpc('get_logbook_lifetime_stats', { p_user_id: userId }).single(),
     fetchPublicSubmissions(userId),
   ])
-  if (progress.error) throw progress.error
   if (stats.error) throw stats.error
   const lifetime = stats.data as LogbookLifetimeStatsRow | null
   return {
@@ -217,7 +217,7 @@ export async function fetchServerPublicLogbookData(userId: string): Promise<Logb
     isOwnProfile: false,
     isPublic: true,
     ...page,
-    progressLogs: (progress.data || []) as unknown as ProgressLogEntry[],
+    progressLogs: page.progressLogs,
     lifetimeStats: { totalClimbs: lifetime?.total_climbs ?? 0, totalFlashes: lifetime?.total_flashes ?? 0, totalTops: lifetime?.total_tops ?? 0, totalTries: lifetime?.total_tries ?? 0 },
     profile,
     submissions,
@@ -290,7 +290,7 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
   const profileData = profileRes.data
   const profileError = profileRes.error
 
-  const [logsRes, progressLogsRes, lifetimeStatsRes] = await Promise.all([
+  const [logsRes, lifetimeStatsRes] = await Promise.all([
     timeServerStep('fetchServerLogbookLogsAndProfile', 'recent-logs', async () =>
       supabase
         .from('user_climbs')
@@ -300,22 +300,12 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
         .order('id', { ascending: false })
         .limit(INITIAL_LOGBOOK_LOG_LIMIT)
     ),
-    timeServerStep('fetchServerLogbookLogsAndProfile', 'progress-logs', async () =>
-      supabase
-        .from('user_climbs')
-        .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(PROGRESS_LOG_LIMIT)
-    ),
     timeServerStep('fetchServerLogbookLogsAndProfile', 'lifetime-stats', async () =>
       supabase.rpc('get_logbook_lifetime_stats', { p_user_id: userId }).single()
     ),
   ])
   const logsData = logsRes.data
   const logsError = logsRes.error
-  const progressLogsData = progressLogsRes.data
-  const progressLogsError = progressLogsRes.error
   const lifetimeStatsData = lifetimeStatsRes.data as LogbookLifetimeStatsRow | null
   const lifetimeStatsError = lifetimeStatsRes.error
 
@@ -325,10 +315,6 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
 
   if (logsError) {
     throw logsError
-  }
-
-  if (progressLogsError) {
-    throw progressLogsError
   }
 
   if (lifetimeStatsError) {
@@ -388,7 +374,7 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
   return {
     supabase,
     logs: logsWithUrls,
-    progressLogs: (progressLogsData || []) as unknown as RawProgressLogRow[] as ProgressLogEntry[],
+    progressLogs: [],
     lifetimeStats: {
       totalClimbs: lifetimeStatsData?.total_climbs ?? 0,
       totalFlashes: lifetimeStatsData?.total_flashes ?? 0,
@@ -400,12 +386,15 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
 }
 
 export async function fetchServerLogbookSummary(user: User): Promise<ServerLogbookSummary> {
-  const { logs, progressLogs, lifetimeStats, profile } = await fetchServerLogbookLogsAndProfile(user.id)
+  const [{ logs, lifetimeStats, profile }, page] = await Promise.all([
+    fetchServerLogbookLogsAndProfile(user.id),
+    fetchServerLogbookPage(user.id, 'owner'),
+  ])
 
   return {
     user,
     logs,
-    progressLogs,
+    progressLogs: page.progressLogs,
     lifetimeStats,
     profile,
   }
@@ -448,7 +437,7 @@ export async function fetchServerLogbookSubmissions(user: User): Promise<Submiss
 
 export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData> {
   const timing = startServerTiming('fetchServerLogbookData')
-  const [{ logs, nextCursor }, { progressLogs, lifetimeStats, profile }] = await Promise.all([
+  const [{ logs, progressLogs, nextCursor }, { lifetimeStats, profile }] = await Promise.all([
     timeServerStep('fetchServerLogbookData', 'recent-logs', () => fetchServerLogbookPage(user.id, 'owner')),
     timeServerStep('fetchServerLogbookData', 'logs-and-profile', () => fetchServerLogbookLogsAndProfile(user.id)),
   ])

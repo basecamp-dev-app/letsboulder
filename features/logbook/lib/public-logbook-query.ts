@@ -5,7 +5,6 @@ import type { LogbookLifetimeStats, LogbookProfile, ProgressLogEntry } from '@/f
 import type { Submission } from '@/types/submissions'
 
 export interface PublicLogbookPageData extends LogbookPage {
-  progressLogs?: ProgressLogEntry[]
   lifetimeStats?: LogbookLifetimeStats
   profile?: LogbookProfile | null
   submissions?: Submission[]
@@ -18,4 +17,9 @@ export function publicLogbookQueryKey(userId: string) {
 export function flattenPublicLogbookPages(data: InfiniteData<PublicLogbookPageData> | undefined): LogbookClimb[] {
   if (!data) return []
   return data.pages.flatMap((page) => page.logs)
+}
+
+export function flattenPublicProgressPages(data: InfiniteData<PublicLogbookPageData> | undefined): ProgressLogEntry[] {
+  if (!data) return []
+  return data.pages.flatMap((page) => page.progressLogs)
 }

@@ -9,12 +9,14 @@ import type {
   OwnerSubmissionCounts,
 } from '@/features/logbook/lib/logbook-view'
 
+// Progress history is bounded to this page size on the initial response and per load-more request.
 export const LOGBOOK_PAGE_SIZE = 50
 
 export type LogbookPermissionMode = 'owner' | 'public'
 
 export interface LogbookPage {
   logs: LogbookClimb[]
+  progressLogs: ProgressLogEntry[]
   nextCursor: string | null
 }
 

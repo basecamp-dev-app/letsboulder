@@ -8,6 +8,7 @@ import { deleteLogAction } from '@/features/logbook/actions/delete-log'
 import { loadMorePublicLogsAction } from '@/features/logbook/actions/load-more-public-logs'
 import {
   flattenPublicLogbookPages,
+  flattenPublicProgressPages,
   publicLogbookQueryKey,
   type PublicLogbookPageData,
 } from '@/features/logbook/lib/public-logbook-query'
@@ -37,6 +38,7 @@ export default function PublicLogbookClient({ userId, initialPage }: PublicLogbo
 
       return {
         logs: result.logs,
+        progressLogs: result.progressLogs,
         nextCursor: result.nextCursor,
       }
     },
@@ -49,7 +51,7 @@ export default function PublicLogbookClient({ userId, initialPage }: PublicLogbo
   })
 
   const logs = flattenPublicLogbookPages(data)
-  const progressLogs = data?.pages[0]?.progressLogs ?? initialPage.progressLogs ?? logs
+  const progressLogs = flattenPublicProgressPages(data)
   const lifetimeStats = data?.pages[0]?.lifetimeStats ?? initialPage.lifetimeStats
   const profile = (data?.pages[0]?.profile ?? initialPage.profile) as LogbookProfile | undefined
   const submissions = (data?.pages[0]?.submissions ?? initialPage.submissions ?? []) as Submission[]

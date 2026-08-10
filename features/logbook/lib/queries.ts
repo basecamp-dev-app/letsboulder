@@ -30,19 +30,6 @@ export type OwnLogbookData = Omit<LogbookViewModel, 'user' | 'isOwnProfile'> & {
   isOwnProfile?: true
 }
 
-interface RawProgressLogRow {
-  id: string
-  climb_id: string
-  style: string
-  created_at: string
-  date_climbed?: string | null
-  climbs: {
-    id: string
-    name: string | null
-    grade: string
-  } | null
-}
-
 interface RawLogbookRow {
   id: string
   climb_id: string
@@ -62,7 +49,6 @@ interface RawLogbookRow {
 type LogbookLifetimeStatsRow = Database['public']['Functions']['get_logbook_lifetime_stats']['Returns'][number]
 
 const INITIAL_LOGBOOK_LOG_LIMIT = 24
-const PROGRESS_LOG_LIMIT = 2000
 
 export const ownLogbookSummaryQueryKey = ['logbook', 'own', 'summary'] as const
 export const ownLogbookSubmissionsQueryKey = ['logbook', 'own', 'submissions'] as const
@@ -168,7 +154,7 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
   const userId = user.id
   const supabase = createClient()
 
-  const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }, { data: progressLogsData, error: progressLogsError }, { data: lifetimeStatsData, error: lifetimeStatsError }] = await Promise.all([
+  const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }, { data: lifetimeStatsData, error: lifetimeStatsError }] = await Promise.all([
     getOwnProfile(supabase),
     supabase
       .from('user_climbs')
@@ -177,12 +163,6 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(INITIAL_LOGBOOK_LOG_LIMIT),
-    supabase
-      .from('user_climbs')
-      .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade)')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(PROGRESS_LOG_LIMIT),
     supabase.rpc('get_logbook_lifetime_stats', { p_user_id: userId }).single(),
   ])
 
@@ -192,10 +172,6 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
 
   if (logsError) {
     throw logsError
-  }
-
-  if (progressLogsError) {
-    throw progressLogsError
   }
 
   if (lifetimeStatsError) {
@@ -218,7 +194,18 @@ export async function fetchOwnLogbookSummary(passedUser?: User | null): Promise<
     isPublic: true,
     logs: logsWithUrls,
     nextCursor: logsWithUrls.length === INITIAL_LOGBOOK_LOG_LIMIT ? logsWithUrls[logsWithUrls.length - 1]?.created_at || null : null,
-    progressLogs: (progressLogsData || []) as unknown as RawProgressLogRow[] as ProgressLogEntry[],
+    progressLogs: logsWithUrls.map((log) => ({
+      id: log.id,
+      climb_id: log.climb_id,
+      style: log.style,
+      created_at: log.created_at,
+      date_climbed: log.date_climbed,
+      climbs: {
+        id: log.climbs.id,
+        name: log.climbs.name,
+        grade: log.climbs.grade,
+      },
+    })) as ProgressLogEntry[],
     lifetimeStats: {
       totalClimbs: lifetimeStats?.total_climbs ?? 0,
       totalFlashes: lifetimeStats?.total_flashes ?? 0,
