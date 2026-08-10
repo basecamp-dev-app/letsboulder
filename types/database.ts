@@ -5018,6 +5018,38 @@ export type Database = {
         Returns: string
       }
       require_open_data_consent: { Args: never; Returns: undefined }
+      resolve_legacy_climb_redirect: {
+        Args: { p_climb_id: string }
+        Returns: {
+          country_code: string
+          crag_slug: string
+          effective_climb_id: string
+          image_id: string
+          route_id: string
+        }[]
+      }
+      resolve_legacy_image_redirect: {
+        Args: { p_image_id: string }
+        Returns: {
+          country_code: string
+          crag_slug: string
+          image_id: string
+        }[]
+      }
+      resolve_legacy_route_redirect: {
+        Args: {
+          p_climb_slug: string
+          p_country_code: string
+          p_crag_slug: string
+        }
+        Returns: {
+          climb_slug: string
+          country_code: string
+          crag_slug: string
+          effective_climb_id: string
+          image_id: string
+        }[]
+      }
       resolve_missing_topo_bounty: {
         Args: {
           p_image_id: string

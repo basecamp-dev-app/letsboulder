@@ -462,6 +462,9 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `get_effective_climb_id(p_climb_id)` | Resolve climb ID through shared_climb_id chain |
 | `resolve_public_crag_slug(country_code, crag_slug)` | Resolve a canonical public crag slug through active supersession |
 | `resolve_public_climb_slug(country_code, crag_slug, climb_slug)` | Resolve a canonical public climb slug through active supersession |
+| `resolve_legacy_route_redirect(country_code, crag_slug, climb_slug)` | One-query canonical image-first target for legacy route slugs |
+| `resolve_legacy_climb_redirect(climb_id)` | One-query canonical image-first target for legacy climb IDs |
+| `resolve_legacy_image_redirect(image_id)` | One-query canonical image-first target for legacy image IDs |
 
 ### Analytics
 | Function | Purpose |

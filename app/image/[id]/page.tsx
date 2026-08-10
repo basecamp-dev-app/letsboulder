@@ -1,5 +1,5 @@
 import { notFound, permanentRedirect } from 'next/navigation'
-import { getImageByDisplayId } from '@/features/image-first/server/load-image-first-page'
+import { getLegacyImageRedirect } from '@/features/image-first/server/legacy-redirects'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +13,7 @@ export default async function ImageRedirectPage({
   const { id } = await params
   const { image: selectedImageId, route, climb, tab } = await searchParams
 
-  const resolvedImage = await getImageByDisplayId(id)
+  const resolvedImage = await getLegacyImageRedirect(id)
   if (!resolvedImage) {
     notFound()
   }
@@ -24,6 +24,6 @@ export default async function ImageRedirectPage({
   if (climb) next.set('climb', climb)
   if (tab === 'tops' || tab === 'climb') next.set('tab', tab)
 
-  const target = `/${resolvedImage.countryCode}/${resolvedImage.cragSlug}/i/${resolvedImage.canonicalId}`
+  const target = `/${resolvedImage.countryCode}/${resolvedImage.cragSlug}/i/${resolvedImage.imageId}`
   permanentRedirect(next.toString() ? `${target}?${next.toString()}` : target)
 }

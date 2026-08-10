@@ -97,7 +97,10 @@ async function failure(client: PoolClient, sql: string, values: unknown[] = []) 
 beforeAll(async () => {
   const installed = await pool.query(
     `select to_regprocedure('public.soft_delete_climb(uuid,text,uuid)') is not null
-       and to_regprocedure('public.resolve_public_crag_slug(text,text)') is not null as installed`,
+       and to_regprocedure('public.resolve_public_crag_slug(text,text)') is not null
+       and to_regprocedure('public.resolve_legacy_route_redirect(text,text,text)') is not null
+       and to_regprocedure('public.resolve_legacy_climb_redirect(uuid)') is not null
+       and to_regprocedure('public.resolve_legacy_image_redirect(uuid)') is not null as installed`,
   )
   if (!installed.rows[0].installed) throw new Error('Published content soft deletion migration is not installed')
 })
@@ -105,6 +108,59 @@ beforeAll(async () => {
 afterAll(async () => pool.end())
 
 describe('published crag and climb soft deletion', () => {
+  it('resolves legacy redirect targets with compact public lookups', async () => {
+    await transaction(async (client) => {
+      const user = await createUser(client)
+      const crag = await createCrag(client, 'Legacy redirect crag')
+      const climb = await createClimb(client, crag.id, user.id)
+      const imageId = randomUUID()
+      const routeId = randomUUID()
+
+      await client.query(
+        `insert into public.images (
+           id, url, crag_id, created_by, status, moderation_status, visibility, processing_status
+         ) values ($1, 'https://example.test/legacy-redirect.jpg', $2, $3,
+           'approved', 'skipped', 'public', 'ready')`,
+        [imageId, crag.id, user.id],
+      )
+      await client.query(
+        `insert into public.route_lines (id, image_id, climb_id, points)
+         values ($1, $2, $3, '[{"x":0,"y":0},{"x":1,"y":1}]'::jsonb)`,
+        [routeId, imageId, climb.id],
+      )
+
+      await setRole(client, 'anon')
+      expect((await client.query(
+        'select * from public.resolve_legacy_route_redirect($1, $2, $3)',
+        ['GB', crag.slug, climb.slug],
+      )).rows).toEqual([{
+        country_code: 'GB',
+        crag_slug: crag.slug,
+        climb_slug: climb.slug,
+        effective_climb_id: climb.id,
+        image_id: imageId,
+      }])
+      expect((await client.query(
+        'select * from public.resolve_legacy_climb_redirect($1)',
+        [climb.id],
+      )).rows).toEqual([{
+        country_code: 'GB',
+        crag_slug: crag.slug,
+        effective_climb_id: climb.id,
+        route_id: routeId,
+        image_id: imageId,
+      }])
+      expect((await client.query(
+        'select * from public.resolve_legacy_image_redirect($1)',
+        [imageId],
+      )).rows).toEqual([{
+        country_code: 'GB',
+        crag_slug: crag.slug,
+        image_id: imageId,
+      }])
+    })
+  })
+
   it('allows only admins, validates replacements, resolves the active climb, and audits atomically', async () => {
     await transaction(async (client) => {
       const admin = await createUser(client, true)

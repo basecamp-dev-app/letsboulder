@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const getImageByDisplayIdMock = vi.fn()
+const getLegacyImageRedirectMock = vi.fn()
 const redirectMock = vi.fn()
 const notFoundMock = vi.fn(() => {
   throw new Error('notFound')
 })
 
-vi.mock('@/features/image-first/server/load-image-first-page', () => ({
-  getImageByDisplayId: getImageByDisplayIdMock,
+vi.mock('@/features/image-first/server/legacy-redirects', () => ({
+  getLegacyImageRedirect: getLegacyImageRedirectMock,
 }))
 
 vi.mock('next/navigation', () => ({
@@ -17,16 +17,16 @@ vi.mock('next/navigation', () => ({
 
 describe('app/image/[id]/page', () => {
   beforeEach(() => {
-    getImageByDisplayIdMock.mockReset()
+    getLegacyImageRedirectMock.mockReset()
     redirectMock.mockReset()
     notFoundMock.mockClear()
   })
 
   test('redirects when id is a canonical crag_images id', async () => {
-    getImageByDisplayIdMock.mockResolvedValue({
+    getLegacyImageRedirectMock.mockResolvedValue({
       countryCode: 'mx',
       cragSlug: 'el-nuevo-testamento',
-      canonicalId: 'canonical-image-id',
+      imageId: 'canonical-image-id',
     })
 
     const { default: ImageRedirectPage } = await import('@/app/image/[id]/page')
@@ -36,15 +36,15 @@ describe('app/image/[id]/page', () => {
       searchParams: Promise.resolve({ route: 'route-uuid', climb: 'climb-uuid' }),
     })
 
-    expect(getImageByDisplayIdMock).toHaveBeenCalledWith('canonical-image-id')
+    expect(getLegacyImageRedirectMock).toHaveBeenCalledWith('canonical-image-id')
     expect(redirectMock).toHaveBeenCalledWith('/mx/el-nuevo-testamento/i/canonical-image-id?route=route-uuid&climb=climb-uuid')
   })
 
   test('redirects when id is a linked_image_id value', async () => {
-    getImageByDisplayIdMock.mockResolvedValue({
+    getLegacyImageRedirectMock.mockResolvedValue({
       countryCode: 'mx',
       cragSlug: 'el-nuevo-testamento',
-      canonicalId: 'canonical-linked-id',
+      imageId: 'canonical-linked-id',
     })
 
     const { default: ImageRedirectPage } = await import('@/app/image/[id]/page')
@@ -54,15 +54,15 @@ describe('app/image/[id]/page', () => {
       searchParams: Promise.resolve({ route: '91e4f278-dfa7-4436-9aa2-f7752aac5ec6' }),
     })
 
-    expect(getImageByDisplayIdMock).toHaveBeenCalledWith('linked-image-id')
+    expect(getLegacyImageRedirectMock).toHaveBeenCalledWith('linked-image-id')
     expect(redirectMock).toHaveBeenCalledWith('/mx/el-nuevo-testamento/i/canonical-linked-id?route=91e4f278-dfa7-4436-9aa2-f7752aac5ec6')
   })
 
   test('redirects when id is a raw images.id fallback value', async () => {
-    getImageByDisplayIdMock.mockResolvedValue({
+    getLegacyImageRedirectMock.mockResolvedValue({
       countryCode: 'mx',
       cragSlug: 'el-nuevo-testamento',
-      canonicalId: '8bc21fe1-487c-4027-9e44-d9c4b4516194',
+      imageId: '8bc21fe1-487c-4027-9e44-d9c4b4516194',
     })
 
     const { default: ImageRedirectPage } = await import('@/app/image/[id]/page')
@@ -76,12 +76,12 @@ describe('app/image/[id]/page', () => {
       }),
     })
 
-    expect(getImageByDisplayIdMock).toHaveBeenCalledWith('8bc21fe1-487c-4027-9e44-d9c4b4516194')
+    expect(getLegacyImageRedirectMock).toHaveBeenCalledWith('8bc21fe1-487c-4027-9e44-d9c4b4516194')
     expect(redirectMock).toHaveBeenCalledWith('/mx/el-nuevo-testamento/i/8bc21fe1-487c-4027-9e44-d9c4b4516194?image=8bc21fe1-487c-4027-9e44-d9c4b4516194&route=91e4f278-dfa7-4436-9aa2-f7752aac5ec6&climb=1403793e-07bd-4914-84d2-d8976d108052')
   })
 
   test('falls through to notFound when no image matches', async () => {
-    getImageByDisplayIdMock.mockResolvedValue(null)
+    getLegacyImageRedirectMock.mockResolvedValue(null)
 
     const { default: ImageRedirectPage } = await import('@/app/image/[id]/page')
 
