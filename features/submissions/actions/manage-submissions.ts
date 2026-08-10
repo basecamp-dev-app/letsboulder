@@ -193,9 +193,9 @@ export async function deleteSubmissionDraftAction(draftId: string): Promise<Acti
   return { success: true }
 }
 
-export async function publishSubmissionDraftAction(draftId: string): Promise<ActionResult<{ published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] } }>> {
+export async function publishSubmissionDraftAction(draftId: string): Promise<ActionResult<{ published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] }; cragId?: string | null }>> {
   const validation = validateActionInput(draftIdSchema, { draftId })
-  if (!validation.success) return fail<{ published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] } }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+  if (!validation.success) return fail<{ published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] }; cragId?: string | null }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
 
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
@@ -211,12 +211,23 @@ export async function publishSubmissionDraftAction(draftId: string): Promise<Act
     return { success: false, error: payload.error || 'Failed to publish draft', status: response.status }
   }
 
-  return { success: true, data: { published: payload.published } }
+  const imageId = payload.published?.imageId
+  const { data: image } = imageId
+    ? await supabase.from('images').select('crag_id').eq('id', imageId).maybeSingle()
+    : { data: null }
+
+  return { success: true, data: { published: payload.published, cragId: image?.crag_id ?? null } }
 }
 
-export async function deletePublishedSubmissionAction(imageId: string): Promise<ActionResult> {
+export async function deletePublishedSubmissionAction(imageId: string): Promise<ActionResult<{ cragId: string | null }>> {
   const validation = validateActionInput(imageIdSchema, { imageId })
-  if (!validation.success) return validation.result
+  if (!validation.success) {
+    return fail<{ cragId: string | null }>(
+      validation.result.error || 'Invalid request data',
+      validation.result.status || 400,
+      validation.result.fieldErrors
+    )
+  }
 
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
@@ -226,11 +237,11 @@ export async function deletePublishedSubmissionAction(imageId: string): Promise<
   const supabase = await getServerClient()
   const supabaseAdmin = getAdminClientWithAudit('delete published submission')
   const response = await deleteSubmission({ supabase, supabaseAdmin, userId: auth.data.userId, imageId: validation.data.imageId })
-  const payload = await response.json().catch(() => ({} as { error?: string }))
+  const payload = await response.json().catch(() => ({} as { error?: string; cragId?: string | null }))
 
   if (!response.ok) {
     return { success: false, error: payload.error || 'Delete submission error', status: response.status }
   }
 
-  return { success: true }
+  return { success: true, data: { cragId: payload.cragId ?? null } }
 }

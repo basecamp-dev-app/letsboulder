@@ -111,5 +111,5 @@ export async function deleteSubmission(deps: DeleteSubmissionDeps) {
     }
   }
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, cragId })
 }

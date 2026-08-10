@@ -19,6 +19,7 @@ import { deleteLogAction } from '@/features/logbook/actions/delete-log'
 import { loadMoreLogbookAction } from '@/features/logbook/actions/load-more-logbook'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { invalidateCragQueries } from '@/features/crags/lib/invalidate-crag-queries'
 import { fetchOwnSubmissions } from '@/features/submissions/lib/fetch-own-submissions'
 import {
   deletePublishedSubmissionAction,
@@ -221,6 +222,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
       }
 
       if (!result.success) throw new Error()
+      if (result.data?.cragId) await invalidateCragQueries(queryClient, result.data.cragId)
       addToast('Submission deleted', 'success')
     } catch {
       queryClient.setQueryData(ownLogbookSubmissionsQueryKey, previousSubmissions)
@@ -266,8 +268,10 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
           imageIds?: string[]
           routeLineIds?: string[]
         }
+        cragId?: string | null
       }
       if (!result.success) throw new Error()
+      if (payload.cragId) await invalidateCragQueries(queryClient, payload.cragId)
 
       const supabase = createClient()
       const refreshed = await fetchOwnSubmissions(supabase, user.id, csrfFetch, 24)

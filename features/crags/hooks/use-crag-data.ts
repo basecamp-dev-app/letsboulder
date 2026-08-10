@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useMemo } from 'react'
 import { useCragImages } from '@/features/crags/hooks/use-crag-images'
 import { useCragRoutes } from '@/features/crags/hooks/use-crag-routes'
-import type { CragRouteTargetsState, UseCragDataParams, UseCragDataResult } from '@/features/crags/hooks/use-crag-data-types'
+import { remapRouteNavigationTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
+import type { UseCragDataParams, UseCragDataResult } from '@/features/crags/hooks/use-crag-data-types'
 
 export type { UseCragDataParams, UseCragDataResult, CragDataState } from '@/features/crags/hooks/use-crag-data-types'
 
@@ -18,71 +19,62 @@ export function useCragData({
   initialRouteNavigationTargetByClimbId = {},
   initialCragCenter = null,
   initialRouteTargetsComplete = false,
-  initialCriticalImagesComplete = false,
-  initialMapImagesComplete = false,
   initialPayloadLoadedAt,
 }: UseCragDataParams): UseCragDataResult {
-  const [crag, setCrag] = useState(initialCrag)
-  const [images, setImages] = useState(initialImages)
-  const [routes, setRoutes] = useState(initialRoutes || [])
-  const [routeTargets, setRouteTargets] = useState<CragRouteTargetsState>({
-    routeImageIdsByClimbId: initialRouteImageIdsByClimbId,
-    routePreviewByClimbId: initialRoutePreviewByClimbId,
-    routeNavigationTargetByClimbId: initialRouteNavigationTargetByClimbId,
-    defaultRouteTargetByImageId: initialDefaultRouteTargetByImageId,
-  })
-  const [routesLoadState, setRoutesLoadState] = useState<'idle' | 'loading' | 'loaded' | 'error'>(initialRoutes !== null ? 'loaded' : 'idle')
-  const [loading, setLoading] = useState(!initialCrag)
-  const [cragCenter, setCragCenter] = useState(initialCragCenter)
-
-  const setCragRouteTargets: Dispatch<SetStateAction<CragRouteTargetsState>> = setRouteTargets
-
-  useCragImages({
+  const imagesQuery = useCragImages({
     id,
     initialCrag,
     initialImages,
-    initialRoutes,
     initialRouteImageIdsByClimbId,
     initialRoutePreviewByClimbId,
     initialDefaultRouteTargetByImageId,
     initialRouteNavigationTargetByClimbId,
     initialCragCenter,
-    initialRouteTargetsComplete,
-    initialCriticalImagesComplete,
-    initialMapImagesComplete,
     initialPayloadLoadedAt,
-    setCrag,
-    setImages,
-    setRouteTargets: setCragRouteTargets,
-    setCragCenter,
-    setLoading,
-    setRoutesLoadState,
   })
 
-  const { retryRoutes } = useCragRoutes({
+  const routesQuery = useCragRoutes({
     id,
     initialRoutes,
-    routesLoadState,
-    setRoutes,
-    setRoutesLoadState,
-    setRouteTargets: setCragRouteTargets,
   })
 
+  const imageData = imagesQuery.data
+  const routeData = routesQuery.data
+  const routes = routeData?.routes || []
+  const routeTargets = useMemo(() => ({
+    routeImageIdsByClimbId: imageData?.routeImageIdsByClimbId || {},
+    routePreviewByClimbId: remapRoutePreviewsByEffectiveClimbId(
+      imageData?.routePreviewByClimbId || {},
+      routeData?.effectiveClimbIdByClimbId || {}
+    ),
+    routeNavigationTargetByClimbId: remapRouteNavigationTargetsByEffectiveClimbId(
+      imageData?.routeNavigationTargetByClimbId || {},
+      routeData?.effectiveClimbIdByClimbId || {}
+    ),
+    defaultRouteTargetByImageId: imageData?.defaultRouteTargetByImageId || {},
+  }), [imageData, routeData])
+  const routesLoadState = routesQuery.isError
+    ? 'error'
+    : routesQuery.isLoading || routesQuery.isFetching
+      ? 'loading'
+      : routeData
+        ? 'loaded'
+        : 'idle'
   const routeTargetsHydrating = false
   const routeTargetsComplete = initialRouteTargetsComplete || routes.length === 0
 
   return {
-    crag,
-    images,
+    crag: imageData?.crag || null,
+    images: imageData?.images || [],
     routes,
     routeImageIdsByClimbId: routeTargets.routeImageIdsByClimbId,
     routePreviewByClimbId: routeTargets.routePreviewByClimbId,
     routeNavigationTargetByClimbId: routeTargets.routeNavigationTargetByClimbId,
     defaultRouteTargetByImageId: routeTargets.defaultRouteTargetByImageId,
     routesLoadState,
-    retryRoutes,
-    loading,
-    cragCenter,
+    retryRoutes: routesQuery.refetch,
+    loading: imagesQuery.isLoading || imagesQuery.isFetching,
+    cragCenter: imageData?.cragCenter || null,
     routeTargetsHydrating,
     routeTargetsComplete,
   }

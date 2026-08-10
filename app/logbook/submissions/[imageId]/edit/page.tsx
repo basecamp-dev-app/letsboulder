@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   applyPublishedSubmissionEditAction,
 } from '@/features/submissions/actions/editor-write-actions'
@@ -31,9 +32,11 @@ import { usePublishedRouteEditorSync } from '@/features/submissions/submission-e
 import { useUnsavedChangesWarning } from '@/features/editor/hooks/use-unsaved-changes-warning'
 import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
 import { OpenDataLicenseNotice } from '@/features/legal/components/OpenDataLicenseNotice'
+import { invalidateCragQueries } from '@/features/crags/lib/invalidate-crag-queries'
 
 export default function EditSubmittedRoutesPage() {
   const searchParams = useSearchParams()
+  const queryClient = useQueryClient()
   const { toasts, removeToast } = useToast()
   const { requireConsent } = useOpenDataConsent()
   const editor = useSubmissionEditorData()
@@ -193,6 +196,7 @@ export default function EditSubmittedRoutesPage() {
           operations
         )
         if (!result.success || !result.data) throw new Error(result.error || 'Failed to save submission changes')
+        if (editor.cragId) await invalidateCragQueries(queryClient, editor.cragId)
 
         reconciledRoutes = applyPublishedRouteIdMappings(editor.editedRoutes, result.data.routeMappings, editor.activeImageId)
         editor.setEditedRoutes(reconciledRoutes)
@@ -230,7 +234,7 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setSavingAllChanges(false)
     }
-  }, [editor, location, savingAllChanges, setRoutes])
+  }, [editor, location, queryClient, savingAllChanges, setRoutes])
 
   const handleSaveAllChanges = useCallback(() => {
     void requireConsent(saveAllChangesAfterConsent)
