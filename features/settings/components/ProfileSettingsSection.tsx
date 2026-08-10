@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { ProfileAvatarUploadModal } from '@/components/ProfileAvatarUploadModal'
-import { CREDIT_PLATFORM_OPTIONS } from '@/features/submissions/lib/editor-constants'
-import { normalizeSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
+import { CREDIT_PLATFORM_OPTIONS } from '@/features/submissions/public'
+import { normalizeSubmissionCreditHandle } from '@/features/submissions/public'
 import { getLengthInputBounds, getLengthInputLabel, type MeasurementUnits } from '@/lib/measurement-units'
 import type { SettingsProfileFormData } from '@/features/settings/types/settings-content'
 

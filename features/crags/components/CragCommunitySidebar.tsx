@@ -11,9 +11,9 @@ export interface CommunityPlaceInfo {
   type: 'crag' | 'gym'
 }
 
-const TopThisPlacePanel = dynamic(() => import('@/features/community/components/TopThisPlacePanel'))
-const PlaceRankingsPanel = dynamic(() => import('@/features/community/components/PlaceRankingsPanel'))
-const PlaceContributorsPanel = dynamic(() => import('@/features/community/components/PlaceContributorsPanel'))
+const TopThisPlacePanel = dynamic(() => import('@/features/community/public').then((module) => module.TopThisPlacePanel))
+const PlaceRankingsPanel = dynamic(() => import('@/features/community/public').then((module) => module.PlaceRankingsPanel))
+const PlaceContributorsPanel = dynamic(() => import('@/features/community/public').then((module) => module.PlaceContributorsPanel))
 
 interface CragCommunitySidebarProps {
   cragId: string

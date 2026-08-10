@@ -5,7 +5,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { parseWithSchema } from '@/lib/api-validation'
 import { QueueItemSchema, QueueItemVoteSchema, FlagWithRelationsSchema } from '@/lib/supabase-result-schemas'
 import { calculateVoteCounts } from '../lib/vote-utils'
-import { revalidatePublicCrag, revalidatePublicCragSlug } from '@/features/crags/server/crag-cache-tags'
+import { revalidatePublicCrag, revalidatePublicCragSlug } from '@/features/crags/public'
 
 import type { NextRequest } from 'next/server'
 

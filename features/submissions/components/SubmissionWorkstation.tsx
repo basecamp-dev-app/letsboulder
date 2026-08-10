@@ -8,10 +8,10 @@ import { WorkstationMapPanel } from '@/features/submissions/components/workstati
 import { WorkstationToolBar } from '@/features/submissions/components/workstation/ToolBar'
 import type { ClimbType } from '@/types/climbing'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
-import { RouteEditorRail } from '@/features/route-editor/components/RouteEditorRail'
-import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
+import { RouteEditorRail } from '@/features/route-editor/public'
+import type { UnifiedRouteCanvasRef } from '@/features/route-editor/public'
 import type { RouteLine } from '@/types/domain'
-import { MEDIA_UPLOAD_STATUS_LABELS, type MediaUploadStatus } from '@/features/media-upload/lib/upload-types'
+import { MEDIA_UPLOAD_STATUS_LABELS, type MediaUploadStatus } from '@/features/media-upload/public'
 
 interface WorkstationImage {
   imageId: string

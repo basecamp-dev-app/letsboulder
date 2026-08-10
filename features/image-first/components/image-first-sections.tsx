@@ -1,8 +1,8 @@
 'use client'
 
 import Image from 'next/image'
-import { RouteEditorRail } from '@/features/route-editor/components/RouteEditorRail'
-import { UnifiedRouteCanvas } from '@/features/route-editor/components/UnifiedRouteCanvas'
+import { RouteEditorRail } from '@/features/route-editor/public'
+import { UnifiedRouteCanvas } from '@/features/route-editor/public'
 
 export function ImageFirstHeader(props: {
   cragSlug: string

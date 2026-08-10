@@ -1,1 +1,1 @@
-export { useDraftUploadManager } from '@/features/media-upload/providers/MediaUploadManagerProvider'
+export { useDraftUploadManager } from '@/features/media-upload/public'

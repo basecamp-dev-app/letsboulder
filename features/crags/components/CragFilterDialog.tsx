@@ -8,6 +8,7 @@ import { PUBLIC_GRADES } from '@/lib/grades'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { formatRouteTypeLabel, type CragRouteStats } from '@/features/crags/lib/crag-page-domain'
+import type { useGradeSystem } from '@/features/grades/public'
 
 const GradeDistributionChart = dynamic(
   () => import('@/features/crags/components/GradeDistributionChart'),
@@ -18,7 +19,7 @@ interface CragFilterDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   routeStats: CragRouteStats
-  gradeSystem: ReturnType<typeof import('@/features/grades/hooks/useGradeSystem').useGradeSystem>
+  gradeSystem: ReturnType<typeof useGradeSystem>
   minGrade: string
   maxGrade: string
   onMinGradeChange: (value: string) => void

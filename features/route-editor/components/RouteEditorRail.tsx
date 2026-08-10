@@ -4,7 +4,7 @@ import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSens
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripHorizontal } from 'lucide-react'
-import { getGradeSystemForClimbType, useGradePreferences } from '@/features/grades/hooks/useGradeSystem'
+import { getGradeSystemForClimbType, useGradePreferences } from '@/features/grades/public'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { RouteLine } from '@/types/domain'
 

@@ -1,5 +1,5 @@
 import type { RouteLine, RoutePoint, ZoomTransform, CanvasMode, DrawingRoute, InteractionTool } from '@/types/domain'
-import type { ClimbType } from '@/features/draft-editor/lib/edit-draft-types'
+import type { ClimbType } from '@/features/draft-editor/public'
 
 export interface RouteEditorDraft {
   routeId: string | null

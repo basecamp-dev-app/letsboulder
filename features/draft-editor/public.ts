@@ -7,3 +7,4 @@ export { DraftMetadataPanel } from '@/features/draft-editor/components/DraftMeta
 export { DraftDetailsPanel } from '@/features/draft-editor/components/DraftDetailsPanel'
 export { resolveDraftClimbType } from '@/features/draft-editor/lib/edit-draft-types'
 export type { DraftPayload, DraftRoute, ManageImageTab, DraftCanvasSource } from '@/features/draft-editor/lib/edit-draft-types'
+export type { ClimbType } from '@/features/draft-editor/lib/edit-draft-types'

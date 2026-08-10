@@ -1,7 +1,7 @@
-import type { RouteLine } from '@/features/submissions/lib/submission-types'
+import type { RouteLine } from '@/features/submissions/public'
 import type { ClimbRouteType, RoutePoint } from '@/types/climbing'
-import type { OrientationDirection } from '@/features/submissions/lib/draft-metadata'
-import type { MediaUploadStatus } from '@/features/media-upload/lib/upload-types'
+import type { OrientationDirection } from '@/features/submissions/public'
+import type { MediaUploadStatus } from '@/features/media-upload/public'
 
 export type ClimbType = ClimbRouteType
 

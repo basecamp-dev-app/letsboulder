@@ -1,8 +1,8 @@
-import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
+import { parseRoutePoints } from '@/features/route-editor/public'
 import { normalizePoints } from '@/lib/canvasMath'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { BROWSE_ROUTE_COLOR, SELECTED_ROUTE_COLOR } from '@/lib/route-renderer'
-import { getImageByDisplayId, getRoutesByImage } from '@/features/image-first/server/load-image-first-page'
+import { getImageByDisplayId, getRoutesByImage } from '@/features/image-first/public'
 import type { RoutePoint } from '@/types/domain'
 
 interface CragLocationRow {

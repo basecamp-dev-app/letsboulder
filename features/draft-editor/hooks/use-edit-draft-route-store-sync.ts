@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useRouteStore } from '@/features/route-editor/store'
-import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-utils'
+import { useRouteStore } from '@/features/route-editor/public'
+import { areSerializedRoutesEqual } from '@/features/route-editor/public'
 import type { RouteLine } from '@/types/domain'
 import type { DraftRoute } from '@/features/draft-editor/lib/edit-draft-types'
 

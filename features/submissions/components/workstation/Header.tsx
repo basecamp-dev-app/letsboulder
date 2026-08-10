@@ -1,7 +1,7 @@
 'use client'
 
 import { ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react'
-import type { MediaUploadStatus } from '@/features/media-upload/lib/upload-types'
+import type { MediaUploadStatus } from '@/features/media-upload/public'
 
 interface WorkstationHeaderProps {
   activeImageLabel: string

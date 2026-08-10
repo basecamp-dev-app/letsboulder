@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { revalidatePublicCrag } from '@/features/crags/server/crag-cache-tags'
+import { revalidatePublicCrag } from '@/features/crags/public'
 
 export interface SubmissionRouteMutationDeps {
   supabase: ReturnType<typeof getServerClientFromRequest>

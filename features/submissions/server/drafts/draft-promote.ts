@@ -4,9 +4,9 @@ import { notifyNewSubmission } from '@/lib/discord'
 import { isMediaNotReadyError, isMediaPubliclyDeliverable, MEDIA_NOT_READY_RESPONSE } from '@/lib/media/readiness'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
-import { recordSubmissionPublishedEvent } from '@/features/community/lib/contributor-score'
+import { recordSubmissionPublishedEvent } from '@/features/community/public'
 import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
-import { OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/lib/open-data-consent'
+import { OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public'
 
 interface PromoteResult {
   success?: boolean

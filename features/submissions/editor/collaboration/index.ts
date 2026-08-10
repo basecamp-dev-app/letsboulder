@@ -1,6 +1,6 @@
-export { useDraftCollaborators } from '@/features/collaboration/hooks/use-draft-collaborators'
-export { useInviteLinkCopy } from '@/features/collaboration/hooks/use-invite-link-copy'
-export { useSubmissionCollaborators } from '@/features/collaboration/hooks/use-submission-collaborators'
+export { useDraftCollaborators } from '@/features/collaboration/public'
+export { useInviteLinkCopy } from '@/features/collaboration/public'
+export { useSubmissionCollaborators } from '@/features/collaboration/public'
 export {
   fetchSubmissionCollaborators,
   fetchDraftCollaborators,
@@ -10,4 +10,4 @@ export {
   revokeDraftInvite,
   removeSubmissionCollaborator,
   removeDraftCollaborator,
-} from '@/features/collaboration/lib/collaboration-api'
+} from '@/features/collaboration/public'

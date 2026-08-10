@@ -1,7 +1,7 @@
 import { calculateStats, getLowestGrade, type LogEntry } from '@/lib/grades'
 import type { LogbookViewModel } from '@/features/logbook/lib/logbook-contract'
 import type { Submission } from '@/types/submissions'
-import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
+import type { SavedClimb, SavedCrag } from '@/features/saved/public'
 
 export interface LogbookClimb {
   id: string

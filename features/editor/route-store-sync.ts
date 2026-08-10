@@ -3,4 +3,4 @@
 export {
   serializeStoredRoutes,
   haveStoredRoutesChanged,
-} from '@/features/submissions/lib/route-store-sync'
+} from '@/features/submissions/public'

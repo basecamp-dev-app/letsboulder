@@ -11,8 +11,9 @@ import type {
   DraftRoute,
   ManageImageTab,
 } from '@/features/draft-editor/lib/edit-draft-types'
-import { isMediaUploadPending, MEDIA_UPLOAD_STATUS_LABELS } from '@/features/media-upload/lib/upload-types'
-import type { MediaUploadItem, UploadCompleteCallback } from '@/features/media-upload/hooks/use-media-upload-manager'
+import { isMediaUploadPending, MEDIA_UPLOAD_STATUS_LABELS } from '@/features/media-upload/public'
+import type { MediaUploadItem, UploadCompleteCallback } from '@/features/media-upload/public'
+import type { OrientationDirection } from '@/features/submissions/public'
 
 interface UseEditDraftUploadsParams {
   draftId: string
@@ -38,7 +39,7 @@ interface UseEditDraftUploadsParams {
   setActiveImageId: (value: string | null | ((current: string | null) => string | null)) => void
   setDefaultImageId: (value: string | null | ((current: string | null) => string | null)) => void
   setCanvasSource: (value: { kind: 'draft-image'; draftImageId: string } | { kind: 'crag-image'; cragImageId: string; cragId: string } | null) => void
-  setOrientationByImageId: React.Dispatch<React.SetStateAction<Record<string, import('@/features/submissions/lib/draft-metadata').OrientationDirection[]>>>
+  setOrientationByImageId: React.Dispatch<React.SetStateAction<Record<string, OrientationDirection[]>>>
   setRoutesByImageId: React.Dispatch<React.SetStateAction<Record<string, DraftRoute[]>>>
   setConflict: (value: DraftConflictState | null) => void
   loadDraft: () => Promise<void>

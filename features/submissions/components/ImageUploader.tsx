@@ -13,8 +13,8 @@ import {
 import { extractGpsFromFile } from '@/lib/image-gps'
 import { isHeicFile, isSupportedImageFile } from '@/lib/image-utils'
 import type { GpsData } from '@/types/domain'
-import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
-import { OpenDataLicenseNotice } from '@/features/legal/components/OpenDataLicenseNotice'
+import { useOpenDataConsent } from '@/features/legal/public'
+import { OpenDataLicenseNotice } from '@/features/legal/public'
 
 interface ImageUploaderProps {
   onComplete: (result: NewImageSelection) => void

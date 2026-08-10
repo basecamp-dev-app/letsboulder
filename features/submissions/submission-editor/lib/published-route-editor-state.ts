@@ -1,4 +1,4 @@
-import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-utils'
+import { areSerializedRoutesEqual } from '@/features/route-editor/public'
 import { serializeStoredRoutes } from '@/features/submissions/lib/route-store-sync'
 import type { RouteLine } from '@/types/domain'
 

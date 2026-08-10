@@ -1,5 +1,5 @@
 import { getDisplayName, type ProfileRow } from '@/lib/profile-helpers'
-import type { ClimbPackResponse } from '@/features/climb/lib/queries'
+import type { ClimbPackResponse } from '@/features/climb/public'
 import type { ImageFirstAttribution } from '@/features/image-first/types'
 
 interface AttributionImageFields {

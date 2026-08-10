@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
+import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/features/route-editor/public'
 import type { ClimbType } from '@/types/climbing'
 import type { RouteLine } from '@/types/domain'
-import type { MediaUploadStatus } from '@/features/media-upload/lib/upload-types'
+import type { MediaUploadStatus } from '@/features/media-upload/public'
 
 interface WorkstationCanvasPanelProps {
   routeCanvasRef?: React.RefObject<UnifiedRouteCanvasRef | null>

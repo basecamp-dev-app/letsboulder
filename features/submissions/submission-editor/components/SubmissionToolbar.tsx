@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
-import { EditorBackButton } from '@/features/editor/components/EditorBackButton'
+import { EditorBackButton } from '@/features/editor/public'
 
 interface SubmissionToolbarProps {
   hasPendingChanges: boolean

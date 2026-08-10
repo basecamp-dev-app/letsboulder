@@ -4,10 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { getLengthInputBounds, getLengthInputLabel, parseLengthInputToCm, type MeasurementUnits } from '@/lib/measurement-units'
-import { fetchSettings, settingsQueryKey } from '@/features/settings/lib/queries'
+import { fetchSettings, settingsQueryKey } from '@/features/settings/public'
 import { VIDEO_PLATFORMS, type VideoPlatform, validateAndNormalizeVideoUrl } from '@/lib/video-beta'
 import { AddVideoBetaDialog, VideoBetaFilterBar, VideoBetaList } from '@/features/climb/components/video-beta-sections'
-import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
+import { useOpenDataConsent } from '@/features/legal/public'
 
 interface VideoBetaItem {
   id: string

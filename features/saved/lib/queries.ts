@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
-import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
+import { resolveEffectiveClimbId } from '@/features/climb/public'
 import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
 
 type TypedSupabase = SupabaseClient<Database>

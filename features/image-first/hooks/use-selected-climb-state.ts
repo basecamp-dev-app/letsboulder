@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import { createClient } from '@/lib/supabase'
-import { isClimbSavedByUser } from '@/features/saved/lib/queries'
+import { isClimbSavedByUser } from '@/features/saved/public'
 import type { Database } from '@/types/database'
 
 type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']

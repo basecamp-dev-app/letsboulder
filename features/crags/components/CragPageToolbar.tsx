@@ -2,7 +2,7 @@ import { ArrowUpDown, ChevronDown, Filter, Search } from 'lucide-react'
 import { useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import CragOfflinePackControl from '@/features/offline/components/CragOfflinePackControl'
+import { CragOfflinePackControl } from '@/features/offline/public'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 
 export interface CragSwitcherOption {

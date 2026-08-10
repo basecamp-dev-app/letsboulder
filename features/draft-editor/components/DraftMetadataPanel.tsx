@@ -2,12 +2,12 @@
 
 import { MapPin } from 'lucide-react'
 import MapLibreLocationPicker from '@/components/map/MapLibreLocationPicker'
-import AtlasContextCard from '@/features/submissions/components/AtlasContextCard'
-import { parseOptionalCoordinate } from '@/features/submissions/lib/location-metadata'
-import CragSelector from '@/features/submissions/components/CragSelector'
-import SectorSelector from '@/features/submissions/components/SectorSelector'
-import { LocationSearchBar } from '@/features/submissions/components/editor/LocationSearchBar'
-import type { AtlasAutoSyncResult } from '@/features/submissions/editor/location/use-atlas-auto-sync'
+import { AtlasContextCard } from '@/features/submissions/public'
+import { parseOptionalCoordinate } from '@/features/submissions/public'
+import { CragSelector } from '@/features/submissions/public'
+import { SectorSelector } from '@/features/submissions/public'
+import { LocationSearchBar } from '@/features/submissions/public'
+import type { AtlasAutoSyncResult } from '@/features/submissions/public'
 
 interface DraftMetadataPanelProps {
   atlasSync: AtlasAutoSyncResult

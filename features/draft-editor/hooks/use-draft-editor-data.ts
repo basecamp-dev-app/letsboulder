@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { serializeRouteEditorRoutes, type RouteEditorRouteInput } from '@/features/route-editor/route-editor-utils'
+import { serializeRouteEditorRoutes, type RouteEditorRouteInput } from '@/features/route-editor/public'
 import type { DraftImagePayload, DraftPayload, DraftRoute } from '@/features/draft-editor/lib/edit-draft-types'
 
 export interface DraftEditorDataInput {

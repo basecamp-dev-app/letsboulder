@@ -1,5 +1,5 @@
 import type { User } from '@supabase/supabase-js'
-import type { SavedClimb, SavedCrag } from '@/features/saved/lib/types'
+import type { SavedClimb, SavedCrag } from '@/features/saved/public'
 import type { Submission } from '@/types/submissions'
 import type {
   LogbookClimb,

@@ -1,7 +1,7 @@
 'use server'
 import { z } from 'zod'
 
-import { recordAcceptedWikiContribution } from '@/features/community/lib/contributor-score'
+import { recordAcceptedWikiContribution } from '@/features/community/public'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
@@ -13,7 +13,7 @@ import {
 } from '@/features/submissions/server/drafts/draft-route-shared'
 import { FACE_DIRECTIONS } from '@/features/submissions/lib/submission-types'
 import type { Json } from '@/types/database'
-import { isOpenDataConsentError, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/lib/open-data-consent'
+import { isOpenDataConsentError, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public'
 
 interface DraftPatchBody {
   images: DraftPatchImage[]

@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { createCommunityPostAction } from '@/features/community/actions'
 import type { CommunityUpdatePost } from '@/types/community'
-import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
+import { useOpenDataConsent } from '@/features/legal/public'
 
 interface UpdateComposerProps {
   placeId: string

@@ -3,3 +3,4 @@ export type { MediaUploadItem, MediaUploadStatus, MediaUploadTarget, UploadCompl
 export { DraftUploadQueue } from '@/features/media-upload/components/DraftUploadQueue'
 export { useMediaUploadQueueController } from '@/features/media-upload/hooks/use-media-upload-queue-controller'
 export type { MediaUploadQueueController } from '@/features/media-upload/hooks/use-media-upload-queue-controller'
+export { isMediaUploadPending, MEDIA_UPLOAD_STATUS_LABELS } from '@/features/media-upload/lib/upload-types'

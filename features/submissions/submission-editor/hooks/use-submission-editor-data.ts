@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useRouteStore } from '@/features/route-editor/store'
+import { useRouteStore } from '@/features/route-editor/public'
 import { buildMapPins, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
 import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine } from '@/features/submissions/lib/submission-types'
@@ -12,7 +12,7 @@ import type { RoutePoint } from '@/types/climbing'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { normalizePoints } from '@/lib/canvasMath'
 import { createClient } from '@/lib/supabase'
-import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
+import { parseRoutePoints } from '@/features/route-editor/public'
 import { haveRouteEdits } from '@/features/submissions/submission-editor/lib/published-route-editor-state'
 
 interface ImageRouteLineQuery {

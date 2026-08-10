@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react'
-import { formatCoordinate } from '@/features/submissions/lib/location-metadata'
+import { formatCoordinate } from '@/features/submissions/public'
 import { csrfFetch } from '@/hooks/useCsrf'
 import type { DraftLocationSearchResponse, DraftPayload, DraftRoute, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
 import { isValidLocationCoordinate } from '@/features/draft-editor/lib/edit-draft-types'

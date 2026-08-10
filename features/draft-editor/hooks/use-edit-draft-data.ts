@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { normalizeDraftMetadata, readDraftRouteType, type OrientationDirection } from '@/features/submissions/lib/draft-metadata'
-import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
-import { parseSerializedRouteData } from '@/features/route-editor/route-editor-utils'
+import { normalizeDraftMetadata, readDraftRouteType, type OrientationDirection } from '@/features/submissions/public'
+import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/public'
+import { parseSerializedRouteData } from '@/features/route-editor/public'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'
 import type {
@@ -16,7 +16,7 @@ import type {
   PublishedCragImagePin,
 } from '@/features/draft-editor/lib/edit-draft-types'
 import { buildManageImageLabel, isDraftImageReady } from '@/features/draft-editor/lib/edit-draft-types'
-import type { MediaUploadItem } from '@/features/media-upload/hooks/use-media-upload-manager'
+import type { MediaUploadItem } from '@/features/media-upload/public'
 
 interface UseEditDraftDataParams {
   draftId: string

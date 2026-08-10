@@ -3,13 +3,13 @@
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, ok, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
-import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
+import { resolveEffectiveClimbId } from '@/features/climb/public'
 import { loadGradeDistribution, upsertGradeVote } from '@/features/grades/lib/grade-votes'
 import { reportError } from '@/lib/errors'
 import { isValidGrade } from '@/lib/grade-constants'
 import { getServerClient } from '@/lib/supabase-server'
 import { z } from 'zod'
-import { hasOpenDataConsent, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/lib/open-data-consent'
+import { hasOpenDataConsent, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public'
 
 const submitGradeVoteSchema = z.object({
   climbId: z.string().trim().min(1, 'Climb not found'),

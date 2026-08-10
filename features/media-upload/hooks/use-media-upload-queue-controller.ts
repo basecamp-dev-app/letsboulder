@@ -12,7 +12,7 @@ import { shouldResumeQueuedUploads } from '@/features/media-upload/lib/media-upl
 import { createClientId, ensureFileName, mapMediaUploadStatus, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback, type UploadCoordinates } from '@/features/media-upload/lib/upload-types'
 import { persistNewUpload, persistUploadMetadata, removePersistedUpload, restoreUploads } from '@/features/media-upload/lib/durable-upload-store'
 import { createClient } from '@/lib/supabase'
-import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
+import { useOpenDataConsent } from '@/features/legal/public'
 
 export interface MediaUploadQueueController {
   uploads: Record<string, MediaUploadItem>

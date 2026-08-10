@@ -1,4 +1,4 @@
-import { areSerializedRoutesEqual, serializeRouteEditorRoutes, type RouteEditorRouteInput } from '@/features/route-editor/route-editor-utils'
+import { areSerializedRoutesEqual, serializeRouteEditorRoutes, type RouteEditorRouteInput } from '@/features/route-editor/public'
 import type { RouteLine } from '@/types/domain'
 
 export function serializeStoredRoutes(routes: RouteLine[]) {

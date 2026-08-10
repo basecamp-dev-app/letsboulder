@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { CragMetadataProposalDialog } from '@/features/crags/components/CragMetadataProposalDialog'
+import { CragMetadataProposalDialog } from '@/features/crags/public'
 import AtlasContextCard from '@/features/submissions/components/AtlasContextCard'
 import { CollapsiblePanel } from '@/features/submissions/components/editor/CollapsiblePanel'
 import { LocationSearchBar } from '@/features/submissions/components/editor/LocationSearchBar'

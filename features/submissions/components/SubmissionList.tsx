@@ -18,8 +18,8 @@ import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'
 import { formatSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
 import type { Submission } from '@/types/submissions'
-import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
-import { OpenDataLicenseNotice } from '@/features/legal/components/OpenDataLicenseNotice'
+import { useOpenDataConsent } from '@/features/legal/public'
+import { OpenDataLicenseNotice } from '@/features/legal/public'
 
 interface SubmissionListProps {
   submissions: Submission[]

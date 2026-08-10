@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createCommunityCommentAction, deleteCommunityCommentAction, saveCommunityRsvpAction } from '@/features/community/actions'
 import { CommunitySessionPost } from '@/types/community'
 import { communityKeys, fetchEngagement, type PostEngagement, type SessionComment } from '@/features/community/lib/queries'
-import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
+import { useOpenDataConsent } from '@/features/legal/public'
 
 interface UpcomingFeedProps {
   posts: CommunitySessionPost[]

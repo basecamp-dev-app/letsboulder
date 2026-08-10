@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { proposeCragMetadataAction } from '@/features/crags/actions/crag-governance-actions'
-import { useOpenDataConsent } from '@/features/legal/hooks/use-open-data-consent'
+import { useOpenDataConsent } from '@/features/legal/public'
 
 interface CragMetadataProposalDialogProps {
   cragId: string

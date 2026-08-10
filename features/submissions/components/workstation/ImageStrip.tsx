@@ -2,7 +2,7 @@
 
 import { GripHorizontal, Loader2, Trash2 } from 'lucide-react'
 import type { DragEvent } from 'react'
-import type { MediaUploadStatus } from '@/features/media-upload/lib/upload-types'
+import type { MediaUploadStatus } from '@/features/media-upload/public'
 
 interface WorkstationImage {
   imageId: string
