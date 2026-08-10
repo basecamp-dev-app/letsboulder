@@ -104,5 +104,5 @@ A `types.ts` file at the feature root is acceptable alongside a `types/` directo
 
 Run `npx tsx scripts/check-feature-compliance.ts` to print the feature directory layout report. Directory layout is advisory because features only need the standard directories they use.
 
-Run `npm run check:architecture` to enforce server isolation, `app/` ownership, and feature public APIs. The gate checks source files changed since the architecture baseline; when a legacy file is touched, it must meet the current rules. CI enforces this gate.
+Run `npm run check:architecture` to enforce server isolation, `app/` ownership, and feature public APIs. The gate fails new violations relative to its versioned baseline, so existing debt is visible without permitting it to grow. CI enforces this gate.
 `npm run check:features` and `npm run lint:features` are local advisory helpers for the feature tree.

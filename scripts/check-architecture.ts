@@ -3,8 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { checkArchitecture, type ArchitectureViolation, type SourceFile } from './check-architecture-rules'
 
-// Replaced with this commit's SHA after the baseline snapshot is committed.
-const ARCHITECTURE_BASELINE = 'HEAD'
+const ARCHITECTURE_BASELINE = 'eba50397'
 const SOURCE_ROOTS = ['app', 'components', 'features']
 
 function collectSourcePaths(root: string): string[] {
