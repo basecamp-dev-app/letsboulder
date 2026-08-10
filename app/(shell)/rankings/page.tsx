@@ -87,23 +87,35 @@ export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
   const [user, setUser] = useState<User | null>(null)
 
-  const fetchLeaderboard = useCallback(async () => {
+  const fetchLeaderboard = useCallback(async (signal: AbortSignal) => {
     setLoading(true)
+    setError(null)
     try {
       const response = await fetch(
-        `/api/rankings?gender=${gender}&country=${country}&sort=${sortBy}&page=${page}&limit=20`
+        `/api/rankings?gender=${gender}&country=${country}&sort=${sortBy}&page=${page}&limit=20`,
+        { signal }
       )
-      const data = await response.json()
-      if (response.ok) {
-        setLeaderboard(data.leaderboard)
-        setPagination(data.pagination)
+      const data = await response.json() as {
+        error?: string
+        leaderboard?: LeaderboardEntry[]
+        pagination?: Pagination
       }
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to load rankings')
+      }
+
+      setLeaderboard(data.leaderboard || [])
+      setPagination(data.pagination || null)
     } catch (error) {
+      if (signal.aborted) return
       reportError(error, { message: 'Failed to fetch leaderboard' })
+      setError(error instanceof Error ? error.message : 'Unable to load rankings')
     } finally {
-      setLoading(false)
+      if (!signal.aborted) setLoading(false)
     }
   }, [gender, country, sortBy, page])
 
@@ -123,8 +135,10 @@ export default function LeaderboardPage() {
   }, [])
 
   useEffect(() => {
-    fetchLeaderboard()
-  }, [gender, country, sortBy, page, fetchLeaderboard])
+    const controller = new AbortController()
+    void fetchLeaderboard(controller.signal)
+    return () => controller.abort()
+  }, [fetchLeaderboard, retryCount])
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
@@ -144,7 +158,9 @@ export default function LeaderboardPage() {
         <CardContent className="py-2 px-3">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
+              <label htmlFor="country" className="sr-only">Country</label>
               <select
+                id="country"
                 value={country}
                 onChange={(e) => {
                   setCountry(e.target.value)
@@ -158,10 +174,12 @@ export default function LeaderboardPage() {
                   </option>
                 ))}
               </select>
-              <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+              <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5" role="group" aria-label="Gender">
                 {GENDER_OPTIONS.map((option) => (
                   <button
                     key={option.value}
+                    type="button"
+                    aria-pressed={gender === option.value}
                     onClick={() => {
                       setGender(option.value)
                       setPage(1)
@@ -177,8 +195,10 @@ export default function LeaderboardPage() {
                 ))}
               </div>
             </div>
-            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 mx-auto">
+            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 mx-auto" role="group" aria-label="Sort rankings by">
               <button
+                type="button"
+                aria-pressed={sortBy === 'grade'}
                 onClick={() => {
                   setSortBy('grade')
                   setPage(1)
@@ -192,6 +212,8 @@ export default function LeaderboardPage() {
                 Avg Grade
               </button>
               <button
+                type="button"
+                aria-pressed={sortBy === 'tops'}
                 onClick={() => {
                   setSortBy('tops')
                   setPage(1)
@@ -225,6 +247,18 @@ export default function LeaderboardPage() {
               </CardContent>
             </Card>
           ))
+        ) : error ? (
+          <div role="alert" className="py-8 text-center">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Rankings could not be loaded</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{error}</p>
+            <button
+              type="button"
+              onClick={() => setRetryCount((value) => value + 1)}
+              className="mt-4 px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium"
+            >
+              Retry
+            </button>
+          </div>
         ) : (
           leaderboard.map((entry) => (
             <Card key={entry.user_id}>
