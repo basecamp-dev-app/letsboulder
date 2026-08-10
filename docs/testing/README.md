@@ -62,6 +62,14 @@ tests/
 - `mobile-safari` — mobile Safari viewport
 - `mobile-chrome` — mobile Chrome viewport
 
+## Offline Coverage
+
+- Offline pack unit tests cover Cache API validation for unavailable, non-2xx, opaque, wrong-type, empty, and incorrect-length responses, plus persistence/removal.
+- Manager tests cover resumable versus permanent failures, restart recovery, atomic failed updates, missing assets, quota rejection, partial cleanup, and concurrent operations.
+- `OfflinePackDatabase` tests use a real IndexedDB implementation (`fake-indexeddb`) rather than an in-memory repository.
+- Service-worker tests cover navigation, shell/static assets, every active crag media variant, cache misses, network failures, and non-packed requests.
+- Playwright offline tests must cover online install, offline reload/open, interrupted download resume, failed updates, and media eviction repair across desktop Chrome, mobile Chrome, and mobile Safari-compatible projects.
+
 CI installs the lockfile exactly with `npm ci --prefer-offline`; use the same command locally when reproducing CI. The media worker is a separate package and is installed with `npm --prefix apps/media-worker ci --prefer-offline`.
 
 Install the configured browsers once after dependencies:

@@ -175,7 +175,7 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - Load the hosted OpenFreeMap style via `NEXT_PUBLIC_MAP_STYLE_URL`, defaulting to `https://tiles.openfreemap.org/styles/liberty`.
 - Do not add live third-party raster basemaps, satellite toggles, or separate raster label layers by default.
 - Use clear connection states when live map data cannot load. Pins-only rendering is a visual degradation, not an offline-availability promise.
-- User-selected crag packs are the explicit offline product. Store their versioned public metadata in the dedicated `letsboulder-offline-packs` IndexedDB database and immutable fixed-format media in the shared `letsboulder-offline-immutable-v1` Cache API cache.
+- User-selected crag packs are the only standalone offline product. Store their versioned public metadata in the dedicated `letsboulder-offline-packs` IndexedDB database and immutable fixed-format media in the shared `letsboulder-offline-immutable-v1` Cache API cache. Child climb manifests may be fetched only as internal crag-pack dependencies; standalone climb packs and route viewers are unsupported.
 - Treat manifest installation as add, activate, then garbage collect. Cache and checkpoint every new asset before atomically moving the pack's active-version pointer; never replace a readable version with a partial update.
 - Keep downloads foreground-resumable instead of assuming a service worker will remain alive. The worker serves shells and cached responses; IndexedDB download jobs own recovery.
 
@@ -203,7 +203,7 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - **Stored data:** Pack versions activate only after every owned immutable asset is cached; removal keeps assets still owned by another installed pack.
 - **Quota:** Compare browser storage estimates against uncached incremental bytes with safety headroom. Browser persistence requests remain best-effort and the UI must surface failures.
 - **Updates:** Opening a downloaded crag checks its deterministic manifest version while online. Changed packs require user confirmation; a failed update leaves the active version intact.
-- **Recovery:** Startup, reconnect, and foreground return resume queued, downloading, and resumable failed jobs only. Permanent validation failures require explicit retry or discard.
+- **Recovery:** Startup, reconnect, and foreground return resume queued, downloading, and resumable failed jobs only. Permanent validation failures require explicit retry or discard. A failed update keeps the previous active version readable; missing cached media marks it degraded and repair restores media without changing the active version.
 - **Eviction:** Active pack assets are checked in Cache API before opening. Missing media marks the guide degraded and provides repair/redownload without hiding its cached metadata or pins.
 - **Auth:** Crag packs contain public content only and are device-local, so auth changes do not remove them. Never mix personal logs, private media, signed URLs, or collaboration data into a public pack.
 - **Network routes:** Preserve the current screen when a refetch fails and provide retry controls for failed initial loads.

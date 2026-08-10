@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { parseOfflinePackManifest } from '@/features/offline/lib/offline-pack-manifest'
 
 describe('offline pack manifest validation', () => {
-  test('normalizes a climb response and de-duplicates absolute asset URLs', () => {
+  test('rejects a standalone climb response', () => {
     const payload = {
       offline_pack: {
         packId: 'climb:1',
@@ -16,13 +16,7 @@ describe('offline pack manifest validation', () => {
       },
     }
 
-    const manifest = parseOfflinePackManifest(payload, 'https://letsboulder.com/api/offline/climb-1')
-
-    expect(manifest).toMatchObject({ packId: 'climb:1', kind: 'climb', entityId: 'climb-1', version: 'v2' })
-    expect(manifest.assets.map((asset) => asset.url)).toEqual([
-      'https://letsboulder.com/media/a.webp',
-      'https://letsboulder.com/tiles/1.webp',
-    ])
+    expect(() => parseOfflinePackManifest(payload, 'https://letsboulder.com/api/offline/climb-1')).toThrow('Only crag guides can be saved offline')
   })
 
   test('extracts crag child manifests for recursive validated loading', () => {
@@ -47,12 +41,17 @@ describe('offline pack manifest validation', () => {
 
   test('rejects malformed network payload fields', () => {
     expect(() => parseOfflinePackManifest({
-      packId: 'climb:1',
-      climbId: 'climb-1',
-      climbName: 'Broken',
-      version: 'v1',
+      type: 'crag',
+      schemaVersion: 1,
+      minReaderVersion: 1,
+      packId: 'crag:1',
+      cragId: 'crag-1',
+      cragName: 'Broken',
+      cragVersionHash: 'v1',
       estimatedBytes: -1,
       mediaUrls: [42],
+      climbs: [],
+      metadata: { crag: {}, climbs: [], images: [], routeLines: [], sectors: [] },
     }, 'https://letsboulder.com/manifest')).toThrow(/estimatedBytes/)
   })
 })

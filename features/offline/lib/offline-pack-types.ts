@@ -1,4 +1,5 @@
-export type OfflinePackKind = 'climb' | 'crag'
+/** The only user-installable offline product. Child climb manifests are internal dependencies. */
+export type OfflinePackKind = 'crag'
 export type OfflinePackStatus = 'installing' | 'ready' | 'degraded' | 'error'
 
 export interface OfflinePackAsset {

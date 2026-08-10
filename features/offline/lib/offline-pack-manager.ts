@@ -1,6 +1,6 @@
 import { CacheApiOfflineMediaCache, type OfflineMediaCache } from '@/features/offline/lib/offline-pack-cache'
 import { OfflinePackDatabase, offlineVersionId } from '@/features/offline/lib/offline-pack-database'
-import { fetchOfflinePackManifest } from '@/features/offline/lib/offline-pack-manifest'
+import { fetchOfflineChildPackManifest, fetchOfflinePackManifest } from '@/features/offline/lib/offline-pack-manifest'
 import type {
   ActiveOfflinePack,
   OfflineAssetOwnershipRecord,
@@ -200,9 +200,15 @@ export class OfflinePackManager {
         }
       }
       await this.removeUnowned(discardedUrls)
-      await runBounded([...latestByPack.values()], 1, (job) => this.withPackLock(job.packId, () => this.downloadAndActivate(job.versionId)))
+      let downloadError: unknown = null
+      try {
+        await runBounded([...latestByPack.values()], 1, (job) => this.withPackLock(job.packId, () => this.downloadAndActivate(job.versionId)))
+      } catch (error) {
+        downloadError = error
+      }
       const packs = await this.repository.listPacks()
       await runBounded(packs.filter((pack) => pack.activeVersion !== null), this.concurrency, async (pack) => { await this.validateActive(pack.packId) })
+      if (downloadError !== null) throw downloadError
     })
   }
 
@@ -243,11 +249,10 @@ export class OfflinePackManager {
     const manifest = await fetchOfflinePackManifest(url, this.fetcher)
     if (manifest.kind !== 'crag') throw new Error('Only crag guides can be saved offline')
     if (manifest.dependentManifestUrls.length === 0) return manifest
-    const children: OfflinePackManifest[] = []
+    const children: Awaited<ReturnType<typeof fetchOfflineChildPackManifest>>[] = []
     await runBounded(manifest.dependentManifestUrls, this.concurrency, async (childUrl) => {
-      children.push(await fetchOfflinePackManifest(new URL(childUrl, url).href, this.fetcher))
+      children.push(await fetchOfflineChildPackManifest(new URL(childUrl, url).href, this.fetcher))
     })
-    if (children.some((child) => child.kind !== 'climb')) throw new Error('Crag pack contains a non-climb dependency')
     const assets = new Map(manifest.assets.map((asset) => [asset.url, asset]))
     for (const child of children) for (const asset of child.assets) assets.set(asset.url, asset)
     return { ...manifest, assets: [...assets.values()], payload: { manifest: manifest.payload, children: children.map((child) => child.payload) } }

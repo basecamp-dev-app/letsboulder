@@ -12,7 +12,7 @@ import type {
 const lockRequest = vi.fn(async (_name: string, callback: () => Promise<unknown>) => callback())
 vi.stubGlobal('navigator', { locks: { request: lockRequest } })
 
-function manifestResponse(): Response {
+function manifestResponse(version = 'v2'): Response {
   return new Response(JSON.stringify({
     offline_pack: {
        type: 'crag',
@@ -21,7 +21,7 @@ function manifestResponse(): Response {
        packId: 'crag:1',
        cragId: 'crag-1',
        cragName: 'The Crag',
-       cragVersionHash: 'v2',
+       cragVersionHash: version,
       manifestUrl: 'https://example.com/manifest',
       estimatedBytes: 100,
        mediaUrls: ['https://example.com/a.webp', 'https://example.com/shared.webp'],
@@ -46,8 +46,8 @@ function createHarness(options: { failUrl?: string; cachedUrls?: string[] } = {}
     stage: vi.fn(async (nextManifest: OfflinePackManifest, now: string) => {
       events.push('stage')
       manifest = nextManifest
-      assets = nextManifest.assets.map((asset) => ({ id: `${nextManifest.version}:${asset.url}`, versionId: 'climb:1:v2', packId: nextManifest.packId, version: nextManifest.version, url: asset.url, estimatedBytes: asset.estimatedBytes, mediaType: asset.mediaType, state: 'pending', downloadedBytes: 0 }))
-      job = { id: 'climb:1:v2', packId: nextManifest.packId, version: nextManifest.version, versionId: 'climb:1:v2', state: 'queued', completedAssets: 0, totalAssets: assets.length, downloadedBytes: 0, error: null, updatedAt: now }
+       assets = nextManifest.assets.map((asset) => ({ id: `${nextManifest.version}:${asset.url}`, versionId: 'crag:1:v2', packId: nextManifest.packId, version: nextManifest.version, url: asset.url, estimatedBytes: asset.estimatedBytes, mediaType: asset.mediaType, state: 'pending', downloadedBytes: 0 }))
+       job = { id: 'crag:1:v2', packId: nextManifest.packId, version: nextManifest.version, versionId: 'crag:1:v2', state: 'queued', completedAssets: 0, totalAssets: assets.length, downloadedBytes: 0, error: null, updatedAt: now }
       return job
     }),
     getVersion: vi.fn(async () => manifest ? { manifest } : null),
@@ -63,8 +63,8 @@ function createHarness(options: { failUrl?: string; cachedUrls?: string[] } = {}
       events.push('activate')
       if (!manifest) throw new Error('missing manifest')
       const pack: OfflinePackRecord = { packId: manifest.packId, kind: manifest.kind, entityId: manifest.entityId, displayName: manifest.displayName, manifestUrl: manifest.manifestUrl, activeVersion: manifest.version, status: 'ready', installedAt: 'now', updatedAt: 'now', error: null }
-      active = { pack, version: { id: 'climb:1:v2', packId: manifest.packId, version: manifest.version, manifest, state: 'active', createdAt: 'now' } }
-      return 'climb:1:v1'
+       active = { pack, version: { id: 'crag:1:v2', packId: manifest.packId, version: manifest.version, manifest, state: 'active', createdAt: 'now' } }
+       return 'crag:1:v1'
     }),
     removeVersion: vi.fn(async () => { events.push('gc'); return ['https://example.com/shared.webp'] }),
     discardFailedVersion: vi.fn(async () => { events.push('discard'); return ['https://example.com/a.webp'] }),
@@ -88,7 +88,7 @@ function createHarness(options: { failUrl?: string; cachedUrls?: string[] } = {}
   }
   const fetcher = vi.fn(async () => manifestResponse()) as unknown as typeof fetch
   const manager = new OfflinePackManager({ repository, cache, fetcher, concurrency: 2, now: () => 'now' })
-  return { manager, repository, cache, events }
+  return { manager, repository, cache, events, fetcher }
 }
 
 describe('offline pack manager', () => {
@@ -135,6 +135,47 @@ describe('offline pack manager', () => {
     expect(events).not.toContain('gc')
   })
 
+  test('resumes a resumable job after a process restart', async () => {
+    const first = createHarness({ failUrl: 'https://example.com/a.webp' })
+    await expect(first.manager.install('https://example.com/manifest')).rejects.toThrow('network interrupted')
+    vi.mocked(first.cache.download).mockImplementation(async (url) => {
+      first.events.push(`download:${url}`)
+      return 50
+    })
+    vi.mocked(first.repository.listJobs).mockResolvedValueOnce([{
+      id: 'crag:1:v2', packId: 'crag:1', version: 'v2', versionId: 'crag:1:v2', state: 'failed',
+      completedAssets: 0, totalAssets: 2, downloadedBytes: 0, error: 'network interrupted', updatedAt: 'now', failureKind: 'resumable',
+    }])
+
+    await first.manager.resume()
+
+    expect(first.repository.activate).toHaveBeenCalledWith('crag:1:v2', 'now')
+  })
+
+  test('keeps the active version when an update fails', async () => {
+    const { manager, repository, cache, fetcher } = createHarness()
+    await manager.install('https://example.com/manifest')
+    vi.mocked(fetcher).mockImplementation(async () => manifestResponse('v3') as unknown as Response)
+    vi.mocked(cache.has).mockResolvedValue(false)
+    vi.mocked(cache.download).mockRejectedValueOnce(new Error('network interrupted'))
+
+    await expect(manager.update('crag:1')).rejects.toThrow('network interrupted')
+
+    expect(repository.setPackHealth).toHaveBeenCalledWith('crag:1', 'ready', 'network interrupted', 'now')
+    expect((await repository.getActivePack('crag:1'))?.pack.activeVersion).toBe('v2')
+  })
+
+  test('rejects installation when the available quota is too small', async () => {
+    vi.stubGlobal('navigator', {
+      locks: { request: lockRequest },
+      storage: { estimate: vi.fn(async () => ({ quota: 100, usage: 0 })), persisted: vi.fn(async () => true) },
+    })
+    const { manager, repository } = createHarness()
+
+    await expect(manager.install('https://example.com/manifest')).rejects.toThrow('Storage quota is too small')
+    expect(repository.stage).not.toHaveBeenCalled()
+  })
+
   test('resumes pending ownership from an already cached response without redownloading', async () => {
     const { manager, cache } = createHarness({ cachedUrls: ['https://example.com/a.webp', 'https://example.com/shared.webp'] })
 
@@ -176,15 +217,15 @@ describe('offline pack manager', () => {
 
   test('discards only the failed version and removes its unowned partial media', async () => {
     const { manager, repository, cache, events } = createHarness()
-    const failedJob: OfflineDownloadJobRecord = {
-      id: 'climb:1:v2', packId: 'climb:1', version: 'v2', versionId: 'climb:1:v2', state: 'failed',
+     const failedJob: OfflineDownloadJobRecord = {
+       id: 'crag:1:v2', packId: 'crag:1', version: 'v2', versionId: 'crag:1:v2', state: 'failed',
       completedAssets: 1, totalAssets: 2, downloadedBytes: 50, error: 'network interrupted', updatedAt: 'now',
     }
     vi.mocked(repository.listJobs).mockResolvedValueOnce([failedJob])
 
-    await manager.discardFailed('climb:1')
+     await manager.discardFailed('crag:1')
 
-    expect(repository.discardFailedVersion).toHaveBeenCalledWith('climb:1:v2', 'now')
+     expect(repository.discardFailedVersion).toHaveBeenCalledWith('crag:1:v2', 'now')
     expect(cache.remove).toHaveBeenCalledWith('https://example.com/a.webp')
     expect(events).toContain('discard')
   })

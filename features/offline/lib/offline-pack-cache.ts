@@ -9,7 +9,7 @@ export interface OfflineMediaCache {
 
 export class CacheApiOfflineMediaCache implements OfflineMediaCache {
   private async open(): Promise<Cache> {
-    if (!('caches' in globalThis)) throw new Error('Cache API is unavailable')
+    if (!('caches' in globalThis) || !globalThis.caches) throw new Error('Cache API is unavailable')
     return caches.open(OFFLINE_MEDIA_CACHE)
   }
 

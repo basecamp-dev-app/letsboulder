@@ -104,6 +104,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^28.1.0",
     "pg": "^8.22.0",
     "tailwindcss": "^4",

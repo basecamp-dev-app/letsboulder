@@ -3,6 +3,19 @@ import type { OfflinePackAsset, OfflinePackManifest } from '@/features/offline/l
 type JsonObject = Record<string, unknown>
 const SUPPORTED_CRAG_SCHEMA_VERSION = 1
 
+interface OfflineChildPackManifest {
+  packId: string
+  kind: 'climb'
+  entityId: string
+  displayName: string
+  version: string
+  manifestUrl: string
+  estimatedBytes: number
+  assets: OfflinePackAsset[]
+  dependentManifestUrls: []
+  payload: unknown
+}
+
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -68,51 +81,10 @@ function optionalString(value: JsonObject, key: string): string | null {
   return typeof field === 'string' && field.length > 0 ? field : null
 }
 
-export function parseOfflinePackManifest(payload: unknown, requestedUrl: string): OfflinePackManifest {
+function parseClimbManifest(payload: unknown, requestedUrl: string): OfflineChildPackManifest {
   if (!isObject(payload)) throw new Error('Offline manifest response must be an object')
   const candidate = isObject(payload.offline_pack) ? payload.offline_pack : payload
   const type = candidate.type
-
-  if (type === 'crag') {
-    if (candidate.schemaVersion !== SUPPORTED_CRAG_SCHEMA_VERSION) {
-      throw new Error('Offline manifest has an unsupported schemaVersion')
-    }
-    if (typeof candidate.minReaderVersion !== 'number' || candidate.minReaderVersion > SUPPORTED_CRAG_SCHEMA_VERSION) {
-      throw new Error('Offline manifest requires a newer reader')
-    }
-    if (!isObject(candidate.metadata) || !isObject(candidate.metadata.crag)
-      || !Array.isArray(candidate.metadata.climbs) || !Array.isArray(candidate.metadata.images)
-      || !Array.isArray(candidate.metadata.routeLines) || !Array.isArray(candidate.metadata.sectors)) {
-      throw new Error('Offline manifest has invalid metadata')
-    }
-    const tiles = candidate.tileManifest
-    if (tiles !== undefined && tiles !== null && !isObject(tiles)) {
-      throw new Error('Offline manifest has invalid tileManifest')
-    }
-    const climbs = candidate.climbs
-    if (!Array.isArray(climbs)) throw new Error('Offline manifest has invalid climbs')
-    if (!climbs.every(isObject)) throw new Error('Offline manifest has invalid climbs')
-    const childMedia = climbs.flatMap((climb) => optionalUrlList(climb, 'mediaUrls')).map((url) => assetFromUrl(url, requestedUrl))
-    const dependentManifestUrls = climbs.map((climb) => optionalString(climb, 'manifestUrl')).filter((url): url is string => url !== null)
-    const tileUrls = isObject(tiles) ? optionalUrlList(tiles, 'tileUrls') : []
-    return {
-      packId: stringField(candidate, 'packId'),
-      kind: 'crag',
-      entityId: stringField(candidate, 'cragId'),
-      displayName: stringField(candidate, 'cragName'),
-      version: stringField(candidate, 'cragVersionHash'),
-      manifestUrl: typeof candidate.manifestUrl === 'string' ? candidate.manifestUrl : requestedUrl,
-      estimatedBytes: numberField(candidate, 'estimatedBytes'),
-      assets: uniqueAssets([
-        ...optionalUrlList(candidate, 'mediaUrls').map((url) => assetFromUrl(url, requestedUrl)),
-        ...childMedia,
-        ...tileUrls.map((url) => assetFromUrl(url, requestedUrl)),
-        ...assetList(candidate, requestedUrl),
-      ]),
-      dependentManifestUrls,
-      payload,
-    }
-  }
 
   const inferredClimb = type === 'climb' || typeof candidate.climbId === 'string'
   if (!inferredClimb) throw new Error('Offline manifest has an unsupported pack type')
@@ -134,6 +106,48 @@ export function parseOfflinePackManifest(payload: unknown, requestedUrl: string)
   }
 }
 
+export function parseOfflinePackManifest(payload: unknown, requestedUrl: string): OfflinePackManifest {
+  if (!isObject(payload)) throw new Error('Offline manifest response must be an object')
+  const candidate = isObject(payload.offline_pack) ? payload.offline_pack : payload
+  if (candidate.type !== 'crag') throw new Error('Only crag guides can be saved offline')
+  return parseCragManifest(payload, requestedUrl)
+}
+
+function parseCragManifest(payload: unknown, requestedUrl: string): OfflinePackManifest {
+  if (!isObject(payload)) throw new Error('Offline manifest response must be an object')
+  const candidate = isObject(payload.offline_pack) ? payload.offline_pack : payload
+  const type = candidate.type
+  if (type !== 'crag') throw new Error('Only crag guides can be saved offline')
+  if (candidate.schemaVersion !== SUPPORTED_CRAG_SCHEMA_VERSION) {
+    throw new Error('Offline manifest has an unsupported schemaVersion')
+  }
+  if (typeof candidate.minReaderVersion !== 'number' || candidate.minReaderVersion > SUPPORTED_CRAG_SCHEMA_VERSION) {
+    throw new Error('Offline manifest requires a newer reader')
+  }
+  if (!isObject(candidate.metadata) || !isObject(candidate.metadata.crag)
+    || !Array.isArray(candidate.metadata.climbs) || !Array.isArray(candidate.metadata.images)
+    || !Array.isArray(candidate.metadata.routeLines) || !Array.isArray(candidate.metadata.sectors)) {
+    throw new Error('Offline manifest has invalid metadata')
+  }
+  const tiles = candidate.tileManifest
+  if (tiles !== undefined && tiles !== null && !isObject(tiles)) throw new Error('Offline manifest has invalid tileManifest')
+  const climbs = candidate.climbs
+  if (!Array.isArray(climbs) || !climbs.every(isObject)) throw new Error('Offline manifest has invalid climbs')
+  const childMedia = climbs.flatMap((climb) => optionalUrlList(climb, 'mediaUrls')).map((url) => assetFromUrl(url, requestedUrl))
+  const dependentManifestUrls = climbs.map((climb) => optionalString(climb, 'manifestUrl')).filter((url): url is string => url !== null)
+  const tileUrls = isObject(tiles) ? optionalUrlList(tiles, 'tileUrls') : []
+  return {
+    packId: stringField(candidate, 'packId'), kind: 'crag', entityId: stringField(candidate, 'cragId'),
+    displayName: stringField(candidate, 'cragName'), version: stringField(candidate, 'cragVersionHash'),
+    manifestUrl: typeof candidate.manifestUrl === 'string' ? candidate.manifestUrl : requestedUrl,
+    estimatedBytes: numberField(candidate, 'estimatedBytes'),
+    assets: uniqueAssets([
+      ...optionalUrlList(candidate, 'mediaUrls').map((url) => assetFromUrl(url, requestedUrl)),
+      ...childMedia, ...tileUrls.map((url) => assetFromUrl(url, requestedUrl)), ...assetList(candidate, requestedUrl),
+    ]), dependentManifestUrls, payload,
+  }
+}
+
 export async function fetchOfflinePackManifest(url: string, fetcher: typeof fetch = fetch): Promise<OfflinePackManifest> {
   const response = await fetcher(url, { headers: { accept: 'application/json' }, cache: 'no-store', credentials: 'omit' })
   if (!response.ok) throw new Error(`Offline manifest request failed (${response.status})`)
@@ -142,4 +156,15 @@ export async function fetchOfflinePackManifest(url: string, fetcher: typeof fetc
     throw new Error('Offline manifest response is not JSON')
   }
   return parseOfflinePackManifest(await response.json() as unknown, response.url || url)
+}
+
+export async function fetchOfflineChildPackManifest(url: string, fetcher: typeof fetch = fetch): Promise<OfflineChildPackManifest> {
+  const response = await fetcher(url, { headers: { accept: 'application/json' }, cache: 'no-store', credentials: 'omit' })
+  if (!response.ok) throw new Error(`Offline manifest request failed (${response.status})`)
+  if (!response.headers.get('content-type')?.toLowerCase().includes('application/json')) throw new Error('Offline manifest response is not JSON')
+  const payload = await response.json() as unknown
+  if (!isObject(payload)) throw new Error('Offline manifest response must be an object')
+  const candidate = isObject(payload.offline_pack) ? payload.offline_pack : payload
+  if (candidate.type !== 'climb') throw new Error('Crag pack contains a non-climb dependency')
+  return parseClimbManifest(payload, response.url || url)
 }

@@ -193,7 +193,7 @@ export class OfflinePackDatabase {
     if (!pack) throw new Error('Offline pack record is missing')
     const oldVersionId = pack.activeVersion ? offlineVersionId(pack.packId, pack.activeVersion) : null
     versions.put({ ...version, state: 'active' })
-    packs.put({ ...pack, activeVersion: version.version, status: 'ready', installedAt: pack.installedAt ?? now, updatedAt: now, error: null })
+    packs.put({ ...pack, activeVersion: version.version, status: 'ready', installedAt: pack.installedAt ?? now, lastSuccessfulUpdateAt: now, updatedAt: now, error: null })
     transaction.objectStore(JOBS).put({ ...job, state: 'complete', error: null, updatedAt: now })
     await transactionDone(transaction)
     return oldVersionId === versionId ? null : oldVersionId

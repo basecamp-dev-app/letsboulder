@@ -45,6 +45,37 @@ describe('offline standalone views', () => {
     expect(screen.getByRole('link', { name: 'Open saved crag' })).toHaveAttribute('href', `/offline/crag?id=${CRAG_ID}`)
   })
 
+  it('shows loading and empty library states', () => {
+    useOfflinePacksMock.mockReturnValue({ loading: true, packs: [], error: null, repair: vi.fn() })
+    const { rerender } = render(<OfflineLibraryView />)
+    expect(screen.getByText('Reading saved guides...')).toBeInTheDocument()
+
+    useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn() })
+    rerender(<OfflineLibraryView />)
+    expect(screen.getByRole('heading', { name: 'No guides saved yet' })).toBeInTheDocument()
+  })
+
+  it('shows degraded packs with repair and failed updates without hiding the active viewer', () => {
+    useOfflinePacksMock.mockReturnValue({
+      loading: false, error: null, repair: vi.fn(), update: vi.fn(), remove: vi.fn(), discardFailed: vi.fn(),
+      packs: [{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'degraded', installedAt: null, updatedAt: 'now', error: 'media missing' }],
+    })
+    render(<OfflineLibraryView />)
+    expect(screen.getByRole('link', { name: 'Open saved crag' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /repair/i })).toBeInTheDocument()
+    expect(screen.getByText('Needs repair')).toBeInTheDocument()
+  })
+
+  it('offers discard for a failed initial download', () => {
+    useOfflinePacksMock.mockReturnValue({
+      loading: false, error: null, repair: vi.fn(), update: vi.fn(), remove: vi.fn(), discardFailed: vi.fn(),
+      packs: [{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: null, status: 'error', installedAt: null, updatedAt: 'now', error: 'network interrupted' }],
+    })
+    render(<OfflineLibraryView />)
+    expect(screen.getByRole('button', { name: /discard failed download/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Open saved crag' })).not.toBeInTheDocument()
+  })
+
   it('renders installed metadata, immutable topo media, route lines, and pins', async () => {
     listMock.mockResolvedValue([{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'ready' }])
     getActiveMock.mockResolvedValue({

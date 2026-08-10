@@ -132,6 +132,35 @@ describe('active service worker', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('caches each active crag media variant after a network miss', async () => {
+    for (const variant of ['detail', 'topo']) {
+      const request = new Request(`https://static.letsboulder.com/images/image-123/v2/${variant}.webp`)
+      Object.defineProperty(request, 'destination', { configurable: true, value: 'image' })
+      const response = await dispatch('fetch', { request })
+      expect(await (await response)?.text()).toBe('asset')
+      expect(mediaCache.put).toHaveBeenCalledWith(request, expect.any(Response))
+    }
+  })
+
+  it('returns a 504 packed-media response when an uncached asset cannot be fetched', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('offline'))
+    const request = new Request('https://static.letsboulder.com/images/image-123/v2/topo.webp')
+    Object.defineProperty(request, 'destination', { configurable: true, value: 'image' })
+
+    const response = await dispatch('fetch', { request })
+
+    expect(response).toBeDefined()
+    expect((await response)?.status).toBe(504)
+  })
+
+  it('fetches and caches a missing Next static asset', async () => {
+    const request = new Request('https://letsboulder.com/_next/static/chunks/offline.js')
+    const response = await dispatch('fetch', { request })
+
+    expect(await (await response)?.text()).toBe('asset')
+    expect(staticCache.put).toHaveBeenCalledWith(request, expect.any(Response))
+  })
+
   it('does not intercept unrelated remote images', async () => {
     const request = new Request('https://images.example.com/photo.webp')
     Object.defineProperty(request, 'destination', { configurable: true, value: 'image' })
