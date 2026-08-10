@@ -27,10 +27,6 @@ export default function PublicLogbookClient({ userId, initialPage }: PublicLogbo
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery<PublicLogbookPageData, Error, InfiniteData<PublicLogbookPageData>, readonly ['logbook', 'public', string], string | null>({
     queryKey: publicLogbookQueryKey(userId),
     queryFn: async ({ pageParam }) => {
-      if (!pageParam) {
-        return initialPage
-      }
-
       const result = await loadMorePublicLogsAction(userId, pageParam)
       if (!result.success) {
         throw new Error(result.error)

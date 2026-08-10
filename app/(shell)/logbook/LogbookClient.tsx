@@ -78,10 +78,13 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
     queryKey: ownLogbookLogsQueryKey(user.id),
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam }) => {
-      if (!pageParam) return { logs: initialData?.logs ?? [], progressLogs: initialData?.progressLogs ?? [], nextCursor: initialData?.nextCursor ?? null }
       const result = await loadMoreLogbookAction(user.id, pageParam, 'owner')
       if (!result.success) throw new Error(result.error)
-      return result
+      return {
+        logs: result.logs,
+        progressLogs: result.progressLogs,
+        nextCursor: result.nextCursor,
+      }
     },
     initialData: initialData
       ? { pages: [{ logs: initialData.logs, progressLogs: initialData.progressLogs, nextCursor: initialData.nextCursor }], pageParams: [null] }

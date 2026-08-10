@@ -7,12 +7,12 @@ import type { LogbookClimb, ProgressLogEntry } from '@/features/logbook/lib/logb
 
 const loadMoreLogsSchema = z.object({
   userId: z.string().trim().min(1, 'User ID required'),
-  cursor: z.string().trim().min(1, 'Cursor required'),
+  cursor: z.string().trim().min(1, 'Cursor required').nullable(),
 })
 
 export async function loadMorePublicLogsAction(
   userId: string,
-  cursor: string
+  cursor: string | null
 ): Promise<{ success: true; logs: LogbookClimb[]; progressLogs: ProgressLogEntry[]; nextCursor: string | null } | { success: false; error: string }> {
   const validation = loadMoreLogsSchema.safeParse({ userId, cursor })
   if (!validation.success) {

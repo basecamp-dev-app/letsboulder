@@ -6,7 +6,7 @@ import type { LogbookPermissionMode } from '@/features/logbook/lib/logbook-contr
 
 export async function loadMoreLogbookAction(
   userId: string,
-  cursor: string,
+  cursor: string | null,
   mode: LogbookPermissionMode,
 ) {
   if (mode === 'owner') {
@@ -17,7 +17,7 @@ export async function loadMoreLogbookAction(
   }
 
   try {
-    return { success: true as const, ...(await fetchServerLogbookPage(userId, mode, cursor)) }
+    return { success: true as const, ...(await fetchServerLogbookPage(userId, mode, cursor ?? undefined)) }
   } catch {
     return { success: false as const, error: 'Failed to load more logs' }
   }
