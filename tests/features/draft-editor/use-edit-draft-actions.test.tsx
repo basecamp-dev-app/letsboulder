@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 
-import { createElement, useEffect } from 'react'
+import { createElement, useEffect, type ReactNode } from 'react'
 import { render, renderHook, act } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { cragKeys } from '@/features/crags/lib/crag-queries'
 import { useEditDraftActions } from '@/features/draft-editor/hooks/use-edit-draft-actions'
 import type { DraftPayload, DraftRoute, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
 
@@ -86,6 +88,14 @@ function createRoute(): DraftRoute {
   }
 }
 
+function createQueryWrapper() {
+  const queryClient = new QueryClient()
+
+  return function QueryWrapper({ children }: { children: ReactNode }) {
+    return createElement(QueryClientProvider, { client: queryClient }, children)
+  }
+}
+
 describe('useEditDraftActions', () => {
   beforeEach(() => {
     mockPush.mockReset()
@@ -95,6 +105,10 @@ describe('useEditDraftActions', () => {
   it('flushes draft location before publishing', async () => {
     const flushLocationSync = vi.fn().mockResolvedValue({ ok: true })
     const draft = createDraft()
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(cragKeys.images('crag-1'), { images: [] })
+    queryClient.setQueryData(cragKeys.routes('crag-1'), { routes: [] })
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     let publishDraft: (() => Promise<unknown>) | null = null
 
     mockCsrfFetch
@@ -165,7 +179,7 @@ describe('useEditDraftActions', () => {
       return null
     }
 
-    render(createElement(Harness))
+    render(createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)))
 
     await act(async () => {
       await publishDraft?.()
@@ -174,6 +188,11 @@ describe('useEditDraftActions', () => {
     expect(flushLocationSync).toHaveBeenCalledTimes(1)
     expect(mockCsrfFetch).toHaveBeenCalledTimes(2)
     expect(flushLocationSync.mock.invocationCallOrder[0]).toBeLessThan(mockCsrfFetch.mock.invocationCallOrder[0])
+    expect(queryClient.getQueryState(cragKeys.images('crag-1'))?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(cragKeys.routes('crag-1'))?.isInvalidated).toBe(true)
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: cragKeys.images('crag-1') })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: cragKeys.routes('crag-1') })
+    expect(invalidateQueries.mock.invocationCallOrder[0]).toBeLessThan(mockPush.mock.invocationCallOrder[0])
     expect(mockPush).toHaveBeenCalledWith('/test/crag/i/image-1?publishedImages=2&publishedRoutes=1')
   })
 
@@ -227,7 +246,7 @@ describe('useEditDraftActions', () => {
       return null
     }
 
-    render(createElement(Harness))
+    render(createElement(createQueryWrapper(), null, createElement(Harness)))
 
     await act(async () => {
       await publishDraft?.()
@@ -311,7 +330,7 @@ describe('useEditDraftActions', () => {
       return null
     }
 
-    render(createElement(Harness))
+    render(createElement(createQueryWrapper(), null, createElement(Harness)))
 
     await act(async () => {
       await publishDraft?.()
@@ -395,7 +414,7 @@ describe('useEditDraftActions', () => {
       return null
     }
 
-    render(createElement(Harness))
+    render(createElement(createQueryWrapper(), null, createElement(Harness)))
 
     await act(async () => {
       await publishDraft?.()
@@ -485,7 +504,7 @@ describe('useEditDraftActions', () => {
       return null
     }
 
-    render(createElement(Harness))
+    render(createElement(createQueryWrapper(), null, createElement(Harness)))
 
     await act(async () => {
       await publishDraft?.()
@@ -548,7 +567,7 @@ describe('useEditDraftActions', () => {
       return null
     }
 
-    render(createElement(Harness))
+    render(createElement(createQueryWrapper(), null, createElement(Harness)))
 
     await act(async () => {
       await publishDraft?.()
@@ -604,7 +623,7 @@ describe('useEditDraftActions', () => {
         setActiveImageId: vi.fn(),
         getCheckpointRevision: () => checkpointRevision,
         clearCheckpointAfterSave,
-      }))
+      }), { wrapper: createQueryWrapper() })
 
     act(() => { result.current.markMetadataDirty() })
     const saving = result.current.saveDraft()

@@ -2,7 +2,9 @@
 
 import { useCallback, useMemo, useRef, useState, type RefObject } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { invalidateCragQueries } from '@/features/crags/lib/invalidate-crag-queries'
 import { serializeDraftMetadataV2, type OrientationDirection } from '@/features/submissions/public-client'
 import { normalizeSubmissionCreditHandle } from '@/features/submissions/public-client'
 import { LOCATION_SYNC_RATE_LIMIT_ERROR_MESSAGE } from '@/features/draft-editor/hooks/use-edit-draft-location-sync'
@@ -101,6 +103,7 @@ export function useEditDraftActions({
 }: UseEditDraftActionsParams) {
   const { requireConsent } = useOpenDataConsent()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [savingDraft, setSavingDraft] = useState(false)
   const [publishingDraft, setPublishingDraft] = useState(false)
   const [hasStoredPendingChanges, setHasStoredPendingChanges] = useState(false)
@@ -370,13 +373,7 @@ export function useEditDraftActions({
   const publishDraft = useCallback(async () => {
     if (!draft || !isOwner) return
 
-    const hasBlockingPublishRequirements = Boolean(
-      (draftId && hasPendingUploads(draftId))
-      || (draftId && hasFailedUploads(draftId))
-      || !cragId
-    )
-
-    if (hasBlockingPublishRequirements) {
+    if ((draftId && hasPendingUploads(draftId)) || (draftId && hasFailedUploads(draftId)) || !cragId) {
       setPublishAttempted(true)
       setError(null)
 
@@ -438,6 +435,7 @@ export function useEditDraftActions({
       if (payload.published.defaultRouteId) {
         query.set('route', payload.published.defaultRouteId)
       }
+      await invalidateCragQueries(queryClient, cragId)
       router.push(`${payload.published.canonicalPath}?${query.toString()}`)
     } catch (publishError) {
       const message = publishError instanceof Error ? publishError.message : 'Failed to publish draft'
@@ -446,7 +444,7 @@ export function useEditDraftActions({
     } finally {
       setPublishingDraft(false)
     }
-  }, [addToast, cragId, draft, draftId, flushLocationSync, hasFailedUploads, hasPendingUploads, hasValidLocation, isOwner, locationSectionRef, router, saveDraft, setError, cragSectionRef])
+  }, [addToast, cragId, draft, draftId, flushLocationSync, hasFailedUploads, hasPendingUploads, hasValidLocation, isOwner, locationSectionRef, queryClient, router, saveDraft, setError, cragSectionRef])
 
   const handlePublishDraft = useCallback(async () => {
     await requireConsent(publishDraft)
