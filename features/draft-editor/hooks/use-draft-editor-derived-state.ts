@@ -2,10 +2,10 @@
 
 import { useMemo } from 'react'
 import { coordinateKey } from '@/lib/face-directions'
-import { buildMapPins, resolveLocationMode } from '@/features/submissions/public'
+import { buildMapPins, resolveLocationMode } from '@/features/submissions/public-client'
 import { buildHighResCanvasUrl } from '@/features/route-editor/public'
 import { buildDraftRouteLines, isValidLocationCoordinate, resolveEffectiveDraftPublishLocation, type DraftRoute, type ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
-import type { ImageSelection } from '@/features/submissions/public'
+import type { ImageSelection } from '@/features/submissions/public-client'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 
 interface UseDraftEditorDerivedStateParams {

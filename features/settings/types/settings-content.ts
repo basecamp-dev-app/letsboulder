@@ -1,4 +1,4 @@
-import type { SubmissionCreditPlatform } from '@/features/submissions/public'
+import type { SubmissionCreditPlatform } from '@/features/submissions/public-client'
 import type { GradeSystem } from '@/lib/grade-display'
 
 export interface SettingsProfileFormData {

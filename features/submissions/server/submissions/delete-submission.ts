@@ -3,7 +3,7 @@ import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { isCanonicalImageObjectKey } from '@/lib/media/deletion-key'
 import { deleteObject } from '@/lib/media/r2'
-import { revalidatePublicCrag } from '@/features/crags/public'
+import { revalidatePublicCrag } from '@/features/crags/public-server'
 import type { Database } from '@/types/database'
 
 type ImageStorageRow = Pick<

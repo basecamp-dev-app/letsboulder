@@ -1,9 +1,14 @@
-import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { checkArchitecture, type ArchitectureViolation, type SourceFile } from './check-architecture-rules'
+import baselineManifest from './architecture-baseline.json'
+import {
+  checkArchitecture,
+  compareArchitectureBaseline,
+  isArchitectureSourcePath,
+  type ArchitectureViolation,
+  type SourceFile,
+} from './check-architecture-rules'
 
-const ARCHITECTURE_BASELINE = 'eba50397'
 const SOURCE_ROOTS = ['app', 'components', 'features']
 
 function collectSourcePaths(root: string): string[] {
@@ -17,24 +22,15 @@ function collectSourcePaths(root: string): string[] {
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const path = join(current, entry.name)
       if (entry.isDirectory()) stack.push(path)
-      if (entry.isFile() && /\.tsx?$/.test(entry.name)) paths.push(path)
+      if (entry.isFile() && isArchitectureSourcePath(entry.name)) paths.push(path)
     }
   }
 
   return paths
 }
 
-function sourceAtRevision(revision: string, filePath: string): string | null {
-  try {
-    return execFileSync('git', ['show', `${revision}:${filePath}`], { encoding: 'utf8' })
-  } catch {
-    return null
-  }
-}
-
 function printViolations(title: string, items: ArchitectureViolation[]): void {
   if (items.length === 0) return
-
   console.error(title)
   for (const violation of items) {
     console.error(`- ${violation.filePath}:${violation.line} ${violation.message}`)
@@ -45,16 +41,14 @@ const files: SourceFile[] = SOURCE_ROOTS.flatMap(collectSourcePaths).map(path =>
   path,
   source: readFileSync(path, 'utf8'),
 }))
-const baselineFiles = files.flatMap(file => {
-  const source = sourceAtRevision(ARCHITECTURE_BASELINE, file.path)
-  return source === null ? [] : [{ path: file.path, source }]
-})
-const baselineKeys = new Set(checkArchitecture(baselineFiles).map(violation => violation.key))
-const newViolations = checkArchitecture(files).filter(violation => !baselineKeys.has(violation.key))
+const violations = checkArchitecture(files)
+const baseline = compareArchitectureBaseline(violations, baselineManifest.violations)
 
-if (newViolations.length > 0) {
-  printViolations('Architecture boundary violations found:', newViolations)
-  process.exit(1)
+printViolations('Architecture boundary violations found:', baseline.unexpected)
+if (baseline.resolved.length > 0) {
+  console.error('Resolved architecture baseline entries must be removed from scripts/architecture-baseline.json:')
+  for (const key of baseline.resolved) console.error(`- ${key}`)
 }
 
-console.log(`Architecture checks passed. ${baselineKeys.size} baseline violation(s) remain.`)
+if (baseline.unexpected.length > 0 || baseline.resolved.length > 0) process.exit(1)
+console.log(`Architecture checks passed. ${baselineManifest.violations.length} explicit baseline violation(s) remain.`)

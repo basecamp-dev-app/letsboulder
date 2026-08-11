@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { submitCragFlagAction } from '@/features/moderation/public'
+import { submitCragFlagAction } from '@/features/moderation/public-actions'
 import { createClient } from '@/lib/supabase'
 import { isCurrentUserAdmin } from '@/lib/profile-rpc'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'

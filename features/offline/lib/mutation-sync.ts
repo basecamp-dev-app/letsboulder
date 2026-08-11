@@ -1,6 +1,6 @@
 'use client'
 
-import { logRoutesAction } from '@/features/logbook/public'
+import { logRoutesAction } from '@/features/logbook/public-actions'
 import {
   getPendingMutations,
   markMutationFailed,

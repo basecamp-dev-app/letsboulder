@@ -1,7 +1,7 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { SavedClimb, SavedCrag } from '@/features/saved/public'
+import type { SavedClimb, SavedCrag } from '@/features/saved/public-client'
 
 interface LogbookSavedSectionProps {
   savedClimbs: SavedClimb[]

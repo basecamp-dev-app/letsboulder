@@ -1,6 +1,6 @@
-import type { RouteLine } from '@/features/submissions/public'
+import type { RouteLine } from '@/features/submissions/public-client'
 import type { ClimbRouteType, RoutePoint } from '@/types/climbing'
-import type { OrientationDirection } from '@/features/submissions/public'
+import type { OrientationDirection } from '@/features/submissions/public-client'
 import type { MediaUploadStatus } from '@/features/media-upload/public'
 
 export type ClimbType = ClimbRouteType

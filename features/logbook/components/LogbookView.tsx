@@ -21,10 +21,10 @@ import {
   type ProgressLogEntry,
 } from '@/features/logbook/lib/logbook-view'
 import type { Submission } from '@/types/submissions'
-import type { SavedClimb, SavedCrag } from '@/features/saved/public'
+import type { SavedClimb, SavedCrag } from '@/features/saved/public-client'
 import { LogbookSavedSection } from '@/features/logbook/components/LogbookSavedSection'
 
-const DeferredLogbookSubmissions = dynamic(() => import('@/app/(shell)/logbook/DeferredLogbookSubmissions'), {
+const DeferredLogbookSubmissions = dynamic(() => import('@/features/logbook/components/DeferredLogbookSubmissions'), {
   ssr: false,
 })
 

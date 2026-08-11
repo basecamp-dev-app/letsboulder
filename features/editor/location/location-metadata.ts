@@ -6,4 +6,4 @@ export {
   parseOptionalCoordinate,
   isImageMetadataDirty,
   isCragMetadataDirty,
-} from '@/features/submissions/public'
+} from '@/features/submissions/public-client'

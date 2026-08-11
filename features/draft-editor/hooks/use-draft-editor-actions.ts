@@ -2,9 +2,9 @@
 
 import { useCallback } from 'react'
 import { sortFaceDirections } from '@/lib/face-directions'
-import { reorderItemsByIds, resolveLocationMode } from '@/features/submissions/public'
+import { reorderItemsByIds, resolveLocationMode } from '@/features/submissions/public-client'
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { FaceDirection } from '@/features/submissions/public'
+import type { FaceDirection } from '@/features/submissions/public-client'
 import type { DraftCanvasSource, DraftPayload, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
 
 interface UseDraftEditorActionsParams {

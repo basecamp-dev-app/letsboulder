@@ -6,7 +6,7 @@ import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, ok, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { getServerClient } from '@/lib/supabase-server'
-import { resolveEffectiveClimbId } from '@/features/climb/public'
+import { resolveEffectiveClimbId } from '@/features/climb/public-client'
 
 const schema = z.object({
   climbId: z.string().trim().min(1, 'climbId is required'),

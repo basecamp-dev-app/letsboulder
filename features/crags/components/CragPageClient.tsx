@@ -12,7 +12,7 @@ import { useCragPageFilters } from '@/features/crags/hooks/use-crag-page-filters
 import { useCragPageActions } from '@/features/crags/hooks/use-crag-page-actions'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
-import { useSavedCrag } from '@/features/saved/public'
+import { useSavedCrag } from '@/features/saved/public-client'
 
 interface CragPageClientProps {
   id: string

@@ -17,8 +17,8 @@ import type { AdminCrag } from '@/features/admin/crags/types'
 import {
   listCragMaintainersAction,
   setCragMaintainerAction,
-} from '@/features/crags/public'
-import type { CragMaintainerItem } from '@/features/crags/public'
+} from '@/features/crags/public-actions'
+import type { CragMaintainerItem } from '@/features/crags/public-client'
 
 interface CragMaintainersDialogProps {
   crag: AdminCrag | null

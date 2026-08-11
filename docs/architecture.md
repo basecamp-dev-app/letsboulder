@@ -158,7 +158,9 @@ Automated media moderation is disabled and no AWS Rekognition integration is act
 - `hooks/`: cross-feature generic hooks only; domain hooks belong in their feature.
 - `store/`: shared app-wide stores only; feature state belongs under the owning feature.
 
-Code outside `app/` must not import reusable logic from `@/app/**`. Submission and draft Route Handlers stay thin; feature server modules own validation, orchestration, and response shaping.
+Features must not import route composition from `@/app/**`, including through dynamic imports or CommonJS `require()`. Shared components and cross-feature consumers use the owning feature's curated public surface; `app/` remains the composition layer and may select feature implementation modules directly. Submission and draft Route Handlers stay thin; feature server modules own validation, orchestration, and response shaping.
+
+Features with both browser-safe and server behavior expose separate `public-client.ts`, `public-actions.ts`, and `public-server.ts` contracts as needed. Server orchestration normally resides under `server/`; modules under `actions.ts` or `actions/` are explicit Server Action entrypoints rather than exceptions hidden inside client barrels.
 
 ## Key Files
 

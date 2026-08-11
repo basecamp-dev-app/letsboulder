@@ -3,6 +3,8 @@ import React from 'react'
 import { afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
+vi.mock('server-only', () => ({}))
+
 // Mock server env vars required by lib/env.server.ts
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-test-key-that-is-at-least-32-chars-long'
 process.env.CSRF_SECRET = process.env.CSRF_SECRET || 'csrf-secret-test-key-that-is-at-least-32-chars'

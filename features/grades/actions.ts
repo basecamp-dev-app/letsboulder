@@ -3,7 +3,7 @@
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, ok, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
-import { resolveEffectiveClimbId } from '@/features/climb/public'
+import { resolveEffectiveClimbId } from '@/features/climb/public-client'
 import { loadGradeDistribution, upsertGradeVote } from '@/features/grades/lib/grade-votes'
 import { reportError } from '@/lib/errors'
 import { isValidGrade } from '@/lib/grade-constants'

@@ -25,7 +25,7 @@ import {
   deletePublishedSubmissionAction,
   deleteSubmissionDraftAction,
   publishSubmissionDraftAction,
-} from '@/features/submissions/public'
+} from '@/features/submissions/public-actions'
 
 interface LogbookClientProps {
   user: User

@@ -1,7 +1,7 @@
 import { normalizeGrade } from '@/lib/grades'
 import { reportError } from '@/lib/errors'
 import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
-import type { ClimbPackResponse } from '@/features/climb/public'
+import type { ClimbPackResponse } from '@/features/climb/public-client'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import { getAverageCoordinates, sortDirections } from '@/features/crags/lib/crag-geo'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'

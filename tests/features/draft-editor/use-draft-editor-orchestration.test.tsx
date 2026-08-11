@@ -33,11 +33,8 @@ vi.mock('@/features/route-editor/store', () => ({
   ),
 }))
 
-vi.mock('@/features/media-upload/hooks/use-draft-upload-manager', () => ({
+vi.mock('@/features/media-upload/providers/MediaUploadManagerProvider', () => ({
   useDraftUploadManager: () => mockUseDraftUploadManager(),
-}))
-
-vi.mock('@/features/media-upload/hooks/use-media-upload-manager', () => ({
   useMediaUploadManager: () => mockUseMediaUploadManager(),
 }))
 

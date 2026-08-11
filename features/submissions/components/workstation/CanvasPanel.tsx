@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/features/route-editor/public'
 import type { ClimbType } from '@/types/climbing'
 import type { RouteLine } from '@/types/domain'
-import type { RouteEditorDraft } from '@/features/route-editor/store/types'
+import type { RouteEditorDraft } from '@/features/route-editor/public'
 import type { MediaUploadStatus } from '@/features/media-upload/public'
 
 interface WorkstationCanvasPanelProps {

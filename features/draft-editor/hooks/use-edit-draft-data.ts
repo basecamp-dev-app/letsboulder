@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { normalizeDraftMetadata, readDraftRouteType, type OrientationDirection } from '@/features/submissions/public'
-import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/public'
+import { normalizeDraftMetadata, readDraftRouteType, type OrientationDirection } from '@/features/submissions/public-client'
+import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/public-client'
 import { parseSerializedRouteData } from '@/features/route-editor/public'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'

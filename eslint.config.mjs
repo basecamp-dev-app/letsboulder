@@ -126,6 +126,7 @@ const eslintConfig = defineConfig([
     'out/**',
     'build/**',
     'coverage/**',
+    'tests/fixtures/architecture/**',
     'supabase/.temp/**',
     'next-env.d.ts',
   ]),

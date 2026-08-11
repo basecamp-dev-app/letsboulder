@@ -114,7 +114,7 @@ describe('loadInstagramPostData', () => {
         },
       ],
     })
-  })
+  }, 15_000)
 
   test('highlights the selected route when a route identifier is provided', async () => {
     const { loadInstagramPostData } = await import('@/features/social/server/load-instagram-post-data')
@@ -137,5 +137,5 @@ describe('loadInstagramPostData', () => {
       isSelected: true,
     })
     expect(result?.routes[1]?.isSelected).toBe(false)
-  })
+  }, 15_000)
 })

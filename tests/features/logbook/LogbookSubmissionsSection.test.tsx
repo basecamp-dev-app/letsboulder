@@ -4,12 +4,13 @@ import { LogbookSubmissionsSection } from '@/features/logbook/components/Logbook
 import type { Submission } from '@/types/submissions'
 
 vi.mock('next/link', () => ({
-  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; prefetch?: boolean }) => (
-    <a href={href} {...props}>{children}</a>
-  ),
+  default: ({ children, href, prefetch, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; prefetch?: boolean }) => {
+    void prefetch
+    return <a href={href} {...props}>{children}</a>
+  },
 }))
 
-vi.mock('@/features/submissions/public', () => ({
+vi.mock('@/features/submissions/public-client', () => ({
   SubmissionList: ({ submissions }: { submissions: Submission[] }) => (
     <div data-testid="submission-list">{submissions.map((submission) => submission.id).join(',')}</div>
   ),

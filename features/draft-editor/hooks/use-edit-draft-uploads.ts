@@ -13,7 +13,7 @@ import type {
 } from '@/features/draft-editor/lib/edit-draft-types'
 import { isMediaUploadPending, MEDIA_UPLOAD_STATUS_LABELS } from '@/features/media-upload/public'
 import type { MediaUploadItem, UploadCompleteCallback } from '@/features/media-upload/public'
-import type { OrientationDirection } from '@/features/submissions/public'
+import type { OrientationDirection } from '@/features/submissions/public-client'
 
 interface UseEditDraftUploadsParams {
   draftId: string

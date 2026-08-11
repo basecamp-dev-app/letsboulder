@@ -48,7 +48,7 @@ vi.mock('@/components/LightweightCragMap', () => ({
   default: () => null,
 }))
 
-vi.mock('@/features/media-upload/hooks/use-draft-upload-manager', () => ({
+vi.mock('@/features/media-upload/providers/MediaUploadManagerProvider', () => ({
   useDraftUploadManager: () => ({
     queueDraftUploads: mockQueueDraftUploads,
     updateUploadCoordinates: mockUpdateUploadCoordinates,

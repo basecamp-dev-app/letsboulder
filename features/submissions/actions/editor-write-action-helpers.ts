@@ -1,7 +1,7 @@
 import { revalidatePath } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildDraftConflictResponse, resolveDisplayName, type ProfileRow } from '@/features/submissions/server/drafts/draft-route-shared'
-import { revalidatePublicCrag } from '@/features/crags/public'
+import { revalidatePublicCrag } from '@/features/crags/public-server'
 
 export async function buildDraftConflictResult(
   supabase: SupabaseClient,

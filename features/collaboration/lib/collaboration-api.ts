@@ -9,7 +9,7 @@ import {
   removeSubmissionCollaboratorAction,
   revokeDraftInviteAction,
   revokeSubmissionInviteAction,
-} from '@/features/submissions/public'
+} from '@/features/submissions/public-actions'
 
 export async function fetchSubmissionCollaborators(activeImageId: string) {
   const result = await fetchSubmissionCollaboratorsAction(activeImageId)

@@ -11,7 +11,7 @@ import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { RouteEditorRail } from '@/features/route-editor/public'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/public'
 import type { RouteLine } from '@/types/domain'
-import type { RouteEditorDraft } from '@/features/route-editor/store/types'
+import type { RouteEditorDraft } from '@/features/route-editor/public'
 import { MEDIA_UPLOAD_STATUS_LABELS, type MediaUploadStatus } from '@/features/media-upload/public'
 
 interface WorkstationImage {

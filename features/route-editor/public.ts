@@ -2,3 +2,4 @@ export { serializeRouteEditorRoutes, type RouteEditorRouteInput, buildHighResCan
 export { useRouteStore } from '@/features/route-editor/store'
 export { type UnifiedRouteCanvasRef, UnifiedRouteCanvas } from '@/features/route-editor/components/UnifiedRouteCanvas'
 export { RouteEditorRail } from '@/features/route-editor/components/RouteEditorRail'
+export type { RouteEditorDraft } from '@/features/route-editor/store/types'

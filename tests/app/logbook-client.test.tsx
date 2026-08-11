@@ -18,6 +18,11 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/features/logbook/actions/delete-log', () => ({ deleteLogAction: mocks.deleteLogAction }))
 vi.mock('@/features/logbook/actions/load-more-logbook', () => ({ loadMoreLogbookAction: mocks.loadMoreLogbookAction }))
+vi.mock('@/features/submissions/public-actions', () => ({
+  deletePublishedSubmissionAction: vi.fn(),
+  deleteSubmissionDraftAction: vi.fn(),
+  publishSubmissionDraftAction: vi.fn(),
+}))
 vi.mock('@/features/logbook/components/Toast', () => ({ useToast: () => ({ addToast: vi.fn() }) }))
 vi.mock('@/features/logbook/components/LogbookView', () => ({
   default: ({ logs, onDeleteLog }: { logs: Array<{ id: string }>; onDeleteLog: (logId: string) => void }) => (
@@ -88,12 +93,14 @@ describe('LogbookClient', () => {
   it('refetches the invalidated first log page with its null cursor', async () => {
     render(<LogbookClient user={user} initialData={makeInitialData()} />, { wrapper: createWrapper() })
 
-    expect(screen.getByTestId('log-ids')).toHaveTextContent('old-log')
+    expect(screen.getByTestId('log-ids')).toHaveTextContent(/^old-log$/)
+    expect(mocks.loadMoreLogbookAction).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Delete old log' }))
 
     await waitFor(() => {
+      expect(mocks.loadMoreLogbookAction).toHaveBeenCalledOnce()
       expect(mocks.loadMoreLogbookAction).toHaveBeenCalledWith(user.id, null, 'owner')
-      expect(screen.getByTestId('log-ids')).toHaveTextContent('fresh-log')
+      expect(screen.getByTestId('log-ids')).toHaveTextContent(/^fresh-log$/)
     })
   })
 })

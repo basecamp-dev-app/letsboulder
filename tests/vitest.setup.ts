@@ -1,5 +1,7 @@
 import { beforeEach, vi } from 'vitest'
 
+vi.mock('server-only', () => ({}))
+
 type SupabaseGetUserResponse = {
   user: { id: string } | null
   error: { message: string } | null

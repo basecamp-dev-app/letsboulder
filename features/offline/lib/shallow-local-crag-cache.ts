@@ -1,8 +1,8 @@
 'use client'
 
-import { cragKeys } from '@/features/crags/public'
-import { buildCragImageDestination } from '@/features/crags/public'
-import type { CragRoute, RouteNavigationTarget, RoutePreview } from '@/features/crags/public'
+import { cragKeys } from '@/features/crags/public-client'
+import { buildCragImageDestination } from '@/features/crags/public-client'
+import type { CragRoute, RouteNavigationTarget, RoutePreview } from '@/features/crags/public-client'
 import {
   ANON_QUERY_CACHE_SCOPE,
   getPersistedQueries,

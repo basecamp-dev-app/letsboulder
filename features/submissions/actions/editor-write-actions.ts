@@ -1,7 +1,7 @@
 'use server'
 import { z } from 'zod'
 
-import { recordAcceptedWikiContribution } from '@/features/community/public'
+import { recordAcceptedWikiContribution } from '@/features/community/public-server'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'

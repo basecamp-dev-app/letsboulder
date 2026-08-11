@@ -3,4 +3,4 @@
 export {
   serializeStoredRoutes,
   haveStoredRoutesChanged,
-} from '@/features/submissions/public'
+} from '@/features/submissions/public-client'

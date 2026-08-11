@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { AdminCrag } from '@/features/admin/crags/types'
-import { proposeCragMetadataAction } from '@/features/crags/public'
+import { proposeCragMetadataAction } from '@/features/crags/public-actions'
 
 interface RenameCragModalProps {
   crag: AdminCrag

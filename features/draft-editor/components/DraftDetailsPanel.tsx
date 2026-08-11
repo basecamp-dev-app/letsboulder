@@ -1,10 +1,10 @@
 'use client'
 
 import { Users } from 'lucide-react'
-import { CreditSection } from '@/features/submissions/public'
-import { OrientationPicker } from '@/features/submissions/public'
-import type { SubmissionCreditPlatform } from '@/features/submissions/public'
-import type { FaceDirection } from '@/features/submissions/public'
+import { CreditSection } from '@/features/submissions/public-client'
+import { OrientationPicker } from '@/features/submissions/public-client'
+import type { SubmissionCreditPlatform } from '@/features/submissions/public-client'
+import type { FaceDirection } from '@/features/submissions/public-client'
 
 interface DraftDetailsPanelProps {
   detailsOpen: boolean

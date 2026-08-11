@@ -8,7 +8,7 @@ import {
   revokeDraftInvite,
 } from '../lib/collaboration-api'
 import { useInviteLinkCopy } from './use-invite-link-copy'
-import type { CollaboratorItem, InviteItem } from '@/features/submissions/public'
+import type { CollaboratorItem, InviteItem } from '@/features/submissions/public-client'
 
 export function useDraftCollaborators(draftId: string | null, isOwner: boolean, addToast: (message: string, tone: 'success' | 'error') => void, setError: (message: string) => void) {
   const [shareOpen, setShareOpen] = useState(false)
