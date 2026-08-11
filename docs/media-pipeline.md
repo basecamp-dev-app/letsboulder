@@ -112,3 +112,14 @@ Media maintenance crosses private storage and job boundaries. Ingest claims, del
 | None in the app runtime | Worker var `R2_ORIGIN_URL` | Origin hostname used by Cloudflare Image Resizing to fetch private prepared sources and canonical WebPs |
 
 The backfill workflow names its GitHub secrets `CF_MEDIA_WORKER_URL` and `CF_MEDIA_WORKER_SECRET`; the latter is supplied to the Worker's `INGRESS_SECRET` check.
+
+## R2 Inventory Credentials
+
+The manual private and public inventory workflows use actual R2 S3 API credentials, not Cloudflare API tokens or values derived from them. Configure these secrets in the protected GitHub `Production` environment:
+
+| Workflow | Access key secret | Secret access key secret | Required scope |
+|---|---|---|---|
+| `r2-inventory.yml` | `R2_PRIVATE_INVENTORY_ACCESS_KEY_ID` | `R2_PRIVATE_INVENTORY_SECRET_ACCESS_KEY` | Object read/list only on `lb-prod-media-private` |
+| `r2-public-inventory.yml` | `R2_PUBLIC_INVENTORY_ACCESS_KEY_ID` | `R2_PUBLIC_INVENTORY_SECRET_ACCESS_KEY` | Object read/list only on `lb-prod-media-public` |
+
+Provision separate credentials for each bucket and grant no write, delete, or account-wide permissions. Each workflow validates the account ID and performs a non-mutating bucket listing before writing its existing inventory artifact. Missing or invalid credentials fail the workflow before an artifact is uploaded. Rotate these credentials outside the repository and revoke any credential that was reused for another purpose.

@@ -23,12 +23,13 @@ jobs:
       - name: List R2 objects
         shell: bash
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_PRIVATE_INVENTORY_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_PRIVATE_INVENTORY_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
 
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo '::error::Missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID'
+          if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo '::error::Missing R2 inventory credentials or CLOUDFLARE_ACCOUNT_ID'
             exit 1
           fi
 
@@ -38,40 +39,33 @@ jobs:
             exit 1
           fi
 
-          if ! verification=$(curl --fail --silent --show-error \
-            'https://api.cloudflare.com/client/v4/user/tokens/verify' \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"); then
-            echo '::error::Cloudflare API token verification failed'
-            exit 1
-          fi
-
-          if ! printf '%s' "$verification" | jq -e \
-            '.success == true and .result.status == "active" and (.result.id | type == "string" and length > 0)' \
-            >/dev/null; then
-            echo '::error::Cloudflare API token is not active or could not be verified'
-            exit 1
-          fi
-
-          access_key_id=$(printf '%s' "$verification" | jq -r '.result.id')
-          secret_access_key=$(printf '%s' "$CLOUDFLARE_API_TOKEN" | sha256sum | cut -d ' ' -f 1)
-          echo "::add-mask::$access_key_id"
-          echo "::add-mask::$secret_access_key"
-
-          export AWS_ACCESS_KEY_ID="$access_key_id"
-          export AWS_SECRET_ACCESS_KEY="$secret_access_key"
+          echo "::add-mask::$R2_ACCESS_KEY_ID"
+          echo "::add-mask::$R2_SECRET_ACCESS_KEY"
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           export AWS_DEFAULT_REGION=auto
           export AWS_EC2_METADATA_DISABLED=true
 
           raw_inventory="$RUNNER_TEMP/r2-inventory-raw.json"
           list_error="$RUNNER_TEMP/r2-inventory-error.log"
           inventory="$GITHUB_WORKSPACE/lb-prod-media-private-inventory.json"
-          trap 'unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; rm -f "$raw_inventory" "$list_error"' EXIT
+          trap 'unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; rm -f "$raw_inventory" "$list_error"' EXIT
+
+          if ! aws s3api list-objects-v2 \
+            --bucket "$R2_BUCKET" \
+            --max-items 1 \
+            --no-paginate \
+            --endpoint-url "https://${account_id}.r2.cloudflarestorage.com" \
+            --output json >/dev/null 2>"$list_error"; then
+            echo '::error::R2 bucket access preflight failed. A bucket-scoped R2 Object Read credential for lb-prod-media-private is required.'
+            exit 1
+          fi
 
           if ! aws s3api list-objects-v2 \
             --bucket "$R2_BUCKET" \
             --endpoint-url "https://${account_id}.r2.cloudflarestorage.com" \
             --output json >"$raw_inventory" 2>"$list_error"; then
-            echo '::error::Unable to list R2 objects. A bucket-scoped R2 Object Read token for lb-prod-media-private is required.'
+            echo '::error::Unable to list R2 objects. A bucket-scoped R2 Object Read credential for lb-prod-media-private is required.'
             exit 1
           fi
 

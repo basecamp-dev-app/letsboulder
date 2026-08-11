@@ -145,4 +145,31 @@ describe('GitHub Actions security contracts', () => {
       expect(content).not.toMatch(/JSON\.stringify\([^)]*(?:PASSWORD|TOKEN|SECRET)/s)
     }
   })
+
+  it('uses dedicated read-only S3 credentials for R2 inventories', () => {
+    const privateInventory = workflow('r2-inventory.yml')
+    const publicInventory = workflow('r2-public-inventory.yml')
+
+    expect(privateInventory).toContain('R2_PRIVATE_INVENTORY_ACCESS_KEY_ID')
+    expect(privateInventory).toContain('R2_PRIVATE_INVENTORY_SECRET_ACCESS_KEY')
+    expect(publicInventory).toContain('R2_PUBLIC_INVENTORY_ACCESS_KEY_ID')
+    expect(publicInventory).toContain('R2_PUBLIC_INVENTORY_SECRET_ACCESS_KEY')
+
+    for (const content of [privateInventory, publicInventory]) {
+      expect(content).not.toContain('CLOUDFLARE_API_TOKEN')
+      expect(content).not.toContain('/user/tokens/verify')
+      expect(content).not.toContain('sha256sum')
+      expect(content).toContain('list-objects-v2')
+      expect(content).toContain('--max-items 1')
+      expect(content).toContain('--no-paginate')
+      expect(content).toContain('::add-mask::')
+      expect(content).toContain('AWS_EC2_METADATA_DISABLED=true')
+      expect(content).toContain('rm -f')
+    }
+
+    expect(privateInventory).toContain('R2_BUCKET: lb-prod-media-private')
+    expect(publicInventory).toContain('R2_BUCKET: lb-prod-media-public')
+    expect(privateInventory).toContain('path: lb-prod-media-private-inventory.json')
+    expect(publicInventory).toContain('path: lb-prod-media-public-inventory.json')
+  })
 })

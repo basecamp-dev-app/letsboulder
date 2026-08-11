@@ -92,6 +92,7 @@ See [`.env.example`](.env.example) for the categorized application, media, integ
 | `RESEND_API_KEY` | No | Transactional emails (Resend) |
 | `PUBLIC_DATA_EXPORT_DATABASE_URL` | Export workflow | Dedicated read-only PostgreSQL login; never a service-role credential |
 | `OPEN_DATA_R2_ACCESS_KEY_ID`, `OPEN_DATA_R2_SECRET_ACCESS_KEY` | Export workflow | Dedicated public-data bucket credentials |
+| `R2_PRIVATE_INVENTORY_ACCESS_KEY_ID`, `R2_PRIVATE_INVENTORY_SECRET_ACCESS_KEY`, `R2_PUBLIC_INVENTORY_ACCESS_KEY_ID`, `R2_PUBLIC_INVENTORY_SECRET_ACCESS_KEY` | Inventory workflows | Dedicated read-only S3 credentials scoped to the named inventory bucket |
 | `OPEN_DATA_MINISIGN_PRIVATE_KEY`, `OPEN_DATA_MINISIGN_PUBLIC_KEY` | Export workflow | Matching signing keys stored in the protected Production environment |
 | `OPEN_DATA_R2_ENDPOINT`, `OPEN_DATA_R2_BUCKET`, `OPEN_DATA_PUBLIC_BASE_URL` | Export workflow | Production environment variables for storage and public discovery |
 
