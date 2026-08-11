@@ -36,11 +36,11 @@ interface ImageRow {
 
 interface ProcessJobDependencies {
   createClient(env: Env): ReturnType<typeof createSupabaseAdminClient>
-  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>
+  fetchDelivery(input: URL, env: Env): Promise<Response>
 }
 
-export function fetchMediaDelivery(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return globalThis.fetch(input, init)
+export function fetchCanonicalDelivery(input: URL, env: Env): Promise<Response> {
+  return handleMedia(new Request(input), env, input)
 }
 
 export interface MediaJobClaimContext {
@@ -50,7 +50,7 @@ export interface MediaJobClaimContext {
 
 const defaultProcessJobDependencies: ProcessJobDependencies = {
   createClient: createSupabaseAdminClient,
-  fetch: fetchMediaDelivery,
+  fetchDelivery: fetchCanonicalDelivery,
 }
 
 const CANONICAL_WIDTH = 2560
@@ -261,7 +261,7 @@ async function commitAndVerifyCanonical(
   }
 
   const deliveryUrl = new URL(canonical.url, env.MEDIA_HOST)
-  const delivery = await dependencies.fetch(deliveryUrl, { method: 'GET' })
+  const delivery = await dependencies.fetchDelivery(deliveryUrl, env)
   if (delivery.status !== 200) {
     throw new Error(`Canonical public delivery returned status ${delivery.status}`)
   }

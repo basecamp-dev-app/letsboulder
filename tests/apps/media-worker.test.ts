@@ -16,7 +16,7 @@ vi.mock('@/apps/media-worker/src/supabase', () => ({
 }))
 
 import { processMediaDeletionJob } from '@/apps/media-worker/src/deletion-outbox'
-import { buildImageTransformRequest, buildTransformedMediaHeaders, fetchMediaDelivery, getReadyDeliveryObjectKey, processJob } from '@/apps/media-worker/src/index'
+import { buildImageTransformRequest, buildTransformedMediaHeaders, fetchCanonicalDelivery, getReadyDeliveryObjectKey, processJob } from '@/apps/media-worker/src/index'
 import mediaWorker from '@/apps/media-worker/src/index'
 import type { MediaDeletionJobRow } from '@/apps/media-worker/src/schema'
 
@@ -28,13 +28,39 @@ const MEDIA_JOB_ID = '33333333-3333-4333-8333-333333333333'
 const CLAIM_TOKEN = '55555555-5555-4555-8555-555555555555'
 
 describe('media transformation requests', () => {
-  it('invokes the runtime fetch binding with the global receiver', async () => {
-    const runtimeFetch = vi.spyOn(globalThis, 'fetch').mockImplementation(function (this: unknown) {
-      expect(this).toBe(globalThis)
-      return Promise.resolve(new Response('ok'))
+  it('verifies canonical delivery internally without recursively fetching the media host', async () => {
+    const canonicalKey = `images/assets/${IMAGE_ID}/canonical.webp`
+    const maybeSingle = vi.fn(async () => ({
+      data: {
+        optimized_key: canonicalKey,
+        original_key: SOURCE_KEY,
+        processing_status: 'ready',
+        visibility: 'public',
+        status: 'approved',
+        moderation_status: 'skipped',
+      },
+      error: null,
+    }))
+    workerFrom.mockReturnValue({
+      select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle })) })),
     })
+    const runtimeFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(new Uint8Array([1]), {
+      headers: { 'Content-Type': 'image/webp' },
+    }))
+    const env = {
+      INTERNAL_ORIGIN_SECRET: 'secret',
+      R2_ORIGIN_URL: 'https://private-origin.example',
+      ORIGINALS_BUCKET: { get: vi.fn() },
+    } as never
 
-    await expect(fetchMediaDelivery('https://media.example/image.webp')).resolves.toHaveProperty('status', 200)
+    await expect(fetchCanonicalDelivery(
+      new URL(`https://media.example/${canonicalKey}?variant=detail&format=webp`),
+      env,
+    )).resolves.toHaveProperty('status', 200)
+    expect(runtimeFetch).toHaveBeenCalledWith(
+      `https://private-origin.example/${canonicalKey}`,
+      expect.objectContaining({ headers: { 'X-Internal-Secret': 'secret' } }),
+    )
     runtimeFetch.mockRestore()
   })
 
@@ -188,9 +214,9 @@ function createProcessingHarness(options: { failCommitOnce?: boolean; deliveryRe
     return { output }
   })
   const images = { input: vi.fn(() => ({ transform })) }
-  const fetchDelivery = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  const fetchDelivery = vi.fn(async (input: URL, deliveryEnv: Parameters<typeof fetchCanonicalDelivery>[1]) => {
     void input
-    void init
+    void deliveryEnv
     events.push('fetch')
     return options.deliveryResponse?.() ?? new Response(new Uint8Array([1]), {
       status: 200,
@@ -214,7 +240,7 @@ function createProcessingHarness(options: { failCommitOnce?: boolean; deliveryRe
   }
   const dependencies = {
     createClient: () => supabase as never,
-    fetch: fetchDelivery,
+    fetchDelivery: fetchDelivery,
   }
 
   return { bucket, dependencies, env, events, fetchDelivery, image, images, job, output, stored, supabase, transform }
@@ -352,7 +378,7 @@ describe('media worker canonical WebP processing', () => {
     expect(harness.output).toHaveBeenCalledWith({ format: 'image/webp', quality: 82 })
     const deliveryUrl = harness.fetchDelivery.mock.calls[0]?.[0]
     expect(String(deliveryUrl)).toBe(`https://media.example/${putEvent?.replace('put:', '')}?variant=detail&format=webp`)
-    expect(harness.fetchDelivery).toHaveBeenCalledWith(expect.any(URL), { method: 'GET' })
+    expect(harness.fetchDelivery).toHaveBeenCalledWith(expect.any(URL), harness.env)
     expect(harness.supabase.rpc).toHaveBeenCalledWith('verify_media_replacement_delivery', {
       p_job_id: '33333333-3333-4333-8333-333333333333',
       p_expected_optimized_key: putEvent?.replace('put:', ''),
