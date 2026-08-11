@@ -7,6 +7,7 @@ import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { recordSubmissionPublishedEvent } from '@/features/community/public-server'
 import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
 import { OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public-server'
+import { revalidatePublicCragPaths } from '@/features/crags/public-server'
 
 interface PromoteResult {
   success?: boolean
@@ -110,6 +111,12 @@ async function ensureCanonicalCrag(input: {
 interface DraftRouteRef {
   id: string
   draft_image_id: string
+}
+
+interface PublishedCragIdentity {
+  id: string
+  countryCode: string
+  slug: string
 }
 
 type DraftImagePublishRow = Pick<DraftImageRow, 'id' | 'display_order' | 'latitude' | 'longitude' | 'route_data'> & { linked_image_id: string | null }
@@ -252,6 +259,18 @@ async function buildPublishedResponse(input: {
   if (runPostPublishEffects) {
     await recordSubmissionPublishedEvent(defaultImageId).catch((contributorScoreError) => {
       reportError(contributorScoreError, { message: 'Contributor score publish event error' })
+    })
+  }
+
+  const publishedCrag: PublishedCragIdentity | null = cragId
+    ? { id: cragId, countryCode: crag.country_code, slug: crag.slug }
+    : null
+
+  if (publishedCrag) {
+    revalidatePublicCragPaths({
+      cragId: publishedCrag.id,
+      countryCode: publishedCrag.countryCode,
+      slug: publishedCrag.slug,
     })
   }
 

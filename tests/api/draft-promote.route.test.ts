@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { createServerClient } from '@supabase/ssr'
 
-const { adminRpcMock } = vi.hoisted(() => ({
+const { adminRpcMock, revalidatePath, revalidateTag } = vi.hoisted(() => ({
   adminRpcMock: vi.fn(),
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+}))
+
+vi.mock('next/cache', () => ({
+  revalidatePath,
+  revalidateTag,
 }))
 
 vi.mock('@/lib/discord', () => ({
@@ -227,6 +234,8 @@ describe('promoteDraftToSubmission', () => {
   beforeEach(() => {
     adminRpcMock.mockReset()
     adminRpcMock.mockResolvedValue({ data: 'GG', error: null })
+    revalidatePath.mockClear()
+    revalidateTag.mockClear()
   })
 
   test('rejects publication until every linked image is publicly deliverable', async () => {
@@ -267,6 +276,11 @@ describe('promoteDraftToSubmission', () => {
       'crag-1',
       'user-1'
     )
+    expect(revalidatePath).toHaveBeenCalledWith('/')
+    expect(revalidatePath).toHaveBeenCalledWith('/gg/hidden-crag')
+    expect(revalidatePath).toHaveBeenCalledTimes(2)
+    expect(revalidateTag).toHaveBeenCalledWith('crag:crag-1', { expire: 0 })
+    expect(revalidateTag).toHaveBeenCalledTimes(1)
   })
 
   test('recovers an already-published draft and repairs missing crag country metadata without promoting twice', async () => {
@@ -299,6 +313,11 @@ describe('promoteDraftToSubmission', () => {
     })
     expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
     expect(vi.mocked(notifyNewSubmission)).not.toHaveBeenCalled()
+    expect(revalidatePath).toHaveBeenCalledWith('/')
+    expect(revalidatePath).toHaveBeenCalledWith('/gg/hidden-crag')
+    expect(revalidatePath).toHaveBeenCalledTimes(2)
+    expect(revalidateTag).toHaveBeenCalledWith('crag:crag-1', { expire: 0 })
+    expect(revalidateTag).toHaveBeenCalledTimes(1)
   })
 
   test('repairs a countryless crag when only draft-image GPS is persisted', async () => {
