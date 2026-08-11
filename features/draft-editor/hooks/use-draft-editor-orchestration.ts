@@ -334,7 +334,7 @@ export function useDraftEditorOrchestration({
 
   const hasValidLocation = effectivePublishLocation !== null
 
-  const { commitRoutes, hasLiveRouteChanges } = useEditDraftRouteStoreSync({
+  const { commitRoutes, hasLiveRouteChanges, updateRouteMetadata: updateDurableRouteMetadata } = useEditDraftRouteStoreSync({
     activeDraftImageId,
     existingRouteLines,
     routesByImageId,
@@ -435,20 +435,9 @@ export function useDraftEditorOrchestration({
 
   const updateRouteMetadata = useCallback((routeId: string, updates: { name?: string; grade?: string; climbType?: 'sport' | 'boulder' | 'trad' | 'deep-water-solo'; description?: string }) => {
     if (!activeDraftImageId) return
-    setRoutesByImageId((current) => ({
-      ...current,
-      [activeDraftImageId]: (current[activeDraftImageId] || []).map((route) => route.id === routeId
-        ? {
-            ...route,
-            ...(updates.name !== undefined ? { name: updates.name } : {}),
-            ...(updates.grade !== undefined ? { grade: updates.grade } : {}),
-            ...(updates.climbType !== undefined ? { climbType: updates.climbType } : {}),
-            ...(updates.description !== undefined ? { description: updates.description } : {}),
-          }
-        : route),
-    }))
+    updateDurableRouteMetadata(routeId, updates)
     markRoutesDirty([activeDraftImageId])
-  }, [activeDraftImageId, markRoutesDirty, setRoutesByImageId])
+  }, [activeDraftImageId, markRoutesDirty, updateDurableRouteMetadata])
 
   const focusDrawingArea = useCallback((behavior: ScrollBehavior = 'smooth') => {
     drawingAreaRef.current?.scrollIntoView({ behavior, block: 'start' })

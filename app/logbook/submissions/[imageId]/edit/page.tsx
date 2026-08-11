@@ -81,7 +81,7 @@ export default function EditSubmittedRoutesPage() {
       serializeStoredRoutes(editor.initialEditedRoutes)
     )
   useUnsavedChangesWarning(hasPendingChanges)
-  const { commitRoutes } = usePublishedRouteEditorSync({
+  const { commitRoutes, updateRouteMetadata } = usePublishedRouteEditorSync({
     activeImageId: editor.activeImageId,
     loadedImageId: editor.imageSelection?.mode === 'existing' ? editor.imageSelection.imageId : null,
     editedRoutes: editor.editedRoutes,
@@ -123,21 +123,6 @@ export default function EditSubmittedRoutesPage() {
     commitRoutes()
     editor.handleQuickSwitchImage(imageId)
   }, [commitRoutes, editor])
-  const updateRouteMetadata = useCallback((routeId: string, updates: { name?: string; grade?: string; climbType?: 'sport' | 'boulder' | 'trad' | 'deep-water-solo'; description?: string }) => {
-    editor.setEditedRoutes(editor.editedRoutes.map((route) => route.id === routeId
-      ? {
-          ...route,
-          climb: route.climb ? {
-            ...route.climb,
-            ...(updates.name !== undefined ? { name: updates.name } : {}),
-            ...(updates.grade !== undefined ? { grade: updates.grade } : {}),
-            ...(updates.climbType !== undefined ? { route_type: updates.climbType } : {}),
-            ...(updates.description !== undefined ? { description: updates.description } : {}),
-          } : route.climb,
-        }
-      : route))
-  }, [editor])
-
   const saveAllChangesAfterConsent = useCallback(async () => {
     if (savingAllChanges || !editor.activeImageId) return
     const editedRoutes = commitRoutes() ?? editor.editedRoutes

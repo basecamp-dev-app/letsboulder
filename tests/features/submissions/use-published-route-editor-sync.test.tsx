@@ -17,9 +17,10 @@ function createRoute(id: string): RouteLine {
   return { id, image_id: 'image-1', climb_id: `climb-${id}`, points: [{ x: 0.1, y: 0.1 }, { x: 0.7, y: 0.7 }], color: 'red', sequence_order: 0, created_at: '2026-04-05T00:00:00.000Z', image_width: 1200, image_height: 900, climb: { id: `climb-${id}`, name: id, grade: '6A', status: 'approved', route_type: 'boulder', description: null } }
 }
 
-function TestHarness({ onCommit, ...props }: { activeImageId: string | null; loadedImageId: string | null; editedRoutes: RouteLine[]; setEditedRoutes: (routes: RouteLine[]) => void; onCommit?: (commit: () => unknown) => void }) {
-  const { commitRoutes } = usePublishedRouteEditorSync(props)
+function TestHarness({ onCommit, onMetadataUpdate, ...props }: { activeImageId: string | null; loadedImageId: string | null; editedRoutes: RouteLine[]; setEditedRoutes: (routes: RouteLine[]) => void; onCommit?: (commit: () => unknown) => void; onMetadataUpdate?: (update: (routeId: string, updates: { name?: string }) => void) => void }) {
+  const { commitRoutes, updateRouteMetadata } = usePublishedRouteEditorSync(props)
   onCommit?.(commitRoutes)
+  onMetadataUpdate?.(updateRouteMetadata)
   return null
 }
 
@@ -50,5 +51,17 @@ describe('usePublishedRouteEditorSync', () => {
     expect(setEditedRoutes).not.toHaveBeenCalled()
     commitRoutes?.()
     expect(setEditedRoutes).toHaveBeenCalledWith([updatedRoute])
+  })
+
+  it('commits a newly drawn route before updating its metadata', () => {
+    const setEditedRoutes = vi.fn()
+    let updateRouteMetadata: ((routeId: string, updates: { name?: string }) => void) | undefined
+    const newRoute = createRoute('new-route')
+    mockStore = createMockStore([newRoute])
+    render(<TestHarness activeImageId="image-1" loadedImageId="image-1" editedRoutes={[]} setEditedRoutes={setEditedRoutes} onMetadataUpdate={(update) => { updateRouteMetadata = update }} />)
+
+    updateRouteMetadata?.('new-route', { name: 'New name' })
+
+    expect(setEditedRoutes).toHaveBeenLastCalledWith([{ ...newRoute, climb: { ...newRoute.climb!, name: 'New name' } }])
   })
 })

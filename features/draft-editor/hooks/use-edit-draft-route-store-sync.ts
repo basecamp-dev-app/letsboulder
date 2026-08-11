@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useRouteStore } from '@/features/route-editor/public'
+import { useRouteStore, type RouteEditorDraft } from '@/features/route-editor/public'
 import { areSerializedRoutesEqual } from '@/features/route-editor/public'
 import type { RouteLine } from '@/types/domain'
 import type { DraftRoute } from '@/features/draft-editor/lib/edit-draft-types'
@@ -114,5 +114,26 @@ export function useEditDraftRouteStoreSync({
     })
   })()
 
-  return { commitRoutes, hasLiveRouteChanges }
+  const updateRouteMetadata = useCallback((routeId: string, updates: Partial<Omit<RouteEditorDraft, 'routeId'>>) => {
+    if (!activeDraftImageId) return
+
+    const committed = commitRoutes()
+    setRoutesByImageId((current) => {
+      const routes = current[activeDraftImageId] || committed?.routesByImageId[activeDraftImageId] || []
+      return {
+        ...current,
+        [activeDraftImageId]: routes.map((route) => route.id === routeId
+          ? {
+              ...route,
+              ...(updates.name !== undefined ? { name: updates.name } : {}),
+              ...(updates.grade !== undefined ? { grade: updates.grade } : {}),
+              ...(updates.climbType !== undefined ? { climbType: updates.climbType } : {}),
+              ...(updates.description !== undefined ? { description: updates.description } : {}),
+            }
+          : route),
+      }
+    })
+  }, [activeDraftImageId, commitRoutes, setRoutesByImageId])
+
+  return { commitRoutes, hasLiveRouteChanges, updateRouteMetadata }
 }

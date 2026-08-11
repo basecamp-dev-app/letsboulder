@@ -21,10 +21,11 @@ function createRoute(id: string, name = id): RouteLine {
   return { id, image_id: 'image-1', climb_id: `climb-${id}`, points: [{ x: 0.1, y: 0.1 }, { x: 0.7, y: 0.7 }], color: 'red', sequence_order: 0, created_at: '2026-04-05T00:00:00.000Z', image_width: 1200, image_height: 900, climb: { id: `climb-${id}`, name, grade: '6A', status: 'approved', route_type: 'boulder', description: null } }
 }
 
-function TestHarness({ onCommit, onLiveRouteChanges, ...props }: { activeDraftImageId: string | null; existingRouteLines: RouteLine[]; routesByImageId: Record<string, DraftRoute[]>; setRoutesByImageId: React.Dispatch<React.SetStateAction<Record<string, DraftRoute[]>>>; routeType: string; seedVersion?: string | null; onCommit?: (commit: () => unknown) => void; onLiveRouteChanges?: (value: boolean) => void }) {
-  const { commitRoutes, hasLiveRouteChanges } = useEditDraftRouteStoreSync(props)
+function TestHarness({ onCommit, onLiveRouteChanges, onMetadataUpdate, ...props }: { activeDraftImageId: string | null; existingRouteLines: RouteLine[]; routesByImageId: Record<string, DraftRoute[]>; setRoutesByImageId: React.Dispatch<React.SetStateAction<Record<string, DraftRoute[]>>>; routeType: string; seedVersion?: string | null; onCommit?: (commit: () => unknown) => void; onLiveRouteChanges?: (value: boolean) => void; onMetadataUpdate?: (update: (routeId: string, updates: { name?: string }) => void) => void }) {
+  const { commitRoutes, hasLiveRouteChanges, updateRouteMetadata } = useEditDraftRouteStoreSync(props)
   onCommit?.(commitRoutes)
   onLiveRouteChanges?.(hasLiveRouteChanges)
+  onMetadataUpdate?.(updateRouteMetadata)
   return null
 }
 
@@ -58,5 +59,19 @@ describe('useEditDraftRouteStoreSync', () => {
     const { rerender } = render(<TestHarness {...props} />)
     rerender(<TestHarness {...props} />)
     expect(onLiveRouteChanges).toHaveBeenLastCalledWith(true)
+  })
+
+  it('commits a newly drawn route before updating its metadata', () => {
+    let routesByImageId: Record<string, DraftRoute[]> = { 'image-1': [] }
+    const setRoutesByImageId = vi.fn((update: React.SetStateAction<Record<string, DraftRoute[]>>) => {
+      routesByImageId = typeof update === 'function' ? update(routesByImageId) : update
+    })
+    let updateRouteMetadata: ((routeId: string, updates: { name?: string }) => void) | undefined
+    mockStore = createMockStore([createRoute('new-route')])
+    render(<TestHarness activeDraftImageId="image-1" existingRouteLines={[]} routesByImageId={routesByImageId} setRoutesByImageId={setRoutesByImageId} routeType="boulder" onMetadataUpdate={(update) => { updateRouteMetadata = update }} />)
+
+    updateRouteMetadata?.('new-route', { name: 'New name' })
+
+    expect(routesByImageId['image-1']).toMatchObject([{ id: 'new-route', name: 'New name' }])
   })
 })

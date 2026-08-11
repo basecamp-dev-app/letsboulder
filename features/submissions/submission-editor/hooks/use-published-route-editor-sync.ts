@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useRouteStore } from '@/features/route-editor/public'
+import { useRouteStore, type RouteEditorDraft } from '@/features/route-editor/public'
 import type { RouteLine } from '@/types/domain'
 
 interface UsePublishedRouteEditorSyncParams {
@@ -58,5 +58,21 @@ export function usePublishedRouteEditorSync({
     return nextRoutes
   }, [activeImageId, editedRoutes, routeStoreRoutes, setEditedRoutes])
 
-  return { commitRoutes }
+  const updateRouteMetadata = useCallback((routeId: string, updates: Partial<Omit<RouteEditorDraft, 'routeId'>>) => {
+    const committedRoutes = commitRoutes() ?? editedRoutes
+    setEditedRoutes(committedRoutes.map((route) => route.id === routeId
+      ? {
+          ...route,
+          climb: route.climb ? {
+            ...route.climb,
+            ...(updates.name !== undefined ? { name: updates.name } : {}),
+            ...(updates.grade !== undefined ? { grade: updates.grade } : {}),
+            ...(updates.climbType !== undefined ? { route_type: updates.climbType } : {}),
+            ...(updates.description !== undefined ? { description: updates.description } : {}),
+          } : route.climb,
+        }
+      : route))
+  }, [commitRoutes, editedRoutes, setEditedRoutes])
+
+  return { commitRoutes, updateRouteMetadata }
 }
