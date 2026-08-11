@@ -140,6 +140,7 @@ export function useSubmissionEditorData() {
   const [contributors, setContributors] = useState<CommunityMember[]>([])
   const [history, setHistory] = useState<SubmissionHistoryEntry[]>([])
   const manageFacesRef = useRef<ManageFaceTab[]>([])
+  const loadSubmissionGenerationRef = useRef(0)
 
   useEffect(() => {
     manageFacesRef.current = manageFaces
@@ -180,22 +181,26 @@ export function useSubmissionEditorData() {
     return () => reset()
   }, [reset, setInteractionTool, setMode])
 
-  const loadSubmission = useCallback(async () => {
+  const loadSubmission = useCallback(async (generation: number) => {
     if (!activeImageId) return
+    const isCurrentRequest = () => loadSubmissionGenerationRef.current === generation
     setLoading(true)
     setError(null)
     try {
       const supabase = createClient()
       const { data: authData } = await supabase.auth.getUser()
+      if (!isCurrentRequest()) return
       const user = authData.user
       if (!user) { router.push(`/auth?redirect_to=${encodeURIComponent(buildEditUrl(routeImageId, activeImageId))}`); return }
       setCurrentUserId(user.id)
       const imageQuery = async (imageId: string) => supabase.from('images').select(`id, url, width, height, created_by, crag_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, latitude, longitude, face_directions, location_mode, wiki_revision, crags:crag_id (name, region_name, sub_area), route_lines ( id, points, sequence_order, image_width, image_height, climbs (id, name, grade, status, route_type, description) )`).eq('id', imageId).maybeSingle()
       const firstAttempt = await imageQuery(activeImageId)
+      if (!isCurrentRequest()) return
       let data = firstAttempt.data
       let imageError = firstAttempt.error
       if ((!data || imageError) && requestedFaceImageId && requestedFaceImageId !== routeImageId && activeImageId === requestedFaceImageId) {
         const fallbackAttempt = await imageQuery(routeImageId)
+        if (!isCurrentRequest()) return
         if (fallbackAttempt.data && !fallbackAttempt.error) { router.replace(buildEditUrl(routeImageId)); return }
         if (!data) data = fallbackAttempt.data
         if (!imageError) imageError = fallbackAttempt.error
@@ -253,6 +258,7 @@ export function useSubmissionEditorData() {
       const contributorQuery = supabase.from('submission_contributors').select('user_id').eq('image_id', submission.id).order('last_contributed_at', { ascending: false })
       const historyQuery = supabase.from('submission_edit_history').select('id, edit_kind, summary, created_at, edited_by').eq('image_id', submission.id).order('created_at', { ascending: false }).limit(10)
       const [{ data: contributorRows }, { data: historyRows }] = await Promise.all([contributorQuery, historyQuery])
+      if (!isCurrentRequest()) return
       const profileIds = Array.from(new Set([
         ...(ownerId ? [ownerId] : []),
         ...((contributorRows || []) as SubmissionContributorRow[]).map((row) => row.user_id),
@@ -261,6 +267,7 @@ export function useSubmissionEditorData() {
       const { data: profileRows } = profileIds.length > 0
         ? await supabase.from('profiles').select('id, username, display_name').in('id', profileIds)
         : { data: [] as ProfileRow[] }
+      if (!isCurrentRequest()) return
       const profileMap = new Map<string, ProfileRow>((profileRows || []).map((profile: ProfileRow) => [profile.id, profile]))
       const toCommunityMember = (userId: string): CommunityMember => {
         const profile = profileMap.get(userId)
@@ -281,13 +288,19 @@ export function useSubmissionEditorData() {
         editor: toCommunityMember(entry.edited_by),
       })))
     } catch {
-      setError('Failed to load this submission. Please refresh and try again.')
+      if (isCurrentRequest()) setError('Failed to load this submission. Please refresh and try again.')
     } finally {
-      setLoading(false)
+      if (isCurrentRequest()) setLoading(false)
     }
   }, [activeImageId, buildEditUrl, requestedFaceImageId, routeImageId, router])
 
-  useEffect(() => { loadSubmission() }, [loadSubmission])
+  useEffect(() => {
+    const generation = ++loadSubmissionGenerationRef.current
+    void loadSubmission(generation)
+    return () => {
+      if (loadSubmissionGenerationRef.current === generation) loadSubmissionGenerationRef.current += 1
+    }
+  }, [loadSubmission])
 
   const loadManageFaces = useCallback(async () => {
     if (!routeImageId) return
