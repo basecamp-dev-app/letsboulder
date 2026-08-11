@@ -16,6 +16,7 @@ const mockUseEditDraftHydration = vi.fn()
 const mockUseEditDraftUploads = vi.fn()
 const mockUseDraftEditorDerivedState = vi.fn()
 const mockUseEditDraftLocationSync = vi.fn()
+const mockUseEditDraftRouteStoreSync = vi.fn()
 const mockUseEditDraftActions = vi.fn()
 const mockUseDraftEditorActions = vi.fn()
 const mockUseEditDraftRouteSync = vi.fn()
@@ -68,6 +69,10 @@ vi.mock('@/features/draft-editor/hooks/use-draft-editor-derived-state', () => ({
 
 vi.mock('@/features/draft-editor/hooks/use-edit-draft-location-sync', () => ({
   useEditDraftLocationSync: () => mockUseEditDraftLocationSync(),
+}))
+
+vi.mock('@/features/draft-editor/hooks/use-edit-draft-route-store-sync', () => ({
+  useEditDraftRouteStoreSync: (...args: Parameters<typeof mockUseEditDraftRouteStoreSync>) => mockUseEditDraftRouteStoreSync(...args),
 }))
 
 vi.mock('@/features/draft-editor/hooks/use-edit-draft-actions', () => ({
@@ -242,6 +247,11 @@ describe('useDraftEditorOrchestration', () => {
       handleSearchLocation: vi.fn(),
       flushLocationSync: vi.fn(async () => ({ ok: true })),
     })
+    mockUseEditDraftRouteStoreSync.mockReturnValue({
+      commitRoutes: vi.fn(),
+      hasLiveRouteChanges: false,
+      updateRouteMetadata: vi.fn(),
+    })
     mockUseEditDraftActions.mockReturnValue({
       savingDraft: false,
       publishingDraft: false,
@@ -270,5 +280,26 @@ describe('useDraftEditorOrchestration', () => {
     renderHook(() => useDraftEditorOrchestration({ draftId: 'draft-1', addToast: vi.fn() }))
 
     expect(mockUseAtlasAutoSync).toHaveBeenCalledWith(51.0978811, 0.1863465)
+  })
+
+  it('does not use the concurrency timestamp to reseed route geometry', () => {
+    const draft = { id: 'draft-1', updated_at: 'durable-revision-1', images: [] }
+    mockUseEditDraftData.mockReturnValue({
+      ...mockUseEditDraftData(),
+      draft,
+      draftUpdatedAt: 'concurrency-revision-1',
+    })
+    const { rerender } = renderHook(() => useDraftEditorOrchestration({ draftId: 'draft-1', addToast: vi.fn() }))
+
+    mockUseEditDraftData.mockReturnValue({
+      ...mockUseEditDraftData(),
+      draft,
+      draftUpdatedAt: 'concurrency-revision-2',
+    })
+    rerender()
+
+    expect(mockUseEditDraftRouteStoreSync).toHaveBeenLastCalledWith(expect.objectContaining({
+      seedVersion: 'durable-revision-1',
+    }))
   })
 })

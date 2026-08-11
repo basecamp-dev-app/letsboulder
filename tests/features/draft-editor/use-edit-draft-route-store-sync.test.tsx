@@ -32,14 +32,27 @@ function TestHarness({ onCommit, onLiveRouteChanges, onMetadataUpdate, ...props 
 describe('useEditDraftRouteStoreSync', () => {
   afterEach(() => { mockStore = createMockStore() })
 
-  it('seeds the store and clears canvas UI on image switch or conflict hydration', () => {
+  it('seeds the store and clears canvas UI on image switch or durable draft reload', () => {
     const firstRoutes = [createRoute('route-1')]
     const secondRoutes = [createRoute('route-2')]
-    const { rerender } = render(<TestHarness activeDraftImageId="image-1" existingRouteLines={firstRoutes} routesByImageId={{}} setRoutesByImageId={vi.fn()} routeType="boulder" />)
-    rerender(<TestHarness activeDraftImageId="image-1" existingRouteLines={secondRoutes} routesByImageId={{}} setRoutesByImageId={vi.fn()} routeType="boulder" seedVersion="server-revision-2" />)
+    const props = { activeDraftImageId: 'image-1', existingRouteLines: firstRoutes, routesByImageId: {}, setRoutesByImageId: vi.fn(), routeType: 'boulder', seedVersion: 'server-revision-1' }
+    const { rerender } = render(<TestHarness {...props} />)
+    rerender(<TestHarness {...props} existingRouteLines={secondRoutes} seedVersion="server-revision-2" />)
     expect(mockStore.clearCanvasState).toHaveBeenCalledTimes(2)
     expect(mockStore.setRoutes).toHaveBeenLastCalledWith(secondRoutes)
     expect(mockStore.setSelectedRoute).toHaveBeenLastCalledWith(null)
+  })
+
+  it('does not reseed live geometry on a rerender without a durable draft revision', () => {
+    const durableRoutes = [createRoute('route-1')]
+    const props = { activeDraftImageId: 'image-1', existingRouteLines: durableRoutes, routesByImageId: {}, setRoutesByImageId: vi.fn(), routeType: 'boulder', seedVersion: 'hydrated-revision-1' }
+    const { rerender } = render(<TestHarness {...props} />)
+
+    rerender(<TestHarness {...props} />)
+
+    expect(mockStore.clearCanvasState).toHaveBeenCalledTimes(1)
+    expect(mockStore.setRoutes).toHaveBeenCalledTimes(1)
+    expect(mockStore.setRoutes).toHaveBeenCalledWith(durableRoutes)
   })
 
   it('commits transient store edits only when requested', () => {

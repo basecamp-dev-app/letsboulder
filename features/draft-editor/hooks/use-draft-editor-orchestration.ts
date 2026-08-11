@@ -340,7 +340,7 @@ export function useDraftEditorOrchestration({
     routesByImageId,
     setRoutesByImageId,
     routeType,
-    seedVersion: draftUpdatedAt,
+    seedVersion: draft?.updated_at,
   })
 
   const {
