@@ -80,6 +80,17 @@ describe('checkArchitecture', () => {
     ])).toEqual(['feature-app-import'])
   })
 
+  it('enforces feature and app boundaries for relative imports', () => {
+    expect(rules([
+      { path: 'features/alpha/view.ts', source: "import '../beta/private'\nimport '../../app/page'" },
+      { path: 'components/SharedWidget.tsx', source: "import '../features/beta/private'" },
+    ])).toEqual([
+      'cross-feature-private-import',
+      'feature-app-import',
+      'cross-feature-private-import',
+    ])
+  })
+
   it('requires shared components, but not app composition, to use public entrypoints', () => {
     const files = fixtureFiles('shared')
     expect(rules(files)).toEqual(['cross-feature-private-import'])
@@ -92,6 +103,35 @@ describe('checkArchitecture', () => {
       'public-client-server-export',
       'public-server-boundary',
     ])
+  })
+
+  it('checks generic public surfaces and transitive client-to-server imports', () => {
+    const violations = checkArchitecture([
+      { path: 'features/direct/public.ts', source: "export { load } from './server/load'" },
+      { path: 'features/direct/server/load.ts', source: 'export const load = true' },
+      { path: 'features/transitive/public.ts', source: "export { bridge } from './lib/bridge'" },
+      { path: 'features/transitive/lib/bridge.ts', source: "export { load as bridge } from '../server/load'" },
+      { path: 'features/transitive/server/load.ts', source: 'export const load = true' },
+    ])
+
+    expect(violations.map(violation => violation.rule).sort()).toEqual([
+      'client-server-public-import',
+      'public-client-server-export',
+    ])
+    expect(violations.find(violation => violation.rule === 'client-server-public-import')).toMatchObject({
+      filePath: 'features/transitive/lib/bridge.ts',
+      line: 1,
+    })
+  })
+
+  it('propagates client reachability but stops at erased imports and Server Actions', () => {
+    expect(rules([
+      { path: 'features/alpha/components/Client.tsx', source: "'use client'\nimport { helper } from '../lib/helper'\nimport { save } from '../actions/save'\nimport type { Record } from '../server/types'\nvoid helper\nvoid save" },
+      { path: 'features/alpha/lib/helper.ts', source: "import { load } from '../server/load'\nexport const helper = load" },
+      { path: 'features/alpha/actions/save.ts', source: "'use server'\nimport { load } from '../server/load'\nexport async function save() { return load }" },
+      { path: 'features/alpha/server/load.ts', source: 'export const load = true' },
+      { path: 'features/alpha/server/types.ts', source: 'export interface Record {}' },
+    ])).toEqual(['client-server-public-import'])
   })
 
   it('allows documented compatibility shims', () => {

@@ -36,6 +36,11 @@ interface ModuleReference {
   exportDeclaration: ts.ExportDeclaration | null
 }
 
+interface ResolvedModule {
+  path: string
+  sourceFile: ts.SourceFile
+}
+
 const APP_DOMAIN_DIRECTORY_PATTERN = /^app\/(?:.*\/)?(?:actions|hooks|lib|server|store|types)(?:\/|$)/
 const ARCHITECTURE_SOURCE_PATTERN = /\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/
 const PUBLIC_ENTRYPOINTS = new Set(['public', 'public-client', 'public-actions', 'public-server'])
@@ -132,10 +137,17 @@ function collectModuleReferences(parsed: ts.SourceFile): ModuleReference[] {
   return references
 }
 
-function publicFeatureTarget(specifier: string): { feature: string, surface: string | null } | null {
-  const target = specifier.match(/^@\/features\/([^/]+)(?:\/(.*))?$/)
+function internalTargetPath(filePath: string, specifier: string): string | null {
+  if (specifier.startsWith('@/')) return specifier.slice(2)
+  if (specifier.startsWith('.')) return posix.normalize(posix.join(posix.dirname(filePath), specifier))
+  return null
+}
+
+function publicFeatureTarget(targetPath: string | null): { feature: string, surface: string | null } | null {
+  const target = targetPath?.match(/^features\/([^/]+)(?:\/(.*))?$/)
   if (!target) return null
-  return { feature: target[1], surface: target[2] ?? null }
+  const surface = target[2]?.replace(/\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/, '') ?? null
+  return { feature: target[1], surface }
 }
 
 function isPublicSurface(surface: string | null): boolean {
@@ -147,7 +159,6 @@ function addReferenceViolations(
   file: SourceFile,
   owner: string | null,
   reference: ModuleReference,
-  clientModule: boolean,
 ): void {
   const { specifier, line, typeOnly } = reference
   if (isComponent(file.path) && !typeOnly && isSupabaseClientImport(specifier)) {
@@ -160,7 +171,8 @@ function addReferenceViolations(
     })
   }
 
-  if (owner && (specifier === '@/app' || specifier.startsWith('@/app/'))) {
+  const targetPath = internalTargetPath(file.path, specifier)
+  if (owner && (targetPath === 'app' || targetPath?.startsWith('app/'))) {
     violations.push({
       rule: 'feature-app-import',
       filePath: file.path,
@@ -170,16 +182,7 @@ function addReferenceViolations(
     })
   }
 
-  const target = publicFeatureTarget(specifier)
-  if (clientModule && !typeOnly && target?.surface === 'public-server') {
-    violations.push({
-      rule: 'client-server-public-import',
-      filePath: file.path,
-      line,
-      message: 'client modules must not import a feature server-only public surface',
-      key: `client-server-public-import:${file.path}:${specifier}`,
-    })
-  }
+  const target = publicFeatureTarget(targetPath)
   const consumesAnotherFeature = owner !== null && target !== null && target.feature !== owner
   const sharedPrivateImport = isSharedComponent(file.path) && target !== null
   if ((!consumesAnotherFeature && !sharedPrivateImport)
@@ -204,24 +207,28 @@ function directive(sourceFile: ts.SourceFile): 'use client' | 'use server' | nul
   return null
 }
 
-function resolveModule(filePath: string, specifier: string, files: Map<string, ts.SourceFile>): ts.SourceFile | null {
-  let base: string
-  if (specifier.startsWith('@/')) base = specifier.slice(2)
-  else if (specifier.startsWith('.')) base = posix.normalize(posix.join(posix.dirname(filePath), specifier))
-  else return null
+function resolveModule(filePath: string, specifier: string, files: Map<string, ts.SourceFile>): ResolvedModule | null {
+  const base = internalTargetPath(filePath, specifier)
+  if (!base) return null
 
   const candidates = [base, ...RESOLUTION_EXTENSIONS.map(extension => `${base}${extension}`)]
   for (const extension of RESOLUTION_EXTENSIONS) candidates.push(`${base}/index${extension}`)
   for (const candidate of candidates) {
     const resolved = files.get(candidate)
-    if (resolved) return resolved
+    if (resolved) return { path: candidate, sourceFile: resolved }
   }
   return null
 }
 
 function categorizedSurface(filePath: string): 'client' | 'actions' | 'server' | null {
-  const match = filePath.match(/^features\/[^/]+\/public-(client|actions|server)\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/)
-  return match ? match[1] as 'client' | 'actions' | 'server' : null
+  const match = filePath.match(/^features\/[^/]+\/public(?:-(client|actions|server))?\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/)
+  return match ? (match[1] ?? 'client') as 'client' | 'actions' | 'server' : null
+}
+
+function isServerModulePath(filePath: string): boolean {
+  return /(?:^|\/)(?:actions?|server)(?:\/|$|-)/.test(filePath)
+    || /(?:^|\/)[^/]+(?:-server|\.server)(?:\.|\/|$)/.test(filePath)
+    || publicFeatureTarget(filePath)?.surface === 'public-server'
 }
 
 function checkCategorizedSurface(
@@ -247,11 +254,11 @@ function checkCategorizedSurface(
   for (const reference of references) {
     if (!reference.exportDeclaration || reference.typeOnly) continue
     const target = resolveModule(file.path, reference.specifier, parsedFiles)
-    const targetDirective = target ? directive(target) : null
+    const targetDirective = target ? directive(target.sourceFile) : null
 
     if (surface === 'client') {
-      const serverPath = /(?:^|\/)(?:actions?|server)(?:\/|$|-)/.test(reference.specifier)
-        || /\/public-(?:actions|server)$/.test(reference.specifier)
+      const targetPath = target?.path ?? internalTargetPath(file.path, reference.specifier)
+      const serverPath = targetPath !== null && isServerModulePath(targetPath)
       if (!serverPath && targetDirective !== 'use server') continue
       violations.push({
         rule: 'public-client-server-export',
@@ -275,6 +282,70 @@ function checkCategorizedSurface(
   return violations
 }
 
+function checkClientGraph(
+  files: SourceFile[],
+  referencesByPath: Map<string, ModuleReference[]>,
+  parsedFiles: Map<string, ts.SourceFile>,
+): ArchitectureViolation[] {
+  const sourceByPath = new Map(files.map(file => [file.path, file]))
+  const reachable = new Set<string>()
+  const pending: string[] = []
+  for (const [filePath, parsed] of parsedFiles) {
+    if (directive(parsed) === 'use client' || categorizedSurface(filePath) === 'client') {
+      reachable.add(filePath)
+      pending.push(filePath)
+    }
+  }
+
+  const violations: ArchitectureViolation[] = []
+  while (pending.length > 0) {
+    const filePath = pending.pop()
+    if (!filePath) continue
+    const file = sourceByPath.get(filePath)
+    if (!file) continue
+
+    for (const reference of referencesByPath.get(filePath) ?? []) {
+      if (reference.typeOnly) continue
+      if (reference.specifier === 'server-only') {
+        violations.push({
+          rule: 'client-server-public-import',
+          filePath,
+          line: reference.line,
+          message: 'client-reachable modules must not import server-only code',
+          key: `client-server-public-import:${filePath}:${reference.specifier}`,
+        })
+        continue
+      }
+
+      const target = resolveModule(filePath, reference.specifier, parsedFiles)
+      if (!target) continue
+      const targetDirective = directive(target.sourceFile)
+      if (targetDirective === 'use server') continue
+
+      if (isServerModulePath(target.path)) {
+        const directSurfaceViolation = categorizedSurface(filePath) === 'client'
+          && reference.exportDeclaration !== null
+        if (!directSurfaceViolation) {
+          violations.push({
+            rule: 'client-server-public-import',
+            filePath,
+            line: reference.line,
+            message: 'client-reachable modules must not import server-only code',
+            key: `client-server-public-import:${filePath}:${reference.specifier}`,
+          })
+        }
+        continue
+      }
+
+      if (!reachable.has(target.path)) {
+        reachable.add(target.path)
+        pending.push(target.path)
+      }
+    }
+  }
+  return violations
+}
+
 export function compareArchitectureBaseline(
   violations: ArchitectureViolation[],
   baselineKeys: readonly string[],
@@ -290,8 +361,11 @@ export function compareArchitectureBaseline(
 export function checkArchitecture(files: SourceFile[]): ArchitectureViolation[] {
   const violations: ArchitectureViolation[] = []
   const parsedFiles = new Map<string, ts.SourceFile>()
+  const referencesByPath = new Map<string, ModuleReference[]>()
   for (const file of files) {
-    parsedFiles.set(file.path, ts.createSourceFile(file.path, file.source, ts.ScriptTarget.Latest, true))
+    const parsed = ts.createSourceFile(file.path, file.source, ts.ScriptTarget.Latest, true)
+    parsedFiles.set(file.path, parsed)
+    referencesByPath.set(file.path, collectModuleReferences(parsed))
   }
 
   for (const file of files) {
@@ -307,12 +381,13 @@ export function checkArchitecture(files: SourceFile[]): ArchitectureViolation[] 
 
     const parsed = parsedFiles.get(file.path)
     if (!parsed) continue
-    const references = collectModuleReferences(parsed)
+    const references = referencesByPath.get(file.path) ?? []
     const owner = featureName(file.path)
-    const clientModule = directive(parsed) === 'use client'
-    for (const reference of references) addReferenceViolations(violations, file, owner, reference, clientModule)
+    for (const reference of references) addReferenceViolations(violations, file, owner, reference)
     violations.push(...checkCategorizedSurface(file, references, parsedFiles))
   }
+
+  violations.push(...checkClientGraph(files, referencesByPath, parsedFiles))
 
   return violations
 }

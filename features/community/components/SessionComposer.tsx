@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { createCommunityPostAction } from '@/features/community/actions'
 import type { CommunitySessionPost } from '@/types/community'
-import { useOpenDataConsent } from '@/features/legal/public'
+import { useOpenDataConsent } from '@/features/legal/public-client'
 
 interface SessionComposerProps {
   placeId: string

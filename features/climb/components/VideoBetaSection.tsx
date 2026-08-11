@@ -7,7 +7,7 @@ import { getLengthInputBounds, getLengthInputLabel, parseLengthInputToCm, type M
 import { fetchSettings, settingsQueryKey } from '@/features/settings/public'
 import { VIDEO_PLATFORMS, type VideoPlatform, validateAndNormalizeVideoUrl } from '@/lib/video-beta'
 import { AddVideoBetaDialog, VideoBetaFilterBar, VideoBetaList } from '@/features/climb/components/video-beta-sections'
-import { useOpenDataConsent } from '@/features/legal/public'
+import { useOpenDataConsent } from '@/features/legal/public-client'
 
 interface VideoBetaItem {
   id: string

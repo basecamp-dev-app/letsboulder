@@ -13,7 +13,7 @@ import {
 } from '@/features/submissions/server/drafts/draft-route-shared'
 import { FACE_DIRECTIONS } from '@/features/submissions/lib/submission-types'
 import type { Json } from '@/types/database'
-import { isOpenDataConsentError, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public'
+import { isOpenDataConsentError, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public-server'
 
 interface DraftPatchBody {
   images: DraftPatchImage[]

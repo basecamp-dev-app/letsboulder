@@ -9,7 +9,7 @@ import {
   type SourceFile,
 } from './check-architecture-rules'
 
-const SOURCE_ROOTS = ['app', 'components', 'features']
+const SOURCE_ROOTS = ['app', 'components', 'features', 'hooks', 'lib']
 
 function collectSourcePaths(root: string): string[] {
   const paths: string[] = []

@@ -15,7 +15,7 @@ import { type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'
 import { isMediaUploadPending } from '@/features/media-upload/public'
-import { OpenDataLicenseNotice } from '@/features/legal/public'
+import { OpenDataLicenseNotice } from '@/features/legal/public-client'
 import LightweightCragMap from '@/components/LightweightCragMap'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 

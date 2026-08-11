@@ -1,5 +1,6 @@
 export type { CragMaintainerItem } from '@/features/crags/actions/crag-governance-types'
 export { cragKeys } from '@/features/crags/lib/crag-queries'
 export { buildCragImageDestination } from '@/features/crags/lib/build-crag-image-destination'
+export { invalidateCragQueries } from '@/features/crags/lib/invalidate-crag-queries'
 export type { CragRoute, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 export { CragMetadataProposalDialog } from '@/features/crags/components/CragMetadataProposalDialog'

@@ -2,7 +2,7 @@
 
 import { Loader2, Trash2 } from 'lucide-react'
 import { EditorBackButton } from '@/features/editor/public'
-import { OpenDataLicenseNotice } from '@/features/legal/public'
+import { OpenDataLicenseNotice } from '@/features/legal/public-client'
 
 interface DraftToolbarProps {
   savingDraft: boolean

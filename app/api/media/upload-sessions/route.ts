@@ -8,7 +8,7 @@ import { createPrivateUploadUrl } from '@/lib/media/r2'
 import { buildStagingObjectKey, normalizeUploadSessionRequest } from '@/lib/media/upload-session'
 import type { MediaUploadSessionResponse } from '@/lib/media/types'
 import { parseWithSchema } from '@/lib/api-validation'
-import { hasOpenDataConsent, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/lib/open-data-consent'
+import { hasOpenDataConsent, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public-server'
 
 const uploadSessionSchema = z.object({
   clientUploadId: z.string().uuid(),

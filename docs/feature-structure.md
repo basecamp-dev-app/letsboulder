@@ -81,7 +81,7 @@ features/route-editor/store/
 
 ### Public API Surfaces
 
-Features may expose `public.ts` when one runtime-neutral barrel is sufficient. Features that expose both browser-safe and server behavior MUST separate those contracts:
+Features may expose `public.ts` when one runtime-neutral, browser-safe barrel is sufficient. Generic public surfaces receive the same recursive client-safety checks as `public-client.ts`. Features that expose both browser-safe and server behavior MUST separate those contracts:
 
 ```
 features/submissions/public-client.ts   # Components, hooks, pure helpers, erased types
@@ -89,7 +89,7 @@ features/submissions/public-actions.ts  # Curated Server Actions only
 features/community/public-server.ts     # Server-only functions; imports `server-only`
 ```
 
-`public-client.ts` is safe to consume from either client or server code. `public-actions.ts` only re-exports functions from modules marked `'use server'`. `public-server.ts` imports `server-only` and MUST NOT be imported by client modules. Type-only exports may use `public-client.ts` because they are erased at runtime.
+`public.ts` and `public-client.ts` are safe to consume from either client or server code, including through their runtime dependency graphs. `public-actions.ts` only re-exports functions from modules marked `'use server'`. `public-server.ts` imports `server-only` and MUST NOT be imported by client modules. Type-only exports may use browser-safe surfaces because they are erased at runtime, and client traversal stops at modules marked `'use server'`.
 
 ### Types Alongside types/
 
@@ -107,5 +107,5 @@ A `types.ts` file at the feature root is acceptable alongside a `types/` directo
 
 Run `npx tsx scripts/check-feature-compliance.ts` to print the feature directory layout report. Directory layout is advisory because features only need the standard directories they use.
 
-Run `npm run check:architecture` to enforce server isolation, `app/` ownership, and feature public APIs across static imports, dynamic imports, and CommonJS `require()`. The checked-in baseline manifest must match existing debt exactly: new violations fail, and resolved entries must be removed. CI enforces this gate.
+Run `npm run check:architecture` to enforce server isolation, `app/` ownership, and feature public APIs across alias and relative static imports, dynamic imports, and CommonJS `require()`. Client safety is checked transitively through app, feature, hook, component, and shared library modules. The checked-in baseline manifest must match existing debt exactly: new violations fail, and resolved entries must be removed. CI enforces this gate.
 `npm run check:features` and `npm run lint:features` are local advisory helpers for the feature tree.

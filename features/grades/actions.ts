@@ -9,7 +9,7 @@ import { reportError } from '@/lib/errors'
 import { isValidGrade } from '@/lib/grade-constants'
 import { getServerClient } from '@/lib/supabase-server'
 import { z } from 'zod'
-import { hasOpenDataConsent, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public'
+import { hasOpenDataConsent, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public-server'
 
 const submitGradeVoteSchema = z.object({
   climbId: z.string().trim().min(1, 'Climb not found'),

@@ -7,7 +7,7 @@ import { submitGradeVoteAction } from '@/features/grades/actions'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { reportError } from '@/lib/errors'
-import { useOpenDataConsent } from '@/features/legal/public'
+import { useOpenDataConsent } from '@/features/legal/public-client'
 
 const GRADE_COLORS: Record<string, string> = {
   '5A': 'bg-gray-100', '5A+': 'bg-gray-200', '5B': 'bg-gray-300', '5B+': 'bg-gray-400', '5C': 'bg-gray-500', '5C+': 'bg-gray-600',

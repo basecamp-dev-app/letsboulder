@@ -1,1 +1,0 @@
-export * from '@/features/legal/server/open-data-consent'
