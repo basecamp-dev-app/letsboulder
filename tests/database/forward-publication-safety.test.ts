@@ -1,25 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { isIP } from 'node:net'
-
-import { Client, Pool, type PoolClient } from 'pg'
+import { Client, type PoolClient } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
-const databaseUrl = process.env.TEST_DATABASE_URL || DEFAULT_DATABASE_URL
-const parsedDatabaseUrl = new URL(databaseUrl)
-const allowNonLocal = process.env.TEST_DATABASE_ALLOW_NON_LOCAL === 'true'
-const hostname = parsedDatabaseUrl.hostname.replace(/^\[|\]$/g, '')
-const isLoopback = hostname === 'localhost' || hostname === '::1'
-  || (isIP(hostname) === 4 && hostname.startsWith('127.'))
+import { createDatabaseTestHarness } from './database-test-harness'
 
-if (!isLoopback && !allowNonLocal) {
-  throw new Error(
-    `Refusing database tests against non-loopback host ${hostname}. `
-    + 'Set TEST_DATABASE_ALLOW_NON_LOCAL=true to opt in explicitly.',
-  )
-}
-
-const pool = new Pool({ connectionString: databaseUrl, max: 8, statement_timeout: 15_000 })
+const { connectionString, pool } = createDatabaseTestHarness({ max: 8, statement_timeout: 15_000 })
 const closedClients = new WeakSet<Client>()
 
 type Queryable = Pick<PoolClient, 'query'>
@@ -193,7 +178,7 @@ async function cleanupFixture(fixture: Fixture) {
 }
 
 async function authenticatedClient(userId: string, applicationName?: string): Promise<Client> {
-  const client = new Client({ connectionString: databaseUrl, application_name: applicationName })
+  const client = new Client({ connectionString, application_name: applicationName })
   await client.connect()
   await client.query('begin')
   await setAuthenticatedContext(client, userId)
@@ -455,7 +440,7 @@ describe('forward publication safety migrations', () => {
     const fixture = await committedFixture(false)
     const publisher = await authenticatedClient(fixture.userId)
     const cleanerName = `database-cleaner-${randomUUID()}`
-    const cleaner = new Client({ connectionString: databaseUrl, application_name: cleanerName })
+    const cleaner = new Client({ connectionString, application_name: cleanerName })
     await cleaner.connect()
     try {
       await publisher.query('reset role')

@@ -1,18 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import { Pool, type PoolClient } from 'pg'
+import { type PoolClient } from 'pg'
 import { afterAll, describe, expect, it } from 'vitest'
 
-const pool = new Pool({
-  connectionString: process.env.TEST_DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+import { createDatabaseTestHarness } from './database-test-harness'
+
+const { pool, transaction, close } = createDatabaseTestHarness({
   max: 2,
   statement_timeout: 15_000,
 })
-
-async function transaction(run: (client: PoolClient) => Promise<void>) {
-  const client = await pool.connect()
-  await client.query('begin')
-  try { await run(client) } finally { await client.query('rollback'); client.release() }
-}
 
 async function serviceRole(client: PoolClient) {
   await client.query('set local role service_role')
@@ -79,4 +74,4 @@ describe('fenced media ingest jobs', () => {
   })
 })
 
-afterAll(async () => pool.end())
+afterAll(close)

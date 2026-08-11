@@ -30,7 +30,7 @@
 
 - Unit and integration tests run without privileged access.
 - Component tests run every `tests/**/*.test.tsx` file under jsdom with `tests/vitest.component.setup.ts`; unit/integration config handles `tests/**/*.test.ts` in Node and excludes `tests/database/**`.
-- Database tests require local Supabase to be running with the current migrations applied, normally after a local database reset. They default to `postgresql://postgres:postgres@127.0.0.1:54322/postgres`; use `TEST_DATABASE_URL` only for another disposable test database.
+- Database tests require local Supabase to be running with the current migrations applied, normally after a local database reset. The shared database-test harness defaults to `postgresql://postgres:postgres@127.0.0.1:54322/postgres`; use `TEST_DATABASE_URL` only for another disposable test database.
 - Database tests refuse non-loopback hosts. `TEST_DATABASE_ALLOW_NON_LOCAL=true` is an explicit escape hatch and must never point at shared, staging, or production data.
 - `npm run check:type-drift` has the same local Supabase prerequisite as database tests. It fails when the committed generated types do not match the running local schema. A missing or unavailable local Supabase instance is also a failure, rather than a skipped check.
 - `immutable-wiki-revisions.test.ts` verifies baseline capture, grouped entity commits, parent chains, RFC 6902 patches, hashes, database immutability, account anonymization, rollback lineage, and stale-head conflicts.
@@ -105,7 +105,7 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 ## CI
 
 - **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, advisory feature layout reporting, architecture boundaries, docs drift, typecheck, build, unit, component, and integration coverage checks
-- **Generated type drift** — A dedicated CI job starts the pinned local Supabase stack, resets it from every committed migration, and runs `npm run check:type-drift` on every PR, push, and manual workflow run. This validates generated content rather than only checking whether `types/database.ts` changed alongside a migration, and it also covers direct pushes where the old PR-only heuristic did not run.
+- **Generated type drift and database semantics** — A dedicated CI job starts the pinned local Supabase stack, resets it from every committed migration, runs `npm run check:type-drift`, then runs `npm run test:database` on every PR, push, and manual workflow run. This gates generated content as well as RLS, grants, triggers, locking, and RPC behavior against the reset local schema.
 - **CI cost tradeoff** — Local Supabase requires Docker images and a migration reset, so this adds a few minutes and a separate Ubuntu runner. Keeping it as one isolated job avoids starting Supabase for every quality/test job while making migration changes fail closed when generated types are stale.
 - **Smoke tests** — Run automatically against `https://letsboulder.com` after successful `main` production deployments and by manual dispatch in `.github/workflows/test.yml`. Manually dispatched public `--grep @smoke` tests can target production or a project-verified Vercel preview; authenticated remote smoke tests remain disabled until a protected non-production origin is available.
 - **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests; test-auth and service credentials are intentionally absent. Image-history coverage uses the maintained same-origin `IMAGE_FIRST_E2E_URL` fixture, whose public crag must retain at least two ready images.
@@ -122,6 +122,7 @@ npm run typecheck
 npx --no-install supabase start
 npx --no-install supabase db reset
 npm run check:type-drift
+npm run test:database
 npm run build
 npm run test:unit
 npm run test:components
@@ -130,7 +131,7 @@ npm --prefix apps/media-worker ci --prefer-offline
 npm --prefix apps/media-worker run check
 ```
 
-Database tests and Playwright are separate from the quality jobs. Deployment smoke runs use `npx playwright test --project=public --project=authenticated --grep @smoke --retries=1`; the production nightly disables global setup, runs only a fixed anonymous public file list, and allows one retry. CI uploads unit/component test artifacts and Playwright reports/traces when available. Artifacts contain test output only and are retained for seven days.
+Database tests run in the local-Supabase CI job; Playwright remains separate. Deployment smoke runs use `npx playwright test --project=public --project=authenticated --grep @smoke --retries=1`; the production nightly disables global setup, runs only a fixed anonymous public file list, and allows one retry. CI uploads unit/component test artifacts and Playwright reports/traces when available. Artifacts contain test output only and are retained for seven days.
 
 ## Conventions
 

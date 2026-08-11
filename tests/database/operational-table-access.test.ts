@@ -1,25 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { isIP } from 'node:net'
-
-import { Pool, type PoolClient } from 'pg'
+import { type PoolClient } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
-const databaseUrl = process.env.TEST_DATABASE_URL || DEFAULT_DATABASE_URL
-const parsedDatabaseUrl = new URL(databaseUrl)
-const allowNonLocal = process.env.TEST_DATABASE_ALLOW_NON_LOCAL === 'true'
-const hostname = parsedDatabaseUrl.hostname.replace(/^\[|\]$/g, '')
-const isLoopback = hostname === 'localhost' || hostname === '::1'
-  || (isIP(hostname) === 4 && hostname.startsWith('127.'))
+import { createDatabaseTestHarness } from './database-test-harness'
 
-if (!isLoopback && !allowNonLocal) {
-  throw new Error(
-    `Refusing database tests against non-loopback host ${hostname}. `
-    + 'Set TEST_DATABASE_ALLOW_NON_LOCAL=true to opt in explicitly.',
-  )
-}
-
-const pool = new Pool({ connectionString: databaseUrl, max: 2, statement_timeout: 15_000 })
+const { pool } = createDatabaseTestHarness({ max: 2, statement_timeout: 15_000 })
 
 async function transaction<T>(run: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect()

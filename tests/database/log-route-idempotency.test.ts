@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { Pool, type PoolClient } from 'pg'
+import { type PoolClient } from 'pg'
 import { afterAll, describe, expect, it } from 'vitest'
 
-const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
+import { createDatabaseTestHarness } from './database-test-harness'
+
+const { transaction, close } = createDatabaseTestHarness()
 
 async function setAuthenticatedUser(client: PoolClient, userId: string) {
   await client.query('set local role authenticated')
@@ -10,12 +12,10 @@ async function setAuthenticatedUser(client: PoolClient, userId: string) {
 }
 
 describe('log_routes_idempotent', () => {
-  afterAll(async () => pool.end())
+  afterAll(close)
 
   it('replays the same mutation and rejects stale writes', async () => {
-    const client = await pool.connect()
-    await client.query('begin')
-    try {
+    await transaction(async (client) => {
       const userId = randomUUID()
       const climbId = randomUUID()
       await client.query(
@@ -52,9 +52,6 @@ describe('log_routes_idempotent', () => {
       const row = await client.query("select style, to_char(date_climbed, 'YYYY-MM-DD') as date_climbed from public.user_climbs where user_id = $1 and climb_id = $2", [userId, climbId])
       expect(stale.rows[0].result.logged).toBe(0)
       expect(row.rows[0]).toEqual({ style: 'flash', date_climbed: '2026-08-02' })
-    } finally {
-      await client.query('rollback')
-      client.release()
-    }
+    })
   })
 })

@@ -86,6 +86,9 @@ jobs:
       - name: Check generated database types
         run: npm run check:type-drift
 
+      - name: Run database tests
+        run: npm run test:database
+
       - name: Stop local Supabase
         if: always()
         run: npx --no-install supabase stop || true
