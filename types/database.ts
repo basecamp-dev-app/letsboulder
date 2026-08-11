@@ -5114,6 +5114,17 @@ export type Database = {
           revision_id: string
         }[]
       }
+      save_submission_draft_atomic: {
+        Args: {
+          p_crag_id?: string
+          p_draft_id: string
+          p_expected_updated_at: string
+          p_images: Json
+          p_metadata: Json
+          p_route_sets: Json
+        }
+        Returns: Json
+      }
       save_submission_grade_votes: {
         Args: { p_grades: Json; p_image_id: string }
         Returns: number

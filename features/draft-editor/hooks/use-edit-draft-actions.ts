@@ -138,33 +138,6 @@ export function useEditDraftActions({
     setHasStoredPendingChanges(true)
   }, [])
 
-  const syncDraftRoutes = useCallback(async (resolvedRoutesByImageId: Record<string, DraftRoute[]>) => {
-    if (!draft?.id) {
-      throw new Error('Draft is not ready to save')
-    }
-
-    const draftImageIds = new Set((draft.images || []).map((image) => image.id))
-    const dirtyImageIds = [...draftImageIds].filter((draftImageId) => dirtyRoutesRef.current.has(draftImageId))
-    if (dirtyImageIds.length === 0) return [] as string[]
-
-    const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/routes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        images: dirtyImageIds.map((draftImageId) => ({
-          draftImageId,
-          routes: resolvedRoutesByImageId[draftImageId] || [],
-        })),
-      }),
-    })
-    const payload = await response.json().catch(() => ({ error: 'Failed to sync draft routes' })) as { error?: string }
-    if (!response.ok) {
-      throw new Error(payload.error || 'Failed to sync draft routes')
-    }
-
-    return dirtyImageIds
-  }, [draft])
-
   const buildSavePayload = useCallback((resolvedRoutesByImageId: Record<string, DraftRoute[]>, resolvedCragId: string | null) => {
     const nextImagesPayload = buildRouteCompletionPayload(draft?.images || [], resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))
     const normalizedHandle = normalizeSubmissionCreditHandle(creditHandle)
@@ -251,6 +224,8 @@ export function useEditDraftActions({
 
     const savingDirtyVersion = dirtyVersionRef.current
     const savingCheckpointRevision = getCheckpointRevision?.() || 0
+    const draftImageIds = new Set(draft.images.map((image) => image.id))
+    const savingDirtyImageIds = [...dirtyRoutesRef.current].filter((imageId) => draftImageIds.has(imageId))
     saveInFlightRef.current = true
     setSavingDraft(true)
     setLocationSyncInFlight?.(true)
@@ -258,9 +233,12 @@ export function useEditDraftActions({
     setSuccess(null)
 
     try {
-      const syncedImageIds = await syncDraftRoutes(resolvedRoutesByImageId)
       const { savePayload, fullV2Metadata } = buildSavePayload(resolvedRoutesByImageId, resolvedCragId)
-      let expectedUpdatedAt = draftUpdatedAt
+      const routeSets = savingDirtyImageIds.map((draftImageId) => ({
+        draftImageId,
+        routes: resolvedRoutesByImageId[draftImageId] || [],
+      }))
+      const expectedUpdatedAt = draftUpdatedAt
       let payload: {
         error?: string
         code?: string
@@ -269,45 +247,28 @@ export function useEditDraftActions({
         current_data?: { last_updated_by?: string | null; last_updated_by_display_name?: string | null }
       } = {}
 
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const response = await csrfFetch(`/api/submissions/drafts/${draft.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...savePayload,
-            expected_updated_at: expectedUpdatedAt,
-          }),
-        })
+      const response = await csrfFetch(`/api/submissions/drafts/${draft.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...savePayload,
+          routeSets,
+          expected_updated_at: expectedUpdatedAt,
+        }),
+      })
 
-        const resultPayload = await response.json().catch(() => ({ error: 'Failed to save draft' })) as typeof payload
-        const result = {
-          success: response.ok,
-          status: response.status,
-          error: resultPayload.error,
-        }
-
-        payload = resultPayload
-
-        if (result.success) break
-        if (result.status === 409 && payload.code === 'draft_conflict') {
+      payload = await response.json().catch(() => ({ error: 'Failed to save draft' })) as typeof payload
+      if (!response.ok) {
+        if (response.status === 409 && payload.code === 'draft_conflict') {
           const conflictPayload = payload as DraftConflictResponse
-          const isSelfConflict = conflictPayload.current_data?.last_updated_by === currentUserId
-          if (isSelfConflict && attempt === 0) {
-            expectedUpdatedAt = conflictPayload.current_updated_at
-            setDraftUpdatedAt(conflictPayload.current_updated_at)
-            await new Promise(r => setTimeout(r, 750))
-            continue
-          }
-          if (!isSelfConflict) {
-            setConflict({
-              serverUpdatedAt: conflictPayload.current_updated_at,
-              lastEditorName: conflictPayload.current_data?.last_updated_by_display_name || 'Another collaborator',
-              pendingChanges: savePayload,
-            })
-            return false
-          }
+          setConflict({
+            serverUpdatedAt: conflictPayload.current_updated_at,
+            lastEditorName: conflictPayload.current_data?.last_updated_by_display_name || 'Another collaborator',
+            pendingChanges: { ...savePayload, routeSets },
+          })
+          return false
         }
-        throw new Error(result.status === 429 ? RATE_LIMIT_ERROR_MESSAGE : (result.error || payload.error || 'Failed to save draft'))
+        throw new Error(response.status === 429 ? RATE_LIMIT_ERROR_MESSAGE : (payload.error || 'Failed to save draft'))
       }
 
       if (!payload.draft) {
@@ -322,7 +283,7 @@ export function useEditDraftActions({
       } : prev)
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
       if (dirtyVersionRef.current === savingDirtyVersion) {
-        for (const imageId of syncedImageIds) dirtyRoutesRef.current.delete(imageId)
+        for (const imageId of savingDirtyImageIds) dirtyRoutesRef.current.delete(imageId)
         hasUnsavedMetadataRef.current = false
         setHasStoredPendingChanges(false)
         await clearCheckpointAfterSave?.(savingCheckpointRevision)
@@ -338,7 +299,7 @@ export function useEditDraftActions({
       setSavingDraft(false)
       setLocationSyncInFlight?.(false)
     }
-  }, [buildSavePayload, clearCheckpointAfterSave, cragId, currentUserId, draft, draftUpdatedAt, getCheckpointRevision, markRoutesDirty, prepareRoutesForSave, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes, setLocationSyncInFlight])
+  }, [buildSavePayload, clearCheckpointAfterSave, cragId, currentUserId, draft, draftUpdatedAt, getCheckpointRevision, markRoutesDirty, prepareRoutesForSave, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, setLocationSyncInFlight])
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return

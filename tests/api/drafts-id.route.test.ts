@@ -148,7 +148,9 @@ const DRAFT_IMAGE_BASE = {
   preview_variants: null,
 }
 
-function makeSupabaseWithDraft(draft: typeof DRAFT_BASE, options?: { images?: unknown[]; routes?: unknown[] }) {
+type DraftFixture = Omit<typeof DRAFT_BASE, 'last_edited_by'> & { last_edited_by: string | null }
+
+function makeSupabaseWithDraft(draft: DraftFixture, options?: { images?: unknown[]; routes?: unknown[]; profile?: unknown }) {
   const images = options?.images ?? [DRAFT_IMAGE_BASE]
   const routes = options?.routes ?? []
 
@@ -222,7 +224,7 @@ function makeSupabaseWithDraft(draft: typeof DRAFT_BASE, options?: { images?: un
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+              maybeSingle: vi.fn(async () => ({ data: options?.profile ?? null, error: null })),
             })),
           })),
         }
@@ -513,6 +515,86 @@ describe('/api/submissions/drafts/[id]', () => {
       expect(response.status).toBe(200)
       const json = await response.json()
       expect(json.success).toBe(true)
+      expect(supabase.rpc).toHaveBeenCalledWith('patch_submission_draft_images_atomic', {
+        p_draft_id: 'draft-1',
+        p_images: [{ id: 'img-1', display_order: 0, route_data: {} }],
+        p_expected_updated_at: '2026-01-01T00:00:00Z',
+      })
+    })
+
+    test('saves images, routes, metadata, and crag with one atomic RPC', async () => {
+      const supabase = makeSupabaseWithDraft(DRAFT_BASE)
+      vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-1'))
+      vi.mocked(parseWithSchema).mockReturnValue({
+        success: true,
+        data: {
+          images: [{ id: 'draft-image-1', display_order: 0, route_data: { complete: true } }],
+          routeSets: [{ draftImageId: 'draft-image-1', routes: [{ id: 'route-1', name: 'Route', grade: 'V3', climbType: 'boulder', points: [{ x: 1, y: 2 }], sequenceOrder: 0 }] }],
+          metadata: { version: 2 },
+          cragId: null,
+          expected_updated_at: DRAFT_BASE.updated_at,
+        },
+      })
+
+      const response = await PATCH(makeRequest('http://localhost:3000/api/submissions/drafts/draft-1', { method: 'PATCH', body: '{}' }), makeParams('draft-1'))
+
+      expect(response.status).toBe(200)
+      expect(supabase.rpc).toHaveBeenCalledTimes(1)
+      expect(supabase.rpc).toHaveBeenCalledWith('save_submission_draft_atomic', {
+        p_draft_id: 'draft-1',
+        p_expected_updated_at: DRAFT_BASE.updated_at,
+        p_images: [{ id: 'draft-image-1', display_order: 0, route_data: { complete: true } }],
+        p_route_sets: [{ draftImageId: 'draft-image-1', routes: [{ id: 'route-1', name: 'Route', grade: 'V3', description: null, climbType: 'boulder', points: [{ x: 1, y: 2 }], sequenceOrder: 0, imageWidth: null, imageHeight: null }] }],
+        p_metadata: { version: 2 },
+      })
+    })
+
+    test('returns the exact enriched conflict response from an atomic save', async () => {
+      const currentDraft = { ...DRAFT_BASE, updated_at: '2026-01-02T00:00:00Z', last_edited_by: 'user-2' }
+      const supabase = makeSupabaseWithDraft(currentDraft, { profile: { id: 'user-2', username: 'alex', display_name: 'Alex Climber' } })
+      vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error: { message: 'Draft conflict', details: 'draft_conflict' } } as never)
+      vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-1'))
+      vi.mocked(parseWithSchema).mockReturnValue({
+        success: true,
+        data: {
+          images: [{ id: 'draft-image-1', display_order: 0, route_data: {} }],
+          routeSets: [],
+          metadata: {},
+          cragId: 'crag-1',
+          expected_updated_at: DRAFT_BASE.updated_at,
+        },
+      })
+
+      const response = await PATCH(makeRequest('http://localhost:3000/api/submissions/drafts/draft-1', { method: 'PATCH', body: '{}' }), makeParams('draft-1'))
+
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toEqual({
+        code: 'draft_conflict',
+        message: 'This draft was updated by another collaborator. Reload to continue editing.',
+        current_updated_at: currentDraft.updated_at,
+        current_data: { updated_at: currentDraft.updated_at, last_updated_by: 'user-2', last_updated_by_display_name: 'Alex Climber' },
+      })
+      expect(supabase.rpc).toHaveBeenCalledTimes(1)
+    })
+
+    test('rejects malformed atomic route points before calling the RPC', async () => {
+      const supabase = makeSupabaseWithDraft(DRAFT_BASE)
+      vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-1'))
+      vi.mocked(parseWithSchema).mockReturnValue({
+        success: true,
+        data: {
+          images: [{ id: 'draft-image-1', display_order: 0, route_data: {} }],
+          routeSets: [{ draftImageId: 'draft-image-1', routes: [{ id: 'route-1', name: 'Route', grade: 'V3', climbType: 'boulder', points: [null, null], sequenceOrder: 0 }] }],
+          metadata: {},
+          cragId: 'crag-1',
+          expected_updated_at: DRAFT_BASE.updated_at,
+        },
+      })
+
+      const response = await PATCH(makeRequest('http://localhost:3000/api/submissions/drafts/draft-1', { method: 'PATCH', body: '{}' }), makeParams('draft-1'))
+
+      expect(response.status).toBe(400)
+      expect(supabase.rpc).not.toHaveBeenCalled()
     })
   })
 

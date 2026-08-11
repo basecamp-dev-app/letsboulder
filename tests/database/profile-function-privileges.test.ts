@@ -65,6 +65,7 @@ const API_EXECUTABLE_DEFINERS = [
   'resolve_public_crag_slug(text,text)',
   'review_crag_metadata_proposal(uuid,text,text)',
   'rollback_wiki_entity_revision(uuid,uuid,text)',
+  'save_submission_draft_atomic(uuid,timestamp with time zone,jsonb,jsonb,jsonb,uuid)',
   'set_crag_maintainer(uuid,uuid,boolean)',
   'soft_delete_climb(uuid,text,uuid)',
   'soft_delete_comment(uuid)',

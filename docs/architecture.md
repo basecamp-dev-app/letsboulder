@@ -130,7 +130,7 @@ Do not put server truth into Zustand or infer durable upload recovery from React
 - Direct submission supports `new`, `existing`, and `crag_image` image modes through the thin submission Route Handler and feature-owned validation/executors.
 - New-image publication requires each upload-session image to be publicly deliverable, then `create_unified_submission_atomic` creates/associates the image, crag-image, climb, and route-line records transactionally.
 - Existing-image and crag-image modes add route data against an existing eligible image rather than creating a replacement media object.
-- Drafts are durable `submission_drafts` with separately attached image records and optimistic `updated_at` conflict handling. `promote_draft_to_submission` performs publication; attaching an upload to a draft before ingest is ready does not bypass promotion readiness checks.
+- Drafts are durable `submission_drafts` with separately attached image records and optimistic `updated_at` conflict handling. Explicit editor Save commits dirty route replacements, image state, metadata, and crag selection through one RPC; the 400 ms shared-location patch remains a separate boundary. `promote_draft_to_submission` performs publication; attaching an upload to a draft before ingest is ready does not bypass promotion readiness checks.
 - Route geometry is edited with the Canvas-based route editor and feature-owned Zustand state, then persisted through submission/draft operations.
 - Community verification is post-publication: `climb_verifications` reaches community-verified status at three votes. It is not upload moderation or a prerequisite imposed by the media pipeline.
 

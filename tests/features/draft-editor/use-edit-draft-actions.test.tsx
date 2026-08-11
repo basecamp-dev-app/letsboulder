@@ -96,6 +96,47 @@ function createQueryWrapper() {
   }
 }
 
+function createActionsParams(overrides: Partial<Parameters<typeof useEditDraftActions>[0]> = {}): Parameters<typeof useEditDraftActions>[0] {
+  const draft = createDraft()
+  return {
+    draftId: draft.id,
+    draft,
+    draftUpdatedAt: draft.updated_at,
+    currentUserId: 'user-1',
+    isOwner: true,
+    routeType: 'boulder',
+    creditPlatform: 'instagram',
+    creditHandle: '',
+    isAnonymousSubmission: false,
+    cragId: 'crag-1',
+    sectorId: null,
+    canvasSource: null,
+    defaultImageId: 'image-1',
+    manageImages: [createManageImage('image-1'), createManageImage('image-2')],
+    routesByImageId: { 'image-1': [{ ...createRoute(), climbType: 'boulder' }], 'image-2': [] },
+    orientationByImageId: {},
+    locationModeByImageId: {},
+    customGpsByImageId: {},
+    markerPosition: [51.5, -0.1],
+    cragSectionRef: { current: null },
+    locationSectionRef: { current: null },
+    hasPendingUploads: () => false,
+    hasFailedUploads: () => false,
+    hasValidLocation: true,
+    flushLocationSync: vi.fn().mockResolvedValue({ ok: true }),
+    loadDraft: vi.fn().mockResolvedValue(undefined),
+    loadCollaborators: vi.fn().mockResolvedValue(undefined),
+    addToast: vi.fn(),
+    setDraft: vi.fn(),
+    setDraftUpdatedAt: vi.fn(),
+    setError: vi.fn(),
+    setSuccess: vi.fn(),
+    setConflict: vi.fn(),
+    setActiveImageId: vi.fn(),
+    ...overrides,
+  }
+}
+
 describe('useEditDraftActions', () => {
   beforeEach(() => {
     mockPush.mockReset()
@@ -639,6 +680,77 @@ describe('useEditDraftActions', () => {
 
     await act(async () => { await saving })
     expect(clearCheckpointAfterSave).not.toHaveBeenCalled()
+  })
+
+  it('sends dirty route sets in one PATCH request', async () => {
+    mockCsrfFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ draft: { updated_at: '2026-08-11T10:00:00.000Z' } }),
+    })
+    const { result } = renderHook(() => useEditDraftActions(createActionsParams()), { wrapper: createQueryWrapper() })
+
+    act(() => { result.current.markRoutesDirty(['image-1']) })
+    await act(async () => { await result.current.saveDraft() })
+
+    expect(mockCsrfFetch).toHaveBeenCalledTimes(1)
+    expect(mockCsrfFetch).toHaveBeenCalledWith('/api/submissions/drafts/draft-1', expect.objectContaining({ method: 'PATCH' }))
+    const request = mockCsrfFetch.mock.calls[0]?.[1] as RequestInit
+    const body = JSON.parse(String(request.body)) as { routeSets: Array<{ draftImageId: string; routes: DraftRoute[] }>; metadata: unknown; cragId: string | null }
+    expect(body.routeSets).toEqual([{ draftImageId: 'image-1', routes: [{ ...createRoute(), climbType: 'boulder' }] }])
+    expect(body.metadata).toBeTruthy()
+    expect(body.cragId).toBe('crag-1')
+  })
+
+  it('keeps routes in the copied unsaved payload after a collaborator conflict', async () => {
+    const setConflict = vi.fn()
+    mockCsrfFetch.mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        code: 'draft_conflict',
+        message: 'This draft was updated by another collaborator. Reload to continue editing.',
+        current_updated_at: '2026-08-11T10:00:00.000Z',
+        current_data: { updated_at: '2026-08-11T10:00:00.000Z', last_updated_by: 'user-2', last_updated_by_display_name: 'Alex' },
+      }),
+    })
+    const { result } = renderHook(() => useEditDraftActions(createActionsParams({ setConflict })), { wrapper: createQueryWrapper() })
+
+    act(() => { result.current.markRoutesDirty(['image-1']) })
+    await act(async () => { await result.current.saveDraft() })
+
+    expect(mockCsrfFetch).toHaveBeenCalledTimes(1)
+    expect(setConflict).toHaveBeenCalledWith(expect.objectContaining({
+      serverUpdatedAt: '2026-08-11T10:00:00.000Z',
+      lastEditorName: 'Alex',
+      pendingChanges: expect.objectContaining({
+        routeSets: [{ draftImageId: 'image-1', routes: [{ ...createRoute(), climbType: 'boulder' }] }],
+      }),
+    }))
+  })
+
+  it('does not retry an atomic conflict from another session of the same user', async () => {
+    const setConflict = vi.fn()
+    mockCsrfFetch.mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        code: 'draft_conflict',
+        message: 'This draft was updated by another collaborator. Reload to continue editing.',
+        current_updated_at: '2026-08-11T10:00:00.000Z',
+        current_data: { updated_at: '2026-08-11T10:00:00.000Z', last_updated_by: 'user-1', last_updated_by_display_name: 'Current User' },
+      }),
+    })
+    const { result } = renderHook(() => useEditDraftActions(createActionsParams({ setConflict })), { wrapper: createQueryWrapper() })
+
+    act(() => { result.current.markRoutesDirty(['image-1']) })
+    await act(async () => { await result.current.saveDraft() })
+
+    expect(mockCsrfFetch).toHaveBeenCalledTimes(1)
+    expect(setConflict).toHaveBeenCalledWith(expect.objectContaining({
+      serverUpdatedAt: '2026-08-11T10:00:00.000Z',
+      lastEditorName: 'Current User',
+    }))
   })
 
 })

@@ -281,9 +281,9 @@ Submission and draft workflows. The root GET is public endpoint metadata; root P
 - Route handlers under `app/api/submissions/**` are intentionally thin wrappers.
 - Submission execution lives in `features/submissions/server/submissions/**`.
 - Draft lifecycle and collaboration flows live in `features/submissions/server/drafts/**`.
-- `submissions/drafts/[id]` reads, compare-and-swap patches, or atomically deletes a draft.
+- `submissions/drafts/[id]` reads, atomically saves a concurrency-checked explicit editor payload, applies narrower compare-and-swap patches, or atomically deletes a draft.
 - `submissions/drafts/[id]/images` appends associated upload-session images; the nested image route atomically removes one.
-- `submissions/drafts/[id]/routes` durably synchronizes one image or a batch of image route sets.
+- `submissions/drafts/[id]/routes` remains the legacy transport for durably synchronizing one image or a batch of image route sets; explicit Save no longer uses it.
 - `submissions/drafts/[id]/publish` validates media readiness, location/route completeness, and promotes the draft.
 - `submissions/drafts/collaborate/[token]` and the legacy `submissions/collaborate/[token]` are GET invite-claim redirects; unauthenticated users are redirected to auth rather than claiming an invite.
 

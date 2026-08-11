@@ -2,9 +2,10 @@ import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { getRpcErrorDetail, isRecord, parseStorageCleanupRows } from '@/lib/media/deletion-rpc'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { sanitizeError } from '@/lib/errors'
-import { normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
+import { normalizeDraftRouteBatchPayload, normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
 import { resolveDisplayName, type DraftConflictResponse, type ProfileRow } from '@/features/submissions/server/drafts/draft-route-shared'
 import { isOpenDataConsentError } from '@/features/legal/public-server'
+import type { Json } from '@/types/database'
 
 type DraftSupabaseClient = ReturnType<typeof import('@supabase/ssr').createServerClient>
 
@@ -22,6 +23,15 @@ export interface DraftPatchInput {
   cragId?: string | null
 }
 
+export interface DraftAtomicSaveInput {
+  draftId: string
+  images: DraftPatchImage[]
+  routeSets: Array<{ draftImageId: string; routes: unknown }>
+  expectedUpdatedAt: string
+  metadata: Record<string, unknown>
+  cragId: string | null
+}
+
 export interface DraftPatchResult {
   draft_id: string
   updated_at: string
@@ -30,7 +40,7 @@ export interface DraftPatchResult {
 }
 
 type DraftWriteFailure = {
-  kind: 'not_found' | 'forbidden' | 'not_editable' | 'failed'
+  kind: 'not_found' | 'forbidden' | 'not_editable' | 'invalid' | 'failed'
   error?: string
   errorId?: string
 }
@@ -38,6 +48,7 @@ type DraftWriteFailure = {
 export type DraftPatchServiceResult =
   | { kind: 'success'; draft: DraftPatchResult | null; updatedAt?: string }
   | { kind: 'conflict'; conflict: DraftConflictResponse }
+  | { kind: 'consent_required' }
   | DraftWriteFailure
 
 export type DraftDeleteServiceResult =
@@ -50,6 +61,18 @@ export type DraftRouteSyncServiceResult =
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function hasValidAtomicRoutePoints(routeSets: DraftAtomicSaveInput['routeSets']): boolean {
+  return routeSets.every((routeSet) => Array.isArray(routeSet.routes)
+    && routeSet.routes.every((routeValue) => {
+      const route = asRecord(routeValue)
+      return Array.isArray(route.points) && route.points.every((pointValue) => {
+        const point = asRecord(pointValue)
+        return typeof point.x === 'number' && Number.isFinite(point.x)
+          && typeof point.y === 'number' && Number.isFinite(point.y)
+      })
+    }))
 }
 
 export function mergeDraftMetadata(existingMetadata: Record<string, unknown>, metadataPatch: Record<string, unknown>) {
@@ -119,6 +142,59 @@ export async function patchSubmissionDraft(input: DraftPatchInput & { supabase: 
     return { kind: 'success', draft, updatedAt: updated?.updated_at || draft?.updated_at || updatedAt }
   } catch (error) {
     return { kind: 'failed', ...sanitizeError(error, 'Failed to patch submission draft') }
+  }
+}
+
+export async function saveSubmissionDraftAtomic(input: DraftAtomicSaveInput & { supabase: DraftSupabaseClient }): Promise<DraftPatchServiceResult> {
+  try {
+    if (!hasValidAtomicRoutePoints(input.routeSets)) return { kind: 'invalid', error: 'Invalid draft route points' }
+    const routeSets = normalizeDraftRouteBatchPayload(input.routeSets)
+    if (!routeSets) return { kind: 'invalid', error: 'Invalid draft route payload' }
+    const imagePayload: Json = input.images.map((image) => ({
+      id: image.id,
+      display_order: image.display_order,
+      route_data: image.route_data as Json,
+    }))
+    const routeSetPayload: Json = routeSets.map((routeSet) => ({
+      draftImageId: routeSet.draftImageId,
+      routes: routeSet.routes.map((route) => ({
+        id: route.id,
+        name: route.name,
+        grade: route.grade,
+        description: route.description,
+        climbType: route.climbType,
+        points: route.points,
+        sequenceOrder: route.sequenceOrder,
+        imageWidth: route.imageWidth,
+        imageHeight: route.imageHeight,
+      })),
+    }))
+
+    const { data, error } = await input.supabase.rpc('save_submission_draft_atomic', {
+      p_draft_id: input.draftId,
+      p_expected_updated_at: input.expectedUpdatedAt,
+      p_images: imagePayload,
+      p_route_sets: routeSetPayload,
+      p_metadata: input.metadata as Json,
+      ...(input.cragId ? { p_crag_id: input.cragId } : {}),
+    })
+    if (error) {
+      const detail = getRpcErrorDetail(error)
+      if (detail === 'not_found') return { kind: 'not_found' }
+      if (detail === 'permission_denied') return { kind: 'forbidden' }
+      if (detail === 'draft_not_editable') return { kind: 'not_editable' }
+      if (detail === 'invalid_payload') return { kind: 'invalid', error: error.message }
+      if (detail === 'open_data_consent_required' || isOpenDataConsentError(error)) return { kind: 'consent_required' }
+      if (detail === 'draft_conflict') {
+        const { data: current } = await input.supabase.from('submission_drafts').select('updated_at, last_edited_by').eq('id', input.draftId).maybeSingle()
+        return { kind: 'conflict', conflict: await buildConflict(input.supabase, current?.updated_at || input.expectedUpdatedAt, current?.last_edited_by || null) }
+      }
+      return { kind: 'failed', ...sanitizeError(error, 'Failed to save submission draft') }
+    }
+
+    return { kind: 'success', draft: (data || null) as DraftPatchResult | null }
+  } catch (error) {
+    return { kind: 'failed', ...sanitizeError(error, 'Failed to save submission draft') }
   }
 }
 
