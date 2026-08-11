@@ -121,11 +121,14 @@ describe('OpenDataConsentProvider', () => {
 
     await user.click(screen.getByRole('button', { name: 'Contribute' }))
     await waitFor(() => expect(mocks.status).toHaveBeenCalledTimes(1))
-    act(() => onAuthStateChange('SIGNED_IN', { user: { id: 'user-2' } }))
-    await act(async () => { status.resolve({
-      success: true,
-      data: { requiredVersion: '2026-07-29-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: true },
-    }) })
+    await act(async () => {
+      onAuthStateChange('SIGNED_IN', { user: { id: 'user-2' } })
+      status.resolve({
+        success: true,
+        data: { requiredVersion: '2026-07-29-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: true },
+      })
+      await status.promise
+    })
 
     expect(onContribute).not.toHaveBeenCalled()
     expect(screen.queryByRole('heading', { name: 'Keep climbing knowledge open' })).not.toBeInTheDocument()
@@ -152,11 +155,14 @@ describe('OpenDataConsentProvider', () => {
     await user.click(screen.getByRole('button', { name: 'Agree and continue' }))
     await waitFor(() => expect(mocks.accept).toHaveBeenCalledWith('2026-07-29-v1'))
 
-    act(() => onAuthStateChange('SIGNED_IN', { user: { id: 'user-2' } }))
-    await act(async () => { acceptance.resolve({
-      success: true,
-      data: { requiredVersion: '2026-07-29-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: true },
-    }) })
+    await act(async () => {
+      onAuthStateChange('SIGNED_IN', { user: { id: 'user-2' } })
+      acceptance.resolve({
+        success: true,
+        data: { requiredVersion: '2026-07-29-v1', acceptedVersion: '2026-07-29-v1', consentTimestamp: '2026-07-29T00:00:00Z', isValid: true },
+      })
+      await acceptance.promise
+    })
 
     expect(onContribute).not.toHaveBeenCalled()
     expect(screen.queryByRole('heading', { name: 'Keep climbing knowledge open' })).not.toBeInTheDocument()

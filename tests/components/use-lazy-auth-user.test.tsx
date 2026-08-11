@@ -59,4 +59,18 @@ describe('useLazyAuthUser', () => {
     expect(result.current.user?.id).toBe('user-2')
     expect(result.current.status).toBe('ready')
   })
+
+  it('increments the auth revision synchronously when the account changes', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    const { result } = renderHook(() => useLazyAuthUser())
+
+    await act(async () => { await result.current.load() })
+    expect(result.current.getAuthRevision()).toBe(1)
+
+    act(() => authCallback('SIGNED_IN', { user: { id: 'user-2' } }))
+    expect(result.current.getAuthRevision()).toBe(2)
+
+    act(() => authCallback('TOKEN_REFRESHED', { user: { id: 'user-2' } }))
+    expect(result.current.getAuthRevision()).toBe(2)
+  })
 })

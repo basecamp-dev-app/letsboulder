@@ -11,6 +11,19 @@ export function useLazyAuthUser() {
   const [status, setStatus] = useState<AuthLoadStatus>('idle')
   const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null)
   const mountedRef = useRef(true)
+  const currentUserIdRef = useRef<string | null>(null)
+  const authRevisionRef = useRef(0)
+
+  const updateUser = useCallback((nextUser: User | null) => {
+    const nextUserId = nextUser?.id ?? null
+    if (currentUserIdRef.current !== nextUserId) {
+      currentUserIdRef.current = nextUserId
+      authRevisionRef.current += 1
+    }
+    if (mountedRef.current) setUser(nextUser)
+  }, [])
+
+  const getAuthRevision = useCallback(() => authRevisionRef.current, [])
 
   const load = useCallback(async () => {
     if (status !== 'idle' || subscriptionRef.current) return
@@ -21,16 +34,16 @@ export function useLazyAuthUser() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
       authStateChanged = true
-      if (mountedRef.current) setUser(session?.user ?? null)
+      updateUser(session?.user ?? null)
     })
 
     subscriptionRef.current = subscription
     const { data: { user } } = await supabase.auth.getUser()
     if (!mountedRef.current || subscriptionRef.current !== subscription) return
 
-    if (!authStateChanged) setUser(user)
+    if (!authStateChanged) updateUser(user)
     setStatus('ready')
-  }, [status])
+  }, [status, updateUser])
 
   useEffect(() => {
     mountedRef.current = true
@@ -41,5 +54,5 @@ export function useLazyAuthUser() {
     }
   }, [])
 
-  return { user, status, load }
+  return { user, status, load, getAuthRevision }
 }

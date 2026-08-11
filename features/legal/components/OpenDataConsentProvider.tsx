@@ -21,14 +21,13 @@ import { OpenDataConsentContext } from '@/features/legal/hooks/use-open-data-con
 import type { ContributionIntent } from '@/features/legal/types/open-data-consent'
 
 export function OpenDataConsentProvider({ children }: { children: ReactNode }) {
-  const { user, load: loadAuthUser } = useLazyAuthUser()
+  const { user, load: loadAuthUser, getAuthRevision } = useLazyAuthUser()
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [requiredVersion, setRequiredVersion] = useState<string | null>(null)
   const pendingIntent = useRef<ContributionIntent | null>(null)
   const currentUserId = useRef<string | null>(null)
-  const authRevision = useRef(0)
 
   const resetConsentState = useEffectEvent(() => {
     pendingIntent.current = null
@@ -47,14 +46,13 @@ export function OpenDataConsentProvider({ children }: { children: ReactNode }) {
     if (currentUserId.current === nextUserId) return
 
     currentUserId.current = nextUserId
-    authRevision.current += 1
     resetConsentState()
   }, [user?.id])
 
   async function requireConsent(intent: ContributionIntent) {
-    const requestAuthRevision = authRevision.current
+    const requestAuthRevision = getAuthRevision()
     const status = await getOpenDataConsentStatusAction()
-    if (requestAuthRevision !== authRevision.current) return
+    if (requestAuthRevision !== getAuthRevision()) return
 
     if (status.success && status.data?.isValid) {
       setRequiredVersion(status.data.requiredVersion)
@@ -76,16 +74,16 @@ export function OpenDataConsentProvider({ children }: { children: ReactNode }) {
       setError('Could not identify the current contribution terms')
       return
     }
-    const requestAuthRevision = authRevision.current
+    const requestAuthRevision = getAuthRevision()
     const result = await acceptOpenDataConsentAction(requiredVersion)
-    if (requestAuthRevision !== authRevision.current) return
+    if (requestAuthRevision !== getAuthRevision()) return
 
     setSubmitting(false)
 
     if (!result.success || !result.data?.isValid) {
       setError(result.error || 'Could not record your agreement')
       const status = await getOpenDataConsentStatusAction()
-      if (requestAuthRevision !== authRevision.current) return
+      if (requestAuthRevision !== getAuthRevision()) return
       if (status.success && status.data) setRequiredVersion(status.data.requiredVersion)
       return
     }
