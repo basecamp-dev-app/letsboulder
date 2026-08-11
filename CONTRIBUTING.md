@@ -96,7 +96,6 @@ npm run lint             # Lint
 npm run typecheck        # App, tests, scripts, and media contracts
 npm run test:unit        # Unit tests
 npm run test:components  # React component tests
-npm run test:integration # Integration tests
 npm run test:database    # Local Supabase database tests
 npm run test:e2e         # Playwright E2E tests
 bash docs/verify.sh      # Documentation drift checks

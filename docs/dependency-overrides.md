@@ -6,11 +6,8 @@ This document tracks npm overrides in `package.json` that resolve known vulnerab
 
 | Package | Version | CVE/Issue | Source | Notes |
 |---------|---------|-----------|--------|-------|
-| `path-to-regexp` | 8.4.0 | CVE-2026-4923 (ReDoS) | @opennextjs/cloudflare → express | Override added Mar 2026 |
-| `fast-xml-parser` | ^5.5.8 | Vulnerability | @aws-sdk/core → @aws-sdk/xml-builder | AWS SDK dependency |
-| `tar` | ^7.5.12 | Vulnerability | supabase JS client | |
 | `flatted` | ^3.4.2 | Vulnerability | eslint → flat-cache | |
-| `undici` | ^7.24.5 | CVE | jsdom, wrangler/miniflare | HTTP client |
+| `undici` | ^7.29.0 | CVE | `jsdom` | HTTP client |
 
 ## Rationale
 

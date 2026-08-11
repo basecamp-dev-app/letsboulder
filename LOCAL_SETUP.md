@@ -73,7 +73,6 @@ npm run lint
 npm run typecheck
 npm run test:unit
 npm run test:components
-npm run test:integration
 npm run build
 ```
 

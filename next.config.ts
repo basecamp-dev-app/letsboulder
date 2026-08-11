@@ -144,7 +144,7 @@ const nextConfig: NextConfig = {
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
   },
   experimental: {
-    optimizePackageImports: ['lucide-react', 'recharts', 'date-fns', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+    optimizePackageImports: ['lucide-react', 'recharts', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
   },
   turbopack: {
     resolveAlias: process.env.ENABLE_TEST_AUTH_ENDPOINT === 'true'

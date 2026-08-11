@@ -2,7 +2,7 @@
 
 ## Frameworks
 
-- **Vitest** — unit and integration tests
+- **Vitest** — unit tests
 - **Vitest + Testing Library/jsdom** — component and hook tests (`*.test.tsx`)
 - **Playwright** — end-to-end tests
 - **PostgreSQL/Vitest** — database integration tests against local Supabase
@@ -21,15 +21,14 @@
 
 - `npm run test:unit` — `vitest run --config vitest.config.ts`
 - `npm run test:components` — `vitest run --config vitest.component.config.ts`
-- `npm run test:integration` — `vitest run --config vitest.config.ts --mode integration`
 - `npm run test:e2e` — `playwright test` (append Playwright options after `--`)
 - `npm run test:database` — `vitest run --config vitest.database.config.ts`
 - `npm run check:type-drift` — generate types from local Supabase and compare them with `types/database.ts` without modifying the tracked file
 
 ## What Runs Locally
 
-- Unit and integration tests run without privileged access.
-- Component tests run every `tests/**/*.test.tsx` file under jsdom with `tests/vitest.component.setup.ts`; unit/integration config handles `tests/**/*.test.ts` in Node and excludes `tests/database/**`.
+- Unit tests run without privileged access.
+- Component tests run every `tests/**/*.test.tsx` file under jsdom with `tests/vitest.component.setup.ts`; the unit config handles `tests/**/*.test.ts` in Node and excludes `tests/database/**`.
 - Database tests require local Supabase to be running with the current migrations applied, normally after a local database reset. The shared database-test harness defaults to `postgresql://postgres:postgres@127.0.0.1:54322/postgres`; use `TEST_DATABASE_URL` only for another disposable test database.
 - Database tests refuse non-loopback hosts. `TEST_DATABASE_ALLOW_NON_LOCAL=true` is an explicit escape hatch and must never point at shared, staging, or production data.
 - `npm run check:type-drift` has the same local Supabase prerequisite as database tests. It fails when the committed generated types do not match the running local schema. A missing or unavailable local Supabase instance is also a failure, rather than a skipped check.
@@ -104,7 +103,7 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 
 ## CI
 
-- **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, advisory feature layout reporting, architecture boundaries, docs drift, typecheck, build, unit, component, and integration coverage checks
+- **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, advisory feature layout reporting, architecture boundaries, docs drift, typecheck, build, unit, and component tests
 - **Generated type drift and database semantics** — A dedicated CI job starts the pinned local Supabase stack, resets it from every committed migration, runs `npm run check:type-drift`, then runs `npm run test:database` on every PR, push, and manual workflow run. This gates generated content as well as RLS, grants, triggers, locking, and RPC behavior against the reset local schema.
 - **CI cost tradeoff** — Local Supabase requires Docker images and a migration reset, so this adds a few minutes and a separate Ubuntu runner. Keeping it as one isolated job avoids starting Supabase for every quality/test job while making migration changes fail closed when generated types are stale.
 - **Smoke tests** — Run automatically against `https://letsboulder.com` after successful `main` production deployments and by manual dispatch in `.github/workflows/test.yml`. Manually dispatched public `--grep @smoke` tests can target production or a project-verified Vercel preview; authenticated remote smoke tests remain disabled until a protected non-production origin is available.
@@ -126,7 +125,6 @@ npm run test:database
 npm run build
 npm run test:unit
 npm run test:components
-npm run test:integration:coverage
 npm --prefix apps/media-worker ci --prefer-offline
 npm --prefix apps/media-worker run check
 ```
