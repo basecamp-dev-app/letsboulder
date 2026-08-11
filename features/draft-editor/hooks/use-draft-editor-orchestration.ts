@@ -334,12 +334,13 @@ export function useDraftEditorOrchestration({
 
   const hasValidLocation = effectivePublishLocation !== null
 
-  const { commitRoutes } = useEditDraftRouteStoreSync({
+  const { commitRoutes, hasLiveRouteChanges } = useEditDraftRouteStoreSync({
     activeDraftImageId,
     existingRouteLines,
     routesByImageId,
     setRoutesByImageId,
     routeType,
+    seedVersion: draftUpdatedAt,
   })
 
   const {
@@ -397,6 +398,7 @@ export function useDraftEditorOrchestration({
     getCheckpointRevision,
     clearCheckpointAfterSave,
     prepareRoutesForSave: commitRoutes,
+    hasLiveRouteChanges,
   })
 
   const checkpoint = useDraftEditorCheckpoint({
@@ -430,6 +432,23 @@ export function useDraftEditorOrchestration({
     const committed = commitRoutes()
     if (committed?.changed && activeDraftImageId) markRoutesDirty([activeDraftImageId])
   }, [activeDraftImageId, commitRoutes, markRoutesDirty])
+
+  const updateRouteMetadata = useCallback((routeId: string, updates: { name?: string; grade?: string; climbType?: 'sport' | 'boulder' | 'trad' | 'deep-water-solo'; description?: string }) => {
+    if (!activeDraftImageId) return
+    setRoutesByImageId((current) => ({
+      ...current,
+      [activeDraftImageId]: (current[activeDraftImageId] || []).map((route) => route.id === routeId
+        ? {
+            ...route,
+            ...(updates.name !== undefined ? { name: updates.name } : {}),
+            ...(updates.grade !== undefined ? { grade: updates.grade } : {}),
+            ...(updates.climbType !== undefined ? { climbType: updates.climbType } : {}),
+            ...(updates.description !== undefined ? { description: updates.description } : {}),
+          }
+        : route),
+    }))
+    markRoutesDirty([activeDraftImageId])
+  }, [activeDraftImageId, markRoutesDirty, setRoutesByImageId])
 
   const focusDrawingArea = useCallback((behavior: ScrollBehavior = 'smooth') => {
     drawingAreaRef.current?.scrollIntoView({ behavior, block: 'start' })
@@ -548,6 +567,7 @@ export function useDraftEditorOrchestration({
       interactionTool,
       setInteractionTool,
       undoLastPoint,
+      updateRouteMetadata,
     },
     uploads: {
       uploads,

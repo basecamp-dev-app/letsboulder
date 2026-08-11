@@ -7,7 +7,7 @@ const mockUpdateEditorDraft = vi.fn()
 
 const routeStoreState = {
   routes: [],
-  selectedRouteId: null,
+  selectedRouteId: null as string | null,
   routeEditorDraft: {
     routeId: null,
     name: 'Test route',
@@ -72,5 +72,16 @@ describe('RouteEditSidebar', () => {
     act(() => vi.advanceTimersByTime(3000))
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('sends metadata edits to the editor owner', () => {
+    const onRouteMetadataChange = vi.fn()
+    routeStoreState.selectedRouteId = 'route-1'
+    render(<RouteEditSidebar onRouteMetadataChange={onRouteMetadataChange} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Owner name' } })
+
+    expect(onRouteMetadataChange).toHaveBeenCalledWith('route-1', { name: 'Owner name' })
+    routeStoreState.selectedRouteId = null
   })
 })

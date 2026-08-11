@@ -55,6 +55,7 @@ interface UseEditDraftActionsParams {
   getCheckpointRevision?: () => number
   clearCheckpointAfterSave?: (revision: number) => Promise<void>
   prepareRoutesForSave?: () => { changed: boolean; imageId: string; routesByImageId: Record<string, DraftRoute[]> } | null
+  hasLiveRouteChanges?: boolean
 }
 
 export function useEditDraftActions({
@@ -96,12 +97,13 @@ export function useEditDraftActions({
   getCheckpointRevision,
   clearCheckpointAfterSave,
   prepareRoutesForSave,
+  hasLiveRouteChanges = false,
 }: UseEditDraftActionsParams) {
   const { requireConsent } = useOpenDataConsent()
   const router = useRouter()
   const [savingDraft, setSavingDraft] = useState(false)
   const [publishingDraft, setPublishingDraft] = useState(false)
-  const [hasPendingChanges, setHasPendingChanges] = useState(false)
+  const [hasStoredPendingChanges, setHasStoredPendingChanges] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
   const saveInFlightRef = useRef(false)
   const locationSyncInFlightRef = useRef(false)
@@ -114,7 +116,7 @@ export function useEditDraftActions({
     if (imageIds.length > 0) {
       dirtyVersionRef.current += 1
       onRoutesChanged?.()
-      setHasPendingChanges(true)
+      setHasStoredPendingChanges(true)
     }
   }, [onRoutesChanged])
 
@@ -123,14 +125,14 @@ export function useEditDraftActions({
     if (sectorChanged) hasUnsavedMetadataRef.current = true
     if (imageIds.length > 0 || sectorChanged) {
       dirtyVersionRef.current += 1
-      setHasPendingChanges(true)
+      setHasStoredPendingChanges(true)
     }
   }, [])
 
   const markMetadataDirty = useCallback(() => {
     hasUnsavedMetadataRef.current = true
     dirtyVersionRef.current += 1
-    setHasPendingChanges(true)
+    setHasStoredPendingChanges(true)
   }, [])
 
   const syncDraftRoutes = useCallback(async (resolvedRoutesByImageId: Record<string, DraftRoute[]>) => {
@@ -319,7 +321,7 @@ export function useEditDraftActions({
       if (dirtyVersionRef.current === savingDirtyVersion) {
         for (const imageId of syncedImageIds) dirtyRoutesRef.current.delete(imageId)
         hasUnsavedMetadataRef.current = false
-        setHasPendingChanges(false)
+        setHasStoredPendingChanges(false)
         await clearCheckpointAfterSave?.(savingCheckpointRevision)
       }
       setConflict(null)
@@ -457,13 +459,13 @@ export function useEditDraftActions({
     await loadCollaborators()
     dirtyRoutesRef.current.clear()
     hasUnsavedMetadataRef.current = false
-    setHasPendingChanges(false)
+    setHasStoredPendingChanges(false)
   }, [loadCollaborators, loadDraft, setConflict, setSuccess])
 
   return {
     savingDraft,
     publishingDraft,
-    hasPendingChanges,
+    hasPendingChanges: hasStoredPendingChanges || hasLiveRouteChanges,
     publishAttempted,
     publishValidationMessage,
     markMetadataDirty,

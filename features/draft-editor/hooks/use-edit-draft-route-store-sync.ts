@@ -13,6 +13,7 @@ interface UseEditDraftRouteStoreSyncParams {
   routesByImageId: Record<string, DraftRoute[]>
   setRoutesByImageId: React.Dispatch<React.SetStateAction<Record<string, DraftRoute[]>>>
   routeType: string
+  seedVersion?: string | null
 }
 
 export function useEditDraftRouteStoreSync({
@@ -21,6 +22,7 @@ export function useEditDraftRouteStoreSync({
   routesByImageId,
   setRoutesByImageId,
   routeType,
+  seedVersion = null,
 }: UseEditDraftRouteStoreSyncParams) {
   const {
     routes: routeStoreRoutes,
@@ -39,35 +41,41 @@ export function useEditDraftRouteStoreSync({
   })))
 
   const lastSeededImageIdRef = useRef<string | null>(null)
+  const lastSeedVersionRef = useRef<string | null>(null)
   useEffect(() => {
     if (!activeDraftImageId) return
 
-    const imageChanged = lastSeededImageIdRef.current !== activeDraftImageId
-    if (!imageChanged) return
+    const seedChanged = lastSeededImageIdRef.current !== activeDraftImageId || lastSeedVersionRef.current !== seedVersion
+    if (!seedChanged) return
 
     lastSeededImageIdRef.current = activeDraftImageId
+    lastSeedVersionRef.current = seedVersion
 
     clearCanvasState()
     setRoutes(existingRouteLines)
     setSelectedRoute(null)
     setActiveRoute(null)
     setEditorPanelOpen(false)
-  }, [activeDraftImageId, clearCanvasState, existingRouteLines, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
+  }, [activeDraftImageId, clearCanvasState, existingRouteLines, seedVersion, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
 
   const commitRoutes = useCallback(() => {
     if (!activeDraftImageId || lastSeededImageIdRef.current !== activeDraftImageId) return null
 
-    const nextRoutes = routeStoreRoutes.map((route, index) => ({
+    const routeMetadataById = new Map((routesByImageId[activeDraftImageId] || []).map((route) => [route.id, route]))
+    const nextRoutes = routeStoreRoutes.map((route, index) => {
+      const metadata = routeMetadataById.get(route.id)
+      return {
       id: route.id,
-      name: route.climb?.name || 'Unnamed',
-      grade: route.climb?.grade || '6A',
-      description: route.climb?.description ?? undefined,
-      climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : routeType,
+      name: metadata?.name ?? route.climb?.name ?? 'Unnamed',
+      grade: metadata?.grade ?? route.climb?.grade ?? '6A',
+      description: metadata?.description ?? route.climb?.description ?? undefined,
+      climbType: metadata?.climbType ?? (typeof route.climb?.route_type === 'string' ? route.climb.route_type : routeType),
       points: route.points,
       sequenceOrder: route.sequence_order ?? index,
       imageWidth: route.image_width || 1200,
       imageHeight: route.image_height || 1200,
-    }))
+      }
+    })
     const currentRoutes = routesByImageId[activeDraftImageId] || []
     const currentSerializedRoutes = currentRoutes.map((route) => ({
       ...route,
@@ -91,5 +99,20 @@ export function useEditDraftRouteStoreSync({
     return { changed: true, imageId: activeDraftImageId, routesByImageId: nextRoutesByImageId }
   }, [activeDraftImageId, routeStoreRoutes, routeType, routesByImageId, setRoutesByImageId])
 
-  return { commitRoutes }
+  const hasLiveRouteChanges = (() => {
+    if (!activeDraftImageId) return false
+
+    const currentRoutes = routesByImageId[activeDraftImageId] || []
+    return currentRoutes.length !== routeStoreRoutes.length || routeStoreRoutes.some((route, index) => {
+      const stored = currentRoutes[index]
+      return route.id !== stored?.id
+        || (route.sequence_order ?? index) !== stored.sequenceOrder
+        || (route.image_width || 1200) !== (stored.imageWidth || 1200)
+        || (route.image_height || 1200) !== (stored.imageHeight || 1200)
+        || route.points.length !== stored.points.length
+        || route.points.some((point, pointIndex) => point.x !== stored.points[pointIndex]?.x || point.y !== stored.points[pointIndex]?.y)
+    })
+  })()
+
+  return { commitRoutes, hasLiveRouteChanges }
 }

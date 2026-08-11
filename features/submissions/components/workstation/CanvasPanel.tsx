@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/features/route-editor/public'
 import type { ClimbType } from '@/types/climbing'
 import type { RouteLine } from '@/types/domain'
+import type { RouteEditorDraft } from '@/features/route-editor/store/types'
 import type { MediaUploadStatus } from '@/features/media-upload/public'
 
 interface WorkstationCanvasPanelProps {
@@ -20,6 +21,7 @@ interface WorkstationCanvasPanelProps {
   allowDelete?: boolean
   onRetryActiveImage?: () => void
   onDeleteActiveImage?: () => void
+  onRouteMetadataChange?: (routeId: string, updates: Partial<Omit<RouteEditorDraft, 'routeId'>>) => void
 }
 
 export function WorkstationCanvasPanel({
@@ -36,6 +38,7 @@ export function WorkstationCanvasPanel({
   allowDelete = false,
   onRetryActiveImage,
   onDeleteActiveImage,
+  onRouteMetadataChange,
 }: WorkstationCanvasPanelProps) {
   const [imageOrientation, setImageOrientation] = useState<'portrait' | 'landscape'>('landscape')
 
@@ -52,6 +55,7 @@ export function WorkstationCanvasPanel({
           onRoutesUpdate={onRoutesUpdate}
           useStoreRoutes
           allowDelete={allowDelete}
+          onRouteMetadataChange={onRouteMetadataChange}
           onImageOrientationChange={setImageOrientation}
           className={imageOrientation === 'portrait' ? 'h-full min-h-[72dvh] md:min-h-[78dvh]' : 'h-full min-h-[52dvh] md:min-h-[60dvh]'}
         />

@@ -14,6 +14,7 @@ import { useHitTesting } from '@/features/route-editor/hooks/useHitTesting'
 import { useRouteStore } from '@/features/route-editor/store'
 import type { CanvasMode, RouteLine } from '@/types/domain'
 import type { ClimbType } from '@/types/climbing'
+import type { RouteEditorDraft } from '@/features/route-editor/store/types'
 
 interface UnifiedRouteCanvasProps {
   mode: CanvasMode
@@ -26,6 +27,7 @@ interface UnifiedRouteCanvasProps {
   useStoreRoutes?: boolean
   onImageOrientationChange?: (orientation: 'portrait' | 'landscape') => void
   allowDelete?: boolean
+  onRouteMetadataChange?: (routeId: string, updates: Partial<Omit<RouteEditorDraft, 'routeId'>>) => void
   className?: string
 }
 
@@ -68,6 +70,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   useStoreRoutes = false,
   onImageOrientationChange,
   allowDelete = false,
+  onRouteMetadataChange,
   className = '',
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -445,7 +448,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
         />
       ) : null}
 
-      {mode !== 'browse' && editorPanelOpen && <RouteEditSidebar allowDelete={allowDelete} />}
+      {mode !== 'browse' && editorPanelOpen && <RouteEditSidebar allowDelete={allowDelete} onRouteMetadataChange={onRouteMetadataChange} />}
     </div>
   )
 })

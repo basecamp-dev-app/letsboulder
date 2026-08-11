@@ -25,7 +25,7 @@ describe('route editor store', () => {
     useRouteStore.getState().reset()
   })
 
-  test('updates route metadata before switching routes clears the draft', () => {
+  test('keeps route metadata editor-owned before switching routes clears the draft', () => {
     const firstRoute = createRoute('route-1')
     const secondRoute = createRoute('route-2')
 
@@ -51,13 +51,7 @@ describe('route editor store', () => {
 
     const state = useRouteStore.getState()
     expect(state.routeEditorDraft).toBeNull()
-    expect(state.routes[0]?.climb).toEqual({
-      ...firstRoute.climb,
-      name: 'Immediate name',
-      grade: '7A',
-      route_type: 'sport',
-      description: 'Immediate description',
-    })
+    expect(state.routes[0]).toBe(firstRoute)
     expect(state.routes[1]).toBe(secondRoute)
   })
 
@@ -69,5 +63,18 @@ describe('route editor store', () => {
 
     expect(useRouteStore.getState().routes[0]).toBe(route)
     expect(useRouteStore.getState().routeEditorDraft).toBeNull()
+  })
+
+  test('undoes and redoes transient route geometry without storing metadata changes', () => {
+    const route = createRoute('route-1')
+    useRouteStore.setState({ routes: [route] })
+    useRouteStore.getState().commitToHistory()
+    useRouteStore.getState().updateRoute(route.id, { points: [{ x: 0.2, y: 0.2 }] })
+
+    useRouteStore.getState().undo()
+    expect(useRouteStore.getState().routes[0]?.points).toEqual([])
+
+    useRouteStore.getState().redo()
+    expect(useRouteStore.getState().routes[0]?.points).toEqual([{ x: 0.2, y: 0.2 }])
   })
 })

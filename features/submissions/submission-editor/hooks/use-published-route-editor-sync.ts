@@ -47,9 +47,14 @@ export function usePublishedRouteEditorSync({
 
   const commitRoutes = useCallback(() => {
     if (!activeImageId || lastSeededImageIdRef.current !== activeImageId) return null
-    setEditedRoutes(routeStoreRoutes)
-    return routeStoreRoutes
-  }, [activeImageId, routeStoreRoutes, setEditedRoutes])
+    const metadataById = new Map(editedRoutes.map((route) => [route.id, route.climb]))
+    const nextRoutes = routeStoreRoutes.map((route) => ({
+      ...route,
+      climb: metadataById.get(route.id) ?? route.climb,
+    }))
+    setEditedRoutes(nextRoutes)
+    return nextRoutes
+  }, [activeImageId, editedRoutes, routeStoreRoutes, setEditedRoutes])
 
   return { commitRoutes }
 }

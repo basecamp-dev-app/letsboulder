@@ -7,7 +7,6 @@ import { SubmissionWorkstation } from '@/features/submissions/components/Submiss
 import { resequenceRoutes } from '@/features/submissions/lib/editor-image-state'
 import type { RouteLine } from '@/features/submissions/lib/submission-types'
 import { CollaboratorDialog } from '@/features/submissions/components/editor/CollaboratorDialog'
-import { useDraftConflictResolution } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
 import { useDraftRouteEditing } from '@/features/draft-editor/hooks/use-draft-route-editing'
 import { useDraftEditorOrchestration } from '@/features/draft-editor/hooks/use-draft-editor-orchestration'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -24,7 +23,6 @@ export default function EditDraftPage() {
   const searchParams = useSearchParams()
   const { toasts, addToast, removeToast } = useToast()
   const draftId = params.draftId as string
-  const { conflict } = useDraftConflictResolution()
   const routeEditing = useDraftRouteEditing()
 
   const {
@@ -37,7 +35,9 @@ export default function EditDraftPage() {
     derived,
     actions,
     collaboration,
+    conflict: draftConflict,
   } = useDraftEditorOrchestration({ draftId, addToast })
+  const { conflict } = draftConflict
   useUnsavedChangesWarning(actions.hasPendingChanges)
 
   const {
@@ -174,6 +174,7 @@ export default function EditDraftPage() {
             }}
             onUndoPoint={() => canvas.undoLastPoint()}
             onFinishRoute={() => routeCanvasRef.current?.finishRoute()}
+            onRouteMetadataChange={canvas.updateRouteMetadata}
             canvasKey={derived.activeImageTab?.imageId || 'draft-canvas'}
             defaultClimbType={resolveDraftClimbType(draft.routeType)}
             extraAction={derived.activeImageTab ? (
