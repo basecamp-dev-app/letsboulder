@@ -8,12 +8,28 @@ vi.mock('@/hooks/useCsrf', () => ({ csrfFetch }))
 
 const object = { bucket: 'private-bucket', path: 'images/originals/route.jpg' }
 const key = 'private-bucket:images/originals/route.jpg'
+const secondObject = { bucket: 'private-bucket', path: 'images/originals/second-route.jpg' }
+
+interface DraftSignedUrlResponse {
+  results?: Array<{
+    bucket?: string
+    path?: string
+    signedUrl?: string | null
+    expiresAt?: number
+  }>
+}
 
 function signedUrlResponse(url: string, expiresAt: number): Response {
   return {
     ok: true,
     json: vi.fn(async () => ({ results: [{ ...object, signedUrl: url, expiresAt }] })),
   } as unknown as Response
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => { resolve = nextResolve })
+  return { promise, resolve }
 }
 
 describe('loadDraftSignedUrls', () => {
@@ -87,6 +103,36 @@ describe('loadDraftSignedUrls', () => {
     resolveResponse(signedUrlResponse('https://example.com/user-one', 4_700_000))
 
     expect((await pending).get(key)).toBeUndefined()
+  })
+
+  test('discards cached and parsed URLs when the account changes during JSON parsing', async () => {
+    const parsed = deferred<DraftSignedUrlResponse>()
+    csrfFetch
+      .mockResolvedValueOnce(signedUrlResponse('https://example.com/cached', 4_700_000))
+      .mockResolvedValueOnce({ ok: true, json: vi.fn(() => parsed.promise) } as unknown as Response)
+    const { loadDraftSignedUrls, setDraftSignedUrlCacheUserId } = await import('@/lib/media/draft-signed-urls')
+
+    setDraftSignedUrlCacheUserId('user-one')
+    await loadDraftSignedUrls([object])
+    const pending = loadDraftSignedUrls([object, secondObject])
+    setDraftSignedUrlCacheUserId('user-two')
+    parsed.resolve({ results: [{ ...secondObject, signedUrl: 'https://example.com/user-one', expiresAt: 4_700_000 }] })
+
+    expect(await pending).toEqual(new Map())
+  })
+
+  test('discards a response after an ABA account transition during JSON parsing', async () => {
+    const parsed = deferred<DraftSignedUrlResponse>()
+    csrfFetch.mockResolvedValueOnce({ ok: true, json: vi.fn(() => parsed.promise) } as unknown as Response)
+    const { loadDraftSignedUrls, setDraftSignedUrlCacheUserId } = await import('@/lib/media/draft-signed-urls')
+
+    setDraftSignedUrlCacheUserId('user-one')
+    const pending = loadDraftSignedUrls([object])
+    setDraftSignedUrlCacheUserId('user-two')
+    setDraftSignedUrlCacheUserId('user-one')
+    parsed.resolve({ results: [{ ...object, signedUrl: 'https://example.com/user-one', expiresAt: 4_700_000 }] })
+
+    expect(await pending).toEqual(new Map())
   })
 
   test('does not cache failed requests so a later load retries', async () => {

@@ -23,8 +23,10 @@ interface CachedDraftSignedUrl {
 const CACHE_REFRESH_BUFFER_MS = 60_000
 const signedUrlCache = new Map<string, CachedDraftSignedUrl>()
 let cacheUserId: string | null = null
+let cacheUserGeneration = 0
 
 export function setDraftSignedUrlCacheUserId(userId: string | null): void {
+  cacheUserGeneration += 1
   if (cacheUserId === userId) return
   cacheUserId = userId
   signedUrlCache.clear()
@@ -59,14 +61,15 @@ export async function loadDraftSignedUrls(objects: DraftSignedUrlObject[]): Prom
   }
 
   const requestUserId = cacheUserId
+  const requestUserGeneration = cacheUserGeneration
   const response = await csrfFetch('/api/uploads/signed-urls/batch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ objects: missing }),
   })
 
-  if (requestUserId !== cacheUserId) {
-    return results
+  if (requestUserId !== cacheUserId || requestUserGeneration !== cacheUserGeneration) {
+    return new Map()
   }
 
   if (!response.ok) {
@@ -74,13 +77,17 @@ export async function loadDraftSignedUrls(objects: DraftSignedUrlObject[]): Prom
   }
 
   const payload = await response.json().catch(() => ({} as DraftSignedUrlResponse))
+  if (requestUserId !== cacheUserId || requestUserGeneration !== cacheUserGeneration) {
+    return new Map()
+  }
+
   for (const item of payload.results || []) {
     if (typeof item.bucket !== 'string' || typeof item.path !== 'string' || typeof item.signedUrl !== 'string' || !item.signedUrl) {
       continue
     }
 
     const cacheKey = getDraftSignedUrlCacheKey(item.bucket, item.path)
-    if (requestUserId && requestUserId === cacheUserId && typeof item.expiresAt === 'number' && item.expiresAt > Date.now() + CACHE_REFRESH_BUFFER_MS) {
+    if (requestUserId && requestUserId === cacheUserId && requestUserGeneration === cacheUserGeneration && typeof item.expiresAt === 'number' && item.expiresAt > Date.now() + CACHE_REFRESH_BUFFER_MS) {
       signedUrlCache.set(cacheKey, { url: item.signedUrl, expiresAt: item.expiresAt, userId: requestUserId })
     }
     results.set(cacheKey, item.signedUrl)
