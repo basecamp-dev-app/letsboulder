@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 30
     env:
       CI: 'true'
+      IMAGE_FIRST_E2E_URL: '/gg/point-de-la-moye-east/i/39b9871d-071c-4520-b305-8ae57500be05?image=39b9871d-071c-4520-b305-8ae57500be05&route=9a90c2c3-afa1-4a8c-9ca8-77a3435a9b00&climb=0ea40c00-e4de-4b2d-b4ee-42de25261afb'
       PLAYWRIGHT_BASE_URL: 'https://letsboulder.com'
       PLAYWRIGHT_SKIP_GLOBAL_SETUP: 'true'
     steps:
@@ -82,6 +83,7 @@ jobs:
           tests/auth.spec.ts
           tests/auth-guards.spec.ts
           tests/settings.spec.ts
+          tests/image-first.spec.ts
 
       - name: Upload Playwright production report
         if: always()

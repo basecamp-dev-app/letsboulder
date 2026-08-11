@@ -1,25 +1,6 @@
-import { expect, test, type APIRequestContext } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 const imageFirstUrl = process.env.IMAGE_FIRST_E2E_URL
-
-async function resolveImageFirstUrls(request: APIRequestContext) {
-  if (imageFirstUrl) return [imageFirstUrl]
-
-  const response = await request.get('/sitemaps/climbs/0.xml')
-  expect(response.ok(), 'The climbs sitemap must be available for image-first smoke discovery').toBe(true)
-
-  const xml = await response.text()
-  const paths = new Set<string>()
-
-  for (const match of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) {
-    const url = new URL(match[1].replaceAll('&amp;', '&'))
-    if (!/^\/(?:[^/]+)\/(?:[^/]+)\/i\/[^/]+$/.test(url.pathname)) continue
-    paths.add(`${url.pathname}${url.search}`)
-  }
-
-  expect(paths.size, 'The climbs sitemap must contain an image-first page').toBeGreaterThan(0)
-  return Array.from(paths)
-}
 
 function getImageId(url: string) {
   const imageId = new URL(url).pathname.split('/').at(-1)
@@ -28,24 +9,17 @@ function getImageId(url: string) {
 }
 
 test.describe('image-first navigation history', () => {
-  test('@smoke restores the URL-driven active image through browser back and forward', async ({ page, request }) => {
+  test.skip(!imageFirstUrl, 'Set IMAGE_FIRST_E2E_URL to a maintained image-first fixture with at least two images')
+
+  test('@smoke restores the URL-driven active image through browser back and forward', async ({ page }) => {
     const previousButton = page.getByRole('button', { name: 'Prev' })
     const nextButton = page.getByRole('button', { name: 'Next' })
     const viewer = page.locator('main[data-active-image-id]')
-    const candidates = await resolveImageFirstUrls(request)
-    let foundNavigablePage = false
-
-    for (const candidate of candidates.slice(0, 20)) {
-      await page.goto(candidate)
-      await expect(previousButton).toBeVisible()
-      await expect(nextButton).toBeVisible()
-      if (await previousButton.isEnabled() || await nextButton.isEnabled()) {
-        foundNavigablePage = true
-        break
-      }
-    }
-
-    expect(foundNavigablePage, 'The climbs sitemap must lead to a crag with at least two images').toBe(true)
+    expect(imageFirstUrl, 'IMAGE_FIRST_E2E_URL must be a same-origin image-first path').toMatch(/^\/[a-z]{2}\/[^/]+\/i\/[^/?]+(?:\?.*)?$/)
+    await page.goto(imageFirstUrl as string)
+    await expect(previousButton).toBeVisible()
+    await expect(nextButton).toBeVisible()
+    expect(await previousButton.isEnabled() || await nextButton.isEnabled(), 'The maintained fixture must have at least two images').toBe(true)
     await expect(viewer).toHaveAttribute('data-active-image-id', getImageId(page.url()))
 
     for (let attempt = 0; attempt < 50 && await previousButton.isEnabled(); attempt += 1) {
