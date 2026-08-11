@@ -27,7 +27,7 @@ test.describe('Auth Guards', () => {
     await context.close()
   })
 
-  test('@smoke unauthenticated request to /api/routes/submit is rejected', async ({ browser }) => {
+  test('@smoke legacy route submission endpoint remains retired', async ({ browser }) => {
     const context = await browser.newContext({
       storageState: { cookies: [], origins: [] },
     })
@@ -43,7 +43,7 @@ test.describe('Auth Guards', () => {
       },
     })
 
-    expect([401, 403]).toContain(response.status())
+    expect(response.status()).toBe(410)
 
     await context.close()
   })
