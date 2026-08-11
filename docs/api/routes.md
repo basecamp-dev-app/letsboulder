@@ -72,6 +72,7 @@ This is the canonical path inventory for route handlers under `app/api/**/route.
 /api/crags/[id]/images/attach
 /api/crags/[id]/rankings
 /api/crags/[id]/sectors
+/api/crags/[cragId]/images
 /api/crags/nearby
 /api/crags/pins
 /api/crags/search
