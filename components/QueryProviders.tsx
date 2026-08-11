@@ -44,16 +44,19 @@ export default function QueryProviders({ children }: { children: ReactNode }) {
     const supabase = createClient()
 
     void removeLegacyPersistedQueryCache()
-
-    void supabase.auth.getUser().then(({ data: { user } }: { data: { user: User | null } }) => {
-      if (!mounted) return
-      setDraftSignedUrlCacheUserId(user?.id ?? null)
-      setAuthScope(user?.id ?? ANON_QUERY_CACHE_SCOPE)
-    })
+    let authStateChanged = false
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
+      authStateChanged = true
+      if (!mounted) return
       setDraftSignedUrlCacheUserId(session?.user?.id ?? null)
       setAuthScope(session?.user?.id ?? ANON_QUERY_CACHE_SCOPE)
+    })
+
+    void supabase.auth.getUser().then(({ data: { user } }: { data: { user: User | null } }) => {
+      if (!mounted || authStateChanged) return
+      setDraftSignedUrlCacheUserId(user?.id ?? null)
+      setAuthScope(user?.id ?? ANON_QUERY_CACHE_SCOPE)
     })
 
     return () => {

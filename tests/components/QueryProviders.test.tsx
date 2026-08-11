@@ -5,12 +5,18 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { csrfFetch, removePersistedQueryCache } = vi.hoisted(() => ({
+type AuthCallback = (_event: string, session: { user: { id: string } } | null) => void
+
+const { csrfFetch, getUser, onAuthStateChange, removePersistedQueryCache, setDraftSignedUrlCacheUserId } = vi.hoisted(() => ({
   csrfFetch: vi.fn(),
+  getUser: vi.fn(),
+  onAuthStateChange: vi.fn(),
   removePersistedQueryCache: vi.fn(),
+  setDraftSignedUrlCacheUserId: vi.fn(),
 }))
 
 vi.mock('@/lib/csrf-client', () => ({ csrfFetch }))
+vi.mock('@/lib/media/draft-signed-urls', () => ({ setDraftSignedUrlCacheUserId }))
 vi.mock('@/lib/query-persistence', () => ({
   createIdbPersister: vi.fn(() => ({
     persistClient: vi.fn(),
@@ -23,10 +29,7 @@ vi.mock('@/lib/query-persistence', () => ({
 }))
 vi.mock('@/lib/supabase', () => ({
   createClient: vi.fn(() => ({
-    auth: {
-      getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } } })),
-      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
-    },
+    auth: { getUser, onAuthStateChange },
   })),
 }))
 
@@ -36,10 +39,41 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryProviders>{children}</QueryProviders>
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => { resolve = nextResolve })
+  return { promise, resolve }
+}
+
 describe('QueryProviders sign-out coordinator', () => {
+  let authCallback: AuthCallback
+
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(csrfFetch).mockResolvedValue(new Response(null, { status: 200 }))
+    getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    onAuthStateChange.mockImplementation((callback: AuthCallback) => {
+      authCallback = callback
+      return { data: { subscription: { unsubscribe: vi.fn() } } }
+    })
+  })
+
+  test('does not replace an auth event with an older bootstrap response', async () => {
+    const bootstrap = deferred<{ data: { user: { id: string } } }>()
+    getUser.mockReturnValue(bootstrap.promise)
+
+    renderHook(() => useQueryClient(), { wrapper })
+    await waitFor(() => expect(onAuthStateChange).toHaveBeenCalled())
+
+    act(() => authCallback('SIGNED_IN', { user: { id: 'user-2' } }))
+    await act(async () => {
+      bootstrap.resolve({ data: { user: { id: 'user-1' } } })
+      await bootstrap.promise
+    })
+
+    expect(setDraftSignedUrlCacheUserId).toHaveBeenLastCalledWith('user-2')
+    expect(setDraftSignedUrlCacheUserId).not.toHaveBeenCalledWith('user-1')
+    expect(removePersistedQueryCache).not.toHaveBeenCalledWith('user-2')
   })
 
   test('clears query memory and the authenticated persisted scope before resolving', async () => {
