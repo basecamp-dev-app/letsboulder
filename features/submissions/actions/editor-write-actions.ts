@@ -6,11 +6,14 @@ import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { getServerClient } from '@/lib/supabase-server'
-import { assertDraftReadAccess, normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
-import { buildDraftConflictResult, mergeDraftMetadata, revalidateSubmissionImagePaths } from '@/features/submissions/actions/editor-write-action-helpers'
+import { normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
+import { revalidateSubmissionImagePaths } from '@/features/submissions/actions/editor-write-action-helpers'
 import {
+  patchSubmissionDraft,
+  syncSubmissionDraftRoutes,
   type DraftPatchImage,
-} from '@/features/submissions/server/drafts/draft-route-shared'
+  type DraftPatchResult,
+} from '@/features/submissions/server/drafts/draft-write-service'
 import { FACE_DIRECTIONS } from '@/features/submissions/lib/submission-types'
 import type { Json } from '@/types/database'
 import { isOpenDataConsentError, OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public-server'
@@ -20,13 +23,6 @@ interface DraftPatchBody {
   expected_updated_at?: string
   metadata?: Record<string, unknown>
   cragId?: string | null
-}
-
-interface DraftPatchResult {
-  draft_id: string
-  updated_at: string
-  updated_count: number
-  images: Array<Record<string, unknown>>
 }
 
 function normalizePatchImages(value: unknown): DraftPatchImage[] | null {
@@ -172,111 +168,13 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
     return { success: false, error: 'expected_updated_at is required and must be a valid ISO timestamp', status: 400 }
   }
 
-  const supabase = await getServerClient()
-  const { data: draft, error: draftError } = await supabase
-    .from('submission_drafts')
-    .select('id, user_id, status, updated_at, last_edited_by')
-    .eq('id', validation.data.draftId)
-    .maybeSingle()
-
-  if (draftError || !draft) return { success: false, error: 'Draft not found', status: 404 }
-
-  const isOwner = draft.user_id === auth.data.userId
-  if (!isOwner) {
-    const { data: collaboratorAccess, error: collaboratorError } = await supabase
-        .from('submission_draft_collaborators')
-        .select('draft_id')
-        .eq('draft_id', validation.data.draftId)
-        .eq('user_id', auth.data.userId)
-      .maybeSingle()
-
-    if (collaboratorError || !collaboratorAccess) {
-      return { success: false, error: 'Forbidden', status: 403 }
-    }
-  }
-
-  if (draft.status !== 'draft') return { success: false, error: 'Only draft submissions can be edited', status: 400 }
-
-  const expectedUpdatedAtMs = expectedUpdatedAtDate.getTime()
-  const currentUpdatedAtMs = new Date(draft.updated_at).getTime()
-  if (!Number.isFinite(currentUpdatedAtMs) || currentUpdatedAtMs !== expectedUpdatedAtMs) {
-    const payload = await buildDraftConflictResult(supabase, draft.updated_at, draft.last_edited_by)
-    return { success: false, error: payload.error || 'Draft conflict', status: 409, data: payload }
-  }
-
-  const { data: patchResultRaw, error: patchError } = await supabase.rpc('patch_submission_draft_images_atomic', {
-    p_draft_id: validation.data.draftId,
-    p_images: images,
-    p_expected_updated_at: expectedUpdatedAtRaw,
-  })
-
-  if (patchError) {
-    if (patchError.message === 'Draft conflict') {
-      const { data: currentDraft } = await supabase
-        .from('submission_drafts')
-        .select('updated_at, last_edited_by')
-        .eq('id', validation.data.draftId)
-        .maybeSingle()
-
-      const payload = await buildDraftConflictResult(
-        supabase,
-        currentDraft?.updated_at || expectedUpdatedAtRaw,
-        currentDraft?.last_edited_by || null
-      )
-      return { success: false, error: payload.error || 'Draft conflict', status: 409, data: payload }
-    }
-
-    return { success: false, error: 'Failed to patch submission draft', status: 500 }
-  }
-
-  const patchResult = (patchResultRaw || null) as DraftPatchResult | null
-  const metadataPatch = validation.data.body.metadata ?? null
-  const nextCragId = validation.data.body.cragId
-
-  if (metadataPatch || nextCragId !== undefined) {
-      const { data: existingDraft, error: existingDraftError } = await supabase
-        .from('submission_drafts')
-        .select('metadata')
-        .eq('id', validation.data.draftId)
-        .single()
-
-    if (existingDraftError) return { success: false, error: 'Failed to read submission draft metadata', status: 500 }
-
-    const existingMetadata = existingDraft?.metadata && typeof existingDraft.metadata === 'object' && !Array.isArray(existingDraft.metadata)
-      ? existingDraft.metadata as Record<string, unknown>
-      : {}
-
-    const nextMetadata = metadataPatch ? mergeDraftMetadata(existingMetadata, metadataPatch) : existingMetadata
-
-    const updatePayload: { metadata?: Record<string, unknown>; crag_id?: string | null; updated_at: string; last_edited_by: string } = {
-      updated_at: new Date().toISOString(),
-      last_edited_by: auth.data.userId,
-    }
-    if (metadataPatch) updatePayload.metadata = nextMetadata
-    if (nextCragId !== undefined) updatePayload.crag_id = nextCragId
-
-    const { data: updatedDraft, error: updateDraftError } = await supabase
-      .from('submission_drafts')
-      .update(updatePayload)
-      .eq('id', validation.data.draftId)
-      .eq('status', 'draft')
-      .select('updated_at')
-      .maybeSingle()
-
-    if (updateDraftError) return { success: false, error: 'Failed to update submission draft metadata', status: 500 }
-
-    return {
-      success: true,
-      data: {
-          draft: {
-          ...(patchResult || { draft_id: validation.data.draftId, updated_at: updatePayload.updated_at, updated_count: 0, images: [] }),
-          updated_at: updatedDraft?.updated_at || patchResult?.updated_at || updatePayload.updated_at,
-        },
-      },
-    }
-  }
-
-  return { success: true, data: { draft: patchResult || { draft_id: validation.data.draftId, updated_at: draft.updated_at, updated_count: 0, images: [] } } }
+  const result = await patchSubmissionDraft({ supabase: await getServerClient(), userId: auth.data.userId, draftId: validation.data.draftId, images, expectedUpdatedAt: expectedUpdatedAtRaw, metadata: validation.data.body.metadata, cragId: validation.data.body.cragId })
+  if (result.kind === 'success') return { success: true, data: { draft: result.draft || { draft_id: validation.data.draftId, updated_at: result.updatedAt || expectedUpdatedAtRaw, updated_count: 0, images: [] } } }
+  if (result.kind === 'conflict') return { success: false, error: result.conflict.message, status: 409, data: result.conflict as unknown as { draft: DraftPatchResult | { updated_at: string } } }
+  if (result.kind === 'not_found') return { success: false, error: 'Draft not found', status: 404 }
+  if (result.kind === 'forbidden') return { success: false, error: 'Forbidden', status: 403 }
+  if (result.kind === 'not_editable') return { success: false, error: 'Only draft submissions can be edited', status: 400 }
+  return { success: false, error: 'Failed to patch submission draft', status: 500 }
 }
 
 export async function syncSubmissionDraftRoutesAction(draftId: string, draftImageId: string, routes: unknown): Promise<ActionResult> {
@@ -287,34 +185,13 @@ export async function syncSubmissionDraftRoutesAction(draftId: string, draftImag
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
 
-  const normalizedRoutes = normalizeDraftRoutePayload(validation.data.routes)
-  if (!normalizedRoutes) return { success: false, error: 'routes must be an array', status: 400 }
-
-  const supabase = await getServerClient()
-  const access = await assertDraftReadAccess(supabase, validation.data.draftId, auth.data.userId)
-  if (access.error) return { success: false, error: 'Forbidden', status: access.error.status }
-
-  const { error } = await supabase.rpc('sync_submission_draft_routes', {
-    p_draft_id: validation.data.draftId,
-    p_draft_image_id: validation.data.draftImageId,
-    p_routes: normalizedRoutes.map((route) => ({
-      id: route.id,
-      name: route.name,
-      grade: route.grade,
-      description: route.description,
-      climbType: route.climbType,
-      points: route.points,
-      sequenceOrder: route.sequenceOrder,
-      imageWidth: route.imageWidth,
-      imageHeight: route.imageHeight,
-    })),
-  })
-
-  if (error) {
-    if (isOpenDataConsentError(error)) return { success: false, error: OPEN_DATA_CONSENT_REQUIRED, status: 428 }
-    return { success: false, error: 'Failed to sync draft routes', status: 500 }
-  }
-  return { success: true }
+  if (!normalizeDraftRoutePayload(validation.data.routes)) return { success: false, error: 'routes must be an array', status: 400 }
+  const result = await syncSubmissionDraftRoutes({ supabase: await getServerClient(), userId: auth.data.userId, draftId: validation.data.draftId, batches: [{ draftImageId: validation.data.draftImageId, routes: validation.data.routes }] })
+  if (result.kind === 'success') return { success: true }
+  if (result.kind === 'not_found') return { success: false, error: 'Forbidden', status: 404 }
+  if (result.kind === 'forbidden') return { success: false, error: 'Forbidden', status: 403 }
+  if (result.kind === 'consent_required') return { success: false, error: OPEN_DATA_CONSENT_REQUIRED, status: 428 }
+  return { success: false, error: 'Failed to sync draft routes', status: 500 }
 }
 
 export async function applyPublishedSubmissionEditAction(

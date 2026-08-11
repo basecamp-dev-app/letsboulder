@@ -1,92 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { getServerClient } from '@/lib/supabase-server'
-import { assertDraftReadAccess, normalizeDraftRouteBatchPayload, normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
+import { normalizeDraftRouteBatchPayload, normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
+import { syncSubmissionDraftRoutes } from '@/features/submissions/server/drafts/draft-write-service'
 
-interface RouteSyncBody {
-  draftImageId?: unknown
-  routes?: unknown
-  images?: unknown
-}
-
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const middlewareResult = await withApiMiddleware(request, {
-    unauthorizedMessage: 'Authentication required',
-    rateLimitKey: 'draftSave',
-  })
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const middlewareResult = await withApiMiddleware(request, { unauthorizedMessage: 'Authentication required', rateLimitKey: 'draftSave' })
   if (!middlewareResult.ok) return middlewareResult.response
-
   const { id } = await params
-  const body = await request.json().catch(() => null as RouteSyncBody | null)
+  const body = await request.json().catch(() => null as { draftImageId?: unknown; routes?: unknown; images?: unknown } | null)
   const imageBatches = normalizeDraftRouteBatchPayload(body?.images)
-
-  if (imageBatches) {
-    const supabase = await getServerClient()
-    const access = await assertDraftReadAccess(supabase, id, middlewareResult.userId)
-    if (access.error) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: access.error.status })
-    }
-
-    for (const batch of imageBatches) {
-      const { error } = await supabase.rpc('sync_submission_draft_routes', {
-        p_draft_id: id,
-        p_draft_image_id: batch.draftImageId,
-        p_routes: batch.routes.map((route) => ({
-          id: route.id,
-          name: route.name,
-          grade: route.grade,
-          description: route.description,
-          climbType: route.climbType,
-          points: route.points,
-          sequenceOrder: route.sequenceOrder,
-          imageWidth: route.imageWidth,
-          imageHeight: route.imageHeight,
-        })),
-      })
-
-      if (error) {
-        return NextResponse.json({ error: 'Failed to sync draft routes' }, { status: 500 })
-      }
-    }
-
-    return NextResponse.json({ success: true })
-  }
-
-  const draftImageId = typeof body?.draftImageId === 'string' ? body.draftImageId : ''
-  const routes = normalizeDraftRoutePayload(body?.routes)
-
-  if (!id || !draftImageId || !routes) {
-    return NextResponse.json({ error: 'Invalid request data' }, { status: 400 })
-  }
-
-  const supabase = await getServerClient()
-  const access = await assertDraftReadAccess(supabase, id, middlewareResult.userId)
-  if (access.error) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: access.error.status })
-  }
-
-  const { error } = await supabase.rpc('sync_submission_draft_routes', {
-    p_draft_id: id,
-    p_draft_image_id: draftImageId,
-    p_routes: routes.map((route) => ({
-      id: route.id,
-      name: route.name,
-      grade: route.grade,
-      description: route.description,
-      climbType: route.climbType,
-      points: route.points,
-      sequenceOrder: route.sequenceOrder,
-      imageWidth: route.imageWidth,
-      imageHeight: route.imageHeight,
-    })),
-  })
-
-  if (error) {
-    return NextResponse.json({ error: 'Failed to sync draft routes' }, { status: 500 })
-  }
-
-  return NextResponse.json({ success: true })
+  const batches = imageBatches || (typeof body?.draftImageId === 'string' && normalizeDraftRoutePayload(body.routes)
+    ? [{ draftImageId: body.draftImageId, routes: body.routes }]
+    : null)
+  if (!id || !batches) return NextResponse.json({ error: 'Invalid request data' }, { status: 400 })
+  const result = await syncSubmissionDraftRoutes({ supabase: await getServerClient(), userId: middlewareResult.userId, draftId: id, batches })
+  if (result.kind === 'success') return NextResponse.json({ success: true })
+  if (result.kind === 'not_found') return NextResponse.json({ error: 'Forbidden' }, { status: 404 })
+  if (result.kind === 'forbidden') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  return NextResponse.json({ error: 'Failed to sync draft routes' }, { status: 500 })
 }

@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server'
-import { createErrorResponse, reportError } from '@/lib/errors'
+import { reportError, sanitizeError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { isMediaNotReadyError, isMediaPubliclyDeliverable, MEDIA_NOT_READY_RESPONSE } from '@/lib/media/readiness'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
@@ -21,6 +20,34 @@ interface PromoteResult {
 }
 
 type DraftSupabaseClient = ReturnType<typeof import('@supabase/ssr').createServerClient>
+
+export interface DraftPublishSuccess {
+  status: string
+  published: {
+    defaultImageId: string
+    imageId: string | undefined
+    imageIds: string[]
+    climbIds: string[]
+    routeLineIds: string[]
+    publishedAt: string | null
+    canonicalPath: string
+    countryCode: string
+    cragSlug: string
+    defaultRouteId: string | null
+  }
+}
+
+export type DraftPublishResult =
+  | { kind: 'success'; value: DraftPublishSuccess }
+  | { kind: 'failure'; status: number; payload: Record<string, unknown> }
+
+function publishFailure(status: number, payload: Record<string, unknown>): DraftPublishResult {
+  return { kind: 'failure', status, payload }
+}
+
+function publishInternalError(error: unknown, message: string): DraftPublishResult {
+  return publishFailure(500, { ...sanitizeError(error, message) })
+}
 
 function normalizeStringArray(value: unknown): string[] {
   return Array.isArray(value)
@@ -52,10 +79,10 @@ async function ensureCanonicalCrag(input: {
   userId: string
   latitude: number | null
   longitude: number | null
-}): Promise<NextResponse | null> {
+}): Promise<DraftPublishResult | null> {
   const { supabase, cragId, draftId, userId, latitude, longitude } = input
   if (!cragId) {
-    return NextResponse.json({ error: 'Select a crag before publishing this draft' }, { status: 400 })
+    return publishFailure(400, { error: 'Select a crag before publishing this draft' })
   }
 
   const { data: crag, error: cragError } = await supabase
@@ -65,11 +92,11 @@ async function ensureCanonicalCrag(input: {
     .maybeSingle()
 
   if (cragError || !crag) {
-    return createErrorResponse(cragError || new Error('Draft crag not found'), 'Failed to validate publish destination')
+    return publishInternalError(cragError || new Error('Draft crag not found'), 'Failed to validate publish destination')
   }
 
   if (!crag.slug) {
-    return NextResponse.json({ error: 'The selected crag is missing its canonical slug' }, { status: 409 })
+    return publishFailure(409, { error: 'The selected crag is missing its canonical slug' })
   }
 
   if (crag.country_code) return null
@@ -77,12 +104,12 @@ async function ensureCanonicalCrag(input: {
   const repairLatitude = hasValidDraftCoordinate(crag.latitude, crag.longitude) ? crag.latitude : latitude
   const repairLongitude = hasValidDraftCoordinate(crag.latitude, crag.longitude) ? crag.longitude : longitude
   if (!hasValidDraftCoordinate(repairLatitude, repairLongitude)) {
-    return NextResponse.json({ error: 'Could not resolve the selected crag country before publishing' }, { status: 409 })
+    return publishFailure(409, { error: 'Could not resolve the selected crag country before publishing' })
   }
 
   const resolvedCountry = await resolveCountryFromCoordinates(supabase, repairLatitude, repairLongitude)
   if (!resolvedCountry.countryCode) {
-    return NextResponse.json({ error: 'Could not resolve the selected crag country before publishing' }, { status: 409 })
+    return publishFailure(409, { error: 'Could not resolve the selected crag country before publishing' })
   }
 
   const repairClient = getAdminClientWithAudit('repair draft crag country before publish')
@@ -99,10 +126,10 @@ async function ensureCanonicalCrag(input: {
     })
 
   if (repairError) {
-    return createErrorResponse(repairError, 'Failed to repair publish destination')
+    return publishInternalError(repairError, 'Failed to repair publish destination')
   }
   if (!repairedCountryCode) {
-    return NextResponse.json({ error: 'Could not resolve the selected crag country before publishing' }, { status: 409 })
+    return publishFailure(409, { error: 'Could not resolve the selected crag country before publishing' })
   }
 
   return null
@@ -189,11 +216,11 @@ async function buildPublishedResponse(input: {
   result: PromoteResult
   userId: string
   runPostPublishEffects?: boolean
-}) {
+}): Promise<DraftPublishResult> {
   const { supabase, result, userId, runPostPublishEffects = true } = input
   const defaultImageId = result.default_image_id || result.image_id
   if (!defaultImageId) {
-    return NextResponse.json({ error: 'Failed to resolve published image' }, { status: 500 })
+    return publishFailure(500, { error: 'Failed to resolve published image' })
   }
 
   const { data: canonicalImage, error: canonicalImageError } = await supabase
@@ -203,12 +230,12 @@ async function buildPublishedResponse(input: {
     .maybeSingle()
 
   if (canonicalImageError || !canonicalImage) {
-    return createErrorResponse(canonicalImageError || new Error('Failed to resolve canonical image path after publish'), 'Failed to resolve publish destination')
+    return publishInternalError(canonicalImageError || new Error('Failed to resolve canonical image path after publish'), 'Failed to resolve publish destination')
   }
 
   const crag = Array.isArray(canonicalImage.crags) ? canonicalImage.crags[0] : canonicalImage.crags
   if (!crag?.country_code || !crag?.slug) {
-    return NextResponse.json({ error: 'Failed to resolve canonical crag path after publish' }, { status: 500 })
+    return publishFailure(500, { error: 'Failed to resolve canonical crag path after publish' })
   }
 
   const cragId = typeof canonicalImage.crag_id === 'string' ? canonicalImage.crag_id : null
@@ -274,8 +301,7 @@ async function buildPublishedResponse(input: {
     })
   }
 
-  return NextResponse.json({
-    success: true,
+  return { kind: 'success', value: {
     status: result.status || 'submitted',
     published: {
       defaultImageId,
@@ -289,23 +315,22 @@ async function buildPublishedResponse(input: {
       cragSlug: crag.slug,
       defaultRouteId: defaultRoute?.id || null,
     },
-  })
+  } }
 }
 
 export async function promoteDraftToSubmission(input: {
   supabase: DraftSupabaseClient
-  request: Request
   draftId: string
   userId: string
-}) {
+}): Promise<DraftPublishResult> {
   const { supabase, draftId, userId } = input
   const { data: hasConsent, error: consentError } = await supabase.rpc('has_valid_open_data_consent')
-  if (consentError) return createErrorResponse(consentError, 'Failed to validate contribution terms')
+  if (consentError) return publishInternalError(consentError, 'Failed to validate contribution terms')
   if (hasConsent !== true) {
-    return NextResponse.json({
+    return publishFailure(428, {
       code: OPEN_DATA_CONSENT_REQUIRED,
       error: 'Accept the Open Data Contributor Terms to publish.',
-    }, { status: 428 })
+    })
   }
 
   const { data: draft, error: draftError } = await supabase
@@ -315,15 +340,15 @@ export async function promoteDraftToSubmission(input: {
     .maybeSingle()
 
   if (draftError) {
-    return createErrorResponse(draftError, 'Failed to validate draft before publish')
+    return publishInternalError(draftError, 'Failed to validate draft before publish')
   }
 
   if (!draft) {
-    return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+    return publishFailure(404, { error: 'Draft not found' })
   }
 
   if (draft.user_id !== userId) {
-    return NextResponse.json({ error: 'Only the draft owner can publish this draft' }, { status: 403 })
+    return publishFailure(403, { error: 'Only the draft owner can publish this draft' })
   }
 
   const { data: draftImages, error: draftImagesError } = await supabase
@@ -332,7 +357,7 @@ export async function promoteDraftToSubmission(input: {
     .eq('draft_id', draftId)
 
   if (draftImagesError) {
-    return createErrorResponse(draftImagesError, 'Failed to validate draft images before publish')
+    return publishInternalError(draftImagesError, 'Failed to validate draft images before publish')
   }
 
   const draftImageRows = (draftImages || []) as DraftImagePublishRow[]
@@ -351,7 +376,7 @@ export async function promoteDraftToSubmission(input: {
 
     const publishedResult = resolvePublishedResult(draft.metadata)
     if (!publishedResult) {
-      return NextResponse.json({ error: 'Failed to recover published draft destination' }, { status: 500 })
+      return publishFailure(500, { error: 'Failed to recover published draft destination' })
     }
 
     return buildPublishedResponse({ supabase, result: publishedResult, userId, runPostPublishEffects: false })
@@ -365,16 +390,16 @@ export async function promoteDraftToSubmission(input: {
       .in('id', linkedImageIds)
     : { data: [], error: null }
 
-  if (linkedImagesError) return createErrorResponse(linkedImagesError, 'Failed to validate draft media before publish')
+  if (linkedImagesError) return publishInternalError(linkedImagesError, 'Failed to validate draft media before publish')
   if (draftImageRows.some((image) => !image.linked_image_id) || (linkedImages || []).length !== linkedImageIds.length || !(linkedImages || []).every(isMediaPubliclyDeliverable)) {
-    return NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 })
+    return publishFailure(409, MEDIA_NOT_READY_RESPONSE)
   }
   const draftLocation = extractDraftLocation(draft.metadata)
   const effectiveDraftLocation = resolveEffectiveDraftPublishLocation(draft.metadata, draftImageRows)
   const hasValidLocation = hasValidDraftCoordinate(effectiveDraftLocation.latitude, effectiveDraftLocation.longitude)
 
   if (!hasValidLocation) {
-    return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
+    return publishFailure(400, { error: 'Add climb location before publishing this draft' })
   }
 
   const canonicalCragError = await ensureCanonicalCrag({
@@ -417,10 +442,10 @@ export async function promoteDraftToSubmission(input: {
       .maybeSingle()
 
     if (repairDraftLocationError) {
-      return createErrorResponse(repairDraftLocationError, 'Failed to repair draft location before publish')
+      return publishInternalError(repairDraftLocationError, 'Failed to repair draft location before publish')
     }
     if (!repairedDraft) {
-      return NextResponse.json({ error: 'The draft changed before it could be published' }, { status: 409 })
+      return publishFailure(409, { error: 'The draft changed before it could be published' })
     }
   }
 
@@ -436,7 +461,7 @@ export async function promoteDraftToSubmission(input: {
       .map(formatDraftImageLabel)
       .join(', ')
 
-    return NextResponse.json({ error: `Add location for ${labels} before publishing this draft` }, { status: 400 })
+    return publishFailure(400, { error: `Add location for ${labels} before publishing this draft` })
   }
 
   const { data: draftRoutes, error: draftRoutesError } = await supabase
@@ -445,7 +470,7 @@ export async function promoteDraftToSubmission(input: {
     .eq('draft_id', draftId)
 
   if (draftRoutesError) {
-    return createErrorResponse(draftRoutesError, 'Failed to validate draft routes before publish')
+    return publishInternalError(draftRoutesError, 'Failed to validate draft routes before publish')
   }
 
   const draftImageIds = draftImageRows.map((image) => image.id)
@@ -508,23 +533,23 @@ export async function promoteDraftToSubmission(input: {
   const { data, error } = await supabase.rpc('promote_draft_to_submission', { p_draft_id: draftId })
   if (error) {
     if (error.details === 'open_data_consent_required') {
-      return NextResponse.json({ code: OPEN_DATA_CONSENT_REQUIRED, error: 'Accept the Open Data Contributor Terms to publish.' }, { status: 428 })
+      return publishFailure(428, { code: OPEN_DATA_CONSENT_REQUIRED, error: 'Accept the Open Data Contributor Terms to publish.' })
     }
     if (isMediaNotReadyError(error)) {
-      return NextResponse.json(MEDIA_NOT_READY_RESPONSE, { status: 409 })
+      return publishFailure(409, MEDIA_NOT_READY_RESPONSE)
     }
     if (typeof error.message === 'string' && error.message.includes('Draft location is required before publishing')) {
-      return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
+      return publishFailure(400, { error: 'Add climb location before publishing this draft' })
     }
     if (isPermissionDeniedError(error)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return publishFailure(403, { error: 'Forbidden' })
     }
-    return createErrorResponse(error, 'Failed to publish draft')
+    return publishInternalError(error, 'Failed to publish draft')
   }
 
   const result = (Array.isArray(data) ? data[0] : data) as PromoteResult | null
   if (!result?.success || !result.image_id) {
-    return NextResponse.json({ error: 'Failed to publish draft' }, { status: 500 })
+    return publishFailure(500, { error: 'Failed to publish draft' })
   }
 
   return buildPublishedResponse({ supabase, result, userId })

@@ -104,7 +104,7 @@ vi.mock('@/lib/supabase-server', async () => {
 
 vi.mock('@/features/submissions/server/drafts/draft-promote', () => ({
   promoteDraftToSubmission: vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ published: { imageId: 'test-img-id' } }), { status: 200 })
+    { kind: 'success', value: { status: 'submitted', published: { imageId: 'test-img-id', imageIds: ['test-img-id'], routeLineIds: [], defaultImageId: 'test-img-id', climbIds: [], publishedAt: null, canonicalPath: '/gg/test/i/test-img-id', countryCode: 'gg', cragSlug: 'test', defaultRouteId: null } } }
   ),
 }))
 
@@ -281,6 +281,18 @@ describe('deleteSubmissionDraftAction', () => {
       vi.mocked(cleanupDraftStorageObjects).mock.invocationCallOrder[0]
     )
   })
+
+  test('maps post-commit storage cleanup failures to the action error contract', async () => {
+    mockGetActionAuth.mockResolvedValue({ success: true, data: { userId: 'user-123' } })
+    vi.mocked(cleanupDraftStorageObjects).mockRejectedValueOnce(new Error('storage unavailable'))
+    const mockSupabase = await getServerClient()
+    ;(mockSupabase.rpc as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: { success: true, cleanup: [{ storage_provider: 'r2', storage_bucket: 'private-bucket', storage_path: 'drafts/draft-123/image.jpg' }] },
+      error: null,
+    })
+
+    await expect(deleteSubmissionDraftAction('draft-123')).resolves.toMatchObject({ success: false, status: 500 })
+  })
 })
 
 describe('publishSubmissionDraftAction', () => {
@@ -322,13 +334,12 @@ describe('publishSubmissionDraftAction', () => {
     mockGetActionAuth.mockResolvedValue({ success: true, data: { userId: 'user-123' } })
     const { promoteDraftToSubmission } = await import('@/features/submissions/server/drafts/draft-promote')
     ;(promoteDraftToSubmission as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      new Response(JSON.stringify({
-        published: {
+      { kind: 'success', value: { status: 'submitted', published: {
           imageId: 'test-img-id',
           imageIds: ['test-img-id'],
           routeLineIds: [],
-        },
-      }), { status: 200 })
+        defaultImageId: 'test-img-id', climbIds: [], publishedAt: null, canonicalPath: '/gg/test/i/test-img-id', countryCode: 'gg', cragSlug: 'test', defaultRouteId: null,
+      } } }
     )
 
     const result = await publishSubmissionDraftAction('draft-123')
@@ -340,7 +351,7 @@ describe('publishSubmissionDraftAction', () => {
     mockGetActionAuth.mockResolvedValue({ success: true, data: { userId: 'user-123' } })
     const { promoteDraftToSubmission } = await import('@/features/submissions/server/drafts/draft-promote')
     ;(promoteDraftToSubmission as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: 'Publish failed' }), { status: 500 })
+      { kind: 'failure', status: 500, payload: { error: 'Publish failed' } }
     )
 
     const result = await publishSubmissionDraftAction('draft-123')

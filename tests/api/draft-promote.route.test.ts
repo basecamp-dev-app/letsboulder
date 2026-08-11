@@ -32,9 +32,17 @@ vi.mock('@/lib/supabase-admin', () => ({
   getAdminClientWithAudit: () => ({ rpc: adminRpcMock }),
 }))
 
-import { promoteDraftToSubmission } from '@/features/submissions/server/drafts/draft-promote'
+import { promoteDraftToSubmission as publishDraft } from '@/features/submissions/server/drafts/draft-promote'
 import { notifyNewSubmission } from '@/lib/discord'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
+
+async function promoteDraftToSubmission(input: Parameters<typeof publishDraft>[0] & { request?: Request }) {
+  const { request: _request, ...serviceInput } = input
+  const result = await publishDraft(serviceInput)
+  return result.kind === 'success'
+    ? new Response(JSON.stringify({ success: true, ...result.value }))
+    : new Response(JSON.stringify(result.payload), { status: result.status })
+}
 
 function makeThenableResult<T>(result: T) {
   return {

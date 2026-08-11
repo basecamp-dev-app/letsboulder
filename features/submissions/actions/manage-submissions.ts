@@ -1,15 +1,13 @@
 'use server'
 
-import { headers } from 'next/headers'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
-import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
-import { getRpcErrorDetail, isRecord, parseStorageCleanupRows } from '@/lib/media/deletion-rpc'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { getServerClient } from '@/lib/supabase-server'
 import { deleteSubmission } from '@/features/submissions/server/submissions/delete-submission'
 import { promoteDraftToSubmission } from '@/features/submissions/server/drafts/draft-promote'
+import { deleteSubmissionDraft } from '@/features/submissions/server/drafts/draft-write-service'
 import { buildUploadSignature, normalizeCreateImages, validateDraftImageOwnership } from '@/features/submissions/server/drafts/draft-route-helpers'
 import { z } from 'zod'
 
@@ -46,19 +44,6 @@ const draftIdSchema = z.object({
 const imageIdSchema = z.object({
   imageId: z.string().trim().min(1, 'Image ID is required'),
 })
-
-async function getActionRequest(): Promise<Request> {
-  const actionHeaders = new Headers()
-  const requestHeaders = await headers()
-  requestHeaders.forEach((value: string, key: string) => {
-    actionHeaders.set(key, value)
-  })
-
-  return new Request('http://localhost/server-action', {
-    method: 'POST',
-    headers: actionHeaders,
-  })
-}
 
 export async function createSubmissionDraftAction(input: DraftCreateInput): Promise<ActionResult<DraftCreateResult['draft']>> {
   const validation = validateActionInput(draftCreateSchema, input)
@@ -169,28 +154,13 @@ export async function deleteSubmissionDraftAction(draftId: string): Promise<Acti
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
   if (!draftId) return { success: false, error: 'Draft ID is required', status: 400 }
 
-  const supabase = await getServerClient()
-  const { data, error: deleteError } = await supabase.rpc('delete_submission_draft_atomic', {
-    p_draft_id: validation.data.draftId,
-  })
-
-  if (deleteError) {
-    const detail = getRpcErrorDetail(deleteError)
-    if (detail === 'not_found') return { success: false, error: 'Draft not found', status: 404 }
-    if (detail === 'permission_denied') return { success: false, error: 'Forbidden', status: 403 }
-    if (detail === 'draft_not_editable') return { success: false, error: 'Only draft submissions can be deleted', status: 409 }
-    if (detail === 'draft_conflict') return { success: false, error: 'The draft changed while it was being deleted', status: 409 }
-    return { success: false, error: 'Failed to delete submission draft', status: 500 }
-  }
-
-  if (!isRecord(data)) return { success: false, error: 'Failed to delete submission draft', status: 500 }
-
-  const cleanupRows = parseStorageCleanupRows(data.cleanup)
-  if (cleanupRows.length > 0) {
-    const storageClient = getAdminClientWithAudit('cleanup draft storage objects')
-    await cleanupDraftStorageObjects(storageClient, cleanupRows)
-  }
-  return { success: true }
+  const result = await deleteSubmissionDraft({ supabase: await getServerClient(), draftId: validation.data.draftId, cleanupAuditReason: 'cleanup draft storage objects' })
+  if (result.kind === 'success') return { success: true }
+  if (result.kind === 'not_found') return { success: false, error: 'Draft not found', status: 404 }
+  if (result.kind === 'forbidden') return { success: false, error: 'Forbidden', status: 403 }
+  if (result.kind === 'not_editable') return { success: false, error: 'Only draft submissions can be deleted', status: 409 }
+  if (result.kind === 'conflict') return { success: false, error: 'The draft changed while it was being deleted', status: 409 }
+  return { success: false, error: 'Failed to delete submission draft', status: 500 }
 }
 
 export async function publishSubmissionDraftAction(draftId: string): Promise<ActionResult<{ published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] }; cragId?: string | null }>> {
@@ -203,20 +173,15 @@ export async function publishSubmissionDraftAction(draftId: string): Promise<Act
   if (!draftId) return { success: false, error: 'Draft ID is required', status: 400 }
 
   const supabase = await getServerClient()
-  const request = await getActionRequest()
-  const response = await promoteDraftToSubmission({ supabase, request, draftId: validation.data.draftId, userId: auth.data.userId })
-  const payload = await response.json().catch(() => ({} as { error?: string; published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] } }))
-
-  if (!response.ok) {
-    return { success: false, error: payload.error || 'Failed to publish draft', status: response.status }
+  const result = await promoteDraftToSubmission({ supabase, draftId: validation.data.draftId, userId: auth.data.userId })
+  if (result.kind === 'failure') {
+    return { success: false, error: typeof result.payload.error === 'string' ? result.payload.error : 'Failed to publish draft', status: result.status }
   }
-
-  const imageId = payload.published?.imageId
-  const { data: image } = imageId
-    ? await supabase.from('images').select('crag_id').eq('id', imageId).maybeSingle()
+  const { published } = result.value
+  const { data: image } = published.imageId
+    ? await supabase.from('images').select('crag_id').eq('id', published.imageId).maybeSingle()
     : { data: null }
-
-  return { success: true, data: { published: payload.published, cragId: image?.crag_id ?? null } }
+  return { success: true, data: { published, cragId: image?.crag_id ?? null } }
 }
 
 export async function deletePublishedSubmissionAction(imageId: string): Promise<ActionResult<{ cragId: string | null }>> {
