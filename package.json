@@ -1,6 +1,9 @@
 {
   "name": "letsboulder",
   "version": "0.1.0",
+  "engines": {
+    "node": "22.23.2"
+  },
   "overrides": {
     "@babel/core": "^7.29.7",
     "body-parser": "^2.3.0",

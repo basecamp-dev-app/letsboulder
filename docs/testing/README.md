@@ -79,7 +79,7 @@ npm ci --prefer-offline
 npx playwright install chromium webkit
 ```
 
-Local Playwright starts `npm run dev` automatically unless an existing `PLAYWRIGHT_BASE_URL` server is reused. In CI, direct URLs must be `https://dev.letsboulder.com`; a preview must be supplied by Vercel deployment ID and resolved through the Vercel API. Arbitrary URLs, query strings, credentials, ports, and paths are rejected. Run all projects with `npx playwright test`, or select projects explicitly, for example `npx playwright test --project=public --project=mobile-safari`.
+Local Playwright starts `npm run dev` automatically unless an existing `PLAYWRIGHT_BASE_URL` server is reused. In CI, the only direct URL is `https://letsboulder.com`, and it is restricted to public tests. A preview must be supplied by Vercel deployment ID and resolved through the Vercel API. Arbitrary URLs, query strings, credentials, ports, and paths are rejected. Run all projects with `npx playwright test`, or select projects explicitly, for example `npx playwright test --project=public --project=mobile-safari`.
 
 ## Database Tests
 
@@ -107,9 +107,8 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 - **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, advisory feature layout reporting, architecture boundaries, docs drift, typecheck, build, unit, component, and integration coverage checks
 - **Generated type drift** — A dedicated CI job starts the pinned local Supabase stack, resets it from every committed migration, and runs `npm run check:type-drift` on every PR, push, and manual workflow run. This validates generated content rather than only checking whether `types/database.ts` changed alongside a migration, and it also covers direct pushes where the old PR-only heuristic did not run.
 - **CI cost tradeoff** — Local Supabase requires Docker images and a migration reset, so this adds a few minutes and a separate Ubuntu runner. Keeping it as one isolated job avoids starting Supabase for every quality/test job while making migration changes fail closed when generated types are stale.
-- **Smoke tests** — Run on trusted deployment status or manual dispatch in `.github/workflows/test.yml`; public and authenticated `--grep @smoke` projects run in separate processes
+- **Smoke tests** — Run by manual dispatch in `.github/workflows/test.yml`. Public `--grep @smoke` tests can target production or a project-verified Vercel preview; authenticated remote smoke tests remain disabled until a protected non-production origin is available.
 - **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests; test-auth and service credentials are intentionally absent
-- Protected non-production E2E runs use Cloudflare Access headers when required
 
 Run the CI-equivalent quality sequence locally with the same commands (the build requires the public Supabase environment variables):
 

@@ -4,7 +4,7 @@ This guide sets up letsboulder against the local Supabase stack. Hosted-project 
 
 ## Prerequisites
 
-- Node.js `20.20.0` (pinned in `.nvmrc`)
+- Node.js `22.23.2` (pinned in `.nvmrc`)
 - npm
 - Docker or another Docker-compatible runtime
 

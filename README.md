@@ -62,7 +62,7 @@ See [LOCAL_SETUP.md](LOCAL_SETUP.md) for full local development setup.
 
 ### Prerequisites
 
-- Node.js `20.20.0` and npm
+- Node.js `22.23.2` and npm
 - A Docker-compatible runtime for `supabase start`
 
 ```bash
