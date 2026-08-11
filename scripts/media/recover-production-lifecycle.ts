@@ -97,6 +97,18 @@ export function validateRecoveryInput(
   return result
 }
 
+export function validateRecoveredRows(
+  rows: Array<{ id: string; replay_of_job_id: string | null }>,
+  snapshots: Snapshot[],
+): string[] {
+  const expectedIds = snapshots.map((snapshot) => snapshot.id.toLowerCase()).sort()
+  const replayedIds = rows.map((row) => row.replay_of_job_id?.toLowerCase() ?? '').sort()
+  if (JSON.stringify(replayedIds) !== JSON.stringify(expectedIds)) {
+    throw new Error('Recovery RPC returned an inconsistent result')
+  }
+  return rows.map((row) => row.id)
+}
+
 async function main(): Promise<void> {
   const output = process.env.RECOVERY_OUTPUT?.trim() || 'production-media-lifecycle-recovery.json'
   const result: Record<string, unknown> = { schemaVersion: 1, dryRun: true, selected: [], recovered: [], readOnly: true }
@@ -142,16 +154,11 @@ async function main(): Promise<void> {
         `, [snapshots[0].kind, JSON.stringify(snapshots)])
         if (rows.rows.length !== snapshots.length) throw new Error('Current jobs do not exactly match reviewed snapshots')
       } else {
-        const recovered = await client.query<{ id: string }>(
-          `SELECT id::text FROM public.${functionName}($1::jsonb, $2::bigint, $3::text) ORDER BY id`,
+        const recovered = await client.query<{ id: string; replay_of_job_id: string | null }>(
+          `SELECT id::text, replay_of_job_id::text FROM public.${functionName}($1::jsonb, $2::bigint, $3::text) ORDER BY id`,
           [JSON.stringify(snapshots), runId, digest],
         )
-        result.recovered = recovered.rows.map((row) => row.id)
-        const expectedIds = snapshots.map((snapshot) => snapshot.id.toLowerCase()).sort()
-        const recoveredIds = recovered.rows.map((row) => row.id.toLowerCase()).sort()
-        if (JSON.stringify(recoveredIds) !== JSON.stringify(expectedIds)) {
-          throw new Error('Recovery RPC returned an inconsistent result')
-        }
+        result.recovered = validateRecoveredRows(recovered.rows, snapshots)
       }
       await client.query('COMMIT')
     } catch (error) {

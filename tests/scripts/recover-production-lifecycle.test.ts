@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { validateRecoveryInput } from '@/scripts/media/recover-production-lifecycle'
+import { validateRecoveredRows, validateRecoveryInput } from '@/scripts/media/recover-production-lifecycle'
 
 const id = '5a60f240-df39-4d64-8689-6176539f09a4'
 
@@ -54,5 +54,23 @@ describe('validateRecoveryInput', () => {
     const input = artifact() as { findings: Array<{ snapshot: Record<string, unknown> }> }
     input.findings[0].snapshot.operatorNote = 'not reviewed'
     expect(() => validateRecoveryInput(input, 'deletion_job', id)).toThrow(/critical exact snapshot/)
+  })
+})
+
+describe('validateRecoveredRows', () => {
+  it('returns fresh replay IDs after matching their original job IDs', () => {
+    const snapshots = validateRecoveryInput(artifact('source_replaced'), 'deletion_job', id)
+    expect(validateRecoveredRows([{
+      id: '11111111-1111-4111-8111-111111111111',
+      replay_of_job_id: id,
+    }], snapshots)).toEqual(['11111111-1111-4111-8111-111111111111'])
+  })
+
+  it('rejects missing or unexpected replay provenance', () => {
+    const snapshots = validateRecoveryInput(artifact('source_replaced'), 'deletion_job', id)
+    expect(() => validateRecoveredRows([{
+      id: '11111111-1111-4111-8111-111111111111',
+      replay_of_job_id: null,
+    }], snapshots)).toThrow(/inconsistent/)
   })
 })
