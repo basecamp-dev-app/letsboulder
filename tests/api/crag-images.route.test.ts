@@ -1,8 +1,12 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { describe, expect, test, vi } from 'vitest'
 
 vi.mock('@/lib/supabase-server', () => ({
   getServerClientFromRequest: vi.fn(),
+}))
+
+vi.mock('@/lib/csrf-server', () => ({
+  withCsrfProtection: vi.fn(),
 }))
 
 vi.mock('@/features/crags/server', () => ({
@@ -11,15 +15,22 @@ vi.mock('@/features/crags/server', () => ({
 
 import { GET, POST } from '@/app/api/crags/[id]/images/route'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { withCsrfProtection } from '@/lib/csrf-server'
 import { loadCragImages } from '@/features/crags/server'
 
 describe('Crag images route', () => {
-  test('POST is retired before multipart data can write', async () => {
-    const response = await POST()
+  test('POST rejects requests that fail CSRF validation', async () => {
+    vi.mocked(withCsrfProtection).mockResolvedValue({
+      valid: false,
+      response: NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403 }),
+    })
 
-    expect(response.status).toBe(410)
+    const request = new NextRequest('http://localhost/api/crags/crag-1/images', { method: 'POST' })
+    const response = await POST(request, { params: Promise.resolve({ id: 'crag-1' }) })
+
+    expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({
-      error: 'Legacy multipart crag image upload has been retired',
+      error: 'Invalid CSRF token',
     })
   })
 
