@@ -78,16 +78,16 @@ export function OpenDataConsentProvider({ children }: { children: ReactNode }) {
     const result = await acceptOpenDataConsentAction(requiredVersion)
     if (requestAuthRevision !== getAuthRevision()) return
 
-    setSubmitting(false)
-
     if (!result.success || !result.data?.isValid) {
       setError(result.error || 'Could not record your agreement')
       const status = await getOpenDataConsentStatusAction()
       if (requestAuthRevision !== getAuthRevision()) return
       setRequiredVersion(status.success && status.data ? status.data.requiredVersion : null)
+      setSubmitting(false)
       return
     }
 
+    setSubmitting(false)
     const intent = pendingIntent.current
     pendingIntent.current = null
     setOpen(false)

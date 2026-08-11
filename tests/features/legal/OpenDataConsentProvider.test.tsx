@@ -133,6 +133,51 @@ describe('OpenDataConsentProvider', () => {
     expect(onContribute).not.toHaveBeenCalled()
   })
 
+  it('keeps acceptance disabled until a failed acceptance refreshes the terms version', async () => {
+    const onContribute = vi.fn()
+    const statusRefresh = deferred<{
+      success: boolean
+      data: { requiredVersion: string; acceptedVersion: string | null; consentTimestamp: string | null; isValid: boolean }
+    }>()
+    mocks.status
+      .mockResolvedValueOnce({
+        success: true,
+        data: { requiredVersion: '2026-07-29-v1', acceptedVersion: null, consentTimestamp: null, isValid: false },
+      })
+      .mockReturnValueOnce(statusRefresh.promise)
+    mocks.accept
+      .mockResolvedValueOnce({ success: false, error: 'The contribution terms changed. Please review the current version.', status: 409 })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { requiredVersion: '2026-08-10-v1', acceptedVersion: '2026-08-10-v1', consentTimestamp: '2026-08-10T00:00:00Z', isValid: true },
+      })
+
+    render(<OpenDataConsentProvider><ContributionButton onContribute={onContribute} /></OpenDataConsentProvider>)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Contribute' }))
+    await user.click(await screen.findByRole('button', { name: 'Agree and continue' }))
+    await waitFor(() => expect(mocks.status).toHaveBeenCalledTimes(2))
+
+    const savingButton = screen.getByRole('button', { name: 'Saving...' })
+    expect(savingButton).toBeDisabled()
+    await user.click(savingButton)
+    expect(mocks.accept).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      statusRefresh.resolve({
+        success: true,
+        data: { requiredVersion: '2026-08-10-v1', acceptedVersion: null, consentTimestamp: null, isValid: false },
+      })
+      await statusRefresh.promise
+    })
+
+    expect(await screen.findByText(/2026-08-10-v1/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Agree and continue' }))
+    expect(mocks.accept).toHaveBeenLastCalledWith('2026-08-10-v1')
+    expect(onContribute).toHaveBeenCalledTimes(1)
+  })
+
   it('discards a status result when the authenticated account changes', async () => {
     const onContribute = vi.fn()
     const status = deferred<{
