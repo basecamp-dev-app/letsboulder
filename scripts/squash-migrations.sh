@@ -18,12 +18,12 @@ Options:
   -h, --help       Show this help message
 
 Prerequisites:
-  1. Link your Supabase project: supabase link --project-ref <ref>
+  1. Link your Supabase project: npx --no-install supabase link --project-ref <ref>
   2. Ensure you have SUPABASE_ACCESS_TOKEN set
 
 Workflow:
   1. Run with --dry-run to see current migration count
-  2. Run: supabase db remote commit
+  2. Run: npx --no-install supabase db remote commit
   3. Replace migrations directory with new baseline migration
   4. Commit and push
 
@@ -68,10 +68,10 @@ echo "Migration count exceeds threshold!"
 echo "To squash migrations:"
 echo ""
 echo "  1. Link your project:"
-echo "     supabase link --project-ref <your-project-ref>"
+echo "     npx --no-install supabase link --project-ref <your-project-ref>"
 echo ""
 echo "  2. Run remote commit:"
-echo "     supabase db remote commit"
+echo "     npx --no-install supabase db remote commit"
 echo ""
 echo "  3. This creates a migration file with current schema"
 echo "  4. Replace all existing migrations with the new baseline"
@@ -83,4 +83,4 @@ if [[ "$DRY_RUN" == "true" ]]; then
   exit 0
 fi
 
-echo "Run 'supabase db remote commit' to generate the squashed migration."
+echo "Run 'npx --no-install supabase db remote commit' to generate the squashed migration."

@@ -14,7 +14,7 @@ Use the lockfile-installed Supabase CLI through `npx`; do not install a separate
 nvm install
 nvm use
 npm install
-npx supabase --version
+npx --no-install supabase --version
 ```
 
 Install Docker using the instructions for your operating system, then verify that the daemon is running:
@@ -28,8 +28,8 @@ docker info
 Start Supabase and rebuild the local database from committed migrations:
 
 ```bash
-npx supabase start
-npx supabase db reset
+npx --no-install supabase start
+npx --no-install supabase db reset
 ```
 
 The local services normally include:
@@ -41,11 +41,11 @@ The local services normally include:
 | Studio | `http://127.0.0.1:54323` |
 | Mailpit | `http://127.0.0.1:54324` |
 
-Copy the environment template and replace the Supabase placeholders with the values printed by `npx supabase status`:
+Copy the environment template and replace the Supabase placeholders with the values printed by `npx --no-install supabase status`:
 
 ```bash
 cp .env.example .env.local
-npx supabase status
+npx --no-install supabase status
 ```
 
 Generate local secrets for `CSRF_SECRET` and `DELETE_ACCOUNT_SECRET`. For example:
@@ -59,7 +59,7 @@ R2 credentials are needed to exercise route-photo upload and delivery. Developer
 Generate database types and start Next.js:
 
 ```bash
-npx supabase gen types typescript --local > types/database.ts
+npx --no-install supabase gen types typescript --local > types/database.ts
 npm run dev
 ```
 
@@ -82,8 +82,8 @@ Use `CONTRIBUTING.md` to choose checks for a specific change and `docs/testing/R
 Database work requires a current local stack:
 
 ```bash
-npx supabase db reset
-npx supabase gen types typescript --local > types/database.ts
+npx --no-install supabase db reset
+npx --no-install supabase gen types typescript --local > types/database.ts
 npm run typecheck
 npm run test:database
 ```
@@ -125,9 +125,9 @@ Use the deployed development environment for end-to-end media verification. Main
 Only maintainers should link or push to a hosted Supabase project. Verify the selected project and always inspect a dry run first:
 
 ```bash
-npx supabase link --project-ref <project-ref>
-npx supabase db push --linked --dry-run
-npx supabase db push --linked
+npx --no-install supabase link --project-ref <project-ref>
+npx --no-install supabase db push --linked --dry-run
+npx --no-install supabase db push --linked
 ```
 
 Never use `db reset --linked` as part of local setup.
@@ -138,9 +138,9 @@ Never use `db reset --linked` as part of local setup.
 
 ```bash
 docker info
-npx supabase status
-npx supabase stop
-npx supabase start
+npx --no-install supabase status
+npx --no-install supabase stop
+npx --no-install supabase start
 ```
 
 Check for another service using ports `54321` through `54324` if startup still fails.

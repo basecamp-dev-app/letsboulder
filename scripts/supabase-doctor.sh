@@ -2,32 +2,27 @@
 
 set -euo pipefail
 
-REQUIRED_VERSION="2.72.7"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-if ! command -v supabase >/dev/null 2>&1; then
-  echo "supabase CLI not found on PATH"
+cd "$REPO_ROOT"
+
+if [[ ! -x "$REPO_ROOT/node_modules/.bin/supabase" ]]; then
+  echo "Lockfile-installed supabase CLI not found. Run: npm ci" >&2
   exit 1
 fi
 
-SUPABASE_PATHS_RAW="$(which -a supabase 2>/dev/null || true)"
-SUPABASE_PATHS_UNIQ="$(printf '%s\n' "$SUPABASE_PATHS_RAW" | awk 'NF {seen[$0]++} END {for (p in seen) print p}' | sort)"
-SUPABASE_PATH_COUNT="$(printf '%s\n' "$SUPABASE_PATHS_UNIQ" | awk 'NF{c++} END{print c+0}')"
+SUPABASE_PATH="$REPO_ROOT/node_modules/.bin/supabase"
+SUPABASE_VERSION="$(npx --no-install supabase --version | awk '{print $1}')"
+LOCKFILE_VERSION="$(node -p "require('./node_modules/supabase/package.json').version")"
 
-echo "supabase: $(command -v supabase)"
-echo "supabase --version: $(supabase --version)"
+echo "supabase: $SUPABASE_PATH"
+echo "supabase --version: $SUPABASE_VERSION"
 
-if [[ "$SUPABASE_PATH_COUNT" -gt 1 ]]; then
-  echo "Multiple supabase binaries found on PATH:" >&2
-  printf '%s\n' "$SUPABASE_PATHS_UNIQ" >&2
-  echo "Fix PATH so only one supabase is used." >&2
+if [[ "$SUPABASE_VERSION" != "$LOCKFILE_VERSION" ]]; then
+  echo "Lockfile CLI version is $LOCKFILE_VERSION, but the binary reported $SUPABASE_VERSION" >&2
+  echo "Run: npm ci" >&2
   exit 1
 fi
 
-INSTALLED_VERSION="$(supabase --version | awk '{print $1}')"
-if [[ "$INSTALLED_VERSION" != "$REQUIRED_VERSION" ]]; then
-  echo "Expected supabase CLI $REQUIRED_VERSION, found $INSTALLED_VERSION" >&2
-  echo "Run: npm install" >&2
-  exit 1
-fi
-
-echo "OK"
+echo "OK ($LOCKFILE_VERSION)"

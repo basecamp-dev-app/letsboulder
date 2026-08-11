@@ -32,6 +32,14 @@ jobs:
           ref: ${{ inputs.commit_sha || github.sha }}
           fetch-depth: 0
 
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
       - name: Verify selected commit is current main
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -98,20 +106,15 @@ jobs:
           echo "::error::Migration count (${{ steps.migration_count.outputs.count }}) exceeds $SQUASH_THRESHOLD. Squashing is required before merge."
           exit 1
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
-        with:
-          version: 2.84.2
-
       - name: Link Supabase project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+        run: npx --no-install supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Preview migrations
-        run: timeout 15m supabase db push --linked --include-all --dry-run
+        run: timeout 15m npx --no-install supabase db push --linked --include-all --dry-run
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
@@ -131,7 +134,7 @@ jobs:
 
       - name: Apply migrations
         if: github.event_name == 'workflow_dispatch'
-        run: timeout 15m supabase db push --linked --include-all
+        run: timeout 15m npx --no-install supabase db push --linked --include-all
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}

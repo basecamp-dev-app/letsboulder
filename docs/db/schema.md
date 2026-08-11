@@ -594,9 +594,9 @@ may request at most 30 rows.
 ```bash
 # Install the lockfile-pinned CLI, rebuild local from migrations, and regenerate types
 npm install
-npx supabase start
-npx supabase db reset
-npx supabase gen types typescript --local > types/database.ts
+npx --no-install supabase start
+npx --no-install supabase db reset
+npx --no-install supabase gen types typescript --local > types/database.ts
 
 # Verify the schema and affected surfaces
 npm run typecheck
@@ -610,9 +610,9 @@ Linked database commands are maintainer deployment operations, not part of the l
 For local maintainer operations, select the intended hosted project, inspect the dry-run, and only then push:
 
 ```bash
-npx supabase link --project-ref <project-ref>
-npx supabase db push --linked --dry-run
-npx supabase db push --linked
+npx --no-install supabase link --project-ref <project-ref>
+npx --no-install supabase db push --linked --dry-run
+npx --no-install supabase db push --linked
 ```
 
 ### Safety Rules
@@ -657,8 +657,8 @@ const supabase = createBrowserClient(
 ### Type Generation
 After any schema change, reset the local database and regenerate types from the migrations applied there:
 ```bash
-npx supabase db reset
-npx supabase gen types typescript --local > types/database.ts
+npx --no-install supabase db reset
+npx --no-install supabase gen types typescript --local > types/database.ts
 npm run typecheck
 npm run test:database
 ```
@@ -667,6 +667,6 @@ Always verify affected app types against the new schema before writing UI code.
 ### Schema Drift Check
 Maintainers may periodically verify a deliberately linked hosted project matches what migrations produce:
 ```bash
-npx supabase db diff --linked
+npx --no-install supabase db diff --linked
 ```
 Any diff indicates drift — backfill missing migrations immediately.

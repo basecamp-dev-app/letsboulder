@@ -29,7 +29,7 @@ try {
 
   if (normalizeGeneratedOutput(readFileSync(generatedTypesPath, 'utf8')) !== normalizeGeneratedOutput(readFileSync(temporaryTypesPath, 'utf8'))) {
     process.stderr.write(
-      'Generated database types are out of date. Run `npx supabase gen types typescript --local > types/database.ts` and review the result.\n',
+      'Generated database types are out of date. Run `npx --no-install supabase gen types typescript --local > types/database.ts` and review the result.\n',
     )
     process.exit(1)
   }

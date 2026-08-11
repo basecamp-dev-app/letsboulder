@@ -8,7 +8,7 @@
 
 ## Why
 
-- Rebuilding local should be deterministic (`npx supabase db reset`).
+- Rebuilding local should be deterministic (`npx --no-install supabase db reset`).
 - Dev/prod should match git, not drift over time.
 - Debugging is easier when schema history is visible in PRs.
 
@@ -58,16 +58,16 @@ This repo assumes you run schema changes through migrations committed in git.
 Use the pinned Supabase CLI and confirm it is available:
 
 ```bash
-npm install
-npx supabase --version
+npm ci
+npx --no-install supabase --version
 ```
 
 ### 1) Create and test locally
 
 ```bash
-npx supabase start
-npx supabase db reset
-npx supabase gen types typescript --local > types/database.ts
+npx --no-install supabase start
+npx --no-install supabase db reset
+npx --no-install supabase gen types typescript --local > types/database.ts
 npm run typecheck
 npm run test:database
 ```
@@ -88,9 +88,9 @@ Linked commands are not part of the contributor workflow. Pushes to `main` run t
 For local maintainer operations, deliberately select the intended project, review the dry-run, and then push:
 
 ```bash
-npx supabase link --project-ref <project-ref>
-npx supabase db push --linked --dry-run
-npx supabase db push --linked
+npx --no-install supabase link --project-ref <project-ref>
+npx --no-install supabase db push --linked --dry-run
+npx --no-install supabase db push --linked
 ```
 
 The GitHub workflow serializes production migration runs. Do not start a second apply while one is queued or running, and never print or paste the database password or access token into logs or issue comments.
@@ -112,19 +112,19 @@ This usually means the remote migration history table (`supabase_migrations.sche
 1) Inspect migration history:
 
 ```bash
-npx supabase migration list --linked
+npx --no-install supabase migration list --linked
 ```
 
 2) If remote has versions that do not exist in git, reconstruct them into new migrations (do not delete random history in prod).
 
 ### Emergency (dev only): remove an invalid non-numeric version
 
-If the remote history table contains a non-numeric version (example: `20260120000000_verification_system`), Supabase CLI cannot repair it with `npx supabase migration repair`.
+If the remote history table contains a non-numeric version (example: `20260120000000_verification_system`), Supabase CLI cannot repair it with `npx --no-install supabase migration repair`.
 
 In dev, you can delete the one bad row:
 
 ```bash
-npx supabase db dump --dry-run --schema supabase_migrations
+npx --no-install supabase db dump --dry-run --schema supabase_migrations
 ```
 
 Use the printed `PGHOST/PGPORT/PGUSER/PGDATABASE/PGPASSWORD` env vars and run:
@@ -137,6 +137,6 @@ psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
 Then re-run:
 
 ```bash
-npx supabase db push --linked --dry-run
-npx supabase db push --linked
+npx --no-install supabase db push --linked --dry-run
+npx --no-install supabase db push --linked
 ```

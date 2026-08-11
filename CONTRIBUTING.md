@@ -73,8 +73,8 @@ Use the smallest relevant checks during development, then run the complete quali
 - All schema changes go through `supabase/migrations/*.sql`
 - Never edit Supabase dashboard directly
 - Reset local Supabase and run `npm run test:database` for migrations, RLS, triggers, and RPC changes
-- Regenerate types with `npx supabase gen types typescript --local > types/database.ts`
-- Hosted pushes are maintainer-only; pushes to `main` trigger a production dry-run and never apply migrations. Applying requires manually dispatching the `Supabase Migrations` workflow with the current `main` commit SHA; the workflow validates that SHA again immediately before applying. For local pushes, verify the linked project and run `npx supabase db push --linked --dry-run` first
+- Regenerate types with `npx --no-install supabase gen types typescript --local > types/database.ts`
+- Hosted pushes are maintainer-only; pushes to `main` trigger a production dry-run and never apply migrations. Applying requires manually dispatching the `Supabase Migrations` workflow with the current `main` commit SHA; the workflow validates that SHA again immediately before applying. For local pushes, verify the linked project and run `npx --no-install supabase db push --linked --dry-run` first
 
 ## PR Verification Checklist
 

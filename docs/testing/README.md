@@ -87,8 +87,8 @@ Install dependencies, start the lockfile-pinned local Supabase stack, and reset 
 
 ```bash
 npm ci --prefer-offline
-npx supabase start
-npx supabase db reset
+npx --no-install supabase start
+npx --no-install supabase db reset
 npm run test:database
 ```
 
@@ -119,8 +119,8 @@ npm run check:features
 npm run check:architecture
 bash docs/verify.sh
 npm run typecheck
-npx supabase start
-npx supabase db reset
+npx --no-install supabase start
+npx --no-install supabase db reset
 npm run check:type-drift
 npm run build
 npm run test:unit

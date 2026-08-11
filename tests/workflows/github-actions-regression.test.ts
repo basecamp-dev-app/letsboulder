@@ -20,9 +20,22 @@ describe('GitHub Actions security contracts', () => {
     expect(content).toContain("if: github.event_name == 'workflow_dispatch'")
     expect(content).toMatch(/commit_sha must be a full 40-character commit SHA/)
     expect(content).toMatch(/SELECTED_COMMIT_SHA.*MAIN_SHA/s)
-    expect(content).toContain('supabase db push --linked --include-all --dry-run')
-    expect(content).toContain('supabase db push --linked --include-all')
+    expect(content).toContain('run: npm ci --prefer-offline')
+    expect(content).toContain('npx --no-install supabase link')
+    expect(content).toContain('npx --no-install supabase db push --linked --include-all --dry-run')
+    expect(content).toContain('npx --no-install supabase db push --linked --include-all')
+    expect(content).not.toContain('supabase/setup-cli')
+    expect(content).not.toContain('version: 2.84.2')
     expect(content).toMatch(/name: Apply migrations[\s\S]*if: github\.event_name == 'workflow_dispatch'/)
+  })
+
+  it('uses the repository Supabase CLI in diagnostics', () => {
+    const content = readFileSync(path.join(root, 'scripts', 'supabase-doctor.sh'), 'utf8')
+
+    expect(content).toContain('npx --no-install supabase --version')
+    expect(content).toContain('node_modules/.bin/supabase')
+    expect(content).not.toContain('command -v supabase')
+    expect(content).not.toContain('REQUIRED_VERSION=')
   })
 
   it('retains strict input validation on mutating maintenance workflows', () => {

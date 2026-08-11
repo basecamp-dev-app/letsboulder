@@ -43,7 +43,7 @@ When locating code, start with the route or feature named in the task, then foll
   - VISUAL_LANGUAGE: Preserve the existing rounded letsboulder visual system. Do not assume a global hard-edge or zero-radius style.
 </component_governance>
 
-- NEVER skip `npx supabase gen types typescript --local > types/database.ts` after schema changes; reset local first and verify affected app types against the new schema before writing UI code.
+- NEVER skip `npx --no-install supabase gen types typescript --local > types/database.ts` after schema changes; reset local first and verify affected app types against the new schema before writing UI code.
 
 ## Build Commands
 
@@ -61,17 +61,17 @@ bash docs/verify.sh     # Documentation checks
 Use the lockfile-pinned CLI. The canonical schema-change workflow is local:
 
 ```bash
-npm install
-npx supabase --version
-npx supabase start
-npx supabase db reset
-npx supabase gen types typescript --local > types/database.ts
+npm ci
+npx --no-install supabase --version
+npx --no-install supabase start
+npx --no-install supabase db reset
+npx --no-install supabase gen types typescript --local > types/database.ts
 npm run typecheck
 npm run check:type-drift
 npm run test:database
 ```
 
-Run `npm --prefix apps/media-worker run check` when database contracts used by the worker change, and `bash docs/verify.sh` when documentation or documented schema behavior changes. Only maintainers may use linked hosted-project commands; always run `npx supabase db push --linked --dry-run` and verify the project before `npx supabase db push --linked`.
+Run `npm --prefix apps/media-worker run check` when database contracts used by the worker change, and `bash docs/verify.sh` when documentation or documented schema behavior changes. Only maintainers may use linked hosted-project commands; always run `npx --no-install supabase db push --linked --dry-run` and verify the project before `npx --no-install supabase db push --linked`.
 
 ## Code Style
 
@@ -109,6 +109,6 @@ Run `npm --prefix apps/media-worker run check` when database contracts used by t
 
 <next_steps>
   - Keep schema.md and patterns.md in sync with code changes
-  - Reset local and regenerate `types/database.ts` via `npx supabase gen types typescript --local > types/database.ts` after any schema change
+  - Reset local and regenerate `types/database.ts` via `npx --no-install supabase gen types typescript --local > types/database.ts` after any schema change
   - Prioritize Supabase-generated type migration in `types/database.ts`, `features/submissions/lib/submission-types.ts`, and ranking/community query surfaces.
 </next_steps>

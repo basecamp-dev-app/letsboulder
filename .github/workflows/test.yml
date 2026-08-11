@@ -78,17 +78,17 @@ jobs:
         run: npm ci --prefer-offline
 
       - name: Start local Supabase
-        run: npx supabase start
+        run: npx --no-install supabase start
 
       - name: Reset local database
-        run: npx supabase db reset
+        run: npx --no-install supabase db reset
 
       - name: Check generated database types
         run: npm run check:type-drift
 
       - name: Stop local Supabase
         if: always()
-        run: npx supabase stop || true
+        run: npx --no-install supabase stop || true
 
   build:
     name: Next.js Build

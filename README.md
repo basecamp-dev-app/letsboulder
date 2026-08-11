@@ -67,10 +67,10 @@ See [LOCAL_SETUP.md](LOCAL_SETUP.md) for full local development setup.
 
 ```bash
 npm install
-npx supabase start
+npx --no-install supabase start
 cp .env.example .env.local
-npx supabase db reset
-npx supabase gen types typescript --local > types/database.ts
+npx --no-install supabase db reset
+npx --no-install supabase gen types typescript --local > types/database.ts
 npm run dev
 ```
 
@@ -78,7 +78,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment Variables
 
-See [`.env.example`](.env.example) for the categorized application, media, integration, and test variables. Minimum local setup uses the credentials printed by `npx supabase status` plus locally generated secrets.
+See [`.env.example`](.env.example) for the categorized application, media, integration, and test variables. Minimum local setup uses the credentials printed by `npx --no-install supabase status` plus locally generated secrets.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -106,7 +106,7 @@ See [`.env.example`](.env.example) for the categorized application, media, integ
 
 **Media Worker**: Cloudflare Worker deployed via Wrangler (`apps/media-worker/wrangler.toml`)
 
-**Database**: Maintainers verify the linked project and run `npx supabase db push --linked --dry-run` before deployment
+**Database**: Maintainers verify the linked project and run `npx --no-install supabase db push --linked --dry-run` before deployment
 
 ## Contributing
 
