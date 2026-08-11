@@ -83,6 +83,7 @@ export default function EditSubmittedRoutesPage() {
   useUnsavedChangesWarning(hasPendingChanges)
   const { commitRoutes } = usePublishedRouteEditorSync({
     activeImageId: editor.activeImageId,
+    loadedImageId: editor.imageSelection?.mode === 'existing' ? editor.imageSelection.imageId : null,
     editedRoutes: editor.editedRoutes,
     setEditedRoutes: editor.setEditedRoutes,
   })

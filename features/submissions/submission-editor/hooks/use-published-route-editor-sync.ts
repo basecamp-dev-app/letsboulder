@@ -7,12 +7,14 @@ import type { RouteLine } from '@/types/domain'
 
 interface UsePublishedRouteEditorSyncParams {
   activeImageId: string | null
+  loadedImageId: string | null
   editedRoutes: RouteLine[]
   setEditedRoutes: (routes: RouteLine[]) => void
 }
 
 export function usePublishedRouteEditorSync({
   activeImageId,
+  loadedImageId,
   editedRoutes,
   setEditedRoutes,
 }: UsePublishedRouteEditorSyncParams) {
@@ -33,7 +35,7 @@ export function usePublishedRouteEditorSync({
   })))
   const lastSeededImageIdRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!activeImageId) return
+    if (!activeImageId || loadedImageId !== activeImageId) return
     const imageChanged = lastSeededImageIdRef.current !== activeImageId
     if (!imageChanged) return
 
@@ -43,7 +45,7 @@ export function usePublishedRouteEditorSync({
     setSelectedRoute(null)
     setActiveRoute(null)
     setEditorPanelOpen(false)
-  }, [activeImageId, clearCanvasState, editedRoutes, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
+  }, [activeImageId, clearCanvasState, editedRoutes, loadedImageId, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
 
   const commitRoutes = useCallback(() => {
     if (!activeImageId || lastSeededImageIdRef.current !== activeImageId) return null
