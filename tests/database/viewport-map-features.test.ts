@@ -25,8 +25,8 @@ async function addImage(
   longitude: number | null,
 ) {
   await client.query(
-    `insert into public.images (id, url, crag_id, status, visibility, processing_status, latitude, longitude)
-     values ($1, $2, $3, $4, 'public', 'ready', $5, $6)`,
+    `insert into public.images (id, url, crag_id, status, visibility, processing_status, moderation_status, latitude, longitude)
+     values ($1, $2, $3, $4, 'public', 'ready', 'approved', $5, $6)`,
     [randomUUID(), `https://example.test/${randomUUID()}.jpg`, cragId, status, latitude, longitude],
   )
 }
