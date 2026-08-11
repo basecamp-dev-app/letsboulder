@@ -60,7 +60,7 @@ export function OpenDataConsentProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    if (status.success && status.data) setRequiredVersion(status.data.requiredVersion)
+    setRequiredVersion(status.success && status.data ? status.data.requiredVersion : null)
     pendingIntent.current = intent
     setError(status.success ? null : (status.error || 'Could not check contribution terms'))
     setOpen(true)
@@ -84,7 +84,7 @@ export function OpenDataConsentProvider({ children }: { children: ReactNode }) {
       setError(result.error || 'Could not record your agreement')
       const status = await getOpenDataConsentStatusAction()
       if (requestAuthRevision !== getAuthRevision()) return
-      if (status.success && status.data) setRequiredVersion(status.data.requiredVersion)
+      setRequiredVersion(status.success && status.data ? status.data.requiredVersion : null)
       return
     }
 

@@ -107,6 +107,32 @@ describe('OpenDataConsentProvider', () => {
     expect(mocks.status).toHaveBeenCalledTimes(2)
   })
 
+  it('does not submit a prior terms version after a status request fails', async () => {
+    const onContribute = vi.fn()
+    mocks.status
+      .mockResolvedValueOnce({
+        success: true,
+        data: { requiredVersion: '2026-07-29-v1', acceptedVersion: null, consentTimestamp: null, isValid: false },
+      })
+      .mockResolvedValueOnce({ success: false, error: 'Could not check contribution terms', status: 500 })
+
+    render(<OpenDataConsentProvider><ContributionButton onContribute={onContribute} /></OpenDataConsentProvider>)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Contribute' }))
+    expect(await screen.findByText(/2026-07-29-v1/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Not now' }))
+
+    await user.click(screen.getByRole('button', { name: 'Contribute' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not check contribution terms')
+    expect(screen.queryByText(/2026-07-29-v1/)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Agree and continue' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not identify the current contribution terms')
+    expect(mocks.accept).not.toHaveBeenCalled()
+    expect(onContribute).not.toHaveBeenCalled()
+  })
+
   it('discards a status result when the authenticated account changes', async () => {
     const onContribute = vi.fn()
     const status = deferred<{
