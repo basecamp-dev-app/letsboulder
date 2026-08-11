@@ -5,7 +5,7 @@ import {
   parseOptionalCoordinate,
   isImageMetadataDirty,
   isCragMetadataDirty,
-} from '@/features/editor/location/location-metadata'
+} from '@/features/submissions/public-client'
 import { resolveEffectiveDraftPublishLocation } from '@/features/draft-editor/lib/edit-draft-types'
 
 describe('parseCoordinate', () => {

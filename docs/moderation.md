@@ -14,13 +14,13 @@ There is no AWS Rekognition integration in the active application or media Worke
 
 Readiness means that the private original exists and virtual delivery metadata can be served. It is not an automated safety or content judgment. A processing failure belongs to the media pipeline, not a moderation queue.
 
-## User Flags And Crag Reports
+## User And Admin Flags
 
-Authenticated users can submit image/climb flags through Server Actions in `features/moderation/actions.ts`. These create `climb_flags` records for administrator review and may send a Discord notification. A second pending flag by the same user for the same target is rejected; a resolved report does not permanently prevent a later report.
+Authenticated users can submit climb flags through Server Actions in `features/moderation/actions.ts`. These create `climb_flags` records for administrator review and may send a Discord notification. A second pending flag by the same user for the same target is rejected; a resolved flag does not permanently prevent a later flag.
 
-Authenticated users can submit crag reports, which create pending `crag_reports` records. Crag reports are a separate workflow from image/climb flags. The admin-only `submitCragFlagAction` also uses `climb_flags` and should not be confused with the general crag-report action.
+The admin-only `submitCragFlagAction` also uses `climb_flags` for crag flags.
 
-Direct report and flag reads are restricted by RLS to the submitting user and administrators authorized by `is_current_user_admin()`. Anonymous callers can read only sanitized counts from `climb_flag_counts` and `crag_report_counts`; these views omit user IDs, comments, reasons, details, resolution identities, and moderator notes.
+Direct flag reads are restricted by RLS to the submitting user and administrators authorized by `is_current_user_admin()`. Anonymous callers can read only sanitized counts from `climb_flag_counts`; these views omit user IDs, comments, details, resolution identities, and moderator notes.
 
 Neither workflow changes media processing readiness automatically.
 
@@ -41,8 +41,7 @@ Do not conflate this legacy queue with Cloudflare `MEDIA_QUEUE`: the latter is o
 | Concern | Authoritative state | Current behavior |
 |---|---|---|
 | Media ingest | `images.processing_status`, `media_jobs` | Durable processing and retry; automated moderation skipped |
-| Image/climb reports | `climb_flags` | User report followed by admin review |
-| Crag reports | `crag_reports` | Separate pending/investigation/resolution workflow |
+| Climb and admin crag flags | `climb_flags` | User or admin flag followed by admin review |
 | Route verification | `climb_verifications` | Community votes; three votes produce verified status |
 | Legacy submission moderation | `moderation_queue`, `moderation_votes` | Existing admin list/vote API; no current writer |
 

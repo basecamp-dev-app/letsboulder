@@ -39,16 +39,6 @@ features/<feature-name>/
 
 The following patterns are acceptable deviations from the standard structure:
 
-### Compatibility Shims
-
-Re-export files that preserve old import paths during code migrations. These MUST include a comment stating they are for backward compatibility and SHOULD be removed once all importers are updated.
-
-```
-features/editor/route-store-sync.ts   # → re-exports from features/submissions/lib/
-features/editor/location/             # → re-exports from features/submissions/lib/
-features/editor/collaboration/        # → re-exports from features/submissions/editor/
-```
-
 ### Server Actions at Feature Root
 
 Features with a small number of server actions may place `actions.ts` at the feature root instead of inside `server/`. Features with many actions should use an `actions/` directory.

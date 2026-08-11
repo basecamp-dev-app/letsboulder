@@ -1,5 +1,4 @@
 import { Metadata } from 'next'
-import Providers from '@/components/Providers'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,9 +28,5 @@ export default function SettingsLayout({
 }: {
   children: React.ReactNode
 }) {
-  return (
-    <Providers>
-      {children}
-    </Providers>
-  )
+  return children
 }

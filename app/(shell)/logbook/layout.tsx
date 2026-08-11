@@ -1,5 +1,4 @@
 import { Metadata } from 'next'
-import Providers from '@/components/Providers'
 
 export const metadata: Metadata = {
   title: 'My Climbing Logbook',
@@ -31,9 +30,5 @@ export default function LogbookLayout({
 }: {
   children: React.ReactNode
 }) {
-  return (
-    <Providers>
-      {children}
-    </Providers>
-  )
+  return children
 }

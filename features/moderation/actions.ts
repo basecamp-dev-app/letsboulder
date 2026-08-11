@@ -27,49 +27,6 @@ const submitCragFlagSchema = z.object({
   cragId: z.string().trim().min(1, 'Crag ID required'),
 })
 
-const submitCragReportSchema = z.object({
-  cragId: z.string().trim().min(1, 'Crag ID and reason are required'),
-  reason: z.string().min(1, 'Crag ID and reason are required').min(10, 'Please provide more detail about why you are reporting this crag'),
-})
-
-export async function submitImageFlagAction(imageId: string, flagType: string, comment: string): Promise<ActionResult> {
-  const validation = validateActionInput(submitFlagSchema, { targetId: imageId, flagType, comment })
-  if (!validation.success) return validation.result
-
-  const auth = await getActionAuth()
-  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
-  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  const { targetId, flagType: validatedFlagType, comment: trimmedComment } = validation.data
-
-  const supabase = await getServerClient()
-  const { data: image, error: imageError } = await supabase.from('images').select('id, crag_id').eq('id', targetId).single()
-  if (imageError || !image) return { success: false, error: 'Image not found', status: 404 }
-
-  const flagResult = await createFlag({
-    supabase,
-    userId: auth.data.userId,
-    imageId: targetId,
-    cragId: image.crag_id,
-    flagType: validatedFlagType,
-    comment: trimmedComment,
-  })
-
-  if (flagResult.error) return { success: false, error: 'Error checking existing flag', status: 500 }
-  if (flagResult.duplicate) return { success: false, error: 'You have already flagged this image. It is being reviewed.', status: 400 }
-
-  const { data: cragData } = await supabase.from('crags').select('name').eq('id', image.crag_id).single()
-  await notifyNewFlag(supabase, {
-    type: 'image',
-    flagType: validatedFlagType,
-    cragName: cragData?.name || 'Unknown Crag',
-    cragId: image.crag_id,
-    comment: trimmedComment,
-    flaggerId: auth.data.userId,
-  }).catch(err => reportError(err, { message: 'Discord notification error' }))
-
-  return { success: true }
-}
-
 export async function submitClimbFlagAction(climbId: string, flagType: string, comment: string): Promise<ActionResult> {
   const validation = validateActionInput(submitFlagSchema, { targetId: climbId, flagType, comment })
   if (!validation.success) return validation.result
@@ -149,31 +106,6 @@ export async function submitCragFlagAction(cragId: string): Promise<ActionResult
     comment: DEFAULT_COMMENT,
     flaggerId: auth.data.userId,
   }).catch(err => reportError(err, { message: 'Discord notification error' }))
-
-  return { success: true }
-}
-
-export async function submitCragReportAction(cragId: string, reason: string): Promise<ActionResult> {
-  const validation = validateActionInput(submitCragReportSchema, { cragId, reason })
-  if (!validation.success) return validation.result
-
-  const auth = await getActionAuth()
-  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
-  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-
-  const supabase = await getServerClient()
-  const { error: reportError } = await supabase.from('crag_reports').insert({
-    crag_id: validation.data.cragId,
-    reason: validation.data.reason,
-    status: 'pending',
-    reporter_id: auth.data.userId,
-  })
-
-  if (reportError) return { success: false, error: 'Error creating report', status: 500 }
-
-  const { data: crag } = await supabase.from('crags').select('report_count').eq('id', validation.data.cragId).single()
-  const newCount = (crag?.report_count || 0) + 1
-  await supabase.from('crags').update({ report_count: newCount }).eq('id', validation.data.cragId)
 
   return { success: true }
 }

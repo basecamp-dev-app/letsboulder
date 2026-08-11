@@ -136,7 +136,7 @@ Do not put server truth into Zustand or infer durable upload recovery from React
 
 ### Moderation And Reports
 
-Automated media moderation is disabled and no AWS Rekognition integration is active. Media readiness, image/climb flags, crag reports, community route verification, and the legacy `moderation_queue` are independent workflows. See `docs/moderation.md`.
+Automated media moderation is disabled and no AWS Rekognition integration is active. Media readiness, climb and admin crag flags, community route verification, and the legacy `moderation_queue` are independent workflows. See `docs/moderation.md`.
 
 ## Network Resilience
 
@@ -180,6 +180,6 @@ Features with both browser-safe and server behavior expose separate `public-clie
 | `features/media-upload/` | In-memory client upload queue and attachment lifecycle |
 | `features/route-editor/` | Canvas editor and feature-owned Zustand state |
 | `features/submissions/server/` | Direct submission, draft, collaboration, and promotion orchestration |
-| `features/moderation/actions.ts` | User flags and crag reports |
+| `features/moderation/actions.ts` | Climb and admin crag flags |
 | `supabase/migrations/` | Canonical database schema history |
 | `types/database.ts` | Generated Supabase database types |

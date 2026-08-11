@@ -2,7 +2,6 @@
   "violations": [
     "component-supabase-import:app/(shell)/settings/components/SettingsContent.tsx:@supabase/supabase-js",
     "component-supabase-import:components/AuthForm.tsx:@/lib/supabase",
-    "component-supabase-import:components/AvatarUploader.tsx:@/lib/supabase",
     "component-supabase-import:components/Header.tsx:@/lib/supabase",
     "component-supabase-import:components/ProfileAvatarUploadModal.tsx:@/lib/supabase",
     "component-supabase-import:components/QueryProviders.tsx:@/lib/supabase",
@@ -15,9 +14,7 @@
     "component-supabase-import:features/submissions/components/SubmissionManager.tsx:@/lib/supabase",
     "cross-feature-private-import:components/CorrectionSection.tsx:@/features/legal/hooks/use-open-data-consent",
     "cross-feature-private-import:components/FlagClimbModal.tsx:@/features/moderation/actions",
-    "cross-feature-private-import:components/FlagImageModal.tsx:@/features/moderation/actions",
     "cross-feature-private-import:components/GradeHistoryChart.tsx:@/features/grades/hooks/useGradeSystem",
-    "cross-feature-private-import:components/ReportCragModal.tsx:@/features/moderation/actions",
     "cross-feature-private-import:components/RootClientUtilities.tsx:@/features/offline/components/OfflinePackRecovery",
     "cross-feature-private-import:components/comments/CommentThread.tsx:@/features/legal/hooks/use-open-data-consent",
     "cross-feature-private-import:components/comments/actions.ts:@/features/comments/actions"

@@ -191,7 +191,7 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - `lib/map/maplibre-style.ts` — MapLibre style resolver
 - `features/offline/lib/offline-pack-database.ts` — versioned offline pack metadata and ownership records in IndexedDB
 - `lib/offline/service-worker-client.ts` — browser capability checks and shared registration/chunk-recovery constants
-- `lib/offline/tiles.ts`, `components/OfflineCragMapSnippet.tsx`, and `/api/offline-tiles/**` — legacy raster compatibility artifacts retained during retirement
+- `lib/offline/tiles.ts` and `/api/offline-tiles/**` — legacy raster compatibility artifacts retained during retirement
 - `features/offline/lib/offline-pack-*.ts` — validated manifests, resumable versioned downloads, immutable media ownership, and external-store state
 - `lib/query-persistence.ts` — React Query IndexedDB persistence (12h max age)
 - `features/media-upload/lib/durable-upload-store.ts` — auth-scoped contribution Blob and queue checkpoints retained until server attachment is confirmed

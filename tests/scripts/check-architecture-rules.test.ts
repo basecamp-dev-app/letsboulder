@@ -134,10 +134,10 @@ describe('checkArchitecture', () => {
     ])).toEqual(['client-server-public-import'])
   })
 
-  it('allows documented compatibility shims', () => {
+  it('allows curated feature public surfaces', () => {
     expect(rules([{
-      path: 'features/editor/route-store-sync.ts',
-      source: "// Re-exported for backward compatibility.\nexport { syncRoutes } from '@/features/submissions/lib/route-store-sync'",
+      path: 'features/alpha/components/Client.tsx',
+      source: "'use client'\nimport { syncRoutes } from '@/features/submissions/public-client'\nvoid syncRoutes",
     }])).toEqual([])
   })
 })
