@@ -165,6 +165,7 @@ describe('useDraftEditorOrchestration', () => {
       setOrientationByImageId: vi.fn(),
       routesByImageId: {},
       setRoutesByImageId: vi.fn(),
+      routesHydrationRevision: 1,
       locationModeByImageId: {},
       setLocationModeByImageId: vi.fn(),
       customGpsByImageId: {},
@@ -282,24 +283,36 @@ describe('useDraftEditorOrchestration', () => {
     expect(mockUseAtlasAutoSync).toHaveBeenCalledWith(51.0978811, 0.1863465)
   })
 
-  it('does not use the concurrency timestamp to reseed route geometry', () => {
-    const draft = { id: 'draft-1', updated_at: 'durable-revision-1', images: [] }
+  it('does not use an image reorder timestamp to reseed live route geometry', () => {
+    const draft = { id: 'draft-1', updated_at: 'draft-revision-1', images: [] }
     mockUseEditDraftData.mockReturnValue({
       ...mockUseEditDraftData(),
       draft,
       draftUpdatedAt: 'concurrency-revision-1',
+      routesHydrationRevision: 1,
     })
     const { rerender } = renderHook(() => useDraftEditorOrchestration({ draftId: 'draft-1', addToast: vi.fn() }))
 
     mockUseEditDraftData.mockReturnValue({
       ...mockUseEditDraftData(),
-      draft,
+      draft: { ...draft, updated_at: 'draft-revision-2' },
       draftUpdatedAt: 'concurrency-revision-2',
+      routesHydrationRevision: 1,
     })
     rerender()
 
     expect(mockUseEditDraftRouteStoreSync).toHaveBeenLastCalledWith(expect.objectContaining({
-      seedVersion: 'durable-revision-1',
+      routesHydrationRevision: 1,
+    }))
+
+    mockUseEditDraftData.mockReturnValue({
+      ...mockUseEditDraftData(),
+      routesHydrationRevision: 2,
+    })
+    rerender()
+
+    expect(mockUseEditDraftRouteStoreSync).toHaveBeenLastCalledWith(expect.objectContaining({
+      routesHydrationRevision: 2,
     }))
   })
 })

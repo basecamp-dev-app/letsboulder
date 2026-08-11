@@ -48,6 +48,7 @@ export function useEditDraftData({
   const [defaultImageId, setDefaultImageId] = useState<string | null>(null)
   const [orientationByImageId, setOrientationByImageId] = useState<Record<string, OrientationDirection[]>>({})
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, DraftRoute[]>>({})
+  const [routesHydrationRevision, setRoutesHydrationRevision] = useState(0)
   const [locationModeByImageId, setLocationModeByImageId] = useState<Record<string, 'shared' | 'custom'>>({})
   const [customGpsByImageId, setCustomGpsByImageId] = useState<Record<string, { latitude: number | null; longitude: number | null }>>({})
   const [routeType, setRouteType] = useState<string>('sport')
@@ -191,6 +192,7 @@ export function useEditDraftData({
       setLocationModeByImageId(nextLocationModeByImageId)
       setCustomGpsByImageId(nextCustomGpsByImageId)
       setRoutesByImageId(nextRoutesByImageId)
+      setRoutesHydrationRevision((revision) => revision + 1)
       hasLoadedRoutesRef.current = true
 
       const savedCanvasSource = canvasMetadata.submission?.canvasSource
@@ -361,6 +363,7 @@ export function useEditDraftData({
     setOrientationByImageId,
     routesByImageId,
     setRoutesByImageId,
+    routesHydrationRevision,
     locationModeByImageId,
     setLocationModeByImageId,
     customGpsByImageId,

@@ -21,7 +21,7 @@ function createRoute(id: string, name = id): RouteLine {
   return { id, image_id: 'image-1', climb_id: `climb-${id}`, points: [{ x: 0.1, y: 0.1 }, { x: 0.7, y: 0.7 }], color: 'red', sequence_order: 0, created_at: '2026-04-05T00:00:00.000Z', image_width: 1200, image_height: 900, climb: { id: `climb-${id}`, name, grade: '6A', status: 'approved', route_type: 'boulder', description: null } }
 }
 
-function TestHarness({ onCommit, onLiveRouteChanges, onMetadataUpdate, ...props }: { activeDraftImageId: string | null; existingRouteLines: RouteLine[]; routesByImageId: Record<string, DraftRoute[]>; setRoutesByImageId: React.Dispatch<React.SetStateAction<Record<string, DraftRoute[]>>>; routeType: string; seedVersion?: string | null; onCommit?: (commit: () => unknown) => void; onLiveRouteChanges?: (value: boolean) => void; onMetadataUpdate?: (update: (routeId: string, updates: { name?: string }) => void) => void }) {
+function TestHarness({ onCommit, onLiveRouteChanges, onMetadataUpdate, ...props }: { activeDraftImageId: string | null; existingRouteLines: RouteLine[]; routesByImageId: Record<string, DraftRoute[]>; setRoutesByImageId: React.Dispatch<React.SetStateAction<Record<string, DraftRoute[]>>>; routeType: string; routesHydrationRevision?: number; onCommit?: (commit: () => unknown) => void; onLiveRouteChanges?: (value: boolean) => void; onMetadataUpdate?: (update: (routeId: string, updates: { name?: string }) => void) => void }) {
   const { commitRoutes, hasLiveRouteChanges, updateRouteMetadata } = useEditDraftRouteStoreSync(props)
   onCommit?.(commitRoutes)
   onLiveRouteChanges?.(hasLiveRouteChanges)
@@ -35,19 +35,21 @@ describe('useEditDraftRouteStoreSync', () => {
   it('seeds the store and clears canvas UI on image switch or durable draft reload', () => {
     const firstRoutes = [createRoute('route-1')]
     const secondRoutes = [createRoute('route-2')]
-    const props = { activeDraftImageId: 'image-1', existingRouteLines: firstRoutes, routesByImageId: {}, setRoutesByImageId: vi.fn(), routeType: 'boulder', seedVersion: 'server-revision-1' }
+    const props = { activeDraftImageId: 'image-1', existingRouteLines: firstRoutes, routesByImageId: {}, setRoutesByImageId: vi.fn(), routeType: 'boulder', routesHydrationRevision: 1 }
     const { rerender } = render(<TestHarness {...props} />)
-    rerender(<TestHarness {...props} existingRouteLines={secondRoutes} seedVersion="server-revision-2" />)
+    rerender(<TestHarness {...props} existingRouteLines={secondRoutes} routesHydrationRevision={2} />)
     expect(mockStore.clearCanvasState).toHaveBeenCalledTimes(2)
     expect(mockStore.setRoutes).toHaveBeenLastCalledWith(secondRoutes)
     expect(mockStore.setSelectedRoute).toHaveBeenLastCalledWith(null)
   })
 
-  it('does not reseed live geometry on a rerender without a durable draft revision', () => {
+  it('preserves newly drawn geometry when image reorder changes draft metadata', () => {
     const durableRoutes = [createRoute('route-1')]
-    const props = { activeDraftImageId: 'image-1', existingRouteLines: durableRoutes, routesByImageId: {}, setRoutesByImageId: vi.fn(), routeType: 'boulder', seedVersion: 'hydrated-revision-1' }
+    const drawnRoutes = [createRoute('route-2')]
+    const props = { activeDraftImageId: 'image-1', existingRouteLines: durableRoutes, routesByImageId: {}, setRoutesByImageId: vi.fn(), routeType: 'boulder', routesHydrationRevision: 1 }
     const { rerender } = render(<TestHarness {...props} />)
 
+    mockStore = { ...mockStore, routes: drawnRoutes }
     rerender(<TestHarness {...props} />)
 
     expect(mockStore.clearCanvasState).toHaveBeenCalledTimes(1)

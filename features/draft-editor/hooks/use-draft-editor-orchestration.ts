@@ -109,6 +109,7 @@ export function useDraftEditorOrchestration({
     setOrientationByImageId,
     routesByImageId,
     setRoutesByImageId,
+    routesHydrationRevision,
     locationModeByImageId,
     setLocationModeByImageId,
     customGpsByImageId,
@@ -340,7 +341,7 @@ export function useDraftEditorOrchestration({
     routesByImageId,
     setRoutesByImageId,
     routeType,
-    seedVersion: draft?.updated_at,
+    routesHydrationRevision,
   })
 
   const {

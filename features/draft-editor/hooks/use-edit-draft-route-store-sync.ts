@@ -13,7 +13,7 @@ interface UseEditDraftRouteStoreSyncParams {
   routesByImageId: Record<string, DraftRoute[]>
   setRoutesByImageId: React.Dispatch<React.SetStateAction<Record<string, DraftRoute[]>>>
   routeType: string
-  seedVersion?: string | null
+  routesHydrationRevision?: number
 }
 
 export function useEditDraftRouteStoreSync({
@@ -22,7 +22,7 @@ export function useEditDraftRouteStoreSync({
   routesByImageId,
   setRoutesByImageId,
   routeType,
-  seedVersion = null,
+  routesHydrationRevision = 0,
 }: UseEditDraftRouteStoreSyncParams) {
   const {
     routes: routeStoreRoutes,
@@ -41,22 +41,23 @@ export function useEditDraftRouteStoreSync({
   })))
 
   const lastSeededImageIdRef = useRef<string | null>(null)
-  const lastSeedVersionRef = useRef<string | null>(null)
+  const lastRoutesHydrationRevisionRef = useRef<number | null>(null)
   useEffect(() => {
     if (!activeDraftImageId) return
 
-    const seedChanged = lastSeededImageIdRef.current !== activeDraftImageId || lastSeedVersionRef.current !== seedVersion
+    const seedChanged = lastSeededImageIdRef.current !== activeDraftImageId
+      || lastRoutesHydrationRevisionRef.current !== routesHydrationRevision
     if (!seedChanged) return
 
     lastSeededImageIdRef.current = activeDraftImageId
-    lastSeedVersionRef.current = seedVersion
+    lastRoutesHydrationRevisionRef.current = routesHydrationRevision
 
     clearCanvasState()
     setRoutes(existingRouteLines)
     setSelectedRoute(null)
     setActiveRoute(null)
     setEditorPanelOpen(false)
-  }, [activeDraftImageId, clearCanvasState, existingRouteLines, seedVersion, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
+  }, [activeDraftImageId, clearCanvasState, existingRouteLines, routesHydrationRevision, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
 
   const commitRoutes = useCallback(() => {
     if (!activeDraftImageId || lastSeededImageIdRef.current !== activeDraftImageId) return null
