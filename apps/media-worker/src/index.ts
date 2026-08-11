@@ -39,6 +39,10 @@ interface ProcessJobDependencies {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>
 }
 
+export function fetchMediaDelivery(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return globalThis.fetch(input, init)
+}
+
 export interface MediaJobClaimContext {
   jobId: string
   claimToken: string
@@ -46,7 +50,7 @@ export interface MediaJobClaimContext {
 
 const defaultProcessJobDependencies: ProcessJobDependencies = {
   createClient: createSupabaseAdminClient,
-  fetch: globalThis.fetch,
+  fetch: fetchMediaDelivery,
 }
 
 const CANONICAL_WIDTH = 2560

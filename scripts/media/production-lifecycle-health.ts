@@ -8,7 +8,7 @@ const RECONCILIATION_PATH = process.env.RECONCILIATION_INPUT?.trim() || null
 const WARNING_SECONDS = 30 * 60
 const CRITICAL_SECONDS = 6 * 60 * 60
 const REPORTED_CATEGORIES = [
-  'ingest_queued', 'ingest_processing', 'ingest_failed',
+  'ingest_queued', 'ingest_processing', 'ingest_failed', 'ingest_failed_resolved',
   'deletion_queued', 'deletion_processing', 'deletion_failed',
   'source_replacement_awaiting_verification', 'job_lock_invariant',
   'canonical_locator_invariant', 'source_replacement_invariant',
@@ -41,6 +41,7 @@ type JobRow = QueryResultRow & {
   bucket: string | null
   object_key: string | null
   delivery_verified_at: string | null
+  resolution: string | null
 }
 type InvariantRow = QueryResultRow & { category: string; id: string; detail: string }
 
@@ -92,13 +93,30 @@ async function readLifecycle(): Promise<{ asOf: Date; jobs: JobRow[]; invariants
       SELECT 'ingest_job'::text AS kind, id::text, status, updated_at::text, created_at::text,
         run_at::text, locked_at::text, locked_by, attempts, max_attempts, image_id::text,
         NULL::text AS reason, NULL::text AS bucket, NULL::text AS object_key,
-        NULL::text AS delivery_verified_at
+        NULL::text AS delivery_verified_at,
+        CASE
+          WHEN status = 'failed' AND EXISTS (
+            SELECT 1 FROM public.media_jobs replay
+            WHERE replay.replay_of_job_id = media_jobs.id AND replay.status = 'completed'
+          ) THEN 'completed_replay'
+          WHEN status = 'failed' AND EXISTS (
+            SELECT 1 FROM public.images image
+            WHERE image.id = media_jobs.image_id
+              AND image.status <> 'deleted' AND image.processing_status = 'ready'
+              AND image.optimized_bucket IS NOT NULL AND image.optimized_key IS NOT NULL
+              AND image.optimized_mime = 'image/webp'
+              AND image.storage_bucket = image.optimized_bucket
+              AND image.storage_path = image.optimized_key
+              AND image.original_deleted_at IS NOT NULL
+          ) THEN 'canonical_source_deleted'
+          ELSE NULL
+        END AS resolution
       FROM public.media_jobs
       WHERE status IN ('queued', 'processing', 'failed')
       UNION ALL
       SELECT 'deletion_job'::text, id::text, status, updated_at::text, created_at::text,
         run_at::text, locked_at::text, locked_by, attempts, max_attempts, image_id::text,
-        reason, bucket, object_key, delivery_verified_at::text
+        reason, bucket, object_key, delivery_verified_at::text, NULL::text
       FROM public.media_deletion_jobs
       WHERE status IN ('queued', 'processing', 'failed')
       ORDER BY kind, id`)
@@ -183,16 +201,18 @@ function reconciliationFindings(value: unknown): Finding[] {
   return findings
 }
 
-function jobFinding(row: JobRow, asOf: Date): Finding {
+export function jobFinding(row: JobRow, asOf: Date): Finding {
   const timestamp = row.status === 'queued' ? row.run_at : row.updated_at
   const ageSeconds = ageInSeconds(asOf, timestamp)
-  const terminal = row.status === 'failed'
-  const category = row.kind === 'ingest_job' ? `ingest_${row.status}`
+  const resolved = row.kind === 'ingest_job' && row.status === 'failed' && row.resolution !== null
+  const terminal = row.status === 'failed' && !resolved
+  const category = resolved ? 'ingest_failed_resolved'
+    : row.kind === 'ingest_job' ? `ingest_${row.status}`
     : row.reason === 'source_replaced' && row.status === 'queued' && !row.delivery_verified_at
       ? 'source_replacement_awaiting_verification' : `deletion_${row.status}`
   return {
     category,
-    severity: classifyLifecycleAge(ageSeconds, terminal),
+    severity: resolved ? 'info' : classifyLifecycleAge(ageSeconds, terminal),
     id: row.id,
     ageSeconds,
     snapshot: {
@@ -202,6 +222,7 @@ function jobFinding(row: JobRow, asOf: Date): Finding {
       reason: row.reason, bucket: row.bucket, objectKey: row.object_key,
       deliveryVerifiedAt: row.delivery_verified_at,
     },
+    ...(resolved ? { detail: `Resolved historical ingest failure: ${row.resolution}` } : {}),
   }
 }
 
