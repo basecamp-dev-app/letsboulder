@@ -61,6 +61,17 @@ describe('GitHub Actions security contracts', () => {
     expect(globalSetup).not.toContain('Cookies set:')
   })
 
+  it('runs public smoke after successful production deployments', () => {
+    const playwrightWorkflow = workflow('test.yml')
+
+    expect(playwrightWorkflow).toMatch(/^on:\n  deployment_status:\n/m)
+    expect(playwrightWorkflow).toMatch(/github\.event_name == 'deployment_status'[\s\S]*github\.event\.deployment_status\.state == 'success'[\s\S]*github\.event\.deployment\.ref == 'main'[\s\S]*github\.event\.deployment\.environment == 'Production'/)
+    expect(playwrightWorkflow).toContain("github.event_name == 'workflow_dispatch'")
+    expect(playwrightWorkflow).toContain("PLAYWRIGHT_REQUESTED_BASE_URL: ${{ github.event_name == 'deployment_status' && 'https://letsboulder.com' || inputs.playwright_base_url || '' }}")
+    expect(playwrightWorkflow.match(/if: github\.event_name != 'deployment_status'/g)).toHaveLength(5)
+    expect(playwrightWorkflow).not.toContain('github.event.deployment_status.target_url')
+  })
+
   it('parameterizes all media backfill SQL inputs', () => {
     const backfill = workflow('media-backfill.yml')
     const hostileValues = [
