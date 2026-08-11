@@ -51,6 +51,7 @@ Database-first deployment is still preferred, but mixed-version rollout order is
 3. `static.dev.letsboulder.com` or `static.letsboulder.com` routes the request to the media Worker.
 4. For ready public image paths, the Worker prefers `images.optimized_key` and invokes Cloudflare Image Resizing against that private canonical WebP. Legacy ready rows without optimized metadata temporarily resolve to their original until backfill commits a canonical WebP; committed rows never fall back after source deletion.
 5. Cloudflare returns and caches the transformed response. The Worker Cache is enabled and transformed responses use stable named widths, `format=auto`, and immutable URLs. No processed image variant is written to the public R2 bucket by the active pipeline.
+6. Offline pack manifests include only ready public images with a complete canonical optimized WebP tuple. They retain versioned CDN variant URLs for downloads; original locators are provenance and are never used for offline eligibility.
 
 `GET /origin/<key>` is an internal, secret-protected raw-private-object endpoint. It is not the public image-delivery path.
 

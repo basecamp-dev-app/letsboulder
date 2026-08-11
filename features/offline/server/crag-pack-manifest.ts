@@ -31,7 +31,7 @@ export interface CragPackSource {
 // select parser limit while retaining generated row types and explicit columns.
 const CRAG_SELECT = 'id, name, slug, country_code, country, region_name, sub_area, rock_type, type, tide_dependency, description, access_notes, latitude, longitude, location_visibility, updated_at, deleted_at, superseded_by' as '*'
 const CLIMB_SELECT = 'id, crag_id, sector_id, name, slug, grade, consensus_grade, original_grade_string, route_type, description, is_verified, verification_count, latitude, longitude, location_visibility, updated_at, status, deleted_at, superseded_by' as '*'
-const IMAGE_SELECT = 'id, crag_id, capture_date, face_direction, face_directions, face_order, is_primary, width, height, latitude, longitude, processed_at, asset_version, original_key, original_bytes, original_width, original_height, checksum_sha256, variants, processing_status, moderation_status, visibility, status' as '*'
+const IMAGE_SELECT = 'id, crag_id, capture_date, face_direction, face_directions, face_order, is_primary, width, height, latitude, longitude, processed_at, asset_version, optimized_bucket, optimized_key, optimized_mime, optimized_bytes, optimized_width, optimized_height, variants, processing_status, moderation_status, visibility, status' as '*'
 const ROUTE_LINE_SELECT = 'id, climb_id, image_id, sequence_order, color, image_width, image_height, points' as '*'
 const SECTOR_SELECT = 'id, crag_id, name' as '*'
 const PAGE_SIZE = 1_000
@@ -101,29 +101,31 @@ function variantMetadata(image: ImageRow, variant: 'detail' | 'topo') {
   return { width, height, storedBytes }
 }
 
-function hasImmutableOriginal(image: ImageRow): boolean {
-  if (!image.original_key || !image.checksum_sha256 || !/^[a-f0-9]{64}$/i.test(image.checksum_sha256)) return false
-  const segments = image.original_key.split('/')
-  return segments.length === 5 && segments[0] === 'images' && segments[1] === 'assets'
-    && segments[2] === image.id && segments[3].toLowerCase() === image.checksum_sha256.toLowerCase()
-    && segments.every(Boolean)
+function canonicalOptimizedMetadata(image: ImageRow) {
+  const bytes = positiveInteger(image.optimized_bytes)
+  const width = positiveInteger(image.optimized_width)
+  const height = positiveInteger(image.optimized_height)
+  if (!image.optimized_bucket?.trim() || !image.optimized_key || image.optimized_mime !== 'image/webp'
+    || bytes === null || width === null || height === null) return null
+
+  const keyPattern = new RegExp(`^images/assets/${image.id}/[a-f0-9]{64}/canonical\\.webp$`, 'i')
+  if (!keyPattern.test(image.optimized_key)) return null
+  return { bytes, width, height }
 }
 
-function estimatedBytes(image: ImageRow, width: number, height: number, storedBytes: number | null): number {
+function estimatedBytes(canonical: { bytes: number; width: number; height: number }, width: number, height: number, storedBytes: number | null): number {
   if (storedBytes !== null) return storedBytes
-  if (image.original_bytes && image.original_width && image.original_height) {
-    const ratio = Math.min(1, (width * height) / (image.original_width * image.original_height))
-    return Math.max(1, Math.round(image.original_bytes * ratio * 0.8))
-  }
-  return Math.max(1, Math.round(width * height * 0.75))
+  const ratio = Math.min(1, (width * height) / (canonical.width * canonical.height))
+  return Math.max(1, Math.round(canonical.bytes * ratio))
 }
 
 function imageAssets(image: ImageRow, cdnBaseUrl: string): CragPackAsset[] {
-  if (!hasImmutableOriginal(image)) return []
+  const canonical = canonicalOptimizedMetadata(image)
+  if (!canonical) return []
   return (['detail', 'topo'] as const).flatMap((variant) => {
     const metadata = variantMetadata(image, variant)
     if (!metadata) return []
-    const bytes = estimatedBytes(image, metadata.width, metadata.height, metadata.storedBytes)
+    const bytes = estimatedBytes(canonical, metadata.width, metadata.height, metadata.storedBytes)
     return [{
       id: `${image.id}:${variant}:webp`,
       imageId: image.id,

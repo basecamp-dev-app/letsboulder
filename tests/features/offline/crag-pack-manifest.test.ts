@@ -11,6 +11,7 @@ type SectorRow = Database['public']['Tables']['sectors']['Row']
 
 const CRAG_ID = '00000000-0000-4000-8000-000000000001'
 const HASH = 'a'.repeat(64)
+const CANONICAL_BUCKET = 'private-media'
 
 function crag(overrides: Partial<CragRow> = {}): CragRow {
   return {
@@ -39,8 +40,9 @@ function image(id: string, overrides: Partial<ImageRow> = {}): ImageRow {
   const base = {
     id, crag_id: CRAG_ID, capture_date: '2026-01-01', face_direction: 'N', face_directions: ['W', 'N'],
     face_order: 1, is_primary: true, width: 1600, height: 1200, latitude: 51.23, longitude: -0.87,
-    processed_at: '2026-07-03', asset_version: 1, original_key: `images/assets/${id}/${HASH}/original.jpg`,
-    original_bytes: 1_000_000, original_width: 4000, original_height: 3000, checksum_sha256: HASH,
+    processed_at: '2026-07-03', asset_version: 1, optimized_bucket: CANONICAL_BUCKET,
+    optimized_key: `images/assets/${id}/${HASH}/canonical.webp`, optimized_mime: 'image/webp',
+    optimized_bytes: 400_000, optimized_width: 2560, optimized_height: 1920,
     variants: {
       detail: { webp: { width: 1280, height: 960, contentType: 'image/webp', bytes: 123_456 } },
       topo: { webp: { width: 2048, height: 1536, contentType: 'image/webp' } },
@@ -86,7 +88,7 @@ describe('crag pack manifest builder', () => {
       id: 'image-a:detail:webp', estimatedBytes: 123_456,
       url: 'https://static.example/images/image-a/v1/detail.webp',
     })
-    expect(result?.assets[1]).toMatchObject({ id: 'image-a:topo:webp', estimatedBytes: 209_715 })
+    expect(result?.assets[1]).toMatchObject({ id: 'image-a:topo:webp', estimatedBytes: 256_000 })
     expect(result?.estimatedBytes).toBe(result?.assets.reduce((total, asset) => total + (asset.estimatedBytes ?? 0), 0))
   })
 
@@ -104,11 +106,13 @@ describe('crag pack manifest builder', () => {
     expect(first?.generatedAt).toBe(second?.generatedAt)
   })
 
-  it('omits mutable, mismatched, and ineligible media and rejects inactive crags', () => {
+  it('omits legacy, malformed, and private media and rejects inactive crags', () => {
     const input = source()
     input.images = [
-      image('legacy', { original_key: 'images/originals/legacy/original.jpg' }),
-      image('mismatch', { original_key: `images/assets/other/${HASH}/original.jpg` }),
+      image('legacy', { optimized_bucket: null, optimized_key: null, optimized_mime: null, optimized_bytes: null, optimized_width: null, optimized_height: null }),
+      image('mismatch', { optimized_key: `images/assets/other/${HASH}/canonical.webp` }),
+      image('incomplete', { optimized_bytes: null }),
+      image('private', { visibility: 'private' }),
       image('pending', { moderation_status: 'pending' }),
     ]
     expect(buildCragPackManifest(input, 'https://static.example')?.assets).toEqual([])
