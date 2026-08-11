@@ -1014,7 +1014,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     <div className="flex min-h-screen flex-col bg-black text-white">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-      <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-14">
+      <main
+        data-active-image-id={activePrimaryImageId}
+        className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-14"
+      >
         {isAdmin ? (
           <button
             type="button"
