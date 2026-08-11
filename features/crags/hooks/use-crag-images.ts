@@ -5,8 +5,6 @@ import { cragKeys, fetchCragImages } from '@/features/crags/lib/crag-queries'
 import type { CragPageCrag, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 
-const CRAG_IMAGE_STALE_TIME_MS = 5 * 60 * 1000
-
 export interface UseCragImagesParams {
   id: string
   initialCrag: CragPageCrag | null
@@ -47,7 +45,7 @@ export function useCragImages({
         }
       : undefined,
     initialDataUpdatedAt: initialPayloadLoadedAt,
-    staleTime: CRAG_IMAGE_STALE_TIME_MS,
+    staleTime: 5 * 60 * 1000,
     meta: { persist: true },
   })
 }
