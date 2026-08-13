@@ -68,6 +68,7 @@ The exact limits live in code and may change without a docs update when operatio
 - Default privileges for new `public` tables, sequences, and functions are private from API roles. Every exposed object must receive an explicit grant in its creating migration.
 - `SECURITY DEFINER` is not an exposure mechanism: all definers are revoked from `PUBLIC`, `anon`, and `authenticated` first, then only the reviewed API RPCs and RLS helpers are re-granted. Service-role access is explicit; internal trigger/helper functions receive no API grant.
 - Media job claims/transitions/pruning, `cleanup_orphan_route_uploads`, `delete_account_atomic`, `record_contribution_event`, `open_missing_topo_bounty`, and `resolve_missing_topo_bounty` are service-only. Their callers must use audited server-side service clients, never browser or ordinary authenticated clients.
+- `loadCragImages` and `loadImageFaces` keep database table/RPC reads on request-scoped or anonymous clients. Their audited service clients are signing-only inputs to `createSignedObjectUrls` for legacy private Supabase Storage objects; no database read may use those clients. `loadInitialCragRouteData` is separate: its preview seed, critical `route_lines`, and `images` reads intentionally use an audited service client.
 
 **Owner Checks:**
 - Query resource by `user_id` matching authenticated user
