@@ -323,6 +323,52 @@ describe('/api/submissions/drafts/[id]', () => {
       expect(json.draft.images[0].readiness_status).toBe('ready')
     })
 
+    test('hydrates completedRoutes exclusively from durable draft routes', async () => {
+      const supabase = makeSupabaseWithDraft(DRAFT_BASE, {
+        images: [{
+          ...DRAFT_IMAGE_BASE,
+          route_data: { completedRoutes: [{ id: 'stale-route' }], editorScale: 1.5 },
+        }],
+        routes: [{
+          id: 'durable-route',
+          draft_image_id: 'draft-image-1',
+          name: 'Durable route',
+          grade: '6A',
+          description: null,
+          climb_type: 'sport',
+          points: [{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.4 }],
+          sequence_order: 0,
+          image_width: 1200,
+          image_height: 800,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        }],
+      })
+      vi.mocked(resolveUserIdWithFallback).mockResolvedValue({ userId: 'user-1', authError: null })
+      vi.mocked(getServerClientFromRequest).mockReturnValue(supabase)
+
+      const response = await GET(makeRequest('http://localhost:3000/api/submissions/drafts/draft-1'), makeParams('draft-1'))
+      const json = await response.json()
+
+      expect(json.draft.images[0].route_data).toEqual({
+        editorScale: 1.5,
+        completedRoutes: [expect.objectContaining({ id: 'durable-route', name: 'Durable route' })],
+      })
+    })
+
+    test('hydrates completedRoutes as empty when no durable routes exist', async () => {
+      const supabase = makeSupabaseWithDraft(DRAFT_BASE, {
+        images: [{ ...DRAFT_IMAGE_BASE, route_data: { completedRoutes: [{ id: 'stale-route' }], editorScale: 1.5 } }],
+      })
+      vi.mocked(resolveUserIdWithFallback).mockResolvedValue({ userId: 'user-1', authError: null })
+      vi.mocked(getServerClientFromRequest).mockReturnValue(supabase)
+
+      const response = await GET(makeRequest('http://localhost:3000/api/submissions/drafts/draft-1'), makeParams('draft-1'))
+      const json = await response.json()
+
+      expect(json.draft.images[0].route_data).toEqual({ editorScale: 1.5, completedRoutes: [] })
+    })
+
     test('returns isOwner false for collaborator', async () => {
       const supabase = makeSupabaseWithDraft(DRAFT_BASE)
       vi.mocked(resolveUserIdWithFallback).mockResolvedValue({ userId: 'user-2', authError: null })

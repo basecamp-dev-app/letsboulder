@@ -105,6 +105,7 @@ const RESTRICTED_FUNCTIONS = [
   'fail_media_job(uuid,uuid,text)',
   'prune_media_deletion_jobs(integer,integer)',
   'require_open_data_consent()',
+  'save_submission_draft_atomic_20260811_internal(uuid,timestamp with time zone,jsonb,jsonb,jsonb,uuid)',
   'update_submission_crag_metadata(uuid,text,text,text)',
   'record_contribution_event(uuid,text,integer,text,uuid,uuid,uuid,uuid,uuid,jsonb,text)',
   'retry_media_deletion_job(uuid,uuid,text)',

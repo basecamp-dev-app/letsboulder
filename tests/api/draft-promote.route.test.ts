@@ -54,14 +54,12 @@ function makeThenableResult<T>(result: T) {
 }
 
 function makeSupabase(options?: {
-  includeAllImageRoutes?: boolean
   includeFallbackRouteData?: boolean
   mediaReady?: boolean
   draftStatus?: 'draft' | 'submitted'
   cragCountryCode?: string | null
   draftHasLocation?: boolean
 }) {
-  const includeAllImageRoutes = options?.includeAllImageRoutes ?? true
   const includeFallbackRouteData = options?.includeFallbackRouteData ?? false
 
   return {
@@ -154,22 +152,6 @@ function makeSupabase(options?: {
                 data: { id: 'crag-1', country_code: options?.cragCountryCode === undefined ? 'GG' : options.cragCountryCode, slug: 'hidden-crag' },
                 error: null,
               })),
-            })),
-          })),
-        }
-      }
-
-      if (table === 'submission_draft_routes') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => makeThenableResult({
-              data: includeAllImageRoutes
-                ? [
-                  { id: 'draft-route-1', draft_image_id: 'draft-image-1' },
-                  { id: 'draft-route-2', draft_image_id: 'draft-image-2' },
-                ]
-                : [{ id: 'draft-route-2', draft_image_id: 'draft-image-2' }],
-              error: null,
             })),
           })),
         }
@@ -374,8 +356,8 @@ describe('promoteDraftToSubmission', () => {
     expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
   })
 
-  test('publishes image-only drafts when some images have no durable draft routes', async () => {
-    const supabase = makeSupabase({ includeAllImageRoutes: false })
+  test('publishes from durable rows only when route_data contains stale compatibility routes', async () => {
+    const supabase = makeSupabase({ includeFallbackRouteData: true })
 
     const response = await promoteDraftToSubmission({
       supabase: supabase as unknown as ReturnType<typeof createServerClient>,
@@ -391,6 +373,7 @@ describe('promoteDraftToSubmission', () => {
         routeLineIds: ['route-line-1'],
       }),
     }))
+    expect(supabase.rpc).not.toHaveBeenCalledWith('sync_submission_draft_routes', expect.anything())
     expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
   })
 
@@ -432,166 +415,6 @@ describe('promoteDraftToSubmission', () => {
         routeLineIds: [],
       }),
     }))
-  })
-
-  test('repairs missing durable routes from image route_data before publishing', async () => {
-    const supabase = makeSupabase({ includeAllImageRoutes: false, includeFallbackRouteData: true })
-    let draftRouteReadCount = 0
-    const originalFrom = supabase.from
-
-    ;(supabase.from as unknown) = vi.fn((table: string) => {
-      if (table === 'submission_drafts') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              maybeSingle: vi.fn(async () => ({
-                data: {
-                  id: 'draft-1',
-                  user_id: 'user-1',
-                  crag_id: 'crag-1',
-                  status: 'draft',
-                  metadata: {
-                    navigation: { defaultImageId: 'draft-image-1' },
-                    submission: { location: { latitude: 49.45, longitude: -2.55 } },
-                  },
-                },
-                error: null,
-              })),
-            })),
-          })),
-        }
-      }
-
-      if (table === 'submission_draft_images') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => makeThenableResult({
-              data: [
-                {
-                  id: 'draft-image-1',
-                  linked_image_id: 'image-1',
-                  display_order: 0,
-                  latitude: 49.45,
-                  longitude: -2.55,
-                  route_data: {
-                    completedRoutes: [{
-                      id: 'draft-route-1',
-                      name: 'Recovered route',
-                      grade: '6A',
-                      description: '',
-                      climbType: 'sport',
-                      points: [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }],
-                      sequenceOrder: 0,
-                      imageWidth: 1200,
-                      imageHeight: 1200,
-                    }],
-                  },
-                },
-                { id: 'draft-image-2', linked_image_id: 'image-2', display_order: 1, latitude: 49.46, longitude: -2.54, route_data: null },
-              ],
-              error: null,
-            })),
-          })),
-        }
-      }
-
-      if (table === 'submission_draft_routes') {
-        draftRouteReadCount += 1
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => makeThenableResult({
-              data: draftRouteReadCount === 1
-                ? [{ id: 'draft-route-2', draft_image_id: 'draft-image-2' }]
-                : [
-                    { id: 'draft-route-1', draft_image_id: 'draft-image-1' },
-                    { id: 'draft-route-2', draft_image_id: 'draft-image-2' },
-                  ],
-              error: null,
-            })),
-          })),
-        }
-      }
-
-      if (table === 'images') {
-        const readyRows = [
-          { id: 'image-1', processing_status: 'ready', moderation_status: 'approved', visibility: 'public', status: 'approved' },
-          { id: 'image-2', processing_status: 'ready', moderation_status: 'approved', visibility: 'public', status: 'approved' },
-        ]
-        return {
-          select: vi.fn(() => ({
-            in: vi.fn(async (_column: string, ids: string[]) => ({ data: readyRows.filter((row) => ids.includes(row.id)), error: null })),
-            eq: vi.fn(() => ({
-              maybeSingle: vi.fn(async () => ({
-                data: {
-                  id: 'image-1',
-                  crag_id: 'crag-1',
-                  crags: { name: 'Hidden Crag', country_code: 'GG', slug: 'hidden-crag' },
-                  route_lines: [
-                    { id: 'route-line-1', climb_id: 'climb-1', sequence_order: 0, created_at: '2026-03-01T00:00:00Z' },
-                  ],
-                },
-                error: null,
-              })),
-            })),
-          })),
-        }
-      }
-
-      if (table === 'climbs') {
-        return {
-          select: vi.fn(() => ({
-            in: vi.fn(() => makeThenableResult({
-              data: [
-                { id: 'climb-1', name: 'Test Route', grade: '6A' },
-              ],
-              error: null,
-            })),
-          })),
-        }
-      }
-
-      return originalFrom(table)
-    })
-
-    ;(supabase.rpc as unknown) = vi.fn(async (fnName: string, args?: Record<string, unknown>) => {
-      if (fnName === 'has_valid_open_data_consent') return { data: true, error: null }
-      if (fnName === 'sync_submission_draft_routes') {
-        expect(args).toEqual(expect.objectContaining({
-          p_draft_id: 'draft-1',
-          p_draft_image_id: 'draft-image-1',
-        }))
-        return { data: { success: true }, error: null }
-      }
-
-      if (fnName === 'promote_draft_to_submission') {
-        return {
-          data: {
-            success: true,
-            status: 'submitted',
-            image_id: 'image-1',
-            default_image_id: 'image-1',
-            image_ids: ['image-1'],
-            climb_ids: ['climb-1'],
-            route_line_ids: ['route-line-1'],
-            published_at: '2026-03-01T00:00:00Z',
-          },
-          error: null,
-        }
-      }
-
-      return { data: null, error: null }
-    })
-
-    const response = await promoteDraftToSubmission({
-      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
-      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
-      draftId: 'draft-1',
-      userId: 'user-1',
-    })
-
-    expect(response.status).toBe(200)
-    expect(supabase.rpc).toHaveBeenCalledWith('sync_submission_draft_routes', expect.anything())
-    expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
   })
 
   test('repairs draft metadata from image coordinates before publish when metadata location is missing', async () => {
@@ -682,54 +505,6 @@ describe('promoteDraftToSubmission', () => {
       },
     })
     expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
-  })
-
-  test('logs draft route repair failures and still publishes', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const supabase = makeSupabase({ includeAllImageRoutes: false, includeFallbackRouteData: true })
-
-    ;(supabase.rpc as unknown) = vi.fn(async (fnName: string) => {
-      if (fnName === 'has_valid_open_data_consent') return { data: true, error: null }
-      if (fnName === 'sync_submission_draft_routes') {
-        return { data: null, error: { message: 'routes payload malformed' } }
-      }
-
-      if (fnName === 'promote_draft_to_submission') {
-        return {
-          data: {
-            success: true,
-            status: 'submitted',
-            image_id: 'image-1',
-            default_image_id: 'image-1',
-            image_ids: ['image-1'],
-            climb_ids: ['climb-1'],
-            route_line_ids: ['route-line-1'],
-            published_at: '2026-03-01T00:00:00Z',
-          },
-          error: null,
-        }
-      }
-
-      return { data: null, error: null }
-    })
-
-    const response = await promoteDraftToSubmission({
-      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
-      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
-      draftId: 'draft-1',
-      userId: 'user-1',
-    })
-
-    expect(response.status).toBe(200)
-    expect(supabase.rpc).toHaveBeenCalledWith('sync_submission_draft_routes', expect.anything())
-    expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
-    expect(consoleError).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to repair draft routes before publish'),
-      expect.any(Error),
-      expect.objectContaining({ draftId: 'draft-1', imageId: 'draft-image-1', routeCount: 1 })
-    )
-
-    consoleError.mockRestore()
   })
 
   test('rejects custom image location without coordinates before publish', async () => {

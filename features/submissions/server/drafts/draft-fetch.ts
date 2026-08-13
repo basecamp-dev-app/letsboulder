@@ -81,15 +81,13 @@ export async function fetchDraft(id: string, request: NextRequest) {
 
     const withSignedUrls: DraftImageResponse[] = imageRows.map((image) => {
       const normalizedRouteData = normalizeJsonRecord(image.route_data) ?? {}
-      const persistedRoutes = draftRoutesByImageId[image.id]
+      const persistedRoutes = draftRoutesByImageId[image.id] || []
       return {
         ...image,
-        route_data: persistedRoutes
-          ? {
-              ...normalizedRouteData,
-              completedRoutes: persistedRoutes,
-            }
-          : normalizedRouteData,
+        route_data: {
+          ...normalizedRouteData,
+          completedRoutes: persistedRoutes,
+        },
         preview_variants: normalizeJsonRecord(image.preview_variants),
         readiness_status: resolveDraftImageReadinessStatus(image),
       }
