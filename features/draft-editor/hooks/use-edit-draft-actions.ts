@@ -7,7 +7,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { invalidateCragQueries } from '@/features/crags/public-client'
 import { serializeDraftMetadataV2, type OrientationDirection } from '@/features/submissions/public-client'
 import { normalizeSubmissionCreditHandle } from '@/features/submissions/public-client'
-import { LOCATION_SYNC_RATE_LIMIT_ERROR_MESSAGE } from '@/features/draft-editor/hooks/use-edit-draft-location-sync'
+import { LOCATION_SYNC_RATE_LIMIT_ERROR_MESSAGE, type DraftSaveCoordination, type LocationSyncResult } from '@/features/draft-editor/hooks/use-edit-draft-location-sync'
 import { buildRouteCompletionPayload } from '@/features/route-editor/public'
 import type { DraftConflictState } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
 import type { DraftCanvasSource, DraftConflictResponse, DraftPayload, DraftPublishErrorResponse, DraftRoute, DraftSavePayload, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
@@ -42,7 +42,8 @@ interface UseEditDraftActionsParams {
   hasPendingUploads: (draftId: string) => boolean
   hasFailedUploads: (draftId: string) => boolean
   hasValidLocation: boolean
-  flushLocationSync: () => Promise<{ ok: true } | { ok: false; reason: 'rate_limited' | 'failed' }>
+  flushLocationSync: () => Promise<LocationSyncResult>
+  saveCoordinationRef?: React.MutableRefObject<DraftSaveCoordination>
   loadDraft: () => Promise<void>
   loadCollaborators: () => Promise<void>
   addToast: (message: string, tone: 'success' | 'error') => void
@@ -52,7 +53,6 @@ interface UseEditDraftActionsParams {
   setSuccess: (value: string | null) => void
   setConflict: (value: DraftConflictState | null) => void
   setActiveImageId: (value: string | null | ((current: string | null) => string | null)) => void
-  setLocationSyncInFlight?: (value: boolean) => void
   onRoutesChanged?: () => void
   getCheckpointRevision?: () => number
   clearCheckpointAfterSave?: (revision: number) => Promise<void>
@@ -86,6 +86,7 @@ export function useEditDraftActions({
   hasFailedUploads,
   hasValidLocation,
   flushLocationSync,
+  saveCoordinationRef,
   loadDraft,
   loadCollaborators,
   addToast,
@@ -94,7 +95,6 @@ export function useEditDraftActions({
   setError,
   setSuccess,
   setConflict,
-  setLocationSyncInFlight,
   onRoutesChanged,
   getCheckpointRevision,
   clearCheckpointAfterSave,
@@ -109,7 +109,12 @@ export function useEditDraftActions({
   const [hasStoredPendingChanges, setHasStoredPendingChanges] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
   const saveInFlightRef = useRef(false)
-  const locationSyncInFlightRef = useRef(false)
+  const fallbackSaveCoordinationRef = useRef<DraftSaveCoordination>({
+    explicitSaveActive: false,
+    locationSyncPromise: null,
+    authoritativeUpdatedAt: draftUpdatedAt,
+  })
+  const coordinationRef = saveCoordinationRef ?? fallbackSaveCoordinationRef
   const dirtyRoutesRef = useRef<Set<string>>(new Set())
   const hasUnsavedMetadataRef = useRef(false)
   const dirtyVersionRef = useRef(0)
@@ -211,7 +216,7 @@ export function useEditDraftActions({
     return missingItems.length > 0 ? `Before publishing, ${missingItems.join(', ')}.` : null
   }, [cragId, draftId, hasFailedUploads, hasPendingUploads, hasValidLocation])
 
-  const saveDraft = useCallback(async (options?: { overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null; forceMetadataSave?: boolean }) => {
+  const saveDraft = useCallback(async (options?: { overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null; forceMetadataSave?: boolean; locationSyncResult?: Extract<LocationSyncResult, { ok: true }> }) => {
     const preparedRoutes = options?.overrideRoutesByImageId ? null : prepareRoutesForSave?.()
     if (preparedRoutes?.changed) markRoutesDirty([preparedRoutes.imageId])
     const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? preparedRoutes?.routesByImageId ?? routesByImageId
@@ -219,26 +224,32 @@ export function useEditDraftActions({
     const forceMetadataSave = options?.forceMetadataSave === true
     if (!draft || !draftUpdatedAt) return false
     if (saveInFlightRef.current) return false
-    if (locationSyncInFlightRef.current) return false
-    if (dirtyRoutesRef.current.size === 0 && !hasUnsavedMetadataRef.current && !options?.overrideCragId && !forceMetadataSave) return true
 
     const savingDirtyVersion = dirtyVersionRef.current
     const savingCheckpointRevision = getCheckpointRevision?.() || 0
     const draftImageIds = new Set(draft.images.map((image) => image.id))
     const savingDirtyImageIds = [...dirtyRoutesRef.current].filter((imageId) => draftImageIds.has(imageId))
     saveInFlightRef.current = true
+    coordinationRef.current.explicitSaveActive = true
     setSavingDraft(true)
-    setLocationSyncInFlight?.(true)
     setError(null)
     setSuccess(null)
 
     try {
+      const locationSyncResult = options?.locationSyncResult ?? await flushLocationSync()
+      if (!locationSyncResult.ok) {
+        throw new Error(locationSyncResult.reason === 'rate_limited'
+          ? LOCATION_SYNC_RATE_LIMIT_ERROR_MESSAGE
+          : 'Failed to sync climb location before saving')
+      }
+      if (dirtyRoutesRef.current.size === 0 && !hasUnsavedMetadataRef.current && !options?.overrideCragId && !forceMetadataSave) return true
+
       const { savePayload, fullV2Metadata } = buildSavePayload(resolvedRoutesByImageId, resolvedCragId)
       const routeSets = savingDirtyImageIds.map((draftImageId) => ({
         draftImageId,
         routes: resolvedRoutesByImageId[draftImageId] || [],
       }))
-      const expectedUpdatedAt = draftUpdatedAt
+      const expectedUpdatedAt = locationSyncResult.updatedAt ?? coordinationRef.current.authoritativeUpdatedAt ?? draftUpdatedAt
       let payload: {
         error?: string
         code?: string
@@ -282,6 +293,7 @@ export function useEditDraftActions({
         metadata: { ...fullV2Metadata },
       } : prev)
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
+      coordinationRef.current.authoritativeUpdatedAt = payload.draft?.updated_at || expectedUpdatedAt
       if (dirtyVersionRef.current === savingDirtyVersion) {
         for (const imageId of savingDirtyImageIds) dirtyRoutesRef.current.delete(imageId)
         hasUnsavedMetadataRef.current = false
@@ -296,10 +308,10 @@ export function useEditDraftActions({
       return false
     } finally {
       saveInFlightRef.current = false
+      coordinationRef.current.explicitSaveActive = false
       setSavingDraft(false)
-      setLocationSyncInFlight?.(false)
     }
-  }, [buildSavePayload, clearCheckpointAfterSave, cragId, currentUserId, draft, draftUpdatedAt, getCheckpointRevision, markRoutesDirty, prepareRoutesForSave, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, setLocationSyncInFlight])
+  }, [buildSavePayload, clearCheckpointAfterSave, coordinationRef, cragId, currentUserId, draft, draftUpdatedAt, flushLocationSync, getCheckpointRevision, markRoutesDirty, prepareRoutesForSave, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess])
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return
@@ -328,7 +340,7 @@ export function useEditDraftActions({
   }, [markMetadataDirty])
 
   const handleManualSave = useCallback(() => {
-    void requireConsent(async () => { await saveDraft() })
+    void requireConsent(async () => { await saveDraft({ forceMetadataSave: true }) })
   }, [requireConsent, saveDraft])
 
   const publishDraft = useCallback(async () => {
@@ -364,7 +376,7 @@ export function useEditDraftActions({
           : 'Failed to sync climb location before publishing')
       }
 
-      const saved = await saveDraft({ forceMetadataSave: true })
+      const saved = await saveDraft({ forceMetadataSave: true, locationSyncResult })
       if (!saved) return
 
       const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/publish`, {
@@ -436,6 +448,5 @@ export function useEditDraftActions({
     handleManualSave,
     publishDraft: handlePublishDraft,
     handleReloadLatestDraft,
-    setLocationSyncInFlight: (value: boolean) => { locationSyncInFlightRef.current = value },
   }
 }

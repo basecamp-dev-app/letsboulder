@@ -68,7 +68,7 @@ vi.mock('@/features/draft-editor/hooks/use-draft-editor-derived-state', () => ({
 }))
 
 vi.mock('@/features/draft-editor/hooks/use-edit-draft-location-sync', () => ({
-  useEditDraftLocationSync: () => mockUseEditDraftLocationSync(),
+  useEditDraftLocationSync: (params: unknown) => mockUseEditDraftLocationSync(params),
 }))
 
 vi.mock('@/features/draft-editor/hooks/use-edit-draft-route-store-sync', () => ({
@@ -76,7 +76,7 @@ vi.mock('@/features/draft-editor/hooks/use-edit-draft-route-store-sync', () => (
 }))
 
 vi.mock('@/features/draft-editor/hooks/use-edit-draft-actions', () => ({
-  useEditDraftActions: () => mockUseEditDraftActions(),
+  useEditDraftActions: (params: unknown) => mockUseEditDraftActions(params),
 }))
 
 vi.mock('@/features/draft-editor/hooks/use-draft-editor-actions', () => ({
@@ -281,6 +281,14 @@ describe('useDraftEditorOrchestration', () => {
     renderHook(() => useDraftEditorOrchestration({ draftId: 'draft-1', addToast: vi.fn() }))
 
     expect(mockUseAtlasAutoSync).toHaveBeenCalledWith(51.0978811, 0.1863465)
+  })
+
+  it('shares one save coordination boundary with location sync and draft actions', () => {
+    renderHook(() => useDraftEditorOrchestration({ draftId: 'draft-1', addToast: vi.fn() }))
+
+    const locationParams = mockUseEditDraftLocationSync.mock.calls[0]?.[0] as { saveCoordinationRef: unknown }
+    const actionParams = mockUseEditDraftActions.mock.calls[0]?.[0] as { saveCoordinationRef: unknown }
+    expect(locationParams.saveCoordinationRef).toBe(actionParams.saveCoordinationRef)
   })
 
   it('does not use an image reorder timestamp to reseed live route geometry', () => {

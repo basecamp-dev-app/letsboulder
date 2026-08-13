@@ -56,14 +56,20 @@ interface UseEditDraftLocationSyncParams {
   setSearchingLocation: (value: boolean) => void
   setLocationSearchError: (value: string | null) => void
   uploadAutoAssignToken: string | null
-  setLocationSyncInFlight?: (value: boolean) => void
+  saveCoordinationRef: MutableRefObject<DraftSaveCoordination>
 }
 
 export const LOCATION_SYNC_RATE_LIMIT_ERROR_MESSAGE = 'You are saving too quickly right now. Please wait a moment and try again before publishing.'
 
-type LocationSyncResult =
-  | { ok: true }
+export type LocationSyncResult =
+  | { ok: true; updatedAt?: string | null }
   | { ok: false; reason: 'rate_limited' | 'failed' }
+
+export interface DraftSaveCoordination {
+  explicitSaveActive: boolean
+  locationSyncPromise: Promise<LocationSyncResult> | null
+  authoritativeUpdatedAt: string | null
+}
 
 export function useEditDraftLocationSync({
   draft,
@@ -105,8 +111,17 @@ export function useEditDraftLocationSync({
   setSearchingLocation,
   setLocationSearchError,
   uploadAutoAssignToken,
-  setLocationSyncInFlight,
+  saveCoordinationRef,
 }: UseEditDraftLocationSyncParams) {
+  const locationSyncTimerRef = useRef<number | null>(null)
+  const nearbySyncTimerRef = useRef<number | null>(null)
+
+  const clearLocationSyncTimers = useCallback(() => {
+    if (locationSyncTimerRef.current !== null) window.clearTimeout(locationSyncTimerRef.current)
+    if (nearbySyncTimerRef.current !== null) window.clearTimeout(nearbySyncTimerRef.current)
+    locationSyncTimerRef.current = null
+    nearbySyncTimerRef.current = null
+  }, [])
   const patchDraftLocation = useCallback(async ({
     expectedUpdatedAt,
     latitudeValue,
@@ -158,9 +173,17 @@ export function useEditDraftLocationSync({
     return { ok: false as const, updatedAt: null, status: response.status as number }
   }, [atlasSync.atlas, creditHandle, creditPlatform, draftId, imagesPayload, isAnonymousSubmission, setDraftUpdatedAt])
 
-  const syncLocationNow = useCallback(async (): Promise<LocationSyncResult> => {
+  const syncLocationNow = useCallback(async (allowDuringExplicitSave = false): Promise<LocationSyncResult> => {
     if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) {
-      return { ok: true }
+      return { ok: true, updatedAt: saveCoordinationRef.current.authoritativeUpdatedAt ?? draftUpdatedAt }
+    }
+
+    if (saveCoordinationRef.current.explicitSaveActive && !allowDuringExplicitSave) {
+      return { ok: true, updatedAt: saveCoordinationRef.current.authoritativeUpdatedAt ?? draftUpdatedAt }
+    }
+
+    if (saveCoordinationRef.current.locationSyncPromise) {
+      return saveCoordinationRef.current.locationSyncPromise
     }
 
     const latitudeValue = effectiveMarkerPosition[0]
@@ -178,50 +201,64 @@ export function useEditDraftLocationSync({
       cragId: nextCragId,
     })
 
-    if (signature === lastLocationSyncRef.current) return { ok: true }
-
-    if (locationSyncInFlightRef.current) return { ok: true }
-
-    locationSyncInFlightRef.current = true
-    setLocationSyncInFlight?.(true)
+    if (signature === lastLocationSyncRef.current) {
+      return { ok: true, updatedAt: saveCoordinationRef.current.authoritativeUpdatedAt ?? draftUpdatedAt }
+    }
 
     lastLocationSyncRef.current = signature
     const nextRouteType = !hasExplicitRouteType && nearbyCragDominantRouteType ? nearbyCragDominantRouteType : routeType
-    const result = await patchDraftLocation({
-      expectedUpdatedAt: draftUpdatedAt,
-      latitudeValue,
-      longitudeValue,
-      nextRouteType,
-      nextCragId,
-    })
-
-    locationSyncInFlightRef.current = false
-    setLocationSyncInFlight?.(false)
-
-    if (!result.ok) {
-      lastLocationSyncRef.current = null
-      if (result.status === 429) {
-        return { ok: false, reason: 'rate_limited' }
-      }
-      return { ok: false, reason: 'failed' }
-    }
-
-    if (!hasExplicitRouteType && nearbyCragDominantRouteType) {
-      setRouteType(nextRouteType)
-    }
-    if (!cragId && nearbyCragId) {
-      appliedNearbyCragIdRef.current = nearbyCragId
-      setCragId(nearbyCragId)
-      setSelectedCrag({
-        id: nearbyCragId,
-        name: nearbyCragName || 'Suggested crag',
-        latitude: latitudeValue,
-        longitude: longitudeValue,
+    const syncPromise = (async (): Promise<LocationSyncResult> => {
+      const result = await patchDraftLocation({
+        expectedUpdatedAt: saveCoordinationRef.current.authoritativeUpdatedAt ?? draftUpdatedAt,
+        latitudeValue,
+        longitudeValue,
+        nextRouteType,
+        nextCragId,
       })
-    }
 
-    return { ok: true }
-  }, [atlasSync.atlas, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, lastLocationSyncRef, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setLocationSyncInFlight, setRouteType, setSelectedCrag])
+      if (!result.ok) {
+        lastLocationSyncRef.current = null
+        if (result.status === 429) return { ok: false, reason: 'rate_limited' }
+        return { ok: false, reason: 'failed' }
+      }
+
+      saveCoordinationRef.current.authoritativeUpdatedAt = result.updatedAt
+      if (!hasExplicitRouteType && nearbyCragDominantRouteType) setRouteType(nextRouteType)
+      if (!cragId && nearbyCragId) {
+        appliedNearbyCragIdRef.current = nearbyCragId
+        setCragId(nearbyCragId)
+        setSelectedCrag({
+          id: nearbyCragId,
+          name: nearbyCragName || 'Suggested crag',
+          latitude: latitudeValue,
+          longitude: longitudeValue,
+        })
+      }
+
+      return { ok: true, updatedAt: result.updatedAt }
+    })()
+    saveCoordinationRef.current.locationSyncPromise = syncPromise
+    try {
+      return await syncPromise
+    } finally {
+      if (saveCoordinationRef.current.locationSyncPromise === syncPromise) {
+        saveCoordinationRef.current.locationSyncPromise = null
+      }
+    }
+  }, [atlasSync.atlas, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, lastLocationSyncRef, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, saveCoordinationRef, setCragId, setRouteType, setSelectedCrag])
+
+  const flushLocationSync = useCallback(async (): Promise<LocationSyncResult> => {
+    clearLocationSyncTimers()
+    const activeSync = saveCoordinationRef.current.locationSyncPromise
+    if (activeSync) {
+      const activeResult = await activeSync
+      if (!activeResult.ok) return activeResult
+      if (saveCoordinationRef.current.locationSyncPromise === activeSync) {
+        saveCoordinationRef.current.locationSyncPromise = null
+      }
+    }
+    return syncLocationNow(true)
+  }, [clearLocationSyncTimers, saveCoordinationRef, syncLocationNow])
 
   const averagedRouteImageLocation = useMemo<[number, number] | null>(() => {
     const qualifyingCoordinates = mergedManageImages
@@ -267,8 +304,6 @@ export function useEditDraftLocationSync({
   }, [mergedManageImages, selectedCrag])
 
   const appliedNearbyCragIdRef = useRef<string | null>(null)
-  const locationSyncInFlightRef = useRef(false)
-
   useEffect(() => {
     if (!draft) return
     hasHydratedLocationRef.current = true
@@ -300,24 +335,42 @@ export function useEditDraftLocationSync({
   }, [effectiveMarkerPosition, fallbackLocation, hasHydratedLocationRef, setLatitude, setLongitude])
 
   useEffect(() => {
-    const timer = window.setTimeout(async () => {
+    const run = () => {
+      if (saveCoordinationRef.current.explicitSaveActive) {
+        locationSyncTimerRef.current = window.setTimeout(run, 400)
+        return
+      }
+      locationSyncTimerRef.current = null
       void syncLocationNow()
-    }, 400)
+    }
+    locationSyncTimerRef.current = window.setTimeout(run, 400)
 
-    return () => window.clearTimeout(timer)
-  }, [draft, draftId, effectiveMarkerPosition, hasExplicitRouteType, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, hasHydratedLocationRef, syncLocationNow])
+    return () => {
+      if (locationSyncTimerRef.current !== null) window.clearTimeout(locationSyncTimerRef.current)
+      locationSyncTimerRef.current = null
+    }
+  }, [draft, draftId, effectiveMarkerPosition, hasExplicitRouteType, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, hasHydratedLocationRef, saveCoordinationRef, syncLocationNow])
 
   useEffect(() => {
     if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) return
     if (cragId || !nearbyCragId) return
     if (appliedNearbyCragIdRef.current === nearbyCragId) return
 
-    const timer = window.setTimeout(async () => {
+    const run = () => {
+      if (saveCoordinationRef.current.explicitSaveActive) {
+        nearbySyncTimerRef.current = window.setTimeout(run, 200)
+        return
+      }
+      nearbySyncTimerRef.current = null
       void syncLocationNow()
-    }, 200)
+    }
+    nearbySyncTimerRef.current = window.setTimeout(run, 200)
 
-    return () => window.clearTimeout(timer)
-  }, [appliedNearbyCragIdRef, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, syncLocationNow, uploadAutoAssignToken])
+    return () => {
+      if (nearbySyncTimerRef.current !== null) window.clearTimeout(nearbySyncTimerRef.current)
+      nearbySyncTimerRef.current = null
+    }
+  }, [appliedNearbyCragIdRef, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, saveCoordinationRef, syncLocationNow, uploadAutoAssignToken])
 
   const handleMapPositionChange = useCallback((position: { latitude: number; longitude: number }) => {
     if (activeDraftImageId && activeImageLocationMode === 'custom') {
@@ -367,6 +420,6 @@ export function useEditDraftLocationSync({
     activeImageCustomPosition,
     handleMapPositionChange,
     handleSearchLocation,
-    flushLocationSync: syncLocationNow,
+    flushLocationSync,
   }
 }

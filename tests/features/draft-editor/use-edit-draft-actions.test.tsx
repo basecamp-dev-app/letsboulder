@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { cragKeys } from '@/features/crags/lib/crag-queries'
 import { useEditDraftActions } from '@/features/draft-editor/hooks/use-edit-draft-actions'
+import type { DraftSaveCoordination } from '@/features/draft-editor/hooks/use-edit-draft-location-sync'
 import type { DraftPayload, DraftRoute, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
 
 const mockPush = vi.fn()
@@ -229,6 +230,8 @@ describe('useEditDraftActions', () => {
     expect(flushLocationSync).toHaveBeenCalledTimes(1)
     expect(mockCsrfFetch).toHaveBeenCalledTimes(2)
     expect(flushLocationSync.mock.invocationCallOrder[0]).toBeLessThan(mockCsrfFetch.mock.invocationCallOrder[0])
+    expect(mockCsrfFetch).toHaveBeenNthCalledWith(1, '/api/submissions/drafts/draft-1', expect.objectContaining({ method: 'PATCH' }))
+    expect(mockCsrfFetch).toHaveBeenNthCalledWith(2, '/api/submissions/drafts/draft-1/publish', expect.objectContaining({ method: 'POST' }))
     expect(queryClient.getQueryState(cragKeys.images('crag-1'))?.isInvalidated).toBe(true)
     expect(queryClient.getQueryState(cragKeys.routes('crag-1'))?.isInvalidated).toBe(true)
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: cragKeys.images('crag-1') })
@@ -700,6 +703,32 @@ describe('useEditDraftActions', () => {
     expect(body.routeSets).toEqual([{ draftImageId: 'image-1', routes: [{ ...createRoute(), climbType: 'boulder' }] }])
     expect(body.metadata).toBeTruthy()
     expect(body.cragId).toBe('crag-1')
+  })
+
+  it('waits for location sync and uses its authoritative revision', async () => {
+    const coordinationRef: { current: DraftSaveCoordination } = {
+      current: { explicitSaveActive: false, locationSyncPromise: null, authoritativeUpdatedAt: createDraft().updated_at },
+    }
+    let resolveLocation!: (value: { ok: true; updatedAt: string }) => void
+    const flushLocationSync = vi.fn(() => new Promise<{ ok: true; updatedAt: string }>((resolve) => { resolveLocation = resolve }))
+    mockCsrfFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ draft: { updated_at: '2026-08-13T10:00:02.000Z' } }),
+    })
+    const { result } = renderHook(() => useEditDraftActions(createActionsParams({ flushLocationSync, saveCoordinationRef: coordinationRef })), { wrapper: createQueryWrapper() })
+
+    act(() => { result.current.markMetadataDirty() })
+    const saving = result.current.saveDraft()
+    expect(coordinationRef.current.explicitSaveActive).toBe(true)
+    expect(mockCsrfFetch).not.toHaveBeenCalled()
+
+    resolveLocation({ ok: true, updatedAt: '2026-08-13T10:00:01.000Z' })
+    await act(async () => { await saving })
+
+    const request = mockCsrfFetch.mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(String(request.body)).expected_updated_at).toBe('2026-08-13T10:00:01.000Z')
+    expect(coordinationRef.current.explicitSaveActive).toBe(false)
   })
 
   it('keeps routes in the copied unsaved payload after a collaborator conflict', async () => {

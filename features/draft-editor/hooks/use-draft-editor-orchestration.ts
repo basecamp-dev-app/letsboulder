@@ -10,7 +10,7 @@ import { useDraftEditorData } from '@/features/draft-editor/hooks/use-draft-edit
 import { useEditDraftActions } from '@/features/draft-editor/hooks/use-edit-draft-actions'
 import { useEditDraftData } from '@/features/draft-editor/hooks/use-edit-draft-data'
 import { useEditDraftHydration } from '@/features/draft-editor/hooks/use-edit-draft-hydration'
-import { useEditDraftLocationSync } from '@/features/draft-editor/hooks/use-edit-draft-location-sync'
+import { useEditDraftLocationSync, type DraftSaveCoordination } from '@/features/draft-editor/hooks/use-edit-draft-location-sync'
 import { useEditDraftRouteStoreSync } from '@/features/draft-editor/hooks/use-edit-draft-route-store-sync'
 import { useEditDraftUploads } from '@/features/draft-editor/hooks/use-edit-draft-uploads'
 import { useDraftEditorActions } from '@/features/draft-editor/hooks/use-draft-editor-actions'
@@ -51,8 +51,11 @@ export function useDraftEditorOrchestration({
   const [switchingImageId, setSwitchingImageId] = useState<string | null>(null)
   const [uploadAutoAssignToken, setUploadAutoAssignToken] = useState<string | null>(null)
   const switchingImageLockRef = useRef(false)
-  const locationSyncInFlightRef = useRef(false)
-  const setLocationSyncInFlight = (value: boolean) => { locationSyncInFlightRef.current = value }
+  const saveCoordinationRef = useRef<DraftSaveCoordination>({
+    explicitSaveActive: false,
+    locationSyncPromise: null,
+    authoritativeUpdatedAt: null,
+  })
   const addImageInputRef = useRef<HTMLInputElement | null>(null)
   const publishRequirementsRef = useRef<HTMLDivElement | null>(null)
   const cragSectionRef = useRef<HTMLDivElement | null>(null)
@@ -150,6 +153,11 @@ export function useDraftEditorOrchestration({
     setShowCragSelector,
     setSectorId,
   })
+  useEffect(() => {
+    if (!saveCoordinationRef.current.locationSyncPromise && !saveCoordinationRef.current.explicitSaveActive) {
+      saveCoordinationRef.current.authoritativeUpdatedAt = draftUpdatedAt
+    }
+  }, [draftUpdatedAt])
 
   useEffect(() => {
     setError(draftError)
@@ -321,7 +329,7 @@ export function useDraftEditorOrchestration({
     setSearchingLocation,
     setLocationSearchError,
     uploadAutoAssignToken,
-    setLocationSyncInFlight,
+    saveCoordinationRef,
   })
 
   useEffect(() => {
@@ -385,6 +393,7 @@ export function useDraftEditorOrchestration({
     hasFailedUploads,
     hasValidLocation,
     flushLocationSync,
+    saveCoordinationRef,
     loadDraft,
     loadCollaborators,
     addToast,
@@ -394,7 +403,6 @@ export function useDraftEditorOrchestration({
     setSuccess,
     setConflict,
     setActiveImageId,
-    setLocationSyncInFlight,
     onRoutesChanged: markCheckpointRoutesChanged,
     getCheckpointRevision,
     clearCheckpointAfterSave,
