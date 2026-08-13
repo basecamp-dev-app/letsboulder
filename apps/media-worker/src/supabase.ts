@@ -55,6 +55,7 @@ export interface Env {
   R2_PRIVATE_BUCKET: string
   R2_PUBLIC_BUCKET: string
   SUPABASE_URL: string
+  SUPABASE_ANON_KEY: string
   SUPABASE_SERVICE_ROLE_KEY: string
   INGRESS_SECRET: string
   INTERNAL_ORIGIN_SECRET: string
@@ -66,6 +67,15 @@ export interface Env {
 
 export function createSupabaseAdminClient(env: Env) {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+}
+
+export function createSupabasePublicClient(env: Env) {
+  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

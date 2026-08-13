@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto'
 
-import { createClient } from '@supabase/supabase-js'
-
 import { serverEnv } from '@/lib/env.server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import type { Database, Json } from '@/types/database'
 import {
   CRAG_PACK_MIN_READER_VERSION,
@@ -241,9 +240,7 @@ export function buildCragPackManifest(
 export async function loadCragPackManifest(cragId: string): Promise<CragPackManifest | null> {
   const cdnBaseUrl = serverEnv.NEXT_PUBLIC_MEDIA_CDN_URL
   if (!cdnBaseUrl || new URL(cdnBaseUrl).protocol !== 'https:') throw new Error('HTTPS media CDN URL is required')
-  const supabase = createClient<Database, 'public'>(serverEnv.NEXT_PUBLIC_SUPABASE_URL ?? '', serverEnv.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
+  const supabase = getUnauthenticatedClient()
   const { data: crag, error: cragError } = await supabase.from('crags').select(CRAG_SELECT)
     .eq('id', cragId).is('deleted_at', null).is('superseded_by', null).maybeSingle()
   if (cragError) throw cragError

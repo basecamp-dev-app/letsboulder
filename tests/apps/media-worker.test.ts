@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const { deletionRpc, workerFrom, workerRpc } = vi.hoisted(() => ({
+const { deletionRpc, publicFrom, workerFrom, workerRpc } = vi.hoisted(() => ({
   deletionRpc: vi.fn<(name: string, args: Record<string, unknown>) => Promise<{ data: null; error: null }>>(async () => ({ data: null, error: null })),
+  publicFrom: vi.fn(),
   workerFrom: vi.fn(),
   workerRpc: vi.fn<(name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }>>(),
 }))
@@ -13,6 +14,7 @@ vi.mock('@/apps/media-worker/src/supabase', () => ({
       ? deletionRpc(name, args)
       : workerRpc(name, args),
   }),
+  createSupabasePublicClient: () => ({ from: publicFrom }),
 }))
 
 import { processMediaDeletionJob } from '@/apps/media-worker/src/deletion-outbox'
@@ -41,7 +43,7 @@ describe('media transformation requests', () => {
       },
       error: null,
     }))
-    workerFrom.mockReturnValue({
+    publicFrom.mockReturnValue({
       select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle })) })),
     })
     const runtimeFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(new Uint8Array([1]), {
@@ -84,6 +86,36 @@ describe('media transformation requests', () => {
 })
 
 describe('media worker fetch routing', () => {
+  it('uses the public client for versioned delivery eligibility reads', async () => {
+    const single = vi.fn(async () => ({
+      data: {
+        optimized_key: `images/assets/${IMAGE_ID}/canonical.webp`,
+        original_key: SOURCE_KEY,
+        asset_version: 1,
+        processing_status: 'ready',
+        visibility: 'public',
+        status: 'approved',
+        moderation_status: 'approved',
+      },
+      error: null,
+    }))
+    publicFrom.mockReturnValue({
+      select: vi.fn(() => ({ eq: vi.fn(() => ({ single })) })),
+    })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(new Uint8Array([1]), {
+      headers: { 'Content-Type': 'image/webp' },
+    }))
+
+    const response = await mediaWorker.fetch(
+      new Request(`https://media.example/images/${IMAGE_ID}/v1/detail.webp`),
+      { R2_ORIGIN_URL: 'https://private-origin.example', INTERNAL_ORIGIN_SECRET: 'secret' } as never,
+    )
+
+    expect(response.status).toBe(200)
+    expect(publicFrom).toHaveBeenCalledWith('images')
+    expect(workerFrom).not.toHaveBeenCalled()
+  })
+
   it('rejects private query-style object keys before fetching the origin', async () => {
     const maybeSingle = vi.fn(async () => ({
       data: {
@@ -96,7 +128,7 @@ describe('media worker fetch routing', () => {
       },
       error: null,
     }))
-    workerFrom.mockReturnValue({
+    publicFrom.mockReturnValue({
       select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle })) })),
     })
     const originFetch = vi.spyOn(globalThis, 'fetch')
@@ -112,6 +144,8 @@ describe('media worker fetch routing', () => {
     )
 
     expect(response.status).toBe(404)
+    expect(publicFrom).toHaveBeenCalledWith('images')
+    expect(workerFrom).not.toHaveBeenCalled()
     expect(originFetch).not.toHaveBeenCalled()
     expect(originals.get).not.toHaveBeenCalled()
     originFetch.mockRestore()

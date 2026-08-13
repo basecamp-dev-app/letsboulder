@@ -1,4 +1,4 @@
-import { createSupabaseAdminClient, type Env, type MessageBatch } from './supabase'
+import { createSupabaseAdminClient, createSupabasePublicClient, type Env, type MessageBatch } from './supabase'
 import { MEDIA_FORMATS, MEDIA_VARIANT_WIDTHS, getVariantWidth, type MediaFormatKey, type MediaVariantKey } from './config'
 import { mediaIngestJobSchema, mediaWakeupSchema, type MediaIngestJobPayload, type MediaJobRow } from './schema'
 import { drainMediaDeletionOutbox, pruneMediaDeletionOutbox } from './deletion-outbox'
@@ -572,7 +572,7 @@ async function handleMedia(request: Request, env: Env, url: URL) {
     variant = staticVariantMatch[3] ?? null
     width = getVariantWidth(variant)
 
-    const supabase = createSupabaseAdminClient(env)
+    const supabase = createSupabasePublicClient(env)
     const { data: image } = await supabase
       .from('images')
       .select('optimized_key, original_key, asset_version, processing_status, visibility, status, moderation_status')
@@ -599,7 +599,7 @@ async function handleMedia(request: Request, env: Env, url: URL) {
 
     // Query-style paths do not contain an image ID, so verify that the exact
     // R2 key belongs to an anonymously deliverable image before transforming.
-    const supabase = createSupabaseAdminClient(env)
+    const supabase = createSupabasePublicClient(env)
     const { data: optimizedImage } = await supabase
       .from('images')
       .select('optimized_key, original_key, processing_status, visibility, status, moderation_status')

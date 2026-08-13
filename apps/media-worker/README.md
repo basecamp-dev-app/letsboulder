@@ -73,6 +73,7 @@ Configure Worker secrets with `wrangler secret put`:
 
 - `INGRESS_SECRET`: must equal the Next.js/backfill `CF_MEDIA_WORKER_SECRET`; authenticates `POST /enqueue`.
 - `INTERNAL_ORIGIN_SECRET`: authenticates `GET /origin/*`; it is independent of the enqueue secret.
+- `SUPABASE_ANON_KEY`: RLS-scoped access for public media delivery eligibility reads.
 - `SUPABASE_SERVICE_ROLE_KEY`: server-only Supabase access for job and image updates.
 
 The Next.js app's R2 access key and secret are used for S3 presigning and are not Worker secrets because the Worker uses R2 bindings.

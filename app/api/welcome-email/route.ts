@@ -41,17 +41,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email does not match authenticated user' }, { status: 403 })
   }
 
-  const supabase = getAdminClientWithAudit('update welcome email sent flag')
-
   try {
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('welcome_email_sent_at')
-      .eq('email', email)
-      .single()
+    const { data: profiles, error: profileError } = await authClient.rpc('get_own_profile')
+    const profile = profiles?.[0]
 
     if (profileError || !profile) {
-      reportError(new Error('Profile not found for email'), { message: 'Profile not found for email', extra: { email } })
+      reportError(new Error('Profile not found for authenticated user'), {
+        message: 'Profile not found for authenticated user',
+        extra: { userId: user.id },
+      })
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
@@ -70,17 +68,22 @@ export async function POST(request: NextRequest) {
 
     const resend = new Resend(resendApiKey)
 
-    await resend.emails.send({
+    const { error: sendError } = await resend.emails.send({
       from: 'letsboulder <noreply@letsboulder.com>',
       to: [email],
       subject: welcomeEmail.subject,
       html: welcomeEmail.html,
     })
+    if (sendError) throw sendError
 
-    await supabase
+    const supabaseAdmin = getAdminClientWithAudit('update welcome email sent flag')
+    const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({ welcome_email_sent_at: new Date().toISOString() })
-      .eq('email', email)
+      .eq('id', user.id)
+      .is('welcome_email_sent_at', null)
+
+    if (updateError) throw updateError
 
     return NextResponse.json({ success: true })
 

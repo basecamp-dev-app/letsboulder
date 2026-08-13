@@ -59,9 +59,11 @@ export async function deleteSubmission(deps: DeleteSubmissionDeps) {
   }
 
   const imageIds = allImages.map((img) => img.id)
+  const { data: cragData } = cragId
+    ? await supabase.from('crags').select('slug, country_code').eq('id', cragId).maybeSingle()
+    : { data: null }
 
-  const writeClient = supabaseAdmin || supabase
-  const { error: deleteSubmissionError } = await writeClient.rpc('soft_delete_published_submission', {
+  const { error: deleteSubmissionError } = await supabaseAdmin.rpc('soft_delete_published_submission', {
     p_image_ids: imageIds,
     p_owner_id: userId,
   })
@@ -88,7 +90,7 @@ export async function deleteSubmission(deps: DeleteSubmissionDeps) {
       }
     } else if (row.storage_bucket && row.storage_path) {
       try {
-        await writeClient.storage.from(row.storage_bucket).remove([row.storage_path])
+        await supabaseAdmin.storage.from(row.storage_bucket).remove([row.storage_path])
       } catch {
         // non-fatal
       }
@@ -100,12 +102,6 @@ export async function deleteSubmission(deps: DeleteSubmissionDeps) {
 
   if (cragId) {
     revalidatePublicCrag(cragId)
-    const { data: cragData } = await writeClient
-      .from('crags')
-      .select('slug, country_code')
-      .eq('id', cragId)
-      .single()
-
     if (cragData?.slug && cragData?.country_code) {
       revalidatePath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
     }

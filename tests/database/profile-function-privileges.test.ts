@@ -532,6 +532,20 @@ describe('profile and function privilege hardening', () => {
       )
       expect(publicDefiners.rows).toEqual([])
 
+      const definersWithoutFixedSearchPath = await client.query(
+        `select p.oid::regprocedure::text as signature
+         from pg_proc as p
+         join pg_namespace as n on n.oid = p.pronamespace
+         where n.nspname = 'public' and p.prosecdef
+           and not exists (
+             select 1
+             from unnest(coalesce(p.proconfig, array[]::text[])) as setting
+             where setting like 'search_path=%'
+           )
+         order by signature`,
+      )
+      expect(definersWithoutFixedSearchPath.rows).toEqual([])
+
       const apiDefiners = await client.query(
         `select p.oid::regprocedure::text as signature
          from pg_proc as p
