@@ -236,6 +236,74 @@ describe('operational table access hardening', () => {
     })
   })
 
+  it('lets a contributor read their admitted image states without exposing private contributions', async () => {
+    await transaction(async (client) => {
+      const fixtures = await createFixtures(client)
+      const admittedImages = [
+        { id: randomUUID(), moderationStatus: 'approved' },
+        { id: randomUUID(), moderationStatus: 'skipped' },
+        { id: randomUUID(), moderationStatus: 'pending' },
+        { id: randomUUID(), moderationStatus: null },
+      ]
+      const otherPrivateImageId = randomUUID()
+      const linkedImageId = randomUUID()
+
+      for (const image of admittedImages) {
+        await client.query(
+          `insert into public.images (
+             id, url, crag_id, created_by, status, moderation_status, visibility, processing_status
+           ) values ($1, $2, $3, $4, 'approved', $5, 'private', 'ready')`,
+          [image.id, `https://example.test/${image.id}.jpg`, fixtures.cragId, fixtures.ownerId, image.moderationStatus],
+        )
+      }
+      await client.query(
+        `insert into public.images (
+           id, url, crag_id, created_by, status, moderation_status, visibility, processing_status
+         ) values
+           ($1, 'https://example.test/other-private.jpg', $3, $4, 'approved', 'pending', 'private', 'ready'),
+           ($2, 'https://example.test/linked.jpg', $3, $5, 'approved', 'skipped', 'public', 'ready')`,
+        [otherPrivateImageId, linkedImageId, fixtures.cragId, fixtures.otherId, fixtures.otherId],
+      )
+      await client.query(
+        `insert into public.crag_images (crag_id, url, source_image_id, linked_image_id)
+         values ($1, 'https://example.test/crag-image.jpg', $2, $3)`,
+        [fixtures.cragId, admittedImages[2].id, linkedImageId],
+      )
+
+      await setRequestRole(client, 'authenticated', fixtures.ownerId)
+      expect((await client.query(
+        `select id, url, created_at, submission_id, moderation_status, is_anonymous_submission,
+                contribution_credit_platform, contribution_credit_handle
+         from public.images
+         where created_by = $1
+           and (moderation_status in ('approved', 'skipped', 'pending') or moderation_status is null)
+         order by id`,
+        [fixtures.ownerId],
+      )).rows.map((row) => row.id).sort()).toEqual(admittedImages.map((image) => image.id).sort())
+      expect((await client.query(
+        `select source_image_id, linked_image_id
+         from public.crag_images
+         where source_image_id = $1 or linked_image_id = $1`,
+        [admittedImages[2].id],
+      )).rows).toEqual([{
+        source_image_id: admittedImages[2].id,
+        linked_image_id: linkedImageId,
+      }])
+
+      await setRequestRole(client, 'authenticated', fixtures.otherId)
+      expect((await client.query(
+        'select id from public.images where id = $1',
+        [admittedImages[2].id],
+      )).rows).toEqual([])
+
+      await setRequestRole(client, 'anon')
+      expect((await client.query(
+        'select id from public.images where id = $1',
+        [admittedImages[2].id],
+      )).rows).toEqual([])
+    })
+  })
+
   it('rejects forged identities and pre-resolved operational inserts', async () => {
     await transaction(async (client) => {
       const fixtures = await createFixtures(client)
