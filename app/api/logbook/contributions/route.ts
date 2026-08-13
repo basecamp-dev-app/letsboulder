@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
@@ -36,9 +35,7 @@ export async function GET(request: NextRequest) {
       ? Math.max(1, Math.min(Math.trunc(limitParam), 500))
       : 200
 
-    const readClient = getAdminClientWithAudit('read user contribution history')
-
-    const { data, error } = await readClient
+    const { data, error } = await supabase
       .from('images')
       .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags!images_crag_id_fkey(name, slug, country_code), route_lines(count)')
       .eq('created_by', user.id)
@@ -56,7 +53,7 @@ export async function GET(request: NextRequest) {
     let links: CragImageLinkRow[] = []
     if (imageIds.length > 0) {
       const idsCsv = imageIds.join(',')
-      const { data: linksData, error: linksError } = await readClient
+      const { data: linksData, error: linksError } = await supabase
         .from('crag_images')
         .select('source_image_id, linked_image_id')
         .or(`linked_image_id.in.(${idsCsv}),source_image_id.in.(${idsCsv})`)
