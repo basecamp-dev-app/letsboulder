@@ -132,10 +132,8 @@ describe('crag route target mapping', () => {
         effective_climb_id: 'climb-1',
         climb_slug: 'giant-panda',
         preview_image_id: 'image-1',
-        preview_image_url: '/images/originals/image-1/original.jpg?variant=detail&format=jpeg',
         navigation_route_id: 'route-line-1',
         navigation_image_id: 'image-1',
-        navigation_image_url: '/images/originals/image-1/original.jpg?variant=detail&format=jpeg',
         route_image_ids: ['image-1'],
       },
     ])

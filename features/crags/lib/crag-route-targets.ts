@@ -34,10 +34,8 @@ export interface CragRouteTargetPageRow {
   effective_climb_id: string
   climb_slug: string | null
   preview_image_id: string | null
-  preview_image_url: string | null
   navigation_route_id: string | null
   navigation_image_id: string | null
-  navigation_image_url: string | null
   route_image_ids: string[] | null
 }
 
@@ -46,10 +44,8 @@ function mapCragRouteTargetPageRow(row: CragRouteTargetPageRpcRow): CragRouteTar
     effective_climb_id: row.effective_climb_id,
     climb_slug: row.climb_slug ?? null,
     preview_image_id: row.preview_image_id ?? null,
-    preview_image_url: row.preview_image_url ? resolveRouteImageUrl(row.preview_image_url) : null,
     navigation_route_id: row.navigation_route_id ?? null,
     navigation_image_id: row.navigation_image_id ?? null,
-    navigation_image_url: row.navigation_image_url ? resolveRouteImageUrl(row.navigation_image_url) : null,
     route_image_ids: row.route_image_ids ?? null,
   }
 }
@@ -431,21 +427,21 @@ export function buildRouteTargetMapsFromPageRows(pageRows: CragRouteTargetPageRo
       nextRouteImageIdsByClimbId[climbId] = routeImageIds
     }
 
-    if (row.preview_image_id && row.preview_image_url) {
+    if (row.preview_image_id) {
       nextRoutePreviewByClimbId[climbId] = {
         imageId: row.preview_image_id,
-        imageUrl: buildCanonicalStaticImageUrl(row.preview_image_id, row.preview_image_url),
+        imageUrl: buildCanonicalStaticImageUrl(row.preview_image_id, null),
       }
     }
 
-    if (row.navigation_route_id && row.navigation_image_id && row.navigation_image_url) {
+    if (row.navigation_route_id && row.navigation_image_id) {
       nextRouteNavigationTargetByClimbId[climbId] = {
         climbId,
         routeId: row.navigation_route_id,
         climbSlug: row.climb_slug,
         imageId: row.navigation_image_id,
         displayImageId: row.navigation_image_id,
-        displayImageUrl: buildCanonicalStaticImageUrl(row.navigation_image_id, row.navigation_image_url),
+        displayImageUrl: buildCanonicalStaticImageUrl(row.navigation_image_id, null),
       }
 
       if (!nextDefaultRouteTargetByImageId[row.navigation_image_id]) {
