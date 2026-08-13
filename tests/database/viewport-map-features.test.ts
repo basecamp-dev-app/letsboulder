@@ -17,6 +17,22 @@ async function transaction(run: (client: PoolClient) => Promise<void>) {
   }
 }
 
+async function setRequestRole(client: PoolClient, role: 'anon' | 'authenticated' | 'service_role') {
+  await client.query('reset role')
+  await client.query(`set local role ${role}`)
+  await client.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role })])
+}
+
+async function expectRoleDenied(client: PoolClient, role: 'anon' | 'authenticated') {
+  await setRequestRole(client, role)
+  const savepoint = `denied_${role}`
+  await client.query(`savepoint ${savepoint}`)
+  await expect(client.query('select * from public.get_viewport_map_features(11, 9, 11, 9, 12, false)'))
+    .rejects.toMatchObject({ code: '42501' })
+  await client.query(`rollback to savepoint ${savepoint}`)
+  await client.query(`release savepoint ${savepoint}`)
+}
+
 async function addImage(
   client: PoolClient,
   cragId: string,
@@ -58,7 +74,7 @@ describe('get_viewport_map_features', () => {
         [cragId],
       )
 
-      await client.query('set local role service_role')
+      await setRequestRole(client, 'service_role')
       const result = await client.query('select * from public.get_viewport_map_features(11, 9, 11, 9, 12, false)')
       await client.query('reset role')
       expect(result.rows).toHaveLength(2)
@@ -150,7 +166,7 @@ describe('get_viewport_map_features', () => {
     })
   })
 
-  it('strictly validates arguments and grants only explicit API roles', async () => {
+  it('strictly validates arguments and permits only service_role execution', async () => {
     await expect(pool.query('select * from public.get_viewport_map_features(0, 0, 10, -10, 5, false)'))
       .rejects.toMatchObject({ code: '22023' })
     await expect(pool.query('select * from public.get_viewport_map_features(10, -10, 10, -10, 23, false)'))
@@ -162,8 +178,16 @@ describe('get_viewport_map_features', () => {
     await expect(pool.query("select * from public.get_viewport_map_features('NaN', -10, 10, -10, 5, false)"))
       .rejects.toMatchObject({ code: '22023' })
 
+    await transaction(async (client) => {
+      await expectRoleDenied(client, 'anon')
+      await expectRoleDenied(client, 'authenticated')
+      await setRequestRole(client, 'service_role')
+      await expect(client.query('select * from public.get_viewport_map_features(11, 9, 11, 9, 12, false)'))
+        .resolves.toMatchObject({ rows: expect.any(Array) })
+    })
+
     const metadata = await pool.query(
-      `select p.prosecdef, p.proconfig,
+      `select pg_get_userbyid(p.proowner) as owner, p.prosecdef, p.proconfig,
               exists (
                 select from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
                 where acl.grantee = 0 and acl.privilege_type = 'EXECUTE'
@@ -175,7 +199,7 @@ describe('get_viewport_map_features', () => {
        where n.nspname = 'public' and p.proname = 'get_viewport_map_features'`,
     )
     expect(metadata.rows[0]).toEqual({
-      prosecdef: true, proconfig: ['search_path=""'], public: false,
+      owner: 'postgres', prosecdef: true, proconfig: ['search_path=""'], public: false,
       anon: false, authenticated: false, service_role: true,
     })
   })
