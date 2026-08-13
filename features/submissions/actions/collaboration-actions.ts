@@ -4,7 +4,6 @@ import { headers } from 'next/headers'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
-import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { getServerClient } from '@/lib/supabase-server'
 import { createCollaboratorInvite, listCollaborators, removeCollaborator, revokeCollaboratorInvite } from '@/features/submissions/server/collaboration/shared-collaborators'
 import { createDraftInvite, listDraftCollaborators, removeDraftCollaborator, revokeDraftInvite } from '@/features/submissions/server/drafts/draft-collaborators'
@@ -202,8 +201,7 @@ export async function fetchDraftCollaboratorsAction(draftId: string): Promise<Ac
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
 
   const supabase = await getServerClient()
-  const readClient = getAdminClientWithAudit('list draft collaborators')
-  const response = await listDraftCollaborators({ supabase, readClient, draftId: validation.data.draftId, userId: auth.data.userId })
+  const response = await listDraftCollaborators({ supabase, draftId: validation.data.draftId, userId: auth.data.userId })
   const payload = await response.json().catch(() => ({} as { error?: string; collaborators?: CollaboratorItem[]; activeInvites?: InviteItem[] }))
   if (!response.ok) return { success: false, error: payload.error || 'Load draft collaborators error', status: response.status }
   return { success: true, data: { collaborators: payload.collaborators || [], activeInvites: payload.activeInvites || [] } }

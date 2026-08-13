@@ -66,7 +66,7 @@ async function loadResourceOwner(input: {
     .maybeSingle()
 }
 
-async function loadActiveInvites(input: {
+export async function loadActiveInvites(input: {
   supabase: ReturnType<typeof import('@supabase/ssr').createServerClient>
   resourceId: string
   config: BaseCollaboratorConfig
