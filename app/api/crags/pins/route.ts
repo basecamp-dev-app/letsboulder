@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchViewportMapFeaturesWithClient, getServerClientFromRequest, getViewportMapClient } from '@/lib/supabase-server'
+import {
+  fetchAdminViewportMapFeaturesWithClient,
+  fetchViewportMapFeaturesWithClient,
+  getServerClientFromRequest,
+} from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
 import { serverEnv } from '@/lib/env.server'
 import { isCurrentUserAdmin } from '@/lib/profile-rpc'
@@ -37,20 +41,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'north, south, east, west, and integer zoom (0-22) must form valid bounds' }, { status: 400 })
   }
 
+  const supabase = getServerClientFromRequest(request)
   let includePending = false
   if (serverEnv.NEXT_PUBLIC_ALLOW_PENDING_IMAGES) {
-    const requestSupabase = getServerClientFromRequest(request)
-    const { data: user, error: authError } = await requestSupabase.auth.getUser()
+    const { data: user, error: authError } = await supabase.auth.getUser()
     if (!authError && user.user) {
-      const { data: isAdmin, error: adminError } = await isCurrentUserAdmin(requestSupabase)
+      const { data: isAdmin, error: adminError } = await isCurrentUserAdmin(supabase)
       includePending = !adminError && isAdmin === true
     }
   }
 
-  const supabase = getViewportMapClient()
-
   try {
-    const pins = await fetchViewportMapFeaturesWithClient(supabase, viewport, includePending)
+    const pins = includePending
+      ? await fetchAdminViewportMapFeaturesWithClient(supabase, viewport)
+      : await fetchViewportMapFeaturesWithClient(supabase, viewport)
 
     return NextResponse.json({ pins }, {
       headers: {

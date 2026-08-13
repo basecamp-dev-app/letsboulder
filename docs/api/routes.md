@@ -164,7 +164,7 @@ Route correction requests and voting. Requires authentication to submit and vote
 
 Crag CRUD operations, search, nearby queries, pin data, reports, image management, and sector operations. Read operations are public; write operations require authentication. Uses CSRF protection.
 
-- `GET crags/pins` requires one `north`, `south`, `east`, `west`, and integer `zoom` query parameter. Bounds may wrap across the antimeridian; zoom 12+ requests use a progressively smaller maximum span. It returns canonical crag and gym pins for the viewport, with server-generated clusters at zoom 11 and below, and uses the public-search rate-limit tier.
+- `GET crags/pins` requires one `north`, `south`, `east`, `west`, and integer `zoom` query parameter. Bounds may wrap across the antimeridian; zoom 12+ requests use a progressively smaller maximum span. Public responses contain canonical crag and gym pins backed only by publicly deliverable media, use server-generated clusters at zoom 11 and below, and retain shared-cache headers. When pending previews are enabled, a verified administrator is routed through a separate identity-bound RPC and receives a private, non-cacheable response. The endpoint uses the public-search rate-limit tier.
 
 ### csrf
 

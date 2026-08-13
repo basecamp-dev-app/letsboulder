@@ -451,8 +451,9 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 ### Map & Discovery
 | Function | Purpose |
 |----------|---------|
-| `get_place_pins(include_pending)` | Map pins for crags and gyms with route/image metadata in one query |
-| `get_viewport_map_features(north, south, east, west, zoom, include_pending)` | Service-role-only bounds-filtered canonical crag/gym pins with globally anchored server clusters through zoom 11 |
+| `get_place_pins(include_pending)` | Compatibility map pins for crags and gyms; the legacy boolean cannot broaden results beyond publicly deliverable media |
+| `get_viewport_map_features(north, south, east, west, zoom)` | Anon-executable canonical crag/gym viewport pins backed only by publicly deliverable media, with globally anchored server clusters through zoom 11 |
+| `get_admin_viewport_map_features(north, south, east, west, zoom)` | Authenticated, identity-bound administrator preview that may additionally include ready/public/moderation-approved legacy-pending media |
 | `get_nearby_crags(latitude, longitude, radius_meters, limit)` | RLS-aware crags within a metre radius, ordered nearest-first with the spatial index |
 | `get_crag_route_intelligence(p_crag_id)` | Per-route metrics: directions, topo coverage, weighted rating, unique sender counts |
 | `get_upload_context(lat, lng)` | Country/region context from coordinates |
@@ -479,7 +480,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `get_user_count()` | Total user count (SECURITY DEFINER) |
 | `get_active_climbers_count()` | Active climber count |
 | `get_community_contributors_count()` | Community contributor count |
-| `get_community_photos_count()` | Community photo count |
+| `get_community_photos_count()` | Publicly deliverable root-image count for active mapped crags; private, unready, variant, deleted-parent, and legacy gallery-only rows are excluded |
 | `get_crags_mapped_count()` | Number of mapped crags |
 | `get_boulders_with_gps_count()` | Boulder count with GPS data |
 | `get_total_climbs_count()` | Total climbs count |

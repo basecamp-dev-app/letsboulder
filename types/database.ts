@@ -4321,6 +4321,28 @@ export type Database = {
         }[]
       }
       get_active_climbers_count: { Args: never; Returns: number }
+      get_admin_viewport_map_features: {
+        Args: {
+          p_east: number
+          p_north: number
+          p_south: number
+          p_west: number
+          p_zoom: number
+        }
+        Returns: {
+          country_code: string
+          id: string
+          image_count: number
+          is_cluster: boolean
+          latitude: number
+          longitude: number
+          name: string
+          point_count: number
+          route_count: number
+          slug: string
+          type: string
+        }[]
+      }
       get_boulders_with_gps_count: { Args: never; Returns: number }
       get_climb_full_context: { Args: { p_climb_id: string }; Returns: Json }
       get_climbs_with_consensus:
@@ -4680,8 +4702,30 @@ export type Database = {
       get_verified_routes_count: { Args: never; Returns: number }
       get_viewport_map_features: {
         Args: {
-          include_pending?: boolean
           p_east: number
+          p_north: number
+          p_south: number
+          p_west: number
+          p_zoom: number
+        }
+        Returns: {
+          country_code: string
+          id: string
+          image_count: number
+          is_cluster: boolean
+          latitude: number
+          longitude: number
+          name: string
+          point_count: number
+          route_count: number
+          slug: string
+          type: string
+        }[]
+      }
+      get_viewport_map_features_internal: {
+        Args: {
+          p_east: number
+          p_include_pending: boolean
           p_north: number
           p_south: number
           p_west: number
