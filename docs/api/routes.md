@@ -40,6 +40,8 @@
 
 CSRF applies to mutating requests unless explicitly exempted. Because `/api/csrf` issues tokens only to an authenticated cookie session, a route configured with `requireUser: false` but default CSRF is still effectively authenticated for browser mutations. Public read endpoints may live in a group with authenticated writes.
 
+Public crag galleries and image-face responses contain only publicly deliverable linked media or individually reviewed legacy gallery rows. They return viewable public or signed URLs and never raw `private://` storage references.
+
 ## Endpoint Inventory
 
 This is the canonical path inventory for route handlers under `app/api/**/route.ts`. Methods and security behavior remain documented in the group details below and are not inferred by the documentation verifier.

@@ -13,17 +13,20 @@ interface CragImageRow {
   width: number | null
   height: number | null
   linked_image_id: string | null
+  legacy_published_at: string | null
   created_at: string
   linked_image: {
     processing_status: string
     moderation_status: string | null
     visibility: string
     status: string
+    url: string
   } | Array<{
     processing_status: string
     moderation_status: string | null
     visibility: string
     status: string
+    url: string
   }> | null
 }
 
@@ -70,7 +73,7 @@ export async function loadCragImages(supabase: RequestSupabaseClient, cragId: st
     const [{ data, error }, { data: cragData }, { data: routeTargetData, error: routeTargetError }] = await Promise.all([
       supabase
         .from('crag_images')
-        .select('id, url, width, height, linked_image_id, created_at, linked_image:linked_image_id(processing_status, moderation_status, visibility, status)')
+        .select('id, url, width, height, linked_image_id, legacy_published_at, created_at, linked_image:linked_image_id(processing_status, moderation_status, visibility, status, url)')
         .eq('crag_id', cragId)
         .order('created_at', { ascending: false })
         .limit(50),
@@ -97,7 +100,7 @@ export async function loadCragImages(supabase: RequestSupabaseClient, cragId: st
     }
 
     const rows = ((data || []) as CragImageRow[]).filter((row) => {
-      if (!row.linked_image_id) return true
+      if (!row.linked_image_id) return row.legacy_published_at !== null
       const linkedImage = Array.isArray(row.linked_image) ? row.linked_image[0] : row.linked_image
       return linkedImage?.processing_status === 'ready'
         && (linkedImage.moderation_status === 'approved' || linkedImage.moderation_status === 'skipped')
@@ -106,8 +109,13 @@ export async function loadCragImages(supabase: RequestSupabaseClient, cragId: st
     })
     const pathsByBucket = new Map<string, Set<string>>()
 
-    for (const row of rows) {
-      const parsed = parsePrivateStorageUrl(row.url)
+    const resolvedRows = rows.map((row) => {
+      const linkedImage = Array.isArray(row.linked_image) ? row.linked_image[0] : row.linked_image
+      return { row, resolvedUrl: linkedImage?.url || row.url }
+    })
+
+    for (const { resolvedUrl } of resolvedRows) {
+      const parsed = parsePrivateStorageUrl(resolvedUrl)
       if (!parsed) continue
 
       const current = pathsByBucket.get(parsed.bucket) || new Set<string>()
@@ -141,14 +149,15 @@ export async function loadCragImages(supabase: RequestSupabaseClient, cragId: st
       }
     }
 
-    const result: Array<CragImageRow & { signed_url: string | null }> = rows.map((row) => {
-      const parsed = parsePrivateStorageUrl(row.url)
+    const result = resolvedRows.map(({ row, resolvedUrl }) => {
+      const parsed = parsePrivateStorageUrl(resolvedUrl)
       if (!parsed) {
-        return { ...row, signed_url: row.url }
+        return { ...row, url: resolvedUrl, signed_url: resolvedUrl }
       }
 
       return {
         ...row,
+        url: signedByKey.get(getSignedUrlBatchKey(parsed.bucket, parsed.path)) || null,
         signed_url: signedByKey.get(getSignedUrlBatchKey(parsed.bucket, parsed.path)) || null,
       }
     })

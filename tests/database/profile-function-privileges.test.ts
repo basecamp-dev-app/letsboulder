@@ -24,6 +24,7 @@ const API_EXECUTABLE_DEFINERS = [
   'get_climbs_with_consensus(uuid,integer,integer)',
   'get_community_contributors_count()',
   'get_community_photos_count()',
+  'get_crag_faces_complete_summary(uuid)',
   'get_crag_pins()',
   'get_crag_pins(boolean)',
   'get_crag_rankings_leaderboard(uuid,text,integer,integer,timestamp with time zone)',

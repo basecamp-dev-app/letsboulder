@@ -241,7 +241,7 @@ async function canReadObject(bucket: string, path: string, userId: string | null
   {
     const { data: cragImageRows, error: cragImageError } = await admin
       .from('crag_images')
-      .select('id, linked_image_id, source_image_id')
+      .select('id, url, linked_image_id, source_image_id, legacy_published_at')
       .eq('url', privateRef)
       .limit(5)
 
@@ -250,20 +250,21 @@ async function canReadObject(bucket: string, path: string, userId: string | null
     }
 
     const linkedIds = Array.from(new Set((cragImageRows || [])
-      .flatMap((row) => [row.linked_image_id, row.source_image_id])
+      .map((row) => row.linked_image_id)
       .filter((value): value is string => typeof value === 'string' && !!value)))
 
     if (linkedIds.length > 0) {
       const { data: linkedImages, error: linkedError } = await admin
         .from('images')
-        .select('id, created_by, processing_status, moderation_status, visibility, status')
+        .select('id, url, created_by, processing_status, moderation_status, visibility, status')
         .in('id', linkedIds)
 
       if (linkedError) {
         throw linkedError
       }
 
-      const access = getRowAccess(linkedImages || [], userId)
+      const authoritativeRows = (linkedImages || []).filter((image) => image.url === privateRef)
+      const access = getRowAccess(authoritativeRows, userId)
       if (access) {
         return access
       }

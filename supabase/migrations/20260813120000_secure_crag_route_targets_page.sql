@@ -1,4 +1,6 @@
 -- Public route targets may only be derived from publicly deliverable media.
+DROP FUNCTION IF EXISTS public.get_crag_route_targets_page(uuid, integer, integer);
+
 CREATE OR REPLACE FUNCTION public.get_crag_route_targets_page(
   p_crag_id uuid,
   p_limit integer DEFAULT 50,

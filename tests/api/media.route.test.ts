@@ -50,6 +50,8 @@ function createAuthClient(userId: string | null) {
 }
 
 interface MediaRow {
+  id?: string
+  url?: string
   created_by: string | null
   moderation_status: string | null
   processing_status: string
@@ -73,17 +75,17 @@ function createImagesQuery(rows: MediaRow[]) {
   }
 }
 
-function createCragImagesQuery() {
+function createCragImagesQuery(rows: Array<{ id: string; url: string; linked_image_id: string | null; source_image_id: string | null; legacy_published_at: string | null }> = []) {
   return {
     select: vi.fn(() => ({
       eq: vi.fn(() => ({
-        limit: vi.fn(async () => ({ data: [], error: null })),
+        limit: vi.fn(async () => ({ data: rows, error: null })),
       })),
     })),
   }
 }
 
-function createAdminClient(rows: MediaRow[]) {
+function createAdminClient(rows: MediaRow[], cragImageRows: Array<{ id: string; url: string; linked_image_id: string | null; source_image_id: string | null; legacy_published_at: string | null }> = []) {
   return {
     from: vi.fn((table: string) => {
       if (table === 'images') {
@@ -91,7 +93,7 @@ function createAdminClient(rows: MediaRow[]) {
       }
 
       if (table === 'crag_images') {
-        return createCragImagesQuery()
+        return createCragImagesQuery(cragImageRows)
       }
 
       throw new Error(`Unexpected table ${table}`)
@@ -245,6 +247,36 @@ describe('Media proxy route', () => {
     const response = await GET(
       new NextRequest('http://localhost:3000/api/media/public-bucket/derived/photo.jpg'),
       { params: Promise.resolve({ bucket: 'public-bucket', path: ['derived', 'photo.jpg'] }) }
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  test('does not authorize a raw crag image locator through a different deliverable linked image', async () => {
+    getServerClientFromRequest.mockReturnValue(createAuthClient(null))
+    let imageQueryCount = 0
+    createClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === 'crag_images') return createCragImagesQuery([
+          { id: 'crag-image', url: 'private://legacy-bucket/stale.jpg', linked_image_id: 'linked-image', source_image_id: null, legacy_published_at: null },
+        ])
+        if (table === 'images') {
+          imageQueryCount += 1
+          const rows = imageQueryCount === 1
+            ? [{ ...mediaRow(null, 'approved'), id: 'linked-image', url: 'private://legacy-bucket/approved.jpg' }]
+            : []
+          return { select: vi.fn(() => ({
+            in: vi.fn(async () => ({ data: rows, error: null })),
+            eq: vi.fn(() => ({ eq: vi.fn(() => ({ limit: vi.fn(async () => ({ data: rows, error: null })) })) })),
+          })) }
+        }
+        throw new Error(`Unexpected table ${table}`)
+      }),
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/media/legacy-bucket/stale.jpg'),
+      { params: Promise.resolve({ bucket: 'legacy-bucket', path: ['stale.jpg'] }) },
     )
 
     expect(response.status).toBe(404)

@@ -39,6 +39,20 @@ interface RelatedFaceRow {
   width: number | null
   height: number | null
   face_directions?: string[] | null
+  legacy_published_at: string | null
+  linked_image: {
+    processing_status: string
+    moderation_status: string | null
+    visibility: string
+    status: string
+    url: string
+  } | Array<{
+    processing_status: string
+    moderation_status: string | null
+    visibility: string
+    status: string
+    url: string
+  }> | null
 }
 
 interface CanonicalFaceLinkRow {
@@ -233,6 +247,20 @@ function parsePrivateStorageUrl(url: string): { bucket: string; path: string } |
   return { bucket, path }
 }
 
+function isPubliclyDeliverableLinkedFace(face: RelatedFaceRow): boolean {
+  if (!face.linked_image_id) return face.legacy_published_at !== null
+  const linkedImage = Array.isArray(face.linked_image) ? face.linked_image[0] : face.linked_image
+  return linkedImage?.processing_status === 'ready'
+    && (linkedImage.moderation_status === 'approved' || linkedImage.moderation_status === 'skipped')
+    && linkedImage.visibility === 'public'
+    && linkedImage.status === 'approved'
+}
+
+function resolveRelatedFaceUrl(face: RelatedFaceRow): string {
+  const linkedImage = Array.isArray(face.linked_image) ? face.linked_image[0] : face.linked_image
+  return linkedImage?.url || face.url
+}
+
 async function toViewableUrlMap(rawUrls: string[], signer: SupabaseClient): Promise<Map<string, string | null>> {
   const map = new Map<string, string | null>()
   const groupedPaths = new Map<string, Set<string>>()
@@ -307,7 +335,7 @@ async function fetchRelatedFaces(supabase: SupabaseClient, cragId: string, prima
 
   const withDirections = await supabase
     .from('crag_images')
-    .select('id, url, source_image_id, linked_image_id, width, height, face_directions')
+    .select('id, url, source_image_id, linked_image_id, width, height, face_directions, legacy_published_at, linked_image:linked_image_id(processing_status, moderation_status, visibility, status, url)')
     .eq('crag_id', cragId)
     .or(filter)
     .order('created_at', { ascending: true })
@@ -322,7 +350,7 @@ async function fetchRelatedFaces(supabase: SupabaseClient, cragId: string, prima
 
   const fallback = await supabase
     .from('crag_images')
-    .select('id, url, source_image_id, linked_image_id, width, height')
+    .select('id, url, source_image_id, linked_image_id, width, height, legacy_published_at, linked_image:linked_image_id(processing_status, moderation_status, visibility, status, url)')
     .eq('crag_id', cragId)
     .or(filter)
     .order('created_at', { ascending: true })
@@ -464,12 +492,13 @@ export async function loadImageFaces(requestedImageId: string) {
       return NextResponse.json({ error: 'Failed to fetch related faces' }, { status: 500 })
     }
 
-    const linkedIds = (relatedFaces || [])
+    const eligibleRelatedFaces = relatedFaces.filter(isPubliclyDeliverableLinkedFace)
+    const linkedIds = eligibleRelatedFaces
       .map((face) => face.linked_image_id)
       .filter((id): id is string => typeof id === 'string' && !!id)
 
     const routeMap = await fetchRoutesByImageIds(supabase, [primaryImage.id, ...linkedIds])
-    const allFaceUrls = [primaryImage.url, ...(relatedFaces || []).map((face) => face.url)]
+    const allFaceUrls = [primaryImage.url, ...eligibleRelatedFaces.map(resolveRelatedFaceUrl)]
     const signedUrlMap = await toViewableUrlMap(allFaceUrls, signingClient)
     const primaryUrl = signedUrlMap.get(primaryImage.url) ?? null
 
@@ -491,8 +520,8 @@ export async function loadImageFaces(requestedImageId: string) {
       })
     }
 
-    const signedFaceCandidates = (relatedFaces || []).map((face, index) => {
-      const signedUrl = signedUrlMap.get(face.url) ?? null
+    const signedFaceCandidates = eligibleRelatedFaces.map((face, index) => {
+      const signedUrl = signedUrlMap.get(resolveRelatedFaceUrl(face)) ?? null
       if (!signedUrl) return null
 
       const resolvedLinkedImageId = face.linked_image_id === primaryImage.id ? null : face.linked_image_id

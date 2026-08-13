@@ -943,6 +943,7 @@ export type Database = {
           height: number | null
           id: string
           latitude: number | null
+          legacy_published_at: string | null
           linked_image_id: string | null
           longitude: number | null
           sector_id: string | null
@@ -957,6 +958,7 @@ export type Database = {
           height?: number | null
           id?: string
           latitude?: number | null
+          legacy_published_at?: string | null
           linked_image_id?: string | null
           longitude?: number | null
           sector_id?: string | null
@@ -971,6 +973,7 @@ export type Database = {
           height?: number | null
           id?: string
           latitude?: number | null
+          legacy_published_at?: string | null
           linked_image_id?: string | null
           longitude?: number | null
           sector_id?: string | null
@@ -4448,10 +4451,8 @@ export type Database = {
           climb_slug: string
           effective_climb_id: string
           navigation_image_id: string
-          navigation_image_url: string
           navigation_route_id: string
           preview_image_id: string
-          preview_image_url: string
           route_image_ids: string[]
         }[]
       }
@@ -4751,6 +4752,7 @@ export type Database = {
           height: number | null
           id: string
           latitude: number | null
+          legacy_published_at: string | null
           linked_image_id: string | null
           longitude: number | null
           sector_id: string | null
@@ -4825,6 +4827,10 @@ export type Database = {
             }
             Returns: undefined
           }
+      mark_legacy_crag_image_published: {
+        Args: { p_crag_image_id: string }
+        Returns: undefined
+      }
       normalize_climb_route_type: {
         Args: { raw_type: string }
         Returns: string

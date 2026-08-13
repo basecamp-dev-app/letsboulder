@@ -46,7 +46,7 @@ describe('crag signing client boundaries', () => {
   it('uses the request client for crag-image reads and the signing client only for object URLs', async () => {
     const signingClient = createSigningClient()
     const cragBuilder = createReadBuilder({ id: 'crag-1' })
-    const imagesBuilder = createReadBuilder([{ id: 'image-1', url: 'private://legacy/image-1.jpg', width: null, height: null, linked_image_id: null, created_at: '2026-01-01' }])
+    const imagesBuilder = createReadBuilder([{ id: 'image-1', url: 'private://legacy/image-1.jpg', width: null, height: null, linked_image_id: null, legacy_published_at: '2026-01-01', created_at: '2026-01-01' }])
     const metadataBuilder = createReadBuilder({ country_code: 'GB', slug: 'crag-one' })
     const routeLinesBuilder = createReadBuilder([])
     const supabase = {
@@ -71,6 +71,34 @@ describe('crag signing client boundaries', () => {
     expect(mocks.createSignedObjectUrls).toHaveBeenCalledWith([{ bucket: 'legacy', path: 'image-1.jpg' }], signingClient)
     expect(signingClient.from).not.toHaveBeenCalled()
     expect(signingClient.rpc).not.toHaveBeenCalled()
+    expect((await response.json()).images[0]).toMatchObject({
+      url: 'https://signed.example/image-1.jpg',
+      signed_url: 'https://signed.example/image-1.jpg',
+    })
+  })
+
+  it('does not sign unreviewed legacy locators and uses a linked image authoritative URL', async () => {
+    const signingClient = createSigningClient()
+    const cragBuilder = createReadBuilder({ id: 'crag-1' })
+    const imagesBuilder = createReadBuilder([
+      { id: 'legacy', url: 'private://legacy/unreviewed.jpg', width: null, height: null, linked_image_id: null, legacy_published_at: null, created_at: '2026-01-01' },
+      { id: 'linked', url: 'private://legacy/stale.jpg', width: null, height: null, linked_image_id: 'authoritative', legacy_published_at: null, created_at: '2026-01-02', linked_image: { processing_status: 'ready', moderation_status: 'approved', visibility: 'public', status: 'approved', url: 'private://canonical/approved.jpg' } },
+    ])
+    const metadataBuilder = createReadBuilder({ country_code: 'GB', slug: 'crag-one' })
+    const routeLinesBuilder = createReadBuilder([])
+    const supabase = { from: vi.fn((table: string) => ({ select: vi.fn(() => {
+      if (table === 'crags') return supabase.from.mock.calls.filter(([name]) => name === 'crags').length === 1 ? cragBuilder : metadataBuilder
+      if (table === 'crag_images') return imagesBuilder
+      if (table === 'route_lines') return routeLinesBuilder
+      throw new Error(`Unexpected table: ${table}`)
+    }) })) }
+    mocks.getAdminClientWithAudit.mockReturnValue(signingClient)
+    mocks.createSignedObjectUrls.mockResolvedValue(new Map([['canonical:approved.jpg', 'https://signed.example/approved.jpg']]))
+
+    const response = await loadCragImages(supabase as never, 'crag-1')
+
+    expect(mocks.createSignedObjectUrls).toHaveBeenCalledWith([{ bucket: 'canonical', path: 'approved.jpg' }], signingClient)
+    expect(await response.json()).toMatchObject({ images: [{ id: 'linked', url: 'https://signed.example/approved.jpg' }] })
   })
 
   it('uses the anonymous client for face reads and the signing client only for object URLs', async () => {

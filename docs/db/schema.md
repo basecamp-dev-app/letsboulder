@@ -324,6 +324,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `claim_media_deletion_job(worker_name, lease_seconds)` reclaims due or expired deletion work with `FOR UPDATE SKIP LOCKED`. Completion/retry/failure RPCs require the current claim token, and completed/cancelled jobs are pruned after 30 days.
 - Active ingest runs through `media_jobs` + the Worker in `apps/media-worker`; `images` remains the source of truth.
 - Canonical publishability is `processing_status = 'ready'` and `moderation_status IN ('approved', 'skipped')`. Public delivery or association additionally requires `visibility = 'public'` and legacy `status = 'approved'`.
+- `crag_images` is a gallery association, not independent media approval. Public reads require an active crag and a publicly deliverable `linked_image_id`. Unlinked legacy rows fail closed unless individually reviewed through the service-only `mark_legacy_crag_image_published(crag_image_id)` RPC, which records `legacy_published_at`; presence in `crag_images` or a raw storage locator never establishes publication.
 - `assert_media_ready_for_publication(image_ids)` locks and validates authoritative `images` rows inside publication transactions. Draft promotion, unified submission creation, route creation, and linked `crag_images` writes fail with detail code `media_not_ready` until every image is publicly deliverable.
 - Transactional guards require publication RPCs to associate existing upload-session image IDs and preserve worker-produced processing, moderation, visibility, and delivery fields.
 - `promote_draft_to_submission` locks the draft first, then draft attachments and routes by ID, authoritative linked images by ID, and finally the crag. It rejects duplicate linked image identities and validates each linked image's owner and storage path, public readiness, and the crag's canonical slug and country code before publishing.
@@ -459,7 +460,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `get_consensus_grade(p_climb_id)` | Compute consensus grade for a climb |
 | `get_climbs_with_consensus()` | Batch fetch climbs with consensus grades |
 | `get_climb_full_context(p_climb_id)` | Full climb data with faces, routes, stats |
-| `get_crag_faces_complete_summary(p_crag_id)` | Multi-face summary for a crag |
+| `get_crag_faces_complete_summary(p_image_id)` | Multi-face summary for a publicly deliverable image |
 | `get_image_faces_summary(p_image_id)` | Face data for an image |
 | `get_effective_climb_id(p_climb_id)` | Resolve climb ID through shared_climb_id chain |
 | `resolve_public_crag_slug(country_code, crag_slug)` | Resolve a canonical public crag slug through active supersession |
