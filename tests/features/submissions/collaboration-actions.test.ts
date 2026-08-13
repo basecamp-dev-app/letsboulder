@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { NextResponse } from 'next/server'
 
 vi.mock('next/headers', () => ({ headers: vi.fn() }))
 vi.mock('@/lib/actions/action-auth', () => ({ getActionAuth: vi.fn() }))
@@ -22,7 +23,7 @@ describe('fetchDraftCollaboratorsAction', () => {
     const supabase = { rpc: vi.fn() }
     vi.mocked(getActionAuth).mockResolvedValue({ success: true, data: { userId: 'user-1' } })
     vi.mocked(getServerClient).mockResolvedValue(supabase as never)
-    vi.mocked(listDraftCollaborators).mockResolvedValue(Response.json({
+    vi.mocked(listDraftCollaborators).mockResolvedValue(NextResponse.json({
       collaborators: [{ userId: 'collaborator-1', role: 'editor', createdAt: '2026-08-13T10:00:00.000Z', profile: { displayName: 'Climber', username: null, avatarUrl: null } }],
       activeInvites: [],
     }))
@@ -40,7 +41,7 @@ describe('fetchDraftCollaboratorsAction', () => {
   test('preserves draft listing errors', async () => {
     vi.mocked(getActionAuth).mockResolvedValue({ success: true, data: { userId: 'user-1' } })
     vi.mocked(getServerClient).mockResolvedValue({} as never)
-    vi.mocked(listDraftCollaborators).mockResolvedValue(Response.json({ error: 'Draft collaborator access denied' }, { status: 403 }))
+    vi.mocked(listDraftCollaborators).mockResolvedValue(NextResponse.json({ error: 'Draft collaborator access denied' }, { status: 403 }))
 
     await expect(fetchDraftCollaboratorsAction('draft-1')).resolves.toEqual({
       success: false,

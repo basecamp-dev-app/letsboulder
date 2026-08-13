@@ -8,6 +8,28 @@ import type { Database } from '@/types/database'
 const SEEDED_PLACE_SLUG_PUBLIC = 'e2e-seeded-place-public'
 const SEEDED_PLACE_SLUG_AUTH = 'e2e-seeded-place-auth'
 
+async function ensureTestAuthUser() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.DEV_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+  const userId = process.env.TEST_USER_ID?.trim()
+  const email = process.env.TEST_USER_EMAIL?.trim()
+  const password = process.env.TEST_USER_PASSWORD?.trim()
+  if (!supabaseUrl || !serviceRoleKey || !userId || !email || !password) return
+
+  const admin = createClient<Database>(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  const { data: existing, error: lookupError } = await admin.auth.admin.getUserById(userId)
+  if (lookupError && !lookupError.message.toLowerCase().includes('not found')) {
+    throw new Error(`Failed to inspect test user: ${lookupError.message}`)
+  }
+
+  const result = existing.user
+    ? await admin.auth.admin.updateUserById(userId, { email, password, email_confirm: true })
+    : await admin.auth.admin.createUser({ id: userId, email, password, email_confirm: true })
+  if (result.error) throw new Error(`Failed to provision test user: ${result.error.message}`)
+}
+
 async function ensureSeedData() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.DEV_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -113,6 +135,7 @@ async function globalSetup() {
   try {
     const authUrl = new URL(`/api/test/${testAuthPathSegment}/auth`, baseURL)
 
+    await ensureTestAuthUser()
     console.log('Authenticating test user')
 
     const bodyData: Record<string, string> = { api_key: testApiKey }

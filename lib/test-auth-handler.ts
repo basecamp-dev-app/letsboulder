@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
+import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(
   request: NextRequest,
@@ -70,48 +71,43 @@ export async function POST(
   }
 
   const resolvedUserId = userId?.trim() || null
-  const resolvedEmail = emailParam?.trim().toLowerCase() || null
+  let resolvedEmail = emailParam?.trim().toLowerCase() || null
 
   if (!resolvedUserId && !resolvedEmail) {
     return NextResponse.json({ error: 'Missing user_id or email' }, { status: 400 })
   }
 
-  const expiresIn = 3600
-  const payload = {
-    aud: 'authenticated',
-    exp: Math.floor(Date.now() / 1000) + expiresIn,
-    sub: resolvedUserId,
-    email: resolvedEmail,
-    role: 'authenticated',
-    email_confirmed_at: new Date().toISOString(),
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !anonKey) {
+    return NextResponse.json({ error: 'Test auth requires Supabase public configuration' }, { status: 500 })
   }
 
-  const accessToken = jwt.sign(payload, serviceRoleKey, { algorithm: 'HS256' })
-  const refreshToken = jwt.sign(payload, serviceRoleKey, { algorithm: 'HS256' })
+  if (!resolvedEmail && resolvedUserId) {
+    const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
+    const { data, error } = await admin.auth.admin.getUserById(resolvedUserId)
+    if (error || !data.user?.email) return NextResponse.json({ error: 'Test user not found' }, { status: 401 })
+    resolvedEmail = data.user.email.toLowerCase()
+  }
+  if (!resolvedEmail) return NextResponse.json({ error: 'Test user email is required' }, { status: 401 })
 
-  const response = NextResponse.json({
-    success: true,
-    user: {
-      id: resolvedUserId,
-      email: resolvedEmail,
+  const response = NextResponse.json({ success: true })
+  const supabase = createServerClient(supabaseUrl, anonKey, {
+    cookieOptions: { secure: request.nextUrl.protocol === 'https:' },
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll: (cookies) => {
+        for (const { name, value, options } of cookies) response.cookies.set(name, value, options)
+      },
     },
   })
-
-  response.cookies.set('sb-access-token', accessToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    maxAge: expiresIn,
-    path: '/',
+  const { data: sessionData, error: sessionError } = await supabase.auth.signInWithPassword({
+    email: resolvedEmail,
+    password: testUserPassword,
   })
+  if (sessionError || !sessionData.user || (resolvedUserId && sessionData.user.id !== resolvedUserId)) {
+    return NextResponse.json({ error: 'Test user authentication failed' }, { status: 401 })
+  }
 
-  response.cookies.set('sb-refresh-token', refreshToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    maxAge: expiresIn * 7,
-    path: '/',
-  })
-
-  return response
+  return NextResponse.json({ success: true, user: { id: sessionData.user.id, email: sessionData.user.email } }, { headers: response.headers })
 }

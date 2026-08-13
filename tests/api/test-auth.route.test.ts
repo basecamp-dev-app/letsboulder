@@ -3,8 +3,12 @@ import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 
 const TEST_SEGMENT = 'test-segment-123'
 
-const { reportError } = vi.hoisted(() => ({
+const { reportError, signInWithPassword } = vi.hoisted(() => ({
   reportError: vi.fn(),
+  signInWithPassword: vi.fn(async () => ({
+    data: { user: { id: 'user-1', email: 'test@example.com' } },
+    error: null,
+  })),
 }))
 
 vi.mock('@/lib/errors', () => ({
@@ -12,10 +16,12 @@ vi.mock('@/lib/errors', () => ({
 }))
 
 vi.mock('@supabase/ssr', () => ({
-  createServerClient: vi.fn(() => ({
-    auth: {
-      setSession: vi.fn(async () => ({ error: null })),
-    },
+  createServerClient: vi.fn(() => ({ auth: { signInWithPassword } })),
+}))
+
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: vi.fn(() => ({
+    auth: { admin: { getUserById: vi.fn(async () => ({ data: { user: { email: 'test@example.com' } }, error: null })) } },
   })),
 }))
 
@@ -229,5 +235,31 @@ describe('/api/test/[segment]/auth', () => {
 
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({ error: 'Invalid API key' })
+  })
+
+  test('authenticates the configured user through Supabase', async () => {
+    process.env.TEST_AUTH_PATH_SEGMENT = TEST_SEGMENT
+    process.env.ENABLE_TEST_AUTH_ENDPOINT = 'true'
+    process.env.INTERNAL_TEST_KEY = 'secret-internal-key'
+    process.env.TEST_API_KEY = 'test-api-key'
+    process.env.TEST_USER_PASSWORD = 'test-password'
+    process.env.DEV_SUPABASE_SERVICE_ROLE_KEY = 'test-signing-secret'
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
+
+    const response = await POST(
+      createRequest({ api_key: 'test-api-key', user_id: 'user-1', email: 'test@example.com' }, {
+        'x-internal-test-key': 'secret-internal-key',
+        'x-test-auth': '1',
+      }),
+      createParams(),
+    )
+
+    expect(response.status).toBe(200)
+    expect(signInWithPassword).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: 'test-password',
+    })
+    await expect(response.json()).resolves.toEqual({ success: true, user: { id: 'user-1', email: 'test@example.com' } })
   })
 })

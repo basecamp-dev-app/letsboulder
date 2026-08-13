@@ -17,6 +17,8 @@ The Playwright authenticated suite uses a test-only endpoint at `/api/test/[segm
 - Set `TEST_API_KEY`, `TEST_USER_PASSWORD`, and `TEST_AUTH_PATH_SEGMENT` only in pre-production environments.
 - Never set `ENABLE_TEST_AUTH_ENDPOINT=true` in production.
 - Keep `TEST_USER_ID` tied to a dedicated test account.
+- The test endpoint signs in that account through Supabase with `TEST_USER_PASSWORD`; it does not mint synthetic JWTs.
+- Local global setup provisions or refreshes the dedicated account after a database reset when both its ID and email are configured.
 
 ## Operational Safety
 

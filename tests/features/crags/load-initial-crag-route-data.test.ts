@@ -97,7 +97,7 @@ describe('loadInitialCragRouteData', () => {
   it('propagates public read failures', async () => {
     const error = new Error('routes unavailable')
     const client = createClient()
-    client.rpc.mockResolvedValue({ data: null, error })
+    client.rpc.mockResolvedValue({ data: null, error } as never)
 
     await expect(loadInitialCragRouteData(client as never, 'crag-1')).rejects.toBe(error)
   })
