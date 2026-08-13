@@ -347,7 +347,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - A newly inserted proposal transactionally creates one `crag_metadata_review_requested` notification for every assigned crag maintainer and `profiles.is_admin` moderator except the proposer; overlapping roles are deduplicated and idempotent replays do not notify again. Links target `/maintain/crags` with crag and proposal query parameters.
 - `review_crag_metadata_proposal` permits only a different user who is an admin or an assigned maintainer for that crag. Rejection changes proposal state only. Approval locks the proposal, active crag, and wiki head; any head mismatch permanently resolves the proposal as `conflict` without canonical mutation. A successful approval resolves the country-scoped region tag, updates the single primary region edge and crag (thereby running the crag-to-place trigger), appends one immutable crag revision, and marks the proposal approved in the same transaction. Approved, rejected, and conflict outcomes transactionally notify the proposer when that account still exists.
 - `set_crag_maintainer` is admin-only and identity-bound. Maintainer and proposal tables are directly read-only to API roles; assignment, proposal, and review writes are RPC-only. The legacy `update_submission_crag_metadata` RPC is no longer executable by authenticated callers.
-- `submission_draft_collaborators` and `submission_draft_collaborator_invites` continue to enable shared editing on drafts.
+- `submission_draft_collaborators` and `submission_draft_collaborator_invites` continue to enable shared editing on drafts. Authenticated owners and collaborators may call `list_submission_draft_collaborators(draft_id)` to receive every membership row for that draft. It returns only user ID, role, creation time, and public display fields; another user's private display fields are null, while callers may receive their own.
 - RLS helper functions: `is_submission_collaborator(image_id, user_id)` and `is_submission_draft_collaborator(draft_id, user_id)`.
 - Wiki helper function: `user_can_wiki_edit_submission(image_id, user_id)`; the supplied user must equal `auth.uid()`, and deleted images or images under deleted crags are rejected.
 - Invite claims: `claim_submission_collaborator_invite(token)` and `claim_submission_draft_collaborator_invite(token)`.
@@ -501,6 +501,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `save_submission_draft_atomic(draft_id, expected_updated_at, images, route_sets, metadata, crag_id)` | Concurrency-check and atomically save dirty route replacements, complete image state, merged metadata/location, crag, and editor identity |
 | `sync_submission_draft_routes(draft_id, draft_image_id, routes)` | Replace the durable draft route set for one image |
 | `user_can_edit_submission_draft(draft_id, user_id)` | Permission check for draft editing |
+| `list_submission_draft_collaborators(draft_id)` | Authorized draft membership rows with visibility-filtered profile display fields |
 | `handle_submission_draft_promoted(...)` | Trigger handler for draft promotion |
 | `claim_submission_collaborator_invite(token)` | Accept a submission collaboration invite |
 | `claim_submission_draft_collaborator_invite(token)` | Accept a draft collaboration invite |

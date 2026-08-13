@@ -52,6 +52,7 @@ const API_EXECUTABLE_DEFINERS = [
   'is_current_user_admin()',
   'is_submission_collaborator(uuid,uuid)',
   'is_submission_draft_collaborator(uuid,uuid)',
+  'list_submission_draft_collaborators(uuid)',
   'log_routes_idempotent(uuid,uuid[],text,text,date,timestamp with time zone)',
   'log_submission_edit(uuid,uuid,text,text,jsonb,jsonb)',
   'log_submission_edit(uuid,uuid,text,text,jsonb,jsonb,text,text,text[],text[])',
@@ -207,6 +208,27 @@ async function createProfile(client: PoolClient, isPublic: boolean) {
   return { email, userId }
 }
 
+async function createDraftCollaboratorFixture(client: PoolClient) {
+  const owner = await createProfile(client, false)
+  const publicCollaborator = await createProfile(client, true)
+  const privateCollaborator = await createProfile(client, false)
+  const unrelated = await createProfile(client, true)
+  const draftId = randomUUID()
+
+  await client.query(
+    `insert into public.submission_drafts (id, user_id, metadata)
+     values ($1, $2, '{}'::jsonb)`,
+    [draftId, owner.userId],
+  )
+  await client.query(
+    `insert into public.submission_draft_collaborators (draft_id, user_id, role, created_by)
+     values ($1, $2, 'editor', $3), ($1, $4, 'editor', $3)`,
+    [draftId, publicCollaborator.userId, owner.userId, privateCollaborator.userId],
+  )
+
+  return { draftId, owner, privateCollaborator, publicCollaborator, unrelated }
+}
+
 beforeAll(async () => {
   const migration = await pool.query(
      `select to_regprocedure('public.get_own_profile()') is not null
@@ -271,6 +293,91 @@ describe('profile and function privilege hardening', () => {
         [other.userId],
       )).rows).toEqual([])
     })
+  })
+
+  it('lists authorized draft collaborators with profile visibility applied inside the RPC', async () => {
+    await transaction(async (client) => {
+      const fixture = await createDraftCollaboratorFixture(client)
+
+      await setRequestRole(client, 'authenticated', fixture.owner.userId)
+      const ownerRows = await client.query(
+        'select * from public.list_submission_draft_collaborators($1)',
+        [fixture.draftId],
+      )
+      expect(ownerRows.rows).toHaveLength(2)
+      expect(ownerRows.rows.map((row) => row.user_id).sort()).toEqual(
+        [fixture.privateCollaborator.userId, fixture.publicCollaborator.userId].sort(),
+      )
+      expect(ownerRows.rows.find((row) => row.user_id === fixture.publicCollaborator.userId)).toMatchObject({
+        display_name: 'Privilege fixture',
+        username: `priv-${fixture.publicCollaborator.userId.slice(0, 12)}`,
+        avatar_url: null,
+      })
+      expect(ownerRows.rows.find((row) => row.user_id === fixture.privateCollaborator.userId)).toMatchObject({
+        display_name: null,
+        username: null,
+        avatar_url: null,
+      })
+      expect(Object.keys(ownerRows.rows[0]).sort()).toEqual([
+        'avatar_url', 'created_at', 'display_name', 'role', 'user_id', 'username',
+      ])
+
+      await setRequestRole(client, 'authenticated', fixture.privateCollaborator.userId)
+      const collaboratorRows = await client.query(
+        'select * from public.list_submission_draft_collaborators($1)',
+        [fixture.draftId],
+      )
+      expect(collaboratorRows.rows).toHaveLength(2)
+      expect(collaboratorRows.rows.find((row) => row.user_id === fixture.privateCollaborator.userId)).toMatchObject({
+        display_name: 'Privilege fixture',
+        username: `priv-${fixture.privateCollaborator.userId.slice(0, 12)}`,
+      })
+
+      await setRequestRole(client, 'authenticated', fixture.unrelated.userId)
+      expect(await expectedFailure(
+        client,
+        'select * from public.list_submission_draft_collaborators($1)',
+        [fixture.draftId],
+      )).toContain('Draft collaborator access denied')
+
+      await setRequestRole(client, 'anon')
+      expect(await expectedFailure(
+        client,
+        'select * from public.list_submission_draft_collaborators($1)',
+        [fixture.draftId],
+      )).toContain('permission denied')
+
+      await setRequestRole(client, 'authenticated', fixture.owner.userId)
+      expect((await client.query(
+        'select id from public.profiles where id = $1',
+        [fixture.privateCollaborator.userId],
+      )).rows).toEqual([])
+      expect(await expectedFailure(
+        client,
+        'select email from public.profiles where id = $1',
+        [fixture.publicCollaborator.userId],
+      )).toContain('permission denied')
+    })
+  })
+
+  it('grants draft collaborator listing only to authenticated callers with a fixed search path', async () => {
+    const metadata = await pool.query(
+      `select p.prosecdef, p.proconfig,
+              has_function_privilege('anon', p.oid, 'EXECUTE') as anon,
+              has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated,
+              has_function_privilege('service_role', p.oid, 'EXECUTE') as service_role
+       from pg_proc AS p
+       join pg_namespace AS n on n.oid = p.pronamespace
+       where n.nspname = 'public'
+         and p.proname = 'list_submission_draft_collaborators'`,
+    )
+    expect(metadata.rows).toEqual([{
+      prosecdef: true,
+      proconfig: ['search_path=""'],
+      anon: false,
+      authenticated: true,
+      service_role: false,
+    }])
   })
 
   it('allows an owner to update an allowed profile field', async () => {

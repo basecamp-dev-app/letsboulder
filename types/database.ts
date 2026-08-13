@@ -4776,6 +4776,17 @@ export type Database = {
         Args: { p_draft_id: string; p_user_id: string }
         Returns: boolean
       }
+      list_submission_draft_collaborators: {
+        Args: { p_draft_id: string }
+        Returns: {
+          avatar_url: string
+          created_at: string
+          display_name: string
+          role: string
+          user_id: string
+          username: string
+        }[]
+      }
       log_routes_idempotent: {
         Args: {
           p_climb_ids: string[]
