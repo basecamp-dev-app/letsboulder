@@ -4,12 +4,32 @@ import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
+import type { Database, Json } from '@/types/database'
+import { isValidGrade } from '@/lib/grade-constants'
 
-const climbCorrectionSchema = z.object({
-  correction_type: z.enum(['location', 'name', 'line', 'grade']),
-  suggested_value: z.record(z.string(), z.unknown()),
-  reason: z.string().optional(),
-})
+type ClimbCorrectionInsert = Database['public']['Tables']['climb_corrections']['Insert']
+
+const correctionReasonSchema = z.string().optional()
+const climbCorrectionSchema = z.discriminatedUnion('correction_type', [
+  z.object({
+    correction_type: z.literal('location'),
+    suggested_value: z.object({
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+    }),
+    reason: correctionReasonSchema,
+  }),
+  z.object({
+    correction_type: z.literal('name'),
+    suggested_value: z.object({ name: z.string().trim().min(1) }),
+    reason: correctionReasonSchema,
+  }),
+  z.object({
+    correction_type: z.literal('grade'),
+    suggested_value: z.object({ grade: z.string().refine(isValidGrade, 'Invalid grade') }),
+    reason: correctionReasonSchema,
+  }),
+])
 
 export async function POST(
   request: NextRequest,
@@ -44,7 +64,7 @@ export async function POST(
     }
 
     // Get original value based on correction type
-    let originalValue = null
+    let originalValue: Json | null = null
     switch (correction_type) {
       case 'location':
         originalValue = {
@@ -58,25 +78,24 @@ export async function POST(
       case 'grade':
         originalValue = { grade: climb.grade }
         break
-      case 'line':
-        // Line corrections would need to reference route_lines
-        break
     }
 
     // Create correction
+    const insertData: ClimbCorrectionInsert = {
+      climb_id: climbId,
+      user_id: userId,
+      correction_type,
+      original_value: originalValue,
+      suggested_value,
+      reason: reason || null,
+      status: 'pending',
+      approval_count: 0,
+      rejection_count: 0,
+    }
+
     const { data: correction, error: insertError } = await supabase
       .from('climb_corrections')
-      .insert({
-        climb_id: climbId,
-        user_id: userId,
-        correction_type,
-        original_value: originalValue,
-        suggested_value: suggested_value,
-        reason: reason || null,
-        status: 'pending',
-        approval_count: 0,
-        rejection_count: 0
-      })
+      .insert(insertData)
       .select()
       .single()
 

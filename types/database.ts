@@ -5018,6 +5018,29 @@ export type Database = {
         Returns: string
       }
       require_open_data_consent: { Args: never; Returns: undefined }
+      resolve_flag_and_soft_delete: {
+        Args: { p_flag_id: string; p_reason: string }
+        Returns: {
+          action_taken: string | null
+          climb_id: string | null
+          comment: string
+          crag_id: string | null
+          created_at: string | null
+          flag_type: string
+          flagger_id: string | null
+          id: string
+          image_id: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "climb_flags"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       resolve_legacy_climb_redirect: {
         Args: { p_climb_id: string }
         Returns: {

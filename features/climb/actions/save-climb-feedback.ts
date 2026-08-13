@@ -15,7 +15,10 @@ import {
 import { normalizeGrade, GRADES } from '@/lib/grades'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
+import type { Database } from '@/types/database'
 import { z } from 'zod'
+
+type UserClimbUpdate = Database['public']['Tables']['user_climbs']['Update']
 
 interface ConsensusBucket {
   index: number
@@ -135,7 +138,7 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
   const notes = validation.data.notes ?? null
 
   const supabase = await getServerClient()
-  const effectiveClimbId = await resolveEffectiveClimbId(supabase as never, climbId)
+  const effectiveClimbId = await resolveEffectiveClimbId(supabase, climbId)
 
   if (!effectiveClimbId) {
     return { success: false, error: 'Climb not found', status: 404 }
@@ -167,7 +170,7 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
     return { success: false, error: 'Climb not found', status: 404 }
   }
 
-  const updatePayload: Record<string, unknown> = {
+  const updatePayload: UserClimbUpdate = {
     grade_opinion: gradeOpinion,
     star_rating: starRating,
     notes,

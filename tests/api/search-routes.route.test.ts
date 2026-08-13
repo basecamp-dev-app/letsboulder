@@ -111,6 +111,23 @@ function createNearbyCragsClient(result: QueryResult) {
   }
 }
 
+function createRegionsClient(result: QueryResult) {
+  const builder = {
+    eq: vi.fn(() => builder),
+    order: vi.fn(() => builder),
+    ilike: vi.fn(() => builder),
+    limit: vi.fn(() => makeThenableResult(result)),
+  }
+
+  return {
+    builder,
+    from: vi.fn((table: string) => {
+      if (table !== 'location_tags') throw new Error(`Unexpected table ${table}`)
+      return { select: vi.fn(() => builder) }
+    }),
+  }
+}
+
 function createCragByIdClient(result: QueryResult) {
   const builder = {
     eq: vi.fn(() => builder),
@@ -145,6 +162,23 @@ describe('Search routes', () => {
     expect(response.status).toBe(200)
     expect(json).toEqual([])
     expect(getServerClientFromRequest).not.toHaveBeenCalled()
+  })
+
+  test('regions search uses canonical region tags and preserves the legacy shape', async () => {
+    const client = createRegionsClient({
+      data: [{ id: 'tag-1', name: 'Peak District', country_code: 'GB', created_at: '2026-01-01' }],
+      error: null,
+    })
+    getServerClientFromRequest.mockReturnValue(client)
+
+    const response = await getRegionSearch(new NextRequest('http://localhost:3000/api/regions/search?q=peak'))
+    const json = await response.json()
+
+    expect(client.from).toHaveBeenCalledWith('location_tags')
+    expect(client.builder.eq).toHaveBeenCalledWith('kind', 'region')
+    expect(client.builder.ilike).toHaveBeenCalledWith('name', '%peak%')
+    expect(client.builder.limit).toHaveBeenCalledWith(20)
+    expect(json).toEqual([expect.objectContaining({ id: 'tag-1', center_lat: null, center_lon: null })])
   })
 
   test('places search filters by type and sorts by distance', async () => {

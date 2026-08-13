@@ -302,6 +302,8 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 ### Published Content Deletion
 - `crags` and `climbs` use `deleted_at`, a required trimmed `deletion_reason` of at most 500 characters, and optional same-table `superseded_by`. Existing soft-deleted climbs are backfilled with `Legacy soft deletion`.
 - `soft_delete_climb` and `soft_delete_crag` are authenticated admin-only `SECURITY DEFINER` RPCs bound to `auth.uid()` through `is_current_user_admin()`. They lock target/replacement rows, require an active replacement, reject self-reference/cycles, and insert `admin_actions` in the same transaction. Crag deletion also locks and soft-deletes every active child climb.
+- `resolve_flag_and_soft_delete` is authenticated admin-only and atomically resolves one pending `climb_flags` row while invoking the matching canonical climb, image, or crag soft-delete RPC.
+- Submitted climb corrections have no direct API-role UPDATE policy. Their identity and payload fields are also trigger-immutable; voting may update only resolution state and counters through the canonical RPC.
 - Lifecycle changes are trigger-gated to the admin soft-delete RPCs and service-only account/submission deletion workflows. Authenticated direct DELETE grants/policies are removed. Hard-delete guards apply even to `service_role`: only fully empty crags and unassociated, never-published climbs/images can be physically deleted.
 - The physical `crags` to `climbs` FK remains `ON DELETE CASCADE` for legacy compatibility, but the crag hard-delete guard prevents that cascade whenever any climb exists.
 - Public RLS exposes only active crags and active climbs under active crags. Image reads additionally reject `status = 'deleted'` and deleted crag parents; comment visibility is parent-aware. Administrators have separate all-row read policies for crags/climbs.
@@ -542,6 +544,7 @@ may request at most 30 rows.
 | `delete_empty_crags(grace_period)` | Deterministically batch-delete strictly empty crags after the grace period |
 | `soft_delete_crag(crag_id, reason, superseded_by)` | Admin-only audited crag/child-climb soft deletion |
 | `soft_delete_climb(climb_id, reason, superseded_by)` | Admin-only audited climb soft deletion |
+| `resolve_flag_and_soft_delete(flag_id, reason)` | Admin-only atomic flag resolution and canonical content soft deletion |
 | `soft_delete_image(image_id, reason)` | Admin-only audited image tombstoning |
 | `soft_delete_published_submission(image_ids, owner_id)` | Service-only owner submission tombstoning |
 

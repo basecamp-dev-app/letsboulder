@@ -9,7 +9,11 @@ import { deleteSubmission } from '@/features/submissions/server/submissions/dele
 import { promoteDraftToSubmission } from '@/features/submissions/server/drafts/draft-promote'
 import { deleteSubmissionDraft } from '@/features/submissions/server/drafts/draft-write-service'
 import { buildUploadSignature, normalizeCreateImages, validateDraftImageOwnership } from '@/features/submissions/server/drafts/draft-route-helpers'
+import type { Database, Json } from '@/types/database'
 import { z } from 'zod'
+
+type SubmissionDraftInsert = Database['public']['Tables']['submission_drafts']['Insert']
+type SubmissionDraftImageInsert = Database['public']['Tables']['submission_draft_images']['Insert']
 
 interface DraftCreateInput {
   images?: unknown
@@ -24,16 +28,25 @@ interface DraftCreateResult {
     user_id: string
     crag_id: string | null
     status: string
-    metadata: Record<string, unknown> | null
+    metadata: Json
     created_at: string
     updated_at: string
     images: Array<{ id: string; display_order: number }>
   }
 }
 
+const jsonSchema: z.ZodType<Json> = z.lazy(() => z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(jsonSchema),
+  z.record(z.string(), jsonSchema),
+]))
+
 const draftCreateSchema = z.object({
   images: z.unknown().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), jsonSchema).optional(),
   cragId: z.string().trim().min(1).nullable().optional(),
 })
 
@@ -71,7 +84,7 @@ export async function createSubmissionDraftAction(input: DraftCreateInput): Prom
 
   const uploadSignature = images.length > 0 ? buildUploadSignature(images) : null
   const metadataBase = validation.data.metadata ?? {}
-  const metadata = {
+  const metadata: Json = {
     ...metadataBase,
     ...(uploadSignature ? { uploadSignature } : {}),
   }
@@ -100,14 +113,16 @@ export async function createSubmissionDraftAction(input: DraftCreateInput): Prom
     }
   }
 
+  const draftInsert: SubmissionDraftInsert = {
+    user_id: auth.data.userId,
+    crag_id: validation.data.cragId ?? null,
+    status: 'draft',
+    metadata,
+  }
+
   const { data: draft, error: draftError } = await supabase
     .from('submission_drafts')
-    .insert({
-      user_id: auth.data.userId,
-      crag_id: validation.data.cragId ?? null,
-      status: 'draft',
-      metadata,
-    })
+    .insert(draftInsert)
     .select('id, user_id, crag_id, status, metadata, created_at, updated_at')
     .single()
 
@@ -115,7 +130,7 @@ export async function createSubmissionDraftAction(input: DraftCreateInput): Prom
     return { success: false, error: 'Failed to create submission draft', status: 500 }
   }
 
-  const imageRows = images.map((image, index) => ({
+  const imageRows: SubmissionDraftImageInsert[] = images.map((image, index) => ({
     draft_id: draft.id,
     display_order: index,
     storage_bucket: image.uploadedBucket,

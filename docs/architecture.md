@@ -136,7 +136,7 @@ Do not put server truth into Zustand or infer durable upload recovery from React
 
 ### Moderation And Reports
 
-Automated media moderation is disabled and no AWS Rekognition integration is active. Media readiness, climb and admin crag flags, community route verification, and the legacy `moderation_queue` are independent workflows. See `docs/moderation.md`.
+Automated media moderation is disabled and no AWS Rekognition integration is active. Media readiness, climb and admin crag flags, and community route verification are independent workflows. See `docs/moderation.md`.
 
 ## Network Resilience
 

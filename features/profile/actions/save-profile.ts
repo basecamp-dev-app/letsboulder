@@ -5,9 +5,11 @@ import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
+import type { Database } from '@/types/database'
 import { z } from 'zod'
 
 const allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say'] as const
+type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
 
 const saveProfileSchema = z.object({
   username: z.string().trim().min(1, 'Username cannot be empty').min(3, 'Username must be between 3 and 30 characters').max(30, 'Username must be between 3 and 30 characters').regex(/^[A-Za-z0-9._-]+$/, 'Username can only contain letters, numbers, underscores, periods, and hyphens').optional(),
@@ -44,7 +46,7 @@ export async function saveProfileAction(input: SaveProfileInput): Promise<Action
 
   const { username, first_name, last_name, gender } = validation.data
 
-  const updateData: Record<string, unknown> = {}
+  const updateData: ProfileUpdate = {}
   if (username !== undefined) updateData.username = username.trim()
   if (first_name !== undefined) updateData.first_name = first_name.trim()
   if (last_name !== undefined) updateData.last_name = last_name.trim()

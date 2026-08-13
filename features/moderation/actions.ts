@@ -58,16 +58,18 @@ export async function submitClimbFlagAction(climbId: string, flagType: string, c
   if (flagResult.error) return { success: false, error: 'Error checking existing flag', status: 500 }
   if (flagResult.duplicate) return { success: false, error: 'You have already flagged this climb. It is being reviewed.', status: 400 }
 
-  const cragName = Array.isArray(climb.crag) ? climb.crag[0]?.name : (climb.crag as { name?: string })?.name || 'Unknown Crag'
-  await notifyNewFlag(supabase, {
-    type: 'climb',
-    flagType: validatedFlagType,
-    targetName: climb.name,
-    cragName,
-    cragId: climb.crag_id,
-    comment: trimmedComment,
-    flaggerId: auth.data.userId,
-  }).catch(err => reportError(err, { message: 'Discord notification error' }))
+  const cragName = climb.crag?.name || 'Unknown Crag'
+  if (climb.crag_id) {
+    await notifyNewFlag(supabase, {
+      type: 'climb',
+      flagType: validatedFlagType,
+      targetName: climb.name ?? undefined,
+      cragName,
+      cragId: climb.crag_id,
+      comment: trimmedComment,
+      flaggerId: auth.data.userId,
+    }).catch(err => reportError(err, { message: 'Discord notification error' }))
+  }
 
   return { success: true }
 }

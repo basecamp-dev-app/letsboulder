@@ -7,7 +7,6 @@ import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { parseWithSchema } from '@/lib/api-validation'
 import { reportError } from '@/lib/errors'
 import { submissionRequestSchema } from '@/features/submissions/server/submissions/submit-route-schema'
-import { getRegionData } from '@/features/submissions/server/submissions/submission-route-shared'
 import { buildSubmissionSuccessResponse, cleanupUploadedBlobs, submissionErrorResponse, type SubmissionExecutionResult } from '@/features/submissions/server/submissions/submit-shared'
 import { executeExistingImageSubmission } from '@/features/submissions/server/submissions/submit-existing-image'
 import { executeNewImageSubmission } from '@/features/submissions/server/submissions/submit-new-image'
@@ -29,7 +28,6 @@ async function runSubmissionSideEffects(
   supabase: ReturnType<typeof getServerClientFromRequest>,
   input: { imageId: string; cragId: string | null; userId: string; executionResult: SubmissionExecutionResult }
 ) {
-  await getRegionData(supabase, input.imageId)
 
   if (!input.cragId) return
 
@@ -105,7 +103,7 @@ export async function submitRoute(request: NextRequest) {
       .from('climbs')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .eq('deleted_at', null)
+      .is('deleted_at', null)
       .gte('created_at', `${today}T00:00:00`)
 
     if ((todayRoutes || 0) + preparedRoutes.length > MAX_ROUTES_PER_DAY) {

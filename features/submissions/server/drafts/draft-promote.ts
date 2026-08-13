@@ -121,8 +121,8 @@ async function ensureCanonicalCrag(input: {
       p_latitude: repairLatitude,
       p_longitude: repairLongitude,
       p_country_code: resolvedCountry.countryCode,
-      p_country_name: resolvedCountry.countryName,
-      p_region_name: resolvedCountry.regionName,
+      ...(resolvedCountry.countryName ? { p_country_name: resolvedCountry.countryName } : {}),
+      ...(resolvedCountry.regionName ? { p_region_name: resolvedCountry.regionName } : {}),
     })
 
   if (repairError) {

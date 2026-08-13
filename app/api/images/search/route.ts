@@ -86,6 +86,10 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    if (!cragId) {
+      return NextResponse.json({ error: 'crag_id is required' }, { status: 400 })
+    }
+
     const { data, error } = await supabase
       .from('images')
       .select(`

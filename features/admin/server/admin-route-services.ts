@@ -3,19 +3,13 @@ import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { createErrorResponse } from '@/lib/errors'
 import { parseWithSchema } from '@/lib/api-validation'
-import { QueueItemSchema, QueueItemVoteSchema, FlagWithRelationsSchema } from '@/lib/supabase-result-schemas'
-import { calculateVoteCounts } from '../lib/vote-utils'
+import { FlagWithRelationsSchema } from '@/lib/supabase-result-schemas'
 import { revalidatePublicCrag, revalidatePublicCragSlug } from '@/features/crags/public-server'
 
 import type { NextRequest } from 'next/server'
 
 type RequestSupabaseClient = ReturnType<typeof import('@/lib/supabase-server').getServerClientFromRequest>
 type ContentTargetType = 'crag' | 'climb' | 'image'
-
-export const moderationQueueVoteSchema = z.object({
-  vote_type: z.enum(['verify', 'flag']),
-  reason: z.string().optional(),
-})
 
 export const flagResolveSchema = z.object({
   action: z.enum(['keep', 'edit', 'remove']),
@@ -85,7 +79,7 @@ export async function listFlags(supabase: RequestSupabaseClient, status: string,
     const { data: flags, error } = await query
     if (error) return createErrorResponse(error, 'Error fetching flags')
 
-    const flaggerIds = [...new Set((flags || []).map((flag) => flag.flagger_id).filter(Boolean))]
+    const flaggerIds = [...new Set((flags || []).map((flag) => flag.flagger_id).filter((id): id is string => id !== null))]
     const { data: flaggerProfiles } = flaggerIds.length > 0
       ? await supabase.from('profiles').select('id, username').in('id', flaggerIds)
       : { data: [] }
@@ -156,21 +150,20 @@ export async function resolveFlag(request: NextRequest, supabase: RequestSupabas
             ? { id: typedFlag.crag_id, type: 'crag' }
             : null
 
-      if (target) {
-        const { error: moderationError } = await supabase.rpc('resolve_and_soft_delete_content', {
-          p_target_id: target.id,
-          p_target_type: target.type,
-          p_reason: deletionReason,
-          p_action_taken: action,
-        })
-        if (moderationError) return createErrorResponse(moderationError, 'Error resolving moderation action')
-      }
-    } else {
+      if (!target) return NextResponse.json({ error: 'Flag has no content target' }, { status: 400 })
+
+      const { error: moderationError } = await supabase.rpc('resolve_flag_and_soft_delete', {
+        p_flag_id: flagId,
+        p_reason: deletionReason,
+      })
+      if (moderationError) return createErrorResponse(moderationError, 'Error resolving moderation action')
+    }
+
+    if (action !== 'remove') {
       const { error: updateError } = await supabase
         .from('climb_flags')
-        .update({ status: 'resolved', action_taken: action, resolved_by: userId, resolved_at: new Date().toISOString() })
+        .update({ status: 'resolved', action_taken: action, resolved_by: userId, resolved_at: resolvedAt })
         .eq('id', flagId)
-
       if (updateError) return createErrorResponse(updateError, 'Error resolving flag')
     }
 
@@ -260,119 +253,6 @@ export async function resolveFlag(request: NextRequest, supabase: RequestSupabas
     })
   } catch (error) {
     return createErrorResponse(error, 'Flag resolution error')
-  }
-}
-
-export async function listModerationQueue(supabase: RequestSupabaseClient, status: string, cragId: string | null) {
-  try {
-    let query = supabase
-      .from('moderation_queue')
-      .select(`
-        id,
-        status,
-        verify_count,
-        flag_count,
-        quality_score,
-        created_at,
-        resolved_at,
-        climb:climb_id(id, name, grade, description, image_url),
-        crag:crag_id(id, name),
-        submitter:submitter_id(id, username)
-      `)
-      .eq('status', status)
-      .order('created_at', { ascending: false })
-
-    if (cragId) query = query.eq('crag_id', cragId)
-
-    const { data: rawData, error } = await query
-    if (error) return createErrorResponse(error, 'Error fetching moderation queue')
-
-    const queue = z.array(QueueItemSchema).parse(rawData || [])
-    return NextResponse.json({ queue, count: queue.length })
-  } catch (error) {
-    return createErrorResponse(error, 'Queue fetch error')
-  }
-}
-
-export async function voteOnModerationQueueItem(request: NextRequest, supabase: RequestSupabaseClient, userId: string, queueId: string) {
-  try {
-    const parsedBody = parseWithSchema(moderationQueueVoteSchema, await request.json())
-    if (!parsedBody.success) return parsedBody.response
-    const { vote_type, reason } = parsedBody.data
-
-    const { data: rawData, error: queueError } = await supabase
-      .from('moderation_queue')
-      .select(`
-        id,
-        status,
-        crag_id,
-        submitter_id,
-        verify_count,
-        flag_count,
-        climb:climb_id(id, name, grade),
-        crag:crag_id(id, name)
-      `)
-      .eq('id', queueId)
-      .single()
-
-    if (queueError || !rawData) return NextResponse.json({ error: 'Queue item not found' }, { status: 404 })
-
-    const queueItem = QueueItemVoteSchema.parse(rawData)
-    if (queueItem.status !== 'pending') {
-      return NextResponse.json({ error: 'This submission has already been resolved' }, { status: 400 })
-    }
-
-    if (queueItem.submitter_id === userId) {
-      return NextResponse.json({ error: 'You cannot vote on your own submission' }, { status: 400 })
-    }
-
-    const { data: existingVote } = await supabase
-      .from('moderation_votes')
-      .select('id')
-      .eq('queue_id', queueId)
-      .eq('voter_id', userId)
-      .single()
-
-    if (existingVote) {
-      return NextResponse.json({ error: 'You have already voted on this submission' }, { status: 400 })
-    }
-
-    const { error: insertError } = await supabase.from('moderation_votes').insert({ queue_id: queueId, voter_id: userId, vote_type, reason })
-    if (insertError) return createErrorResponse(insertError, 'Error recording vote')
-
-    const { newVerifyCount, newFlagCount, wasResolved, resolutionStatus } = calculateVoteCounts(
-      queueItem,
-      vote_type
-    )
-
-    const climbName = queueItem.climb?.name || 'Unnamed route'
-    const cragName = queueItem.crag?.name || 'Unknown crag'
-    const cragId = queueItem.crag?.id || queueItem.crag_id
-
-    if (queueItem.submitter_id !== userId) {
-      await supabase.rpc('create_notification', {
-        p_target_user_id: queueItem.submitter_id,
-        p_type: wasResolved ? 'submission_resolved' : 'vote_recorded',
-        p_title: wasResolved
-          ? (resolutionStatus === 'verified' ? 'Route approved!' : 'Route flagged for removal')
-          : 'New vote on your route',
-        p_message: wasResolved
-          ? `"${climbName}" at ${cragName} was ${resolutionStatus}`
-          : `"${climbName}" at ${cragName} has ${newVerifyCount} verify and ${newFlagCount} flag votes`,
-        p_link: `/crags/${cragId}`,
-      })
-    }
-
-    return NextResponse.json({
-      success: true,
-      vote: vote_type,
-      verify_count: newVerifyCount,
-      flag_count: newFlagCount,
-      resolved: wasResolved,
-      status: resolutionStatus,
-    })
-  } catch (error) {
-    return createErrorResponse(error, 'Vote error')
   }
 }
 

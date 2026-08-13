@@ -1,6 +1,6 @@
 # Moderation And Verification
 
-Moderation is not one pipeline. Media readiness, user reports, route verification, and the legacy moderation queue have different state and should not be used as substitutes for one another.
+Moderation is not one pipeline. Media readiness, user reports, and route verification have different state and should not be used as substitutes for one another.
 
 ## Automated Media Moderation
 
@@ -30,12 +30,6 @@ Community route verification uses `climb_verifications` through `/api/climbs/<id
 
 Route verification happens after publication and is separate from upload moderation, user flags, and admin moderation. It is evidence that a route exists/is accurate, not approval of the underlying file bytes.
 
-## Legacy Moderation Queue
-
-`moderation_queue` and `moderation_votes` support admin-authenticated list/vote Route Handlers under `/api/moderation/queue`. The current submission and media-ingest paths do not insert queue rows; repository code only reads and votes on existing rows. Treat this as a legacy compatibility/admin surface, not the gate for new uploads or route publication.
-
-Do not conflate this legacy queue with Cloudflare `MEDIA_QUEUE`: the latter is only a media-ingest transport fast path.
-
 ## Operational Boundaries
 
 | Concern | Authoritative state | Current behavior |
@@ -43,6 +37,5 @@ Do not conflate this legacy queue with Cloudflare `MEDIA_QUEUE`: the latter is o
 | Media ingest | `images.processing_status`, `media_jobs` | Durable processing and retry; automated moderation skipped |
 | Climb and admin crag flags | `climb_flags` | User or admin flag followed by admin review |
 | Route verification | `climb_verifications` | Community votes; three votes produce verified status |
-| Legacy submission moderation | `moderation_queue`, `moderation_votes` | Existing admin list/vote API; no current writer |
 
 Administrator actions and report resolution should remain auditable and must not silently rewrite media readiness state.

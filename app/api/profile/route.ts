@@ -6,6 +6,9 @@ import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { parseWithSchema } from '@/lib/api-validation'
 import { getOwnProfile } from '@/lib/profile-rpc'
+import type { Database } from '@/types/database'
+
+type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
 
 const allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say'] as const
 
@@ -52,7 +55,7 @@ export async function PUT(request: NextRequest) {
 
     const { username, first_name, last_name, gender } = parsedBody.data
 
-    const updateData: Record<string, unknown> = {}
+    const updateData: ProfileUpdate = {}
 
     if (username !== undefined) updateData.username = username.trim()
     if (first_name !== undefined) updateData.first_name = first_name.trim()

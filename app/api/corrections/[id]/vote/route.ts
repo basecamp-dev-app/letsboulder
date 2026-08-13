@@ -5,10 +5,17 @@ import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
 import { recordCorrectionApprovedEvent } from '@/features/community/lib/contributor-score'
+import type { Database, Json } from '@/types/database'
 
 const correctionVoteSchema = z.object({
   vote_type: z.enum(['approve', 'reject']),
 })
+
+type ClimbUpdate = Database['public']['Tables']['climbs']['Update']
+
+function isJsonObject(value: Json | null): value is { [key: string]: Json | undefined } {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
 
 export async function POST(
   request: NextRequest,
@@ -81,18 +88,27 @@ async function applyCorrection(correctionId: string, climbId: string) {
   if (correctionError) throw correctionError
   if (!correction) throw new Error('Approved correction not found')
 
-  const updateData: Record<string, unknown> = {}
+  if (!isJsonObject(correction.suggested_value)) throw new Error('Approved correction value is invalid')
+
+  const updateData: ClimbUpdate = {}
   switch (correction.correction_type) {
     case 'name':
+      if (typeof correction.suggested_value.name !== 'string') throw new Error('Approved name correction is invalid')
       updateData.name = correction.suggested_value.name
       break
     case 'grade':
+      if (typeof correction.suggested_value.grade !== 'string') throw new Error('Approved grade correction is invalid')
       updateData.grade = correction.suggested_value.grade
       break
     case 'location':
+      if (typeof correction.suggested_value.latitude !== 'number' || typeof correction.suggested_value.longitude !== 'number') {
+        throw new Error('Approved location correction is invalid')
+      }
       updateData.latitude = correction.suggested_value.latitude
       updateData.longitude = correction.suggested_value.longitude
       break
+    default:
+      throw new Error('Approved correction type is unsupported')
   }
 
   if (Object.keys(updateData).length > 0) {

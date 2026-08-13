@@ -52,8 +52,6 @@ export async function submitGradeVoteAction(climbId: string, grade: string): Pro
 
   const { error: upsertError } = await upsertGradeVote({
     supabase,
-    table: 'grade_votes',
-    entityColumn: 'climb_id',
     entityId: effectiveClimbId,
     userId,
     grade: validatedGrade,
@@ -66,8 +64,6 @@ export async function submitGradeVoteAction(climbId: string, grade: string): Pro
 
   const { voteCount, distribution: voteDistribution, consensusGrade, error: votesError } = await loadGradeDistribution({
     supabase,
-    table: 'grade_votes',
-    entityColumn: 'climb_id',
     entityId: effectiveClimbId,
   })
 

@@ -171,6 +171,7 @@ async function validateCragDuplicates(
       }
 
       for (const nearby of nearbyCrags) {
+        if (nearby.latitude === null || nearby.longitude === null) continue
         const distance = haversineMeters(latitude, longitude, nearby.latitude, nearby.longitude)
         if (distance <= 200) {
           return NextResponse.json({

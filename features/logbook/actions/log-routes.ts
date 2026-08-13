@@ -1,13 +1,15 @@
 'use server'
 
+import type { PostgrestError } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, ok, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { resolveEffectiveClimbId } from '@/features/climb/public-client'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
-import { z } from 'zod'
+import type { Json } from '@/types/database'
 
 type LogStyle = 'flash' | 'top' | 'try'
 
@@ -23,6 +25,19 @@ const logRoutesSchema = z.object({
 interface LogRoutesResult {
   logged: number
   style: LogStyle
+}
+
+type LogRoutesRpc = (fn: 'log_routes_idempotent', args: {
+  p_climb_ids: string[]
+  p_climbed_on: string
+  p_created_at: string
+  p_mutation_id: string
+  p_notes: string | null
+  p_style: string
+}) => PromiseLike<{ data: Json | null; error: PostgrestError | null }>
+
+function isLogStyle(value: unknown): value is LogStyle {
+  return value === 'flash' || value === 'top' || value === 'try'
 }
 
 export async function logRoutesAction(
@@ -51,7 +66,7 @@ export async function logRoutesAction(
   const supabase = await getServerClient()
   const effectiveClimbIds = Array.from(
     new Set(
-      (await Promise.all(validatedClimbIds.map((climbId) => resolveEffectiveClimbId(supabase as never, climbId)))).filter(
+      (await Promise.all(validatedClimbIds.map((climbId) => resolveEffectiveClimbId(supabase, climbId)))).filter(
         (climbId): climbId is string => typeof climbId === 'string'
       )
     )
@@ -61,7 +76,7 @@ export async function logRoutesAction(
     return { success: false, error: 'No valid climbs found', status: 404 }
   }
 
-  const { data, error } = await supabase.rpc('log_routes_idempotent', {
+  const { data, error } = await (supabase.rpc as LogRoutesRpc)('log_routes_idempotent', {
     p_mutation_id: validatedMutationId,
     p_climb_ids: effectiveClimbIds,
     p_style: validatedStyle,
@@ -81,6 +96,9 @@ export async function logRoutesAction(
   revalidatePath('/logbook')
   revalidatePath(`/logbook/${userId}`)
 
-  const result = data as { logged?: number; style?: LogStyle } | null
-  return ok({ logged: result?.logged ?? 0, style: result?.style ?? validatedStyle })
+  const result = data !== null && typeof data === 'object' && !Array.isArray(data) ? data : null
+  return ok({
+    logged: typeof result?.logged === 'number' ? result.logged : 0,
+    style: isLogStyle(result?.style) ? result.style : validatedStyle,
+  })
 }

@@ -14,7 +14,7 @@ interface ScoreContext {
 }
 
 function getScoreAdminClient(reason: string): AdminClient {
-  return getAdminClientWithAudit(reason) as unknown as AdminClient
+  return getAdminClientWithAudit(reason)
 }
 
 function loadImageScoreContext(image: Pick<ImageRow, 'crag_id' | 'place_id'>): ScoreContext {

@@ -58,6 +58,7 @@ const API_EXECUTABLE_DEFINERS = [
   'promote_draft_to_submission(uuid)',
   'propose_crag_metadata(uuid,uuid,text,text,text,text,uuid)',
   'queue_media_ingest_job(uuid,text,text,text,text,uuid,text,boolean)',
+  'resolve_flag_and_soft_delete(uuid,text)',
   'resolve_legacy_climb_redirect(uuid)',
   'resolve_legacy_image_redirect(uuid)',
   'resolve_legacy_route_redirect(text,text,text)',

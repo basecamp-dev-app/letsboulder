@@ -47,7 +47,6 @@ function shouldSkipMiddleware(pathname: string, method: string): boolean {
     '/api/csrf',
     '/api/media/private',
     '/api/media/upload-sessions',
-    '/api/moderation/queue',
     '/api/routes/',
   ]
 

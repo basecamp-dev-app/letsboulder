@@ -37,12 +37,12 @@ interface CragData {
 
 interface ClimbSearchRow {
   id: string
-  name: string
-  crags?: Array<{
-    name: string | null
+  name: string | null
+  crags: {
+    name: string
     latitude: number | null
     longitude: number | null
-  }> | null
+  } | null
 }
 
 export default function Header() {
@@ -176,7 +176,8 @@ export default function Header() {
 
       if (climbsData) {
         climbsData.forEach((climb: ClimbSearchRow) => {
-          const crag = climb.crags?.[0]
+          if (!climb.name) return
+          const crag = climb.crags
           results.push({
             type: 'climb',
             id: climb.id,

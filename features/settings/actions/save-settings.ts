@@ -6,6 +6,7 @@ import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/lib/submission-credit'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
+import type { Database } from '@/types/database'
 import { z } from 'zod'
 
 const VALID_GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const
@@ -14,6 +15,7 @@ const MIN_HEIGHT_CM = 100
 const MAX_HEIGHT_CM = 250
 const MIN_REACH_CM = 100
 const MAX_REACH_CM = 260
+type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
 
 interface SaveSettingsInput {
   bio?: string
@@ -96,7 +98,7 @@ export async function saveSettingsAction(input: SaveSettingsInput): Promise<Acti
   }
 
   const parsedInput = validation.data
-  const updateData: Record<string, unknown> = {}
+  const updateData: ProfileUpdate = {}
 
   if (parsedInput.bio !== undefined) updateData.bio = parsedInput.bio.slice(0, 500)
   if (parsedInput.boulderSystem !== undefined) updateData.boulder_system = parsedInput.boulderSystem

@@ -1,11 +1,23 @@
 'use server'
 
+import type { PostgrestError } from '@supabase/supabase-js'
+import { z } from 'zod'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { getServerClient } from '@/lib/supabase-server'
-import { z } from 'zod'
+import type { Json } from '@/types/database'
+
+type UpdateSubmissionCreditRpc = (fn: 'update_own_submission_credit', args: {
+  p_image_id: string
+  p_platform: string | null
+  p_handle: string | null
+}) => PromiseLike<{ data: Json | null; error: PostgrestError | null }>
+
+function isJsonObject(value: Json | null): value is { [key: string]: Json | undefined } {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
 
 const submissionCreditSchema = z.object({
   imageId: z.string().trim().min(1, 'Image ID is required'),
@@ -34,7 +46,7 @@ export async function updateSubmissionCreditAction(imageId: string, platformInpu
   }
 
   const supabase = await getServerClient()
-  const { data: result, error: rpcError } = await supabase.rpc('update_own_submission_credit', {
+  const { data: result, error: rpcError } = await (supabase.rpc as UpdateSubmissionCreditRpc)('update_own_submission_credit', {
     p_image_id: validation.data.imageId,
     p_platform: platform,
     p_handle: handle,
@@ -50,7 +62,7 @@ export async function updateSubmissionCreditAction(imageId: string, platformInpu
     return { success: false, error: 'Update submission credit error', status: 500 }
   }
 
-  const resultObject = result && typeof result === 'object' && !Array.isArray(result) ? result as Record<string, unknown> : {}
+  const resultObject = isJsonObject(result) ? result : {}
   return {
     success: true,
     data: {
@@ -83,6 +95,6 @@ export async function updateSubmissionAnonymousAction(imageId: string, isAnonymo
     return { success: false, error: 'Update submission anonymity error', status: 500 }
   }
 
-  const resultObject = result && typeof result === 'object' && !Array.isArray(result) ? result as Record<string, unknown> : {}
+  const resultObject = isJsonObject(result) ? result : {}
   return { success: true, data: { submission: { isAnonymousSubmission: resultObject.isAnonymousSubmission === true } } }
 }

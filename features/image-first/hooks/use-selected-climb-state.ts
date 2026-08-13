@@ -7,6 +7,7 @@ import { isClimbSavedByUser } from '@/features/saved/public-client'
 import type { Database } from '@/types/database'
 
 type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']
+type UserClimbFeedbackRow = Pick<UserClimbRow, 'grade_opinion' | 'star_rating' | 'notes'>
 
 export interface SelectedClimbLog {
   gradeOpinion: GradeOpinion | null
@@ -19,7 +20,7 @@ export interface SelectedClimbRatingSummary {
   rating_count: number
 }
 
-function toLoggedClimbInfo(row: UserClimbRow | null): SelectedClimbLog | null {
+function toLoggedClimbInfo(row: UserClimbFeedbackRow | null): SelectedClimbLog | null {
   if (!row) return null
   return {
     gradeOpinion: row.grade_opinion === 'soft' || row.grade_opinion === 'agree' || row.grade_opinion === 'hard'

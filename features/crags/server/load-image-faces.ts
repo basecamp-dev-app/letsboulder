@@ -3,6 +3,7 @@ import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
 import { reportError } from '@/lib/errors'
+import type { Json } from '@/types/database'
 
 type SupabaseClient = ReturnType<typeof getUnauthenticatedClient>
 
@@ -21,11 +22,6 @@ interface FaceItem {
     height: number | null
   }
   routes?: CompleteSummaryRoute[]
-}
-
-interface FacesSummaryRow {
-  total_faces: number
-  total_routes_combined: number
 }
 
 interface PrimaryImageRow {
@@ -87,6 +83,57 @@ interface CompleteSummaryPayload {
     total_faces: number
     total_routes: number
   }
+}
+
+function isJsonObject(value: Json | null | undefined): value is { [key: string]: Json | undefined } {
+  return value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isNullableString(value: Json | undefined): value is string | null {
+  return value === null || typeof value === 'string'
+}
+
+function isCompleteSummaryRoute(value: Json): value is CompleteSummaryRoute & { [key: string]: Json | undefined } {
+  if (!isJsonObject(value)) return false
+  return typeof value.id === 'string'
+    && typeof value.climb_id === 'string'
+    && typeof value.name === 'string'
+    && typeof value.grade === 'string'
+    && isNullableString(value.route_type)
+    && isNullableString(value.description)
+    && isNullableString(value.color)
+    && Array.isArray(value.points)
+    && (value.image_width === null || typeof value.image_width === 'number')
+    && (value.image_height === null || typeof value.image_height === 'number')
+    && (value.sequence_order === null || typeof value.sequence_order === 'number')
+}
+
+function isCompleteSummaryFace(value: Json): value is CompleteSummaryFace & { [key: string]: Json | undefined } {
+  if (!isJsonObject(value)) return false
+  const metadata = value.metadata
+  const directions = value.face_directions
+  return isNullableString(value.image_id)
+    && typeof value.index === 'number'
+    && typeof value.is_primary === 'boolean'
+    && isNullableString(value.url)
+    && isNullableString(value.linked_image_id)
+    && isNullableString(value.crag_image_id)
+    && (directions === null || (Array.isArray(directions) && directions.every((item) => typeof item === 'string')))
+    && (metadata === null || (isJsonObject(metadata)
+      && (metadata.width === null || typeof metadata.width === 'number')
+      && (metadata.height === null || typeof metadata.height === 'number')))
+    && Array.isArray(value.routes)
+    && value.routes.every(isCompleteSummaryRoute)
+    && typeof value.has_routes === 'boolean'
+}
+
+function isCompleteSummaryPayload(value: Json | null): value is CompleteSummaryPayload & { [key: string]: Json | undefined } {
+  if (!isJsonObject(value) || !Array.isArray(value.faces) || !isJsonObject(value.summary)) return false
+  return isNullableString(value.crag_id)
+    && typeof value.primary_image_id === 'string'
+    && value.faces.every(isCompleteSummaryFace)
+    && typeof value.summary.total_faces === 'number'
+    && typeof value.summary.total_routes === 'number'
 }
 
 interface RouteLineRaw {
@@ -320,8 +367,8 @@ export async function loadImageFaces(requestedImageId: string) {
       p_image_id: imageId,
     })
 
-    if (!completeSummaryError && completeSummaryData) {
-      const completeSummary = completeSummaryData as CompleteSummaryPayload
+    if (!completeSummaryError && isCompleteSummaryPayload(completeSummaryData)) {
+      const completeSummary = completeSummaryData
       const rawFaces = Array.isArray(completeSummary.faces) ? completeSummary.faces : []
       const allFaceUrls = rawFaces
         .map((face) => face.url)
@@ -394,7 +441,7 @@ export async function loadImageFaces(requestedImageId: string) {
       const signedUrlMap = await toViewableUrlMap([primaryImage.url], signingClient)
       const primaryUrl = signedUrlMap.get(primaryImage.url) ?? null
       const { data: summaryData } = await supabase.rpc('get_image_faces_summary', { p_image_id: imageId })
-      const summary = (Array.isArray(summaryData) ? summaryData[0] : summaryData) as FacesSummaryRow | null
+      const summary = summaryData?.[0] ?? null
 
       return NextResponse.json({
         faces: primaryUrl ? [{
@@ -484,7 +531,7 @@ export async function loadImageFaces(requestedImageId: string) {
     }
 
     const { data: summaryData } = await supabase.rpc('get_image_faces_summary', { p_image_id: imageId })
-    const summary = (Array.isArray(summaryData) ? summaryData[0] : summaryData) as FacesSummaryRow | null
+    const summary = summaryData?.[0] ?? null
 
     return NextResponse.json({
       faces,

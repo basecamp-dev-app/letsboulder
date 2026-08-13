@@ -7,6 +7,7 @@ import { loadGradeDistribution, upsertGradeVote } from '@/features/grades/lib/gr
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { z } from 'zod'
 import { parseWithSchema } from '@/lib/api-validation'
+import { resolveEffectiveClimbId } from '@/features/climb/public-client'
 
 const gradeVoteSchema = z.object({
   grade: z.string().min(1, 'Grade is required').refine(isValidGrade, 'Invalid grade'),
@@ -23,10 +24,13 @@ export async function GET(
   const { userId } = await resolveUserIdWithFallback(request, supabase)
   
   try {
+    const effectiveClimbId = await resolveEffectiveClimbId(supabase, routeId)
+    if (!effectiveClimbId) return NextResponse.json({ error: 'Route not found' }, { status: 404 })
+
     const { data: routeData, error: routeError } = await supabase
       .from('climbs')
-      .select('consensus_grade, vote_count')
-      .eq('id', routeId)
+      .select('consensus_grade, total_votes')
+      .eq('id', effectiveClimbId)
       .single()
     
     if (routeError && routeError.code !== 'PGRST116') {
@@ -36,9 +40,9 @@ export async function GET(
     let userVote = null
     if (userId) {
       const { data: userGrade } = await supabase
-        .from('route_grades')
+        .from('grade_votes')
         .select('grade')
-        .eq('route_id', routeId)
+        .eq('climb_id', effectiveClimbId)
         .eq('user_id', userId)
         .single()
       
@@ -49,9 +53,7 @@ export async function GET(
     
     const { distribution } = await loadGradeDistribution({
       supabase,
-      table: 'route_grades',
-      entityColumn: 'route_id',
-      entityId: routeId,
+      entityId: effectiveClimbId,
     })
 
     const gradeDistribution = distribution
@@ -62,7 +64,7 @@ export async function GET(
     
     return NextResponse.json({
       consensusGrade: routeData?.consensus_grade || null,
-      voteCount: routeData?.vote_count || 0,
+      voteCount: routeData?.total_votes || 0,
       userVote,
       distribution: gradeDistribution
     })
@@ -89,12 +91,12 @@ export async function POST(
     const parsedBody = parseWithSchema(gradeVoteSchema, await request.json())
     if (!parsedBody.success) return parsedBody.response
     const { grade } = parsedBody.data
+    const effectiveClimbId = await resolveEffectiveClimbId(supabase, routeId)
+    if (!effectiveClimbId) return NextResponse.json({ error: 'Route not found' }, { status: 404 })
     
     const { error: upsertError } = await upsertGradeVote({
       supabase,
-      table: 'route_grades',
-      entityColumn: 'route_id',
-      entityId: routeId,
+      entityId: effectiveClimbId,
       userId,
       grade,
     })

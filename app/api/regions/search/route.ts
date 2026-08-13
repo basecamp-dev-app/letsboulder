@@ -16,16 +16,22 @@ export async function GET(request: NextRequest) {
 
   try {
     const { data, error } = await supabase
-      .from('climbing_areas')
-      .select('id, name, country_code, center_lat, center_lon, created_at')
+      .from('location_tags')
+      .select('id, name, country_code, created_at')
+      .eq('kind', 'region')
       .order('name', { ascending: true })
       .ilike('name', `%${query}%`)
+      .limit(20)
 
     if (error) {
       return createErrorResponse(error, 'Error fetching climbing areas')
     }
 
-    return NextResponse.json(data || [])
+    return NextResponse.json((data || []).map((tag) => ({
+      ...tag,
+      center_lat: null,
+      center_lon: null,
+    })))
   } catch (error) {
     return createErrorResponse(error, 'Regions search API error')
   }

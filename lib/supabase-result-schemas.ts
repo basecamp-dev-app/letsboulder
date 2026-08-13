@@ -68,53 +68,6 @@ export const UserClimbQueryResultSchema = z.array(
 
 export type UserClimbQueryResult = z.infer<typeof UserClimbQueryResultSchema>[number]
 
-export const QueueItemSchema = z.object({
-  id: z.string(),
-  status: z.string(),
-  verify_count: z.number(),
-  flag_count: z.number(),
-  quality_score: z.number().nullable(),
-  created_at: z.string(),
-  resolved_at: z.string().nullable(),
-  climb: z.object({
-    id: z.string(),
-    name: z.string().nullable(),
-    grade: z.string(),
-    description: z.string().nullable(),
-    image_url: z.string().nullable(),
-  }).nullable(),
-  crag: z.object({
-    id: z.string(),
-    name: z.string(),
-  }).nullable(),
-  submitter: z.object({
-    id: z.string(),
-    username: z.string().nullable(),
-  }).nullable(),
-})
-
-export type QueueItem = z.infer<typeof QueueItemSchema>
-
-export const QueueItemVoteSchema = z.object({
-  id: z.string(),
-  status: z.string(),
-  crag_id: z.string(),
-  submitter_id: z.string(),
-  verify_count: z.number(),
-  flag_count: z.number(),
-  climb: z.object({
-    id: z.string(),
-    name: z.string(),
-    grade: z.string(),
-  }).nullable(),
-  crag: z.object({
-    id: z.string(),
-    name: z.string(),
-  }).nullable(),
-})
-
-export type QueueItemVote = z.infer<typeof QueueItemVoteSchema>
-
 export const FlagWithRelationsSchema = z.object({
   id: z.string(),
   status: z.string(),

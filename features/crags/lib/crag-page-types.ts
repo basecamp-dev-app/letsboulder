@@ -27,7 +27,7 @@ export interface CragPageCrag {
   climbing_areas?: {
     id: string
     name: string
-  }
+  } | null
 }
 
 export interface ImageData {

@@ -3,6 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import { createClient } from '@supabase/supabase-js'
 import { validateAuthenticatedBaseUrl, validateTrustedBaseUrl } from '@/scripts/playwright/deployment-url'
+import type { Database } from '@/types/database'
 
 const SEEDED_PLACE_SLUG_PUBLIC = 'e2e-seeded-place-public'
 const SEEDED_PLACE_SLUG_AUTH = 'e2e-seeded-place-auth'
@@ -16,7 +17,7 @@ async function ensureSeedData() {
     return
   }
 
-  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+  const supabaseAdmin = createClient<Database>(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
@@ -41,7 +42,7 @@ async function ensureSeedData() {
       }
 
       if (existingPlace?.id) {
-        seededPlaces.push(existingPlace)
+        seededPlaces.push({ ...existingPlace, slug: seed.slug })
         continue
       }
 
@@ -63,7 +64,7 @@ async function ensureSeedData() {
         return
       }
 
-      seededPlaces.push(data)
+      seededPlaces.push({ ...data, slug: seed.slug })
     }
 
     const seedPath = path.join(process.cwd(), 'playwright', '.auth', 'seed.json')

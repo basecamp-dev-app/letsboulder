@@ -1,4 +1,3 @@
-import type { Database } from '@/types/database'
 import { VALID_GRADES, isValidGrade } from '@/lib/grade-constants'
 import type { GpsData, FaceDirection, FaceDirectionsByImage } from '@/types/domain'
 import { FACE_DIRECTIONS } from '@/types/domain'
@@ -12,8 +11,6 @@ export type { GpsData, FaceDirection, FaceDirectionsByImage }
 export type { RoutePoint }
 export type { ClimbRouteType }
 export { CLIMB_ROUTE_TYPES } from '@/types/climbing'
-
-export type Region = Pick<Database['public']['Tables']['regions']['Row'], 'id' | 'name' | 'country_code' | 'center_lat' | 'center_lon' | 'created_at'>
 
 export interface AtlasCountryContext {
   countryId: string | null

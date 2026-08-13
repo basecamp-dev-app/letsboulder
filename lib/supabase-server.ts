@@ -10,7 +10,7 @@ import type { Database } from '@/types/database'
 export async function getServerClient() {
   const cookieStore = await cookies()
 
-  return createServerClient(
+  return createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
@@ -27,7 +27,7 @@ export async function getServerClient() {
 export function getServerClientFromRequest(request: NextRequest) {
   const requestCookies = request.cookies
 
-  return createServerClient(
+  return createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
@@ -45,7 +45,7 @@ export function getRouteClient(
   request: NextRequest,
   response: NextResponse
 ) {
-  return createServerClient(
+  return createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
@@ -64,7 +64,7 @@ export function getRouteClient(
 }
 
 export function getUnauthenticatedClient() {
-  return createServerClient(
+  return createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
@@ -77,7 +77,7 @@ export function getUnauthenticatedClient() {
 }
 
 export function getViewportMapClient() {
-  return createServerClient(
+  return createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     serverEnv.SUPABASE_SERVICE_ROLE_KEY ?? '',
     {
@@ -100,8 +100,6 @@ export interface PlacePin {
   image_count: number | null
   route_count: number | null
 }
-
-type PlacePinRow = Database['public']['Functions']['get_place_pins']['Returns'][number]
 
 export interface ViewportMapFeature {
   id: string
@@ -126,13 +124,6 @@ type ViewportMapFeatureRow = Omit<GeneratedViewportMapFeatureRow, 'name' | 'slug
   route_count: number | null
 }
 
-interface ViewportRpcClient {
-  rpc(
-    name: 'get_viewport_map_features',
-    args: Database['public']['Functions']['get_viewport_map_features']['Args']
-  ): PromiseLike<{ data: GeneratedViewportMapFeatureRow[] | null; error: unknown }>
-}
-
 type ServerSupabaseClient = Awaited<ReturnType<typeof getServerClient>>
 
 export async function fetchMapPinsWithClient(
@@ -149,7 +140,7 @@ export async function fetchMapPinsWithClient(
       throw error
     }
 
-    return ((data || []) as PlacePinRow[])
+    return (data || [])
       .filter((row) => row.latitude !== null && row.longitude !== null)
       .map((row) => ({
         id: row.id,
@@ -173,8 +164,7 @@ export async function fetchViewportMapFeaturesWithClient(
   bounds: { north: number; south: number; east: number; west: number; zoom: number },
   includePending: boolean
 ): Promise<ViewportMapFeature[]> {
-  const client = supabase as unknown as ViewportRpcClient
-  const { data, error } = await client.rpc('get_viewport_map_features', {
+  const { data, error } = await supabase.rpc('get_viewport_map_features', {
     p_north: bounds.north,
     p_south: bounds.south,
     p_east: bounds.east,

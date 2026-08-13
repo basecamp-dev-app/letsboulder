@@ -2,8 +2,6 @@ type ServerClient = Awaited<ReturnType<typeof import('@/lib/supabase-server').ge
 
 interface UpsertGradeVoteInput {
   supabase: ServerClient
-  table: 'grade_votes' | 'route_grades'
-  entityColumn: 'climb_id' | 'route_id'
   entityId: string
   userId: string
   grade: string
@@ -11,8 +9,6 @@ interface UpsertGradeVoteInput {
 
 interface LoadGradeDistributionInput {
   supabase: ServerClient
-  table: 'grade_votes' | 'route_grades'
-  entityColumn: 'climb_id' | 'route_id'
   entityId: string
 }
 
@@ -22,18 +18,18 @@ export interface GradeDistributionItem {
 }
 
 export async function upsertGradeVote(input: UpsertGradeVoteInput) {
-  const { supabase, table, entityColumn, entityId, userId, grade } = input
+  const { supabase, entityId, userId, grade } = input
 
   return supabase
-    .from(table)
+    .from('grade_votes')
     .upsert(
       {
-        [entityColumn]: entityId,
+        climb_id: entityId,
         user_id: userId,
         grade,
       },
       {
-        onConflict: `${entityColumn},user_id`,
+        onConflict: 'climb_id,user_id',
       }
     )
 }
@@ -44,8 +40,8 @@ export async function loadGradeDistribution(input: LoadGradeDistributionInput): 
   consensusGrade: string | null
   error: unknown
 }> {
-  const { supabase, table, entityColumn, entityId } = input
-  const { data, error } = await supabase.from(table).select('grade').eq(entityColumn, entityId)
+  const { supabase, entityId } = input
+  const { data, error } = await supabase.from('grade_votes').select('grade').eq('climb_id', entityId)
 
   if (error) {
     return {
@@ -56,7 +52,7 @@ export async function loadGradeDistribution(input: LoadGradeDistributionInput): 
     }
   }
 
-  const counts = ((data || []) as Array<{ grade: string }>).reduce<Record<string, number>>((acc, row) => {
+  const counts = (data || []).reduce<Record<string, number>>((acc, row) => {
     const grade = row.grade
     acc[grade] = (acc[grade] || 0) + 1
     return acc

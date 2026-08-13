@@ -21,6 +21,8 @@ const CORRECTION_TYPE_ICONS: Record<CorrectionType, string> = {
   grade: '🎯'
 }
 
+const SELECTABLE_CORRECTION_TYPES: CorrectionType[] = ['location', 'name', 'grade']
+
 export default function CorrectionSection({
   climbId,
   corrections,
@@ -57,9 +59,6 @@ export default function CorrectionSection({
         case 'location':
           suggestedValue.latitude = 0
           suggestedValue.longitude = 0
-          break
-        case 'line':
-          suggestedValue.points = []
           break
       }
 
@@ -144,9 +143,9 @@ export default function CorrectionSection({
                   onChange={(e) => setCorrectionType(e.target.value as CorrectionType)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 >
-                  {Object.entries(CORRECTION_TYPE_LABELS).map(([value, label]) => (
+                  {SELECTABLE_CORRECTION_TYPES.map((value) => (
                     <option key={value} value={value}>
-                      {CORRECTION_TYPE_ICONS[value as CorrectionType]} {label}
+                      {CORRECTION_TYPE_ICONS[value]} {CORRECTION_TYPE_LABELS[value]}
                     </option>
                   ))}
                 </select>

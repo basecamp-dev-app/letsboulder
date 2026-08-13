@@ -155,6 +155,9 @@ describe('POST /api/submissions', () => {
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
+              is: vi.fn(() => ({
+                gte: vi.fn(() => makeThenableResult({ data: null, error: null, count: 0 })),
+              })),
               eq: vi.fn(() => ({
                 gte: vi.fn(() => makeThenableResult({ data: null, error: null, count: 0 })),
               })),

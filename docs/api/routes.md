@@ -23,7 +23,6 @@
 | locations | Geo detection, reverse geocoding, search | No | No |
 | logbook | User logbook queries | Yes | No |
 | media | Media serving, upload sessions, private media proxy | Optional | Yes |
-| moderation | Admin submission-moderation queue and voting | Yes (admin) | Yes |
 | notifications | Authenticated notification reads | Yes | No |
 | offline-packs | Versioned public crag-pack manifests | No | No |
 | offline-tiles | Retirement-only legacy raster tile proxy | No | No |
@@ -101,8 +100,6 @@ This is the canonical path inventory for route handlers under `app/api/**/route.
 /api/media/upload-sessions
 /api/media/upload-sessions/[imageId]
 /api/media/upload-sessions/[imageId]/complete
-/api/moderation/queue
-/api/moderation/queue/[id]/vote
 /api/notifications
 /api/offline-packs/crags/[cragId]/manifest
 /api/offline-tiles/[layer]/[z]/[x]/[y]
@@ -137,7 +134,7 @@ This is the canonical path inventory for route handlers under `app/api/**/route.
 
 ### admin
 
-Admin operations for gym creation/floor plans/starter routes and moving images between crags. Restricted to authenticated admins; state changes use CSRF protection. The moderation queue is under the separate `moderation` group.
+Admin operations for gym creation/floor plans/starter routes and moving images between crags. Restricted to authenticated admins; state changes use CSRF protection. User-report review is handled by the separate `flags` group.
 
 ### climbs
 
@@ -222,10 +219,6 @@ Media compatibility delivery and authenticated upload-session lifecycle:
 - `media/upload-sessions/[imageId]/complete` verifies the private object, queues durable ingest, records moderation as disabled/skipped, and dispatches the worker fast path.
 - Upload-session mutations require CSRF. Status and media GETs do not.
 
-### moderation
-
-Admin-only submission moderation. `GET moderation/queue` filters queue items by status and optional `crag_id`; it requires an authenticated admin but no CSRF because it is read-only. `POST moderation/queue/[id]/vote` requires an authenticated admin, CSRF, and the authenticated-write rate limit. Automated media moderation is not provided by this group and is currently disabled/skipped in media ingest.
-
 ### notifications
 
 Authenticated paginated notification reads with optional unread filtering and unread count. This group currently exposes GET only, so it does not require CSRF.
@@ -261,7 +254,7 @@ Rankings data. No authentication or CSRF protection. Public data endpoint.
 
 ### regions
 
-Region data. No authentication or CSRF protection. Public data endpoint.
+Compatibility region search backed by `location_tags(kind = 'region')`. IDs are canonical location-tag IDs; legacy response fields are preserved with null center coordinates. It does not require authentication or CSRF protection.
 
 ### routes
 

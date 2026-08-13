@@ -29,16 +29,26 @@ export function makeUniqueSlug(base: string, used: Set<string>): string {
 
 type SupabaseClient = ReturnType<typeof import('@/lib/supabase-server').getServerClientFromRequest>
 
+export function fetchUsedSlugs(supabase: SupabaseClient, table: 'crags', scope: { country_code: string }): Promise<Set<string>>
+export function fetchUsedSlugs(supabase: SupabaseClient, table: 'climbs', scope: { crag_id: string }): Promise<Set<string>>
+export function fetchUsedSlugs(supabase: SupabaseClient, table: 'places', scope: { country_code: string; type: string }): Promise<Set<string>>
 export async function fetchUsedSlugs(
   supabase: SupabaseClient,
-  table: string,
-  scope: Record<string, string | null>,
+  table: 'crags' | 'climbs' | 'places',
+  scope: { country_code?: string; crag_id?: string; type?: string },
 ): Promise<Set<string>> {
-  let query = supabase.from(table).select('slug')
-  for (const [col, val] of Object.entries(scope)) {
-    query = query.eq(col, val)
+  let existingSlugs: Array<{ slug: string | null }> | null = null
+  if (table === 'crags') {
+    const result = await supabase.from('crags').select('slug').eq('country_code', scope.country_code || '').not('slug', 'is', null).limit(10000)
+    existingSlugs = result.data
+  } else if (table === 'climbs') {
+    const result = await supabase.from('climbs').select('slug').eq('crag_id', scope.crag_id || '').not('slug', 'is', null).limit(10000)
+    existingSlugs = result.data
+  } else {
+    const result = await supabase.from('places').select('slug').eq('country_code', scope.country_code || '').eq('type', scope.type || '').not('slug', 'is', null).limit(10000)
+    existingSlugs = result.data
   }
-  const { data: existingSlugs } = await query.not('slug', 'is', null).limit(10000)
+
   const used = new Set<string>()
   for (const row of (existingSlugs || [])) {
     if (row?.slug) used.add(row.slug)

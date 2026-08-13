@@ -24,7 +24,7 @@ export async function createTestPlace(): Promise<{ id: string; name: string; slu
     throw new Error(`Failed to create test place: ${error.message}`)
   }
 
-  return data
+  return { ...data, slug }
 }
 
 export async function createTestCommunityPost(
@@ -74,7 +74,7 @@ export async function ensureSeededPlace(seed?: { slug: string; name: string }): 
   }
 
   if (existingPlace?.id) {
-    return existingPlace
+    return { ...existingPlace, slug }
   }
 
   const { data, error } = await supabaseAdmin
@@ -94,7 +94,7 @@ export async function ensureSeededPlace(seed?: { slug: string; name: string }): 
     throw new Error(`Failed to ensure seeded place: ${error?.message || 'missing row'}`)
   }
 
-  return data
+  return { ...data, slug }
 }
 
 export async function cleanupSeededPlace(slug = SEEDED_PLACE_SLUG): Promise<void> {
@@ -122,5 +122,6 @@ export async function getExistingPlace(): Promise<{ id: string; name: string; sl
     return null
   }
 
-  return data
+  if (!data.slug) return null
+  return { ...data, slug: data.slug }
 }

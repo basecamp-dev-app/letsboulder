@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { sanitizeError } from '@/lib/errors'
+import type { Json } from '@/types/database'
 
 export const runtime = 'edge'
 
@@ -18,6 +19,23 @@ function pickDominantRouteType(counts: Map<string, number>): string | null {
       if (b[1] !== a[1]) return b[1] - a[1]
       return a[0].localeCompare(b[0])
     })[0]?.[0] || null
+}
+
+function isJsonObject(value: Json | null): value is { [key: string]: Json | undefined } {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function getJsonObject(value: Json | undefined): { [key: string]: Json | undefined } | null {
+  const candidate = value ?? null
+  return isJsonObject(candidate) ? candidate : null
+}
+
+function getJsonString(value: Json | undefined): string | null {
+  return typeof value === 'string' ? value : null
+}
+
+function getJsonNumber(value: Json | undefined): number | null {
+  return typeof value === 'number' ? value : null
 }
 
 export async function GET(request: NextRequest) {
@@ -62,12 +80,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ atlas: null, nearbyCrag: null, error: 'Failed to resolve location' }, { status: 200 })
     }
 
+    const context = isJsonObject(data) ? data : null
+    const continent = getJsonObject(context?.continent)
+    const unRegion = getJsonObject(context?.un_region)
+    const region = getJsonObject(context?.region)
+    const country = getJsonObject(context?.country)
+    const crag = getJsonObject(context?.crag)
+    const cragId = getJsonString(crag?.id)
+
     let nearbyCragDominantRouteType: string | null = null
-    if (data?.crag?.id) {
+    if (cragId) {
       const { data: climbs } = await supabase
         .from('climbs')
         .select('route_type, status, deleted_at')
-        .eq('crag_id', data.crag.id)
+        .eq('crag_id', cragId)
 
       const routeTypeCounts = new Map<string, number>()
       for (const climb of climbs || []) {
@@ -82,18 +108,18 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      atlas: data?.country ? {
-        continentName: data.continent?.name ?? data.un_region?.continent_name ?? null,
-        unRegionName: data.un_region?.name ?? null,
-        adminRegionName: data.region?.name ?? null,
-        countryId: data.country?.id ?? null,
-        countryCode: data.country?.iso_a2 ?? null,
-        countryName: data.country?.name ?? null,
+      atlas: country ? {
+        continentName: getJsonString(continent?.name) ?? getJsonString(unRegion?.continent_name),
+        unRegionName: getJsonString(unRegion?.name),
+        adminRegionName: getJsonString(region?.name),
+        countryId: getJsonString(country.id),
+        countryCode: getJsonString(country.iso_a2),
+        countryName: getJsonString(country.name),
       } : null,
-      nearbyCrag: data?.crag ? {
-        id: data.crag.id,
-        name: data.crag.name,
-        distanceMeters: data.crag.distance_meters ?? null,
+      nearbyCrag: crag && cragId ? {
+        id: cragId,
+        name: getJsonString(crag.name),
+        distanceMeters: getJsonNumber(crag.distance_meters),
         dominantRouteType: nearbyCragDominantRouteType,
       } : null,
       error: null,

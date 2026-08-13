@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { env } from '@/lib/env'
 import { reportError } from '@/lib/errors'
 import { getSafeRedirect } from '@/lib/safe-redirect'
+import type { Database } from '@/types/database'
 
 const SESSION_REFRESH_PREFIXES = [
   '/settings',
@@ -78,7 +79,7 @@ export async function applyProxyAuth({ request, requestHeaders, response }: Appl
     return nextResponse
   }
 
-  const supabase = createServerClient(
+  const supabase = createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {

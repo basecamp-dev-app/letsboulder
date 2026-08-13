@@ -127,7 +127,13 @@ export async function createCommentAction(input: CreateCommentInput): Promise<Ac
 
   return ok({
     comment: {
-      ...insertedComment,
+      id: insertedComment.id,
+      target_type: rawTargetType,
+      target_id: insertedComment.target_id,
+      author_id: insertedComment.author_id,
+      body: insertedComment.body,
+      category: rawCategory,
+      created_at: insertedComment.created_at,
       is_owner: true,
     },
   })

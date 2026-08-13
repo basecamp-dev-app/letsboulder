@@ -8,6 +8,7 @@ import { createR2Client } from '@/lib/media/r2'
 import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
 import { isMediaPubliclyDeliverable } from '@/lib/media/readiness'
+import type { Database } from '@/types/database'
 
 function reportMediaWarning(message: string, extra: Record<string, unknown>) {
   reportError(new Error(message), {
@@ -161,7 +162,7 @@ function getServiceRoleClient() {
     throw new Error('Supabase service role is not configured')
   }
 
-  return createClient(supabaseUrl, serviceRoleKey, {
+  return createClient<Database>(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
