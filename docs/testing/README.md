@@ -113,6 +113,7 @@ Run the CI-equivalent quality sequence locally with the same commands (the build
 
 ```bash
 npm ci --prefer-offline
+npm --prefix apps/media-worker ci --prefer-offline
 npm run lint
 npm run check:features
 npm run check:architecture
@@ -125,7 +126,6 @@ npm run test:database
 npm run build
 npm run test:unit
 npm run test:components
-npm --prefix apps/media-worker ci --prefer-offline
 npm --prefix apps/media-worker run check
 ```
 
