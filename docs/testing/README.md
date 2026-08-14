@@ -109,7 +109,7 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 - **Smoke tests** — Run automatically against `https://letsboulder.com` after successful `main` production deployments and by manual dispatch in `.github/workflows/test.yml`. Manually dispatched public `--grep @smoke` tests can target production or a project-verified Vercel preview; authenticated remote smoke tests remain disabled until a protected non-production origin is available.
 - **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests; test-auth and service credentials are intentionally absent. Image-history coverage uses the maintained same-origin `IMAGE_FIRST_E2E_URL` fixture, whose public crag must retain at least two ready images.
 
-Run the CI-equivalent quality sequence locally with the same commands (the build requires the public Supabase environment variables):
+Run the CI-equivalent quality sequence locally with the same commands (the build requires the public Supabase environment variables). Changes to feature-layout tooling should also run `npm run lint:features`; it is advisory and reports at most one layout warning per feature.
 
 ```bash
 npm ci --prefer-offline

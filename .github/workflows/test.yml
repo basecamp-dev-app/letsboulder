@@ -55,7 +55,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Check feature structure
+      - name: Report feature layout (advisory)
         run: npm run check:features
 
       - name: Check architecture boundaries

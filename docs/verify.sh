@@ -35,7 +35,7 @@ if ! node "$ROOT/scripts/verify-markdown-links.mjs"; then
   ERRORS=$((ERRORS + 1))
 fi
 
-for script in lint typecheck check:features check:csrf-fetch check:type-drift test:unit test:components test:database test:e2e build; do
+for script in lint lint:features typecheck check:features check:architecture check:csrf-fetch check:type-drift test:unit test:components test:database test:e2e build; do
   if ! node -e "const p=require('$ROOT/package.json'); process.exit(p.scripts?.['$script'] ? 0 : 1)"; then
     echo "DRIFT: documented package script is missing: $script"
     ERRORS=$((ERRORS + 1))

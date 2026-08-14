@@ -20,7 +20,7 @@
     "lint": "eslint --cache --concurrency auto",
     "check:csrf-fetch": "node scripts/check-api-mutation-fetches.mjs",
     "check:type-drift": "node scripts/check-generated-types.mjs",
-    "lint:features": "eslint --cache --concurrency auto features/ --rule 'local-rules/consistent-feature-structure: warn'",
+    "lint:features": "eslint --concurrency off features/ --rule 'local-rules/consistent-feature-structure: warn'",
     "check:features": "tsx scripts/check-feature-compliance.ts",
     "check:architecture": "tsx scripts/check-architecture.ts",
     "export:public-data": "tsx scripts/public-data/export.ts",
