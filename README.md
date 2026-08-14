@@ -133,6 +133,7 @@ git push -u origin my-change
 
 - [Local Setup](LOCAL_SETUP.md) — dev environment setup
 - [Contributing](CONTRIBUTING.md) — workflow, code style, and review expectations
+- [Security Policy](SECURITY.md) — supported deployment and private vulnerability reporting
 
 ### Reference docs
 
