@@ -601,7 +601,8 @@ may request at most 30 rows.
 
 ```bash
 # Install the lockfile-pinned CLI, rebuild local from migrations, and regenerate types
-npm install
+npm ci --prefer-offline
+npm --prefix apps/media-worker ci --prefer-offline
 npx --no-install supabase start
 npx --no-install supabase db reset
 npx --no-install supabase gen types typescript --local > types/database.ts

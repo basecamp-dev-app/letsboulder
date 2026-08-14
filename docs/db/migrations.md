@@ -58,7 +58,8 @@ This repo assumes you run schema changes through migrations committed in git.
 Use the pinned Supabase CLI and confirm it is available:
 
 ```bash
-npm ci
+npm ci --prefer-offline
+npm --prefix apps/media-worker ci --prefer-offline
 npx --no-install supabase --version
 ```
 

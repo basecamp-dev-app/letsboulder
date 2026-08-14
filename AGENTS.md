@@ -61,7 +61,8 @@ bash docs/verify.sh     # Documentation checks
 Use the lockfile-pinned CLI. The canonical schema-change workflow is local:
 
 ```bash
-npm ci
+npm ci --prefer-offline
+npm --prefix apps/media-worker ci --prefer-offline
 npx --no-install supabase --version
 npx --no-install supabase start
 npx --no-install supabase db reset

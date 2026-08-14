@@ -13,7 +13,8 @@ Use the lockfile-installed Supabase CLI through `npx`; do not install a separate
 ```bash
 nvm install
 nvm use
-npm install
+npm ci --prefer-offline
+npm --prefix apps/media-worker ci --prefer-offline
 npx --no-install supabase --version
 ```
 

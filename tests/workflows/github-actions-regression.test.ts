@@ -14,6 +14,37 @@ function script(name: string): string {
 }
 
 describe('GitHub Actions security contracts', () => {
+  it('installs media worker dependencies before aggregate typechecking', () => {
+    const content = workflow('test.yml')
+    const qualityChecks = content.slice(
+      content.indexOf('  quality-checks:'),
+      content.indexOf('  generated-type-drift:'),
+    )
+    const mediaWorkerCheck = content.slice(
+      content.indexOf('  media-worker-check:'),
+      content.indexOf('  smoke:'),
+    )
+
+    expect(qualityChecks).toMatch(
+      /cache-dependency-path: \|\s+package-lock\.json\s+apps\/media-worker\/package-lock\.json/,
+    )
+
+    const rootInstall = qualityChecks.indexOf('run: npm ci --prefer-offline')
+    const workerInstall = qualityChecks.indexOf(
+      'run: npm --prefix apps/media-worker ci --prefer-offline',
+    )
+    const aggregateTypecheck = qualityChecks.indexOf('run: npm run typecheck')
+
+    expect(rootInstall).toBeGreaterThan(-1)
+    expect(workerInstall).toBeGreaterThan(rootInstall)
+    expect(aggregateTypecheck).toBeGreaterThan(workerInstall)
+    expect(mediaWorkerCheck).toContain('name: Media Worker Check')
+    expect(mediaWorkerCheck).toContain(
+      'run: npm --prefix apps/media-worker ci --prefer-offline',
+    )
+    expect(mediaWorkerCheck).toContain('run: npm --prefix apps/media-worker run check')
+  })
+
   it('keeps Supabase production apply behind a current-main manual dispatch', () => {
     const content = workflow('supabase-migrations.yml')
 
