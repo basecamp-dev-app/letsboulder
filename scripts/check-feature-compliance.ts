@@ -1,14 +1,15 @@
 import { readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
-const REQUIRED_DIRS = ['components', 'hooks', 'lib', 'server', 'types'] as const
+export const TEMPLATE_DIRS = ['components', 'hooks', 'lib', 'server', 'types'] as const
 const FEATURES_DIR = join(process.cwd(), 'features')
 
-interface FeatureCheck {
+export interface FeatureCheck {
   name: string
   rootDirs: Record<string, boolean>
   effectiveDirs: Record<string, boolean>
-  compliant: boolean
+  fullTemplate: boolean
 }
 
 function collectDirectoryNames(root: string): Set<string> {
@@ -38,21 +39,21 @@ function collectRootDirectoryNames(root: string): Set<string> {
   )
 }
 
-function checkFeatures(): FeatureCheck[] {
-  const entries = readdirSync(FEATURES_DIR, { withFileTypes: true })
+export function checkFeatures(featuresDir = FEATURES_DIR): FeatureCheck[] {
+  const entries = readdirSync(featuresDir, { withFileTypes: true })
   const features = entries
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort()
 
   return features.map((name) => {
-    const featurePath = join(FEATURES_DIR, name)
+    const featurePath = join(featuresDir, name)
     const rootDirs: Record<string, boolean> = {}
     const effectiveDirs: Record<string, boolean> = {}
     const rootDirNames = collectRootDirectoryNames(featurePath)
     const discoveredDirNames = collectDirectoryNames(featurePath)
 
-    for (const dir of REQUIRED_DIRS) {
+    for (const dir of TEMPLATE_DIRS) {
       rootDirs[dir] = rootDirNames.has(dir)
       effectiveDirs[dir] = rootDirs[dir] || discoveredDirNames.has(dir)
     }
@@ -61,51 +62,64 @@ function checkFeatures(): FeatureCheck[] {
       name,
       rootDirs,
       effectiveDirs,
-      compliant: REQUIRED_DIRS.every((d) => effectiveDirs[d]),
+      fullTemplate: TEMPLATE_DIRS.every((d) => effectiveDirs[d]),
     }
   })
 }
 
-function printTable(results: FeatureCheck[]): void {
-  const header = `| Feature | ${REQUIRED_DIRS.map((dir) => `${dir} (root/effective)`).join(' | ')} | Status |`
-  const separator = `|${'-'.repeat(20)}|${REQUIRED_DIRS.map(() => ':---------------------:').join('|')}|--------|`
+export function formatFeatureReport(results: FeatureCheck[]): string {
+  const lines = [
+    'Feature layout advisory',
+    'Standard template directories are optional; create only the directories a feature uses.',
+    'Marks show root/tree presence. Nested sub-features count toward tree coverage.',
+    '',
+  ]
+  const header = `| Feature | ${TEMPLATE_DIRS.map((dir) => `${dir} (root/tree)`).join(' | ')} | Template coverage |`
+  const separator = `|${'-'.repeat(20)}|${TEMPLATE_DIRS.map(() => ':------------------:').join('|')}|-------------------|`
 
-  console.log(header)
-  console.log(separator)
+  lines.push(header, separator)
 
   for (const r of results) {
-    const marks = REQUIRED_DIRS
+    const marks = TEMPLATE_DIRS
       .map((d) => `${r.rootDirs[d] ? '✓' : '✗'}/${r.effectiveDirs[d] ? '✓' : '✗'}`)
       .join(' | ')
-    const status = r.compliant ? 'Compliant' : 'Non-compliant'
-    console.log(`| ${r.name} | ${marks} | ${status} |`)
+    const status = r.fullTemplate ? 'Full template' : 'Partial template'
+    lines.push(`| ${r.name} | ${marks} | ${status} |`)
   }
 
-  const compliantCount = results.filter((r) => r.compliant).length
-  console.log(`\n${compliantCount}/${results.length} features compliant`)
+  const fullTemplateCount = results.filter((r) => r.fullTemplate).length
+  lines.push('', `${fullTemplateCount}/${results.length} features use the full template`)
 
-  if (compliantCount < results.length) {
-    const nonCompliant = results.filter((r) => !r.compliant)
-    console.log('\nNon-compliant features:')
-    for (const r of nonCompliant) {
-      const missing = REQUIRED_DIRS.filter((d) => !r.effectiveDirs[d]).join(', ')
-      console.log(`  - ${r.name}: missing ${missing}`)
+  if (fullTemplateCount < results.length) {
+    const partialTemplates = results.filter((r) => !r.fullTemplate)
+    lines.push('', 'Partial templates (advisory only; no directories need to be added):')
+    for (const r of partialTemplates) {
+      const notPresent = TEMPLATE_DIRS.filter((d) => !r.effectiveDirs[d]).join(', ')
+      lines.push(`  - ${r.name}: not present in feature tree: ${notPresent}`)
     }
   }
 
   const advisoryResults = results
     .map((r) => ({
       name: r.name,
-      nestedOnly: REQUIRED_DIRS.filter((d) => !r.rootDirs[d] && r.effectiveDirs[d]),
+      nestedOnly: TEMPLATE_DIRS.filter((d) => !r.rootDirs[d] && r.effectiveDirs[d]),
     }))
     .filter((r) => r.nestedOnly.length > 0)
 
   if (advisoryResults.length > 0) {
-    console.log('\nAdvisory: nested-only directories detected')
+    lines.push('', 'Nested sub-feature coverage:')
     for (const r of advisoryResults) {
-      console.log(`  - ${r.name}: ${r.nestedOnly.join(', ')} satisfied via nested sub-features`) 
+      lines.push(`  - ${r.name}: ${r.nestedOnly.join(', ')} supplied by nested sub-features`)
     }
   }
+
+  return lines.join('\n')
 }
 
-printTable(checkFeatures())
+const isDirectRun = process.argv[1]
+  ? import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+  : false
+
+if (isDirectRun) {
+  console.log(formatFeatureReport(checkFeatures()))
+}

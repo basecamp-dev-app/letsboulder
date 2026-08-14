@@ -1,19 +1,54 @@
 /**
- * ESLint rule to enforce standard feature directory structure.
+ * ESLint rule for the advisory feature directory template.
  *
- * Every feature under features/ MUST have these subdirectories:
- *   components/, hooks/, lib/, server/, types/
- *
- * Missing directories produce a warning.
+ * Features only need the template directories they use. Partial template
+ * coverage produces one advisory per top-level feature.
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
 
-const REQUIRED_DIRS = ['components', 'hooks', 'lib', 'server', 'types']
+const TEMPLATE_DIRS = ['components', 'hooks', 'lib', 'server', 'types']
+const SOURCE_FILE_PATTERN = /\.(?:[cm]?[jt]sx?)$/
+const featureInspectionCache = new Map()
 
-function collectDirectoryNames(root) {
+function locateFeature(filename) {
+  const absoluteFilename = path.resolve(filename)
+  const projectFeaturesRoot = path.resolve(process.cwd(), 'features')
+  const projectRelativePath = path.relative(projectFeaturesRoot, absoluteFilename)
+
+  if (!projectRelativePath.startsWith('..') && !path.isAbsolute(projectRelativePath)) {
+    const [featureName] = projectRelativePath.split(path.sep)
+    if (!featureName) return undefined
+    return {
+      absoluteFilename,
+      featureName,
+      featureRoot: path.join(projectFeaturesRoot, featureName),
+    }
+  }
+
+  const marker = `${path.sep}features${path.sep}`
+  const markerIndex = absoluteFilename.indexOf(marker)
+  if (markerIndex === -1) return undefined
+
+  const featureNameStart = markerIndex + marker.length
+  const featureNameEnd = absoluteFilename.indexOf(path.sep, featureNameStart)
+  if (featureNameEnd === -1) return undefined
+
+  const featureName = absoluteFilename.slice(featureNameStart, featureNameEnd)
+  return {
+    absoluteFilename,
+    featureName,
+    featureRoot: absoluteFilename.slice(0, featureNameEnd),
+  }
+}
+
+function inspectFeatureTree(root) {
+  const cached = featureInspectionCache.get(root)
+  if (cached) return cached
+
   const discovered = new Set()
+  const sourceFiles = []
   const stack = [root]
 
   while (stack.length > 0) {
@@ -22,65 +57,64 @@ function collectDirectoryNames(root) {
 
     const entries = fs.readdirSync(current, { withFileTypes: true })
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      discovered.add(entry.name)
-      stack.push(path.join(current, entry.name))
+      const entryPath = path.join(current, entry.name)
+      if (entry.isDirectory()) {
+        discovered.add(entry.name)
+        stack.push(entryPath)
+      } else if (entry.isFile() && SOURCE_FILE_PATTERN.test(entry.name)) {
+        sourceFiles.push(path.resolve(entryPath))
+      }
     }
   }
 
-  return discovered
+  sourceFiles.sort()
+  const inspection = { discovered, reportTarget: sourceFiles[0] }
+  featureInspectionCache.set(root, inspection)
+  return inspection
 }
 
 const consistentFeatureStructureRule = {
   meta: {
-    type: 'problem',
+    type: 'suggestion',
     docs: {
-      description: 'Enforce standard feature directory structure',
+      description: 'Report advisory feature template coverage',
       category: 'Best Practices',
-      recommended: true,
+      recommended: false,
     },
     schema: [],
     messages: {
-      missingDirs:
-        'Feature "{{feature}}" is missing required directories: {{missing}}. ' +
-        'These directories must exist somewhere in the feature tree. See docs/feature-structure.md.',
+      partialTemplate:
+        'Feature "{{feature}}" uses a partial template (not present: {{notPresent}}). ' +
+        'Feature layout is advisory; create only the directories the feature uses. See docs/feature-structure.md.',
     },
   },
   create(context) {
-    let hasReported = false
-
     return {
       Program(node) {
-        if (hasReported) return
+        const physicalFilename = context.getPhysicalFilename?.()
+        const filename = physicalFilename && physicalFilename !== '<text>'
+          ? physicalFilename
+          : context.getFilename()
+        const feature = locateFeature(filename)
+        if (!feature) return
 
-        const filename = context.getFilename()
-        const featuresIndex = filename.indexOf('features/')
-        if (featuresIndex === -1) return
-
-        const relPath = filename.slice(featuresIndex)
-        const parts = relPath.split('/')
-        if (parts.length < 2) return
-
-        const featureName = parts[1]
-        if (!featureName || featureName === 'index.ts') return
-
-        const featureRoot = path.join(process.cwd(), 'features', featureName)
+        const { absoluteFilename, featureName, featureRoot } = feature
         if (!fs.existsSync(featureRoot)) return
 
-        const discoveredDirNames = collectDirectoryNames(featureRoot)
+        const { discovered, reportTarget } = inspectFeatureTree(featureRoot)
+        if (absoluteFilename !== reportTarget) return
 
-        const missing = REQUIRED_DIRS.filter(
-          (dir) => !fs.existsSync(path.join(featureRoot, dir)) && !discoveredDirNames.has(dir),
+        const notPresent = TEMPLATE_DIRS.filter(
+          (dir) => !fs.existsSync(path.join(featureRoot, dir)) && !discovered.has(dir),
         )
 
-        if (missing.length > 0) {
-          hasReported = true
+        if (notPresent.length > 0) {
           context.report({
             node,
-            messageId: 'missingDirs',
+            messageId: 'partialTemplate',
             data: {
               feature: featureName,
-              missing: missing.join(', '),
+              notPresent: notPresent.join(', '),
             },
           })
         }

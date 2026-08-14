@@ -109,14 +109,11 @@ const eslintConfig = defineConfig([
       ],
     },
   },
-  // Enforce consistent feature directory structure
+  // Register the advisory feature-layout rule for explicit lint:features runs.
   {
-    files: ['features/**/*.{ts,tsx}'],
+    files: ['features/**/*.{ts,tsx,js,jsx,mjs,cjs}'],
     plugins: {
       'local-rules': localRules,
-    },
-    rules: {
-      'local-rules/consistent-feature-structure': 'warn',
     },
   },
   // Override default ignores of eslint-config-next.

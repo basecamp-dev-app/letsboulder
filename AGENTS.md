@@ -88,7 +88,7 @@ Run `npm --prefix apps/media-worker run check` when database contracts used by t
 - Runtime behavior is defined by code and tests; documentation describes the intended contract and must be updated when behavior changes.
 - Database behavior is defined by committed migrations. Regenerate `types/database.ts` locally after schema changes; never hand-edit generated database types.
 - Public route inventory is documented in `docs/api/routes.md`; route handlers remain under `app/api/**`.
-- Feature ownership is checked by `npm run check:features`; see `docs/feature-structure.md` for allowed nested feature layouts.
+- Feature layout is reported by the advisory `npm run check:features`; `npm run check:architecture` enforces ownership boundaries. See `docs/feature-structure.md` for allowed nested layouts.
 - If documents disagree, prefer the committed implementation and update the stale document as part of the same change.
 
 ### File Naming Rules

@@ -87,15 +87,18 @@ A `types.ts` file at the feature root is acceptable alongside a `types/` directo
 
 ## Rules
 
-1. **The standard directories should exist where the feature needs them** — directories at the feature root are preferred for feature-wide code, but nested sub-features also count toward compliance
+1. **Use only the standard directories the feature needs** — directories at the feature root are preferred for feature-wide code, and nested sub-features count toward template coverage
 2. **Server orchestration belongs in `server/` by default** — Server Actions are the documented exception and may use `actions.ts` or `actions/`; shared technical server utilities may live in root `lib/`
 3. **Use curated public surfaces across features** — never import another feature's private modules, and features must never import route composition from `app/`
 4. **Barrel exports** — each non-empty directory should have an `index.ts` that re-exports its contents when that directory exposes a public surface
 5. **No dead duplicates** — `app/` should not contain copies of files that live in `features/`; use re-exports instead
 
-## Compliance
+## Advisory Reporting and Blocking Enforcement
 
-Run `npx tsx scripts/check-feature-compliance.ts` to print the feature directory layout report. Directory layout is advisory because features only need the standard directories they use.
+Run `npm run check:features` to print the advisory feature layout table. It labels features as using a full or partial template, counts standard directories found in nested sub-features toward coverage, and exits successfully without asking developers to create unused directories.
+
+Run `npm run lint:features` for the equivalent ESLint advisory. A partial-template warning appears once per top-level feature rather than once per source file. Ordinary `npm run lint` does not include the feature-layout advisory.
 
 Run `npm run check:architecture` to enforce server isolation, `app/` ownership, and feature public APIs across alias and relative static imports, dynamic imports, and CommonJS `require()`. Client safety is checked transitively through app, feature, hook, component, and shared library modules. The checked-in baseline manifest must match existing debt exactly: new violations fail, and resolved entries must be removed. CI enforces this gate.
-`npm run check:features` and `npm run lint:features` are local advisory helpers for the feature tree.
+
+Feature layout remains a convention, while `npm run check:architecture` is the authoritative blocking boundary gate. Making layout blocking requires an explicit policy decision and migration plan.
