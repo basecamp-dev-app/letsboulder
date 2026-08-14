@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+import JsonLd from '@/components/JsonLd'
+
 export const metadata: Metadata = {
   title: 'Gym Owners - Climbing Gym Route Management',
   description: 'letsboulder helps climbing gyms manage routes and share updates with climbers.',
@@ -47,8 +49,8 @@ export default function GymOwnersPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+      <JsonLd data={webPageSchema} />
+      <JsonLd data={faqSchema} />
       <div className="mx-auto max-w-5xl px-4 py-10 md:py-14">
         <header className="rounded-2xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-800 dark:bg-gray-900 md:p-8">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Gym Owners</p>

@@ -30,6 +30,7 @@ When documentation and implementation disagree, verify the implementation and te
 | Image ingest and delivery | [Media Pipeline](media-pipeline.md) | Upload handlers and `apps/media-worker` |
 | Moderation and verification | [Moderation](moderation.md) | Moderation actions, media readiness, database policies |
 | Auth, CSRF, and rate limits | [Auth And Security](auth-security.md) | Auth clients, CSRF helpers, rate-limit configuration |
+| Content Security Policy | [CSP](security/csp.md) | `next.config.ts`, `lib/content-security-policy.ts` |
 | Canvas, maps, GPS, grades, offline | [Patterns](patterns.md) | Feature hooks and platform utilities |
 
 ## Reference

@@ -3,6 +3,7 @@ import Script from 'next/script'
 import { Geist, Geist_Mono } from 'next/font/google'
 
 import './globals.css'
+import JsonLd from '@/components/JsonLd'
 import RootClientUtilities from '@/components/RootClientUtilities'
 import QueryProviders from '@/components/QueryProviders'
 import { OpenDataConsentProvider } from '@/features/legal/components/OpenDataConsentProvider'
@@ -129,44 +130,38 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         <link rel="manifest" href="/manifest.json" />
         <Script src="/theme-init.js" strategy="beforeInteractive" />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify([
-              {
-                "@context": "https://schema.org",
-                "@type": "WebSite",
-                name: BRAND_NAME,
-                url: SITE_URL,
-                description: 'Climbing map with photo topos and route beta from Guernsey to Skye',
-                potentialAction: {
-                  "@type": "SearchAction",
-                  target: {
-                    "@type": "EntryPoint",
-                    urlTemplate: `${SITE_URL}/?q={search_term_string}`,
-                  },
-                  "query-input": "required name=search_term_string",
+        <JsonLd
+          data={[
+            {
+              '@context': 'https://schema.org',
+              '@type': 'WebSite',
+              name: BRAND_NAME,
+              url: SITE_URL,
+              description: 'Climbing map with photo topos and route beta from Guernsey to Skye',
+              potentialAction: {
+                '@type': 'SearchAction',
+                target: {
+                  '@type': 'EntryPoint',
+                  urlTemplate: `${SITE_URL}/?q={search_term_string}`,
                 },
+                'query-input': 'required name=search_term_string',
               },
-              {
-                "@context": "https://schema.org",
-                "@type": "Organization",
-                name: BRAND_NAME,
-                url: SITE_URL,
-                logo: `${SITE_URL}/icon-512.png`,
-                description: 'Community-driven climbing platform with an interactive map, photo topos, and a personal logbook.',
-                sameAs: [
-                  X_URL,
-                  INSTAGRAM_URL
-                ],
-                contactPoint: {
-                  "@type": "ContactPoint",
-                  email: SUPPORT_EMAIL,
-                  contactType: "customer service"
-                }
-              }
-            ]),
-          }}
+            },
+            {
+              '@context': 'https://schema.org',
+              '@type': 'Organization',
+              name: BRAND_NAME,
+              url: SITE_URL,
+              logo: `${SITE_URL}/icon-512.png`,
+              description: 'Community-driven climbing platform with an interactive map, photo topos, and a personal logbook.',
+              sameAs: [X_URL, INSTAGRAM_URL],
+              contactPoint: {
+                '@type': 'ContactPoint',
+                email: SUPPORT_EMAIL,
+                contactType: 'customer service',
+              },
+            },
+          ]}
         />
       </head>
       <body

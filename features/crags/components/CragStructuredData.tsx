@@ -1,3 +1,4 @@
+import JsonLd from '@/components/JsonLd'
 import { SITE_URL } from '@/lib/site'
 import type { BreadcrumbItem, CragPageServerCrag } from '@/features/crags/lib/crag-page-types'
 
@@ -73,12 +74,5 @@ export default function CragStructuredData({ crag, canonicalPath, breadcrumbs }:
     })),
   }
 
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{
-        __html: JSON.stringify([placeSchema, localBusinessSchema, breadcrumbSchema]),
-      }}
-    />
-  )
+  return <JsonLd data={[placeSchema, localBusinessSchema, breadcrumbSchema]} />
 }
