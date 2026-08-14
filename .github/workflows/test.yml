@@ -42,9 +42,14 @@ jobs:
         with:
           node-version: "22.23.2"
           cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            apps/media-worker/package-lock.json
 
       - name: Install dependencies
-        run: npm ci --prefer-offline
+        run: |
+          npm ci --prefer-offline
+          npm --prefix apps/media-worker ci --prefer-offline
 
       - name: Lint
         run: npm run lint
@@ -202,7 +207,9 @@ jobs:
         with:
           node-version: "22.23.2"
           cache: "npm"
-          cache-dependency-path: apps/media-worker/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            apps/media-worker/package-lock.json
 
       - name: Install dependencies
         run: npm --prefix apps/media-worker ci --prefer-offline
