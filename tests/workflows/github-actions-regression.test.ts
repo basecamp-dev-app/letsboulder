@@ -60,6 +60,23 @@ describe('GitHub Actions security contracts', () => {
     expect(content).toMatch(/name: Apply migrations[\s\S]*if: github\.event_name == 'workflow_dispatch'/)
   })
 
+  it('uploads the media delivery key to the production worker environment', () => {
+    const content = workflow('media-worker-deploy.yml')
+    const secretUpload = content.slice(
+      content.indexOf('      - name: Upload production media worker secrets'),
+      content.indexOf('      - name: Deploy production media worker'),
+    )
+    const deploy = content.slice(content.indexOf('      - name: Deploy production media worker'))
+
+    expect(secretUpload).toContain('SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}')
+    expect(secretUpload).toContain(
+      'npx --no-install wrangler secret put SUPABASE_ANON_KEY --env production',
+    )
+    expect(secretUpload).toContain('NEXT_PUBLIC_SUPABASE_ANON_KEY is required')
+    expect(deploy).toContain('command: deploy --env production')
+    expect(deploy).not.toMatch(/^\s+secrets:/m)
+  })
+
   it('uses the repository Supabase CLI in diagnostics', () => {
     const content = readFileSync(path.join(root, 'scripts', 'supabase-doctor.sh'), 'utf8')
 

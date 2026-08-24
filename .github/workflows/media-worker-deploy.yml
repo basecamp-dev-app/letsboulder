@@ -39,6 +39,21 @@ jobs:
         run: npm run check
         working-directory: apps/media-worker
 
+      - name: Upload production media worker secrets
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo '::error::NEXT_PUBLIC_SUPABASE_ANON_KEY is required for production media delivery.'
+            exit 1
+          fi
+          printf '%s' "$SUPABASE_ANON_KEY" \
+            | npx --no-install wrangler secret put SUPABASE_ANON_KEY --env production
+
       - name: Deploy production media worker
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
         with:
@@ -46,7 +61,3 @@ jobs:
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/media-worker
           command: deploy --env production
-          secrets: |
-            SUPABASE_ANON_KEY
-        env:
-          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
