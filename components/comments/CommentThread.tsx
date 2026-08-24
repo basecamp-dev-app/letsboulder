@@ -79,7 +79,7 @@ const TARGET_THREAD_CONFIG: Record<TargetType, TargetThreadConfig> = {
   },
   image: {
     title: 'Topo notes',
-    placeholder: 'Share beta, FA/history, gear, and conditions. For line or photo issues, use the Flag button.',
+    placeholder: 'Share beta, FA/history, gear, and conditions.',
     emptyState: 'No topo notes yet. Share useful route context and positive details for the community.',
     defaultCategory: 'beta',
     categories: [

@@ -15,7 +15,6 @@ import { isCurrentUserAdmin } from '@/lib/profile-rpc'
 import type { RouteLine, RoutePoint } from '@/types/domain'
 import { ClimbInfoPanel } from '@/features/climb/public-client'
 import { ClimbShareDialog } from '@/features/climb/public-client'
-import FlagClimbModal from '@/components/FlagClimbModal'
 import { saveClimbFeedbackAction } from '@/features/climb/public-actions'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/lib/grades/preferences'
 import { logRoutesAction } from '@/features/logbook/public-actions'
@@ -123,7 +122,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [notesDialogOpen, setNotesDialogOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
-  const [flagOpen, setFlagOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
     const primaryId = linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId
@@ -1104,7 +1102,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         formatRouteTypeLabel={(value) => value}
         onEditRoute={handleEditRoute}
         onAddRoutes={handleAddRoutes}
-        onOpenFlag={() => setFlagOpen(true)}
         onShare={() => setShareOpen(true)}
         onGoToAuth={handleGoToAuth}
         onToggleWantToTry={handleToggleWantToTry}
@@ -1117,14 +1114,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onGoToLogbook={handleGoToLogbook}
         deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
       />
-
-      {selectedClimb && flagOpen ? (
-        <FlagClimbModal
-          climbId={selectedClimb.id}
-          climbName={selectedClimb.name}
-          onClose={() => setFlagOpen(false)}
-        />
-      ) : null}
 
       <ClimbShareDialog
         open={shareOpen}

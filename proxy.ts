@@ -22,7 +22,6 @@ function shouldSkipMiddleware(pathname: string, method: string): boolean {
     '/api/locations/search',
     '/api/locations/reverse',
     '/api/logbook/contributions',
-    '/api/flags',
     '/api/location-tags',
     '/api/gym-admin/gyms',
     '/api/images/search',

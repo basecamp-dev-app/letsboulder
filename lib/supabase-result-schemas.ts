@@ -67,29 +67,3 @@ export const UserClimbQueryResultSchema = z.array(
 )
 
 export type UserClimbQueryResult = z.infer<typeof UserClimbQueryResultSchema>[number]
-
-export const FlagWithRelationsSchema = z.object({
-  id: z.string(),
-  status: z.string(),
-  crag_id: z.string().nullable(),
-  climb_id: z.string().nullable(),
-  image_id: z.string().nullable(),
-  flagger_id: z.string().nullable(),
-  flag_type: z.string(),
-  comment: z.string(),
-  climb: z.object({
-    id: z.string(),
-    name: z.string(),
-  }).nullable(),
-  image: z.object({
-    id: z.string(),
-    url: z.string(),
-  }).nullable(),
-  crag: z.object({
-    id: z.string(),
-    name: z.string(),
-  }).nullable(),
-  created_at: z.string(),
-})
-
-export type FlagWithRelations = z.infer<typeof FlagWithRelationsSchema>

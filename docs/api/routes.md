@@ -15,10 +15,9 @@
 | diagnostics | Temporary authenticated diagnostics for Android image GPS extraction | Yes | Yes |
 | dev-logger | Local-development browser log bridge | Effectively yes | Yes |
 | feedback | Rate-limited user feedback submission | Effectively yes | Yes |
-| flags | Admin flag queue listing and resolution | Yes (admin) | Yes |
 | gym-admin | Gym admin operations | Yes | Yes |
 | image-first | Image-first route page support endpoints | No | No |
-| images | Image detail, related faces, deletion, and flags | Optional | Yes |
+| images | Image detail, related faces, and deletion | Optional | Yes |
 | location-tags | Public region/sub-area tag search | No | No |
 | locations | Geo detection, reverse geocoding, search | No | No |
 | logbook | User logbook queries | Yes | No |
@@ -81,8 +80,6 @@ This is the canonical path inventory for route handlers under `app/api/**/route.
 /api/dev-logger
 /api/diagnostics/image-gps
 /api/feedback
-/api/flags
-/api/flags/[id]/resolve
 /api/gym-admin/gyms
 /api/gym-admin/gyms/[id]/starter-routes
 /api/image-first/images
@@ -90,7 +87,6 @@ This is the canonical path inventory for route handlers under `app/api/**/route.
 /api/image-first/pins
 /api/images/[id]
 /api/images/[id]/faces
-/api/images/[id]/flags
 /api/images/search
 /api/location-tags/search
 /api/locations/detect
@@ -136,7 +132,7 @@ This is the canonical path inventory for route handlers under `app/api/**/route.
 
 ### admin
 
-Admin operations for gym creation/floor plans/starter routes and moving images between crags. Restricted to authenticated admins; state changes use CSRF protection. User-report review is handled by the separate `flags` group.
+Admin operations for gym creation/floor plans/starter routes and moving images between crags. Restricted to authenticated admins; state changes use CSRF protection.
 
 ### climbs
 
@@ -177,10 +173,6 @@ Crag CRUD operations, search, nearby queries, pin data, reports, image managemen
 ### dev-logger
 
 Localhost-only browser log bridge available only in development. Its POST is subject to proxy CSRF enforcement, which also makes it effectively require a cookie-authenticated user capable of obtaining a CSRF token.
-
-### flags
-
-Admin flag queue listing and flag resolution. GET `/api/flags` requires an admin but no CSRF; POST `/api/flags/[id]/resolve` requires admin auth and CSRF. User-facing image/climb flag creation lives under those resource groups.
 
 ### gym-admin
 
