@@ -56,6 +56,8 @@ function makeThenableResult<T>(result: T) {
 function makeSupabase(options?: {
   includeFallbackRouteData?: boolean
   mediaReady?: boolean
+  mediaFailed?: boolean
+  brokenAssociation?: boolean
   draftStatus?: 'draft' | 'submitted'
   cragCountryCode?: string | null
   draftHasLocation?: boolean
@@ -116,7 +118,9 @@ function makeSupabase(options?: {
               data: [
                 {
                   id: 'draft-image-1',
-                  linked_image_id: 'image-1',
+                  linked_image_id: options?.brokenAssociation ? null : 'image-1',
+                  storage_bucket: 'private-media',
+                  storage_path: 'images/assets/image-1/canonical.webp',
                   display_order: 0,
                   latitude: 49.45,
                   longitude: -2.55,
@@ -136,7 +140,7 @@ function makeSupabase(options?: {
                       }
                     : null,
                 },
-                { id: 'draft-image-2', linked_image_id: 'image-2', display_order: 1, latitude: 49.46, longitude: -2.54, route_data: null },
+                { id: 'draft-image-2', linked_image_id: 'image-2', storage_bucket: 'private-media', storage_path: 'images/assets/image-2/canonical.webp', display_order: 1, latitude: 49.46, longitude: -2.54, route_data: null },
               ],
               error: null,
             })),
@@ -159,9 +163,11 @@ function makeSupabase(options?: {
 
       if (table === 'images') {
         const readyRows = [
-          { id: 'image-1', processing_status: 'ready', moderation_status: 'approved', visibility: 'public', status: 'approved' },
-          { id: 'image-2', processing_status: 'ready', moderation_status: 'skipped', visibility: 'public', status: 'approved' },
-        ].map((row) => options?.mediaReady === false ? { ...row, processing_status: 'processing' } : row)
+          { id: 'image-1', created_by: 'user-1', original_bucket: 'private-media', original_key: 'images/assets/image-1/original.jpg', storage_bucket: 'private-media', storage_path: 'images/assets/image-1/canonical.webp', processing_status: 'ready', moderation_status: 'approved', visibility: 'public', status: 'approved' },
+          { id: 'image-2', created_by: 'user-1', original_bucket: 'private-media', original_key: 'images/assets/image-2/original.jpg', storage_bucket: 'private-media', storage_path: 'images/assets/image-2/canonical.webp', processing_status: 'ready', moderation_status: 'skipped', visibility: 'public', status: 'approved' },
+        ].map((row) => options?.mediaFailed
+          ? { ...row, processing_status: 'failed' }
+          : options?.mediaReady === false ? { ...row, processing_status: 'processing' } : row)
         return {
           select: vi.fn(() => ({
             in: vi.fn(async (_column: string, ids: string[]) => ({ data: readyRows.filter((row) => ids.includes(row.id)), error: null })),
@@ -241,10 +247,40 @@ describe('promoteDraftToSubmission', () => {
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({
       code: 'media_not_ready',
-      error: 'Some photos are still being prepared or reviewed.',
-      message: 'Some photos are still being prepared or reviewed.',
+      error: 'Your photo is still being prepared. Publishing will be available when it’s ready.',
+      message: 'Your photo is still being prepared. Publishing will be available when it’s ready.',
     })
     expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
+  })
+
+  test('returns an actionable terminal processing failure', async () => {
+    const response = await promoteDraftToSubmission({
+      supabase: makeSupabase({ mediaFailed: true }) as unknown as ReturnType<typeof createServerClient>,
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      code: 'media_processing_failed',
+      error: 'Your photo could not be prepared. Remove it and upload it again before publishing.',
+      message: 'Your photo could not be prepared. Remove it and upload it again before publishing.',
+    })
+  })
+
+  test('distinguishes a broken media association from active processing', async () => {
+    const response = await promoteDraftToSubmission({
+      supabase: makeSupabase({ brokenAssociation: true }) as unknown as ReturnType<typeof createServerClient>,
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      code: 'media_association_broken',
+      error: 'We could not prepare one of your photos for publishing. Remove it and upload it again.',
+      message: 'We could not prepare one of your photos for publishing. Remove it and upload it again.',
+    })
   })
 
   test('sends a Discord notification after publishing a draft', async () => {
@@ -464,6 +500,8 @@ describe('promoteDraftToSubmission', () => {
                 {
                   id: 'draft-image-1',
                   linked_image_id: 'image-1',
+                  storage_bucket: 'private-media',
+                  storage_path: 'images/assets/image-1/canonical.webp',
                   display_order: 0,
                   latitude: 49.45,
                   longitude: -2.55,
@@ -546,6 +584,8 @@ describe('promoteDraftToSubmission', () => {
                 {
                   id: 'draft-image-1',
                   linked_image_id: 'image-1',
+                  storage_bucket: 'private-media',
+                  storage_path: 'images/assets/image-1/canonical.webp',
                   display_order: 0,
                   latitude: null,
                   longitude: null,

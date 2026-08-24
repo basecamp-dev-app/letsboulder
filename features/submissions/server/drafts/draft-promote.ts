@@ -1,6 +1,13 @@
 import { reportError, sanitizeError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
-import { isMediaNotReadyError, isMediaPubliclyDeliverable, MEDIA_NOT_READY_RESPONSE } from '@/lib/media/readiness'
+import {
+  isMediaAssociationError,
+  isMediaNotReadyError,
+  isMediaPubliclyDeliverable,
+  MEDIA_ASSOCIATION_BROKEN_RESPONSE,
+  MEDIA_NOT_READY_RESPONSE,
+  MEDIA_PROCESSING_FAILED_RESPONSE,
+} from '@/lib/media/readiness'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { recordSubmissionPublishedEvent } from '@/features/community/public-server'
@@ -141,7 +148,21 @@ interface PublishedCragIdentity {
   slug: string
 }
 
-type DraftImagePublishRow = Pick<DraftImageRow, 'id' | 'display_order' | 'latitude' | 'longitude'> & { linked_image_id: string | null }
+type DraftImagePublishRow = Pick<DraftImageRow, 'id' | 'display_order' | 'latitude' | 'longitude' | 'storage_bucket' | 'storage_path'> & { linked_image_id: string | null }
+type LinkedImagePublishRow = Pick<
+  import('@/types/database').Database['public']['Tables']['images']['Row'],
+  'id' | 'created_by' | 'original_bucket' | 'original_key' | 'storage_bucket' | 'storage_path'
+  | 'processing_status' | 'moderation_status' | 'visibility' | 'status'
+>
+
+function brokenMediaAssociation(draftId: string, reason: string): DraftPublishResult {
+  reportError(new Error('Draft media association is broken'), {
+    message: 'Draft publish media association preflight failed',
+    tags: { diagnostic_code: MEDIA_ASSOCIATION_BROKEN_RESPONSE.code },
+    extra: { draftId, reason },
+  })
+  return publishFailure(409, MEDIA_ASSOCIATION_BROKEN_RESPONSE)
+}
 
 function resolveDraftImageLocationMode(metadata: unknown, image: DraftImagePublishRow): 'shared' | 'custom' {
   const safeMetadata = normalizeJsonRecord(metadata)
@@ -299,7 +320,7 @@ export async function promoteDraftToSubmission(input: {
 
   const { data: draftImages, error: draftImagesError } = await supabase
     .from('submission_draft_images')
-    .select('id, display_order, latitude, longitude, linked_image_id')
+    .select('id, display_order, latitude, longitude, storage_bucket, storage_path, linked_image_id')
     .eq('draft_id', draftId)
 
   if (draftImagesError) {
@@ -332,13 +353,45 @@ export async function promoteDraftToSubmission(input: {
   const { data: linkedImages, error: linkedImagesError } = linkedImageIds.length > 0
     ? await supabase
       .from('images')
-      .select('id, processing_status, moderation_status, visibility, status')
+      .select('id, created_by, original_bucket, original_key, storage_bucket, storage_path, processing_status, moderation_status, visibility, status')
       .in('id', linkedImageIds)
     : { data: [], error: null }
 
   if (linkedImagesError) return publishInternalError(linkedImagesError, 'Failed to validate draft media before publish')
-  if (draftImageRows.some((image) => !image.linked_image_id) || (linkedImages || []).length !== linkedImageIds.length || !(linkedImages || []).every(isMediaPubliclyDeliverable)) {
+  const linkedImageRows = (linkedImages || []) as LinkedImagePublishRow[]
+
+  if (draftImageRows.some((image) => !image.linked_image_id)) {
+    return brokenMediaAssociation(draftId, 'missing_linked_image_id')
+  }
+  if (linkedImageRows.length !== linkedImageIds.length) {
+    return brokenMediaAssociation(draftId, 'missing_authoritative_image')
+  }
+
+  const linkedImageById = new Map(linkedImageRows.map((image) => [image.id, image]))
+  const hasLocatorMismatch = draftImageRows.some((draftImage) => {
+    const linkedImage = draftImage.linked_image_id
+      ? linkedImageById.get(draftImage.linked_image_id)
+      : null
+    if (!linkedImage) return true
+    return !(
+      (linkedImage.original_bucket === draftImage.storage_bucket
+        && linkedImage.original_key === draftImage.storage_path)
+      || (linkedImage.storage_bucket === draftImage.storage_bucket
+        && linkedImage.storage_path === draftImage.storage_path)
+    )
+  })
+  if (hasLocatorMismatch) {
+    return brokenMediaAssociation(draftId, 'locator_mismatch')
+  }
+
+  if (linkedImageRows.some((image) => image.processing_status === 'failed')) {
+    return publishFailure(409, MEDIA_PROCESSING_FAILED_RESPONSE)
+  }
+  if (linkedImageRows.some((image) => ['pending', 'queued', 'processing'].includes(image.processing_status || ''))) {
     return publishFailure(409, MEDIA_NOT_READY_RESPONSE)
+  }
+  if (!linkedImageRows.every(isMediaPubliclyDeliverable)) {
+    return brokenMediaAssociation(draftId, 'non_deliverable_terminal_state')
   }
   const draftLocation = extractDraftLocation(draft.metadata)
   const effectiveDraftLocation = resolveEffectiveDraftPublishLocation(draft.metadata, draftImageRows)
@@ -414,6 +467,9 @@ export async function promoteDraftToSubmission(input: {
   if (error) {
     if (error.details === 'open_data_consent_required') {
       return publishFailure(428, { code: OPEN_DATA_CONSENT_REQUIRED, error: 'Accept the Open Data Contributor Terms to publish.' })
+    }
+    if (isMediaAssociationError(error)) {
+      return brokenMediaAssociation(draftId, 'promotion_rpc_association_guard')
     }
     if (isMediaNotReadyError(error)) {
       return publishFailure(409, MEDIA_NOT_READY_RESPONSE)

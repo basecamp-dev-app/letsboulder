@@ -109,10 +109,10 @@ describe('canonical WebP lifecycle', () => {
       await setServiceRole(client)
       await client.query(
         `update public.images
-         set processing_status = 'ready', moderation_status = 'approved',
+         set created_by = $2, processing_status = 'ready', moderation_status = 'approved',
              moderation_provider = 'fixture', visibility = 'public', status = 'approved'
          where id = $1`,
-        [imageId],
+        [imageId, userId],
       )
       const cragId = randomUUID()
       const draftId = randomUUID()
@@ -194,7 +194,7 @@ describe('canonical WebP lifecycle', () => {
         delivery_verified: false,
       }])
       expect((await client.query(
-        `select storage_bucket, storage_path, width, height, processing_status
+        `select storage_bucket, storage_path, width, height, linked_image_id, processing_status
          from public.submission_draft_images where draft_id = $1 order by display_order`,
         [draftId],
       )).rows).toEqual([{
@@ -202,12 +202,14 @@ describe('canonical WebP lifecycle', () => {
         storage_path: locator.optimizedKey,
         width: 1200,
         height: 800,
+        linked_image_id: imageId,
         processing_status: 'ready',
       }, {
         storage_bucket: locator.optimizedBucket,
         storage_path: locator.optimizedKey,
         width: 1200,
         height: 800,
+        linked_image_id: imageId,
         processing_status: 'ready',
       }])
       expect((await client.query(
@@ -222,6 +224,49 @@ describe('canonical WebP lifecycle', () => {
         width: 1200,
         height: 800,
       }])
+    })
+  })
+
+  it('does not backfill an ambiguous original locator', async () => {
+    await transaction(async (client) => {
+      const imageId = randomUUID()
+      const locator = await insertPendingImage(client, imageId)
+      const ownerId = await createUser(client)
+      const duplicateImageId = randomUUID()
+      const draftId = randomUUID()
+      await client.query('update public.images set created_by = $2 where id = $1', [imageId, ownerId])
+      await client.query(
+        `insert into public.images (
+           id, url, created_by, storage_provider, original_bucket, original_key,
+           storage_bucket, storage_path, processing_status, moderation_status, visibility, status
+         ) values ($1, 'private://duplicate', $2, 'r2', $3, $4, $3, $4,
+           'processing', 'skipped', 'private', 'pending')`,
+        [duplicateImageId, ownerId, locator.originalBucket, locator.originalKey],
+      )
+      await client.query(
+        'insert into public.submission_drafts (id, user_id) values ($1, $2)',
+        [draftId, ownerId],
+      )
+      await client.query(
+        `insert into public.submission_draft_images (
+           draft_id, display_order, storage_bucket, storage_path, storage_provider, processing_status
+         ) values ($1, 0, $2, $3, 'r2', 'processing')`,
+        [draftId, locator.originalBucket, locator.originalKey],
+      )
+      await setServiceRole(client)
+
+      await commit(client, imageId, locator)
+
+      expect((await client.query(
+        `select linked_image_id, storage_bucket, storage_path, processing_status
+         from public.submission_draft_images where draft_id = $1`,
+        [draftId],
+      )).rows[0]).toEqual({
+        linked_image_id: null,
+        storage_bucket: locator.originalBucket,
+        storage_path: locator.originalKey,
+        processing_status: 'processing',
+      })
     })
   })
 
