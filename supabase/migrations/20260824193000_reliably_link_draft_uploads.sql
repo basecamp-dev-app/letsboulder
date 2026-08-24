@@ -356,6 +356,12 @@ BEGIN
         AND locator_is_unambiguous
         AND draft_image.storage_bucket = p_expected_original_bucket
         AND draft_image.storage_path = p_expected_original_key
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.submission_draft_images AS existing_link
+          WHERE existing_link.draft_id = draft_image.draft_id
+            AND existing_link.linked_image_id = p_image_id
+        )
         AND (
           draft.user_id = image_row.created_by
           OR public.is_submission_draft_collaborator(draft.id, image_row.created_by)

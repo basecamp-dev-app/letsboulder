@@ -116,10 +116,12 @@ describe('canonical WebP lifecycle', () => {
       )
       const cragId = randomUUID()
       const draftId = randomUUID()
+      const recoveryDraftId = randomUUID()
       await client.query('insert into public.crags (id, name) values ($1, $2)', [cragId, 'Canonical Test Crag'])
       await client.query(
-        'insert into public.submission_drafts (id, user_id, crag_id) values ($1, $2, $3)',
-        [draftId, userId, cragId],
+        `insert into public.submission_drafts (id, user_id, crag_id)
+         values ($1, $3, $4), ($2, $3, $4)`,
+        [draftId, recoveryDraftId, userId, cragId],
       )
       await client.query(
         `insert into public.submission_draft_images (
@@ -127,6 +129,13 @@ describe('canonical WebP lifecycle', () => {
            linked_image_id, processing_status
          ) values ($1, 0, $2, $3, 'r2', $4, 'processing')`,
         [draftId, locator.originalBucket, locator.originalKey, imageId],
+      )
+      await client.query(
+        `insert into public.submission_draft_images (
+           draft_id, display_order, storage_bucket, storage_path, storage_provider,
+           processing_status
+         ) values ($1, 0, $2, $3, 'r2', 'processing')`,
+        [recoveryDraftId, locator.originalBucket, locator.originalKey],
       )
       await client.query(
         `insert into public.submission_draft_images (
@@ -195,8 +204,9 @@ describe('canonical WebP lifecycle', () => {
       }])
       expect((await client.query(
         `select storage_bucket, storage_path, width, height, linked_image_id, processing_status
-         from public.submission_draft_images where draft_id = $1 order by display_order`,
-        [draftId],
+         from public.submission_draft_images where draft_id in ($1, $2)
+         order by (draft_id = $1) desc, display_order`,
+        [draftId, recoveryDraftId],
       )).rows).toEqual([{
         storage_bucket: locator.optimizedBucket,
         storage_path: locator.optimizedKey,
@@ -204,6 +214,13 @@ describe('canonical WebP lifecycle', () => {
         height: 800,
         linked_image_id: imageId,
         processing_status: 'ready',
+      }, {
+        storage_bucket: locator.originalBucket,
+        storage_path: locator.originalKey,
+        width: null,
+        height: null,
+        linked_image_id: null,
+        processing_status: 'processing',
       }, {
         storage_bucket: locator.optimizedBucket,
         storage_path: locator.optimizedKey,
