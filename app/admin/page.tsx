@@ -1,13 +1,7 @@
 import Link from 'next/link'
-import { Building2, Flag, Mountain } from 'lucide-react'
+import { Building2, Mountain } from 'lucide-react'
 
 const adminSections = [
-  {
-    href: '/admin/flags',
-    title: 'Flags',
-    description: 'Review and resolve user-submitted flags for climbs and images.',
-    icon: Flag,
-  },
   {
     href: '/admin/crags',
     title: 'Crags',

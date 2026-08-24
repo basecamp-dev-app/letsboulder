@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Flag, Share2, Star } from 'lucide-react'
+import { Share2, Star } from 'lucide-react'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import type { GradeSystem } from '@/lib/grades'
@@ -80,7 +80,6 @@ interface ClimbInfoPanelProps {
   formatRouteTypeLabel: (value: string) => string
   onEditRoute: () => void
   onAddRoutes: () => void
-  onOpenFlag: () => void
   onShare: () => void
   onGoToAuth: () => void
   onToggleWantToTry: () => void
@@ -131,7 +130,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     formatRouteTypeLabel,
     onEditRoute,
     onAddRoutes,
-    onOpenFlag,
     onShare,
     onGoToAuth,
     onToggleWantToTry,
@@ -190,9 +188,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                 Add the first route
               </button>
             ) : null}
-            <button onClick={onOpenFlag} disabled={!selectedClimb} className="inline-flex size-11 items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Report incorrect route info" title={selectedClimb ? 'Report incorrect route info' : 'Select a route to report'}>
-              <Flag className="w-5 h-5" />
-            </button>
             <button onClick={onShare} disabled={!selectedClimb} className="inline-flex size-11 items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Share climb" title={selectedClimb ? 'Share climb' : 'Select a route to share'}>
               <Share2 className="w-5 h-5" />
             </button>

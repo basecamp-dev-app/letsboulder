@@ -137,10 +137,7 @@ export default function CragPageClient({
         mapPins={filters.mapPins}
         selectedImageId={filters.selectedImageId}
         cragCenter={cragCenter}
-        isAdmin={actions.isAdmin}
-        isFlagging={actions.isFlagging}
         onPinSelect={filters.setSelectedImageId}
-        onFlagCrag={actions.handleFlagCrag}
       />
 
       <SelectedPinImageTray images={filters.selectedPinImages} />

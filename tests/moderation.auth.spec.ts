@@ -31,10 +31,7 @@ test.describe('Moderation Queue', () => {
     await page.waitForLoadState('networkidle')
 
     const verifyButton = page.locator('button:has-text("Verify")').first()
-    const flagButton = page.locator('button:has-text("Flag")').first()
-
-    const hasButtons = await verifyButton.isVisible() || await flagButton.isVisible()
-    if (hasButtons) {
+    if (await verifyButton.isVisible()) {
       await expect(page.getByText('Verify')).toBeVisible()
     }
   })
@@ -55,27 +52,4 @@ test.describe('Moderation Vote Flow', () => {
     }
   })
 
-  test('@full submit flag vote', async ({ page }) => {
-    await page.goto('/admin/moderation')
-    await page.waitForLoadState('networkidle')
-
-    const firstRow = page.locator('tbody tr').first()
-    if (await firstRow.isVisible()) {
-      const flagButton = firstRow.locator('button:has-text("Flag")')
-      if (await flagButton.isVisible()) {
-        await flagButton.click()
-        await page.waitForTimeout(500)
-      }
-    }
-  })
-
-  test('@full vote count updates after submission', async ({ page }) => {
-    await page.goto('/admin/moderation')
-    await page.waitForLoadState('networkidle')
-
-    const voteCount = page.locator('text=/\\d+ verify.*\\d+ flag/i')
-    if (await voteCount.isVisible()) {
-      expect(await voteCount.textContent()).toMatch(/\d+/)
-    }
-  })
 })

@@ -53,7 +53,6 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof ClimbInfoPan
     formatRouteTypeLabel: (value: string) => value,
     onEditRoute: vi.fn(),
     onAddRoutes,
-    onOpenFlag: vi.fn(),
     onShare: vi.fn(),
     onGoToAuth: vi.fn(),
     onToggleWantToTry: vi.fn(),
@@ -102,13 +101,11 @@ describe('ClimbInfoPanel', () => {
   it('disables route actions until a climb is selected', () => {
     renderPanel()
 
-    expect(screen.getByRole('button', { name: 'Report incorrect route info' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Share climb' })).toBeDisabled()
   })
 
-  it('calls report and share actions for a selected climb', async () => {
+  it('calls the share action for a selected climb', async () => {
     const user = userEvent.setup()
-    const onOpenFlag = vi.fn()
     const onShare = vi.fn()
     renderPanel({
       selectedClimb: {
@@ -120,14 +117,11 @@ describe('ClimbInfoPanel', () => {
       },
       selectedRouteExists: true,
       canAddRoutes: false,
-      onOpenFlag,
       onShare,
     })
 
-    await user.click(screen.getByRole('button', { name: 'Report incorrect route info' }))
     await user.click(screen.getByRole('button', { name: 'Share climb' }))
 
-    expect(onOpenFlag).toHaveBeenCalledTimes(1)
     expect(onShare).toHaveBeenCalledTimes(1)
   })
 
@@ -219,7 +213,6 @@ describe('ClimbInfoPanel', () => {
       formatRouteTypeLabel: (value: string) => value,
       onEditRoute: vi.fn(),
       onAddRoutes: vi.fn(),
-      onOpenFlag: vi.fn(),
       onShare: vi.fn(),
       onGoToAuth: vi.fn(),
       onToggleWantToTry: vi.fn(),
@@ -285,7 +278,6 @@ describe('ClimbInfoPanel', () => {
       formatRouteTypeLabel: (value: string) => value,
       onEditRoute: vi.fn(),
       onAddRoutes: vi.fn(),
-      onOpenFlag: vi.fn(),
       onShare: vi.fn(),
       onGoToAuth: vi.fn(),
       onToggleWantToTry: vi.fn(),
