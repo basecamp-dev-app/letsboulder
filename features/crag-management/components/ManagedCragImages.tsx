@@ -65,12 +65,13 @@ export default function ManagedCragImages({
   initialImages,
   isAdmin,
 }: ManagedCragImagesProps) {
-  const [images, setImages] = useState(initialImages)
+  const [removedImageIds, setRemovedImageIds] = useState<Set<string>>(() => new Set())
   const [selected, setSelected] = useState<ManagedCragImage | null>(null)
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const { toasts, addToast, removeToast } = useToast()
+  const images = initialImages.filter((image) => !image.imageId || !removedImageIds.has(image.imageId))
 
   function closeDialog() {
     if (pending) return
@@ -90,7 +91,7 @@ export default function ManagedCragImages({
       return
     }
 
-    setImages((current) => current.filter((image) => image.imageId !== selected.imageId))
+    setRemovedImageIds((current) => new Set(current).add(selected.imageId as string))
     addToast('Image removed from the public crag', 'success')
     closeDialog()
   }

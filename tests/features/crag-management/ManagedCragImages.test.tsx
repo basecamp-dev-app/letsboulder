@@ -141,4 +141,29 @@ describe('ManagedCragImages', () => {
     expect(screen.getByRole('menuitem', { name: 'Already deleted' })).toBeDisabled()
     expect(removeCragImageAction).not.toHaveBeenCalled()
   })
+
+  it('renders new server images when client-side pagination changes the props', () => {
+    const firstPageImage = { ...canonicalImage, routeNames: ['Lil Pop'], routeCount: 1 }
+    const secondPageImage = {
+      ...canonicalImage,
+      imageId: '44444444-4444-4444-8444-444444444444',
+      routeNames: ['Far Far Away'],
+      routeCount: 1,
+    }
+    const view = renderGallery([firstPageImage])
+
+    expect(screen.getByText('Lil Pop')).toBeTruthy()
+    view.rerender(
+      <ManagedCragImages
+        countryCode="GB"
+        cragId="33333333-3333-4333-8333-333333333333"
+        cragSlug="test-crag"
+        initialImages={[secondPageImage]}
+        isAdmin
+      />,
+    )
+
+    expect(screen.queryByText('Lil Pop')).toBeNull()
+    expect(screen.getByText('Far Far Away')).toBeTruthy()
+  })
 })
