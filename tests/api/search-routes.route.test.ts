@@ -80,6 +80,7 @@ function createNearbyPlacesClient(result: QueryResult) {
 
 function createCragsClient(namedCrags: unknown[], tagRows: unknown[] = []) {
   const nameBuilder = {
+    is: vi.fn(() => nameBuilder),
     gte: vi.fn(() => nameBuilder),
     lte: vi.fn(() => nameBuilder),
     ilike: vi.fn(() => nameBuilder),
@@ -87,6 +88,7 @@ function createCragsClient(namedCrags: unknown[], tagRows: unknown[] = []) {
   }
 
   const tagBuilder = {
+    is: vi.fn(() => tagBuilder),
     eq: vi.fn(() => tagBuilder),
     ilike: vi.fn(() => tagBuilder),
     limit: vi.fn(() => makeThenableResult({ data: tagRows, error: null })),
@@ -131,6 +133,7 @@ function createRegionsClient(result: QueryResult) {
 function createCragByIdClient(result: QueryResult) {
   const builder = {
     eq: vi.fn(() => builder),
+    is: vi.fn(() => builder),
     maybeSingle: vi.fn(() => Promise.resolve(result)),
   }
 

@@ -60,6 +60,7 @@ function makeSupabase(options?: {
   brokenAssociation?: boolean
   draftStatus?: 'draft' | 'submitted'
   cragCountryCode?: string | null
+  cragDeletedAt?: string | null
   draftHasLocation?: boolean
 }) {
   const includeFallbackRouteData = options?.includeFallbackRouteData ?? false
@@ -153,7 +154,13 @@ function makeSupabase(options?: {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               maybeSingle: vi.fn(async () => ({
-                data: { id: 'crag-1', country_code: options?.cragCountryCode === undefined ? 'GG' : options.cragCountryCode, slug: 'hidden-crag' },
+                data: {
+                  id: 'crag-1',
+                  country_code: options?.cragCountryCode === undefined ? 'GG' : options.cragCountryCode,
+                  slug: 'hidden-crag',
+                  deleted_at: options?.cragDeletedAt ?? null,
+                  superseded_by: null,
+                },
                 error: null,
               })),
             })),
@@ -266,6 +273,23 @@ describe('promoteDraftToSubmission', () => {
       error: 'Your photo could not be prepared. Remove it and upload it again before publishing.',
       message: 'Your photo could not be prepared. Remove it and upload it again before publishing.',
     })
+  })
+
+  test('clears a deleted crag assignment and returns an actionable conflict', async () => {
+    const supabase = makeSupabase({ cragDeletedAt: '2026-08-25T10:00:00Z' })
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      code: 'crag_unavailable',
+      error: 'The selected crag is no longer available. Choose a crag before publishing.',
+    })
+    expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
   })
 
   test('distinguishes a broken media association from active processing', async () => {

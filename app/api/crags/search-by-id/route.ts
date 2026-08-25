@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     .from('crags')
     .select('id,name,latitude,longitude,country_code,region_name,sub_area,rock_type,type,description,access_notes,region_id,created_at')
     .eq('id', id)
+    .is('deleted_at', null)
+    .is('superseded_by', null)
     .maybeSingle()
 
   if (error) {

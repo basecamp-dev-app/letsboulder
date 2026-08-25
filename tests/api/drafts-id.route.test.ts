@@ -230,6 +230,15 @@ function makeSupabaseWithDraft(draft: DraftFixture, options?: { images?: unknown
         }
       }
 
+      if (table === 'crags') {
+        const builder = {
+          eq: vi.fn(() => builder),
+          is: vi.fn(() => builder),
+          maybeSingle: vi.fn(async () => ({ data: { id: 'crag-1' }, error: null })),
+        }
+        return { select: vi.fn(() => builder) }
+      }
+
       return {
         select: vi.fn(() => ({
           eq: vi.fn(() => ({

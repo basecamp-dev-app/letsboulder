@@ -87,13 +87,23 @@ export async function GET(request: NextRequest) {
     const country = getJsonObject(context?.country)
     const crag = getJsonObject(context?.crag)
     const cragId = getJsonString(crag?.id)
+    const { data: activeCrag } = cragId
+      ? await supabase
+        .from('crags')
+        .select('id')
+        .eq('id', cragId)
+        .is('deleted_at', null)
+        .is('superseded_by', null)
+        .maybeSingle()
+      : { data: null }
+    const activeCragId = activeCrag?.id ?? null
 
     let nearbyCragDominantRouteType: string | null = null
-    if (cragId) {
+    if (activeCragId) {
       const { data: climbs } = await supabase
         .from('climbs')
         .select('route_type, status, deleted_at')
-        .eq('crag_id', cragId)
+        .eq('crag_id', activeCragId)
 
       const routeTypeCounts = new Map<string, number>()
       for (const climb of climbs || []) {
@@ -116,8 +126,8 @@ export async function GET(request: NextRequest) {
         countryCode: getJsonString(country.iso_a2),
         countryName: getJsonString(country.name),
       } : null,
-      nearbyCrag: crag && cragId ? {
-        id: cragId,
+      nearbyCrag: crag && activeCragId ? {
+        id: activeCragId,
         name: getJsonString(crag.name),
         distanceMeters: getJsonNumber(crag.distance_meters),
         dominantRouteType: nearbyCragDominantRouteType,
