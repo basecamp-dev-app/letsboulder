@@ -18,6 +18,7 @@ const API_EXECUTABLE_DEFINERS = [
   'delete_submission_draft_atomic(uuid)',
   'delete_submission_draft_image_atomic(uuid,uuid,timestamp with time zone)',
   'delete_unassociated_upload_image(uuid)',
+  'enqueue_failed_media_upload_copy_cleanup(uuid,text,text)',
   'finalize_media_upload(uuid,text,text)',
   'get_active_climbers_count()',
   'get_admin_viewport_map_features(double precision,double precision,double precision,double precision,integer)',

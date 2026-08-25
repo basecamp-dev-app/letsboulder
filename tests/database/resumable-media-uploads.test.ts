@@ -99,4 +99,45 @@ describe('resumable media uploads', () => {
        expect(stagingJobs.rows).toEqual([{ reason: 'staging_replaced', object_key: stagingKey }])
     })
   })
+
+  it('delays failed-copy cleanup and cancels it atomically on finalization retry', async () => {
+    await transaction(async (client) => {
+      const userId = await createUser(client)
+      const imageId = randomUUID()
+      const stagingKey = `images/staging/${imageId}/${randomUUID()}/original.jpg`
+      const immutableKey = `images/assets/${imageId}/${'b'.repeat(64)}/original.jpg`
+      await client.query(
+        `insert into public.images (
+           id, url, created_by, status, storage_provider, storage_bucket, storage_path,
+           original_bucket, original_key, original_mime_type, original_bytes,
+           processing_status, moderation_status, visibility, client_upload_id, upload_purpose
+         ) values ($1, $2, $3, 'pending', 'r2', 'private-media', $4,
+           'private-media', $4, 'image/jpeg', 100, 'pending', 'skipped', 'private', $5, 'draft_image')`,
+        [imageId, `private://private-media/${stagingKey}`, userId, stagingKey, randomUUID()],
+      )
+      await authenticate(client, userId)
+
+      await client.query(
+        'select public.enqueue_failed_media_upload_copy_cleanup($1, $2, $3)',
+        [imageId, stagingKey, immutableKey],
+      )
+      await client.query(
+        'select public.finalize_media_upload($1, $2, $3)',
+        [imageId, immutableKey, 'b'.repeat(64)],
+      )
+
+      await client.query('reset role')
+      const cleanup = await client.query(
+        `select status, reason, run_at > created_at + interval '23 hours' AS delayed
+         from public.media_deletion_jobs
+         where image_id = $1 and object_key = $2`,
+        [imageId, immutableKey],
+      )
+      expect(cleanup.rows).toEqual([{
+        status: 'cancelled',
+        reason: 'upload_finalize_failed',
+        delayed: true,
+      }])
+    })
+  })
 })

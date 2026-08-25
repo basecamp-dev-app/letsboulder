@@ -57,6 +57,19 @@ describe('media deletion worker', () => {
     })
   })
 
+  it('deletes an expired failed-finalize compensation job', async () => {
+    const deleteObject = vi.fn(async () => undefined)
+    const compensation = { ...job, reason: 'upload_finalize_failed' as const }
+
+    await processMediaDeletionJob(compensation, createEnv(deleteObject))
+
+    expect(deleteObject).toHaveBeenCalledWith(compensation.object_key)
+    expect(rpc).toHaveBeenCalledWith('complete_media_deletion_job', {
+      p_job_id: compensation.id,
+      p_claim_token: compensation.claim_token,
+    })
+  })
+
   it('fails an unknown bucket without touching R2', async () => {
     const deleteObject = vi.fn(async () => undefined)
     await expect(processMediaDeletionJob(job, createEnv(deleteObject, 'different-private-bucket'))).resolves.toBe(true)

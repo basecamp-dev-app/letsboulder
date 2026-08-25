@@ -190,6 +190,17 @@ export async function POST(
     })
 
     if (finalizeError) {
+      const { error: cleanupError } = await supabase.rpc('enqueue_failed_media_upload_copy_cleanup', {
+        p_image_id: image.id,
+        p_staging_key: image.original_key,
+        p_immutable_key: immutableKey,
+      })
+      if (cleanupError) {
+        reportError(cleanupError, {
+          message: 'Failed to enqueue immutable upload compensation',
+          extra: { imageId: image.id, stagingKey: image.original_key, immutableKey },
+        })
+      }
       return createErrorResponse(finalizeError, 'Failed to queue image for ingest')
     }
 
