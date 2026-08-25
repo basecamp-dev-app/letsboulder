@@ -4369,6 +4369,14 @@ export type Database = {
         Args: { p_image_id: string }
         Returns: Json
       }
+      enqueue_failed_media_upload_copy_cleanup: {
+        Args: {
+          p_image_id: string
+          p_immutable_key: string
+          p_staging_key: string
+        }
+        Returns: string
+      }
       enqueue_media_deletion_job: {
         Args: {
           p_bucket: string

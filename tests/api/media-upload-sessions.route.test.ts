@@ -694,7 +694,9 @@ describe('Media upload session routes', () => {
   })
 
   test('complete fails when durable queueing fails', async () => {
-    const rpc = vi.fn(async () => ({ data: null, error: new Error('rpc failed') }))
+    const rpc = vi.fn(async (name: string) => name === 'finalize_media_upload'
+      ? { data: null, error: new Error('rpc failed') }
+      : { data: 'cleanup-job-1', error: null })
     const eq = vi.fn(async () => ({ error: null }))
     const update = vi.fn(() => ({ eq }))
     const supabase = {
@@ -738,5 +740,10 @@ describe('Media upload session routes', () => {
 
     expect(response.status).toBe(500)
     expect(json.error).toBe('Failed to queue image for ingest')
+    expect(rpc).toHaveBeenNthCalledWith(2, 'enqueue_failed_media_upload_copy_cleanup', {
+      p_image_id: 'image-123',
+      p_staging_key: 'images/staging/image-123/abc123/original.jpg',
+      p_immutable_key: 'images/assets/image-123/sha256hash/original.jpg',
+    })
   })
 })

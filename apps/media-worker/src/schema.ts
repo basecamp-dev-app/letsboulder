@@ -46,6 +46,7 @@ export const mediaDeletionJobSchema = z.object({
     'image_hard_deleted',
     'source_replaced',
     'staging_replaced',
+    'upload_finalize_failed',
     'reconciled_orphan',
   ]),
   source_type: z.enum(['image', 'draft_image']),

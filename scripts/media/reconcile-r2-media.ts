@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
+import { pathToFileURL } from 'node:url'
 
 import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import { Client, type QueryResultRow } from 'pg'
@@ -281,6 +282,24 @@ function addSurface(
   surfaces.set(locator.key, entries)
 }
 
+export function isActiveIngestStatus(status: string): boolean {
+  return status === 'queued' || status === 'processing'
+}
+
+export function shouldReportMissingSource(input: {
+  live: boolean
+  sourceCount: number
+  existingSourceCount: number
+  originalDeleted: boolean
+  sourceDeletionTracked: boolean
+}): boolean {
+  return input.live
+    && input.sourceCount > 0
+    && input.existingSourceCount === 0
+    && !input.originalDeleted
+    && !input.sourceDeletionTracked
+}
+
 async function main(): Promise<void> {
   const credentials = await cloudflareCredentials()
   const [objects, database] = await Promise.all([listObjects(credentials), readDatabase()])
@@ -290,7 +309,26 @@ async function main(): Promise<void> {
   const surfaces = new Map<string, Surface[]>()
   const expectedObjectKeys = new Set<string>()
   const imageSources = new Map<string, Set<string>>()
-  const liveReferences = new Set<string>()
+  const liveReferences = new Set(database.images
+    .filter((image) => image.processing_status === 'ready'
+      && (image.moderation_status === 'approved' || image.moderation_status === 'skipped')
+      && image.visibility === 'public'
+      && image.status === 'approved'
+      && !image.crag_deleted_at)
+    .map((image) => image.id))
+  for (const cragImage of database.cragImages) {
+    const imageId = cragImage.linked_image_id ?? cragImage.source_image_id
+    if (!cragImage.crag_deleted_at && imageId) liveReferences.add(imageId)
+  }
+  for (const draftImage of database.draftImages) {
+    if (draftImage.draft_status === 'draft' && draftImage.linked_image_id) {
+      liveReferences.add(draftImage.linked_image_id)
+    }
+  }
+  for (const routeLine of database.routeLines) liveReferences.add(routeLine.image_id)
+  const sourceDeletionKeys = new Set(database.deletionJobs
+    .filter((job) => job.bucket === BUCKET && job.reason === 'source_replaced' && job.status !== 'cancelled')
+    .map((job) => job.object_key))
 
   const addImageSource = (imageId: string, locator: Locator, surface: Surface): void => {
     addSurface(surfaces, locator, surface)
@@ -301,13 +339,7 @@ async function main(): Promise<void> {
   }
 
   for (const image of database.images) {
-    if (image.processing_status === 'ready'
-      && (image.moderation_status === 'approved' || image.moderation_status === 'skipped')
-      && image.visibility === 'public'
-      && image.status === 'approved'
-      && !image.crag_deleted_at) {
-      liveReferences.add(image.id)
-    }
+    const live = image.status !== 'deleted' && liveReferences.has(image.id)
     const originalLocator = { bucket: image.original_bucket, key: image.original_key }
     const storageLocator = { bucket: image.storage_bucket, key: image.storage_path }
     addImageSource(image.id, originalLocator, {
@@ -326,11 +358,12 @@ async function main(): Promise<void> {
     addSurface(surfaces, { bucket: image.optimized_bucket, key: image.optimized_key }, {
       surface: 'images.optimized', recordId: image.id, imageId: image.id,
     })
-    if (!image.original_deleted_at && originalLocator.bucket === BUCKET && originalLocator.key) {
+    if (live && !image.original_deleted_at && originalLocator.bucket === BUCKET && originalLocator.key
+      && !sourceDeletionKeys.has(originalLocator.key)) {
       expectedObjectKeys.add(originalLocator.key)
     }
-    if (storageLocator.bucket === BUCKET && storageLocator.key) expectedObjectKeys.add(storageLocator.key)
-    if (image.optimized_bucket === BUCKET && image.optimized_key) expectedObjectKeys.add(image.optimized_key)
+    if (live && storageLocator.bucket === BUCKET && storageLocator.key) expectedObjectKeys.add(storageLocator.key)
+    if (live && image.optimized_bucket === BUCKET && image.optimized_key) expectedObjectKeys.add(image.optimized_key)
     const embedded: Locator[] = []
     const urlLocator = privateUrlLocator(image.url)
     if (urlLocator) embedded.push(urlLocator)
@@ -339,7 +372,7 @@ async function main(): Promise<void> {
       addSurface(surfaces, locator, {
         surface: 'images.urlOrVariant', recordId: image.id, imageId: image.id,
       })
-      if (locator.bucket === BUCKET && locator.key) expectedObjectKeys.add(locator.key)
+      if (live && locator.bucket === BUCKET && locator.key) expectedObjectKeys.add(locator.key)
     }
   }
   for (const cragImage of database.cragImages) {
@@ -348,8 +381,9 @@ async function main(): Promise<void> {
     if (locator) addSurface(surfaces, locator, {
       surface: 'crag_images.url', recordId: cragImage.id, imageId,
     })
-    if (locator?.bucket === BUCKET && locator.key) expectedObjectKeys.add(locator.key)
-    if (!cragImage.crag_deleted_at && imageId) liveReferences.add(imageId)
+    if (!cragImage.crag_deleted_at && locator?.bucket === BUCKET && locator.key) {
+      expectedObjectKeys.add(locator.key)
+    }
   }
   for (const draftImage of database.draftImages) {
     const imageId = draftImage.linked_image_id
@@ -359,29 +393,29 @@ async function main(): Promise<void> {
     addSurface(surfaces, { bucket: draftImage.original_bucket, key: draftImage.original_key }, {
       surface: 'submission_draft_images.original', recordId: draftImage.id, imageId,
     })
-    if (draftImage.storage_bucket === BUCKET) expectedObjectKeys.add(draftImage.storage_path)
-    if (draftImage.draft_status === 'draft' && imageId) liveReferences.add(imageId)
+    if (draftImage.draft_status === 'draft' && draftImage.storage_bucket === BUCKET) {
+      expectedObjectKeys.add(draftImage.storage_path)
+    }
   }
-  for (const routeLine of database.routeLines) liveReferences.add(routeLine.image_id)
   for (const job of database.mediaJobs) {
-    addImageSource(job.image_id, { bucket: job.source_bucket, key: job.source_key }, {
-      surface: 'media_jobs.source', recordId: null, imageId: job.image_id, status: job.status,
-    })
-    if (['queued', 'processing', 'failed'].includes(job.status)
-      && job.source_bucket === BUCKET && job.source_key) expectedObjectKeys.add(job.source_key)
+    const locator = { bucket: job.source_bucket, key: job.source_key }
+    if (isActiveIngestStatus(job.status)) {
+      addImageSource(job.image_id, locator, {
+        surface: 'media_jobs.source', recordId: null, imageId: job.image_id, status: job.status,
+      })
+      if (job.source_bucket === BUCKET && job.source_key) expectedObjectKeys.add(job.source_key)
+    } else {
+      addSurface(surfaces, locator, {
+        surface: 'media_jobs.source', recordId: null, imageId: job.image_id, status: job.status,
+      })
+    }
   }
   for (const job of database.deletionJobs) {
     addSurface(surfaces, { bucket: job.bucket, key: job.object_key }, {
       surface: 'media_deletion_jobs.object', recordId: null, imageId: job.image_id, status: job.status,
     })
-    if (['queued', 'processing', 'failed'].includes(job.status) && job.bucket === BUCKET) {
-      expectedObjectKeys.add(job.object_key)
-    }
   }
 
-  const sourceDeletionKeys = new Set(database.deletionJobs
-    .filter((job) => job.bucket === BUCKET && job.reason === 'source_replaced' && job.status !== 'cancelled')
-    .map((job) => job.object_key))
   const imageClassifications = {
     liveReferencedUncanonicalized: [] as Array<Record<string, unknown>>,
     alreadyCanonicalWithOriginalPresent: [] as Array<Record<string, unknown>>,
@@ -402,14 +436,19 @@ async function main(): Promise<void> {
       sourceBytes: existingSources.reduce((total, key) => total + (objectByKey.get(key)?.size ?? 0), 0),
       canonicalKey: image.optimized_bucket === BUCKET ? image.optimized_key : null,
     }
-    if (sources.length > 1) {
+    if (live && sources.length > 1) {
       imageClassifications.ambiguous.push({ ...base, reason: 'multipleSourceLocators' })
     } else if (canonicalPresent && existingSources.length > 0) {
       imageClassifications.alreadyCanonicalWithOriginalPresent.push(base)
     } else if (live && !canonicalTracked && existingSources.length > 0) {
       imageClassifications.liveReferencedUncanonicalized.push(base)
-    } else if (sources.length > 0 && existingSources.length === 0
-      && !image.original_deleted_at && !sources.some((key) => sourceDeletionKeys.has(key))) {
+    } else if (shouldReportMissingSource({
+      live,
+      sourceCount: sources.length,
+      existingSourceCount: existingSources.length,
+      originalDeleted: Boolean(image.original_deleted_at),
+      sourceDeletionTracked: sources.some((key) => sourceDeletionKeys.has(key)),
+    })) {
       imageClassifications.missingSource.push(base)
     }
   }
@@ -488,8 +527,10 @@ async function main(): Promise<void> {
   console.log(JSON.stringify(summary))
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : 'Unknown reconciliation error'
-  console.error(`Media reconciliation failed: ${message}`)
-  process.exitCode = 1
-})
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : 'Unknown reconciliation error'
+    console.error(`Media reconciliation failed: ${message}`)
+    process.exitCode = 1
+  })
+}
