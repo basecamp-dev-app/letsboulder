@@ -36,6 +36,14 @@ Contribution scoring is a server-only post-publication/edit effect. The server r
 
 `sectorId` is currently selected by [`SectorSelector`](../features/submissions/components/SectorSelector.tsx) and saved under draft metadata by [`useEditDraftActions`](../features/draft-editor/hooks/use-edit-draft-actions.ts), but the current promotion RPC does not copy it to `climbs.sector_id` or `crag_images.sector_id`. Do not rely on sector selection surviving publication until that gap is fixed.
 
+## Topo Replacement And Removal
+
+Crag managers can choose **Edit/replace topo** from `/maintain/crags/[id]/images`. `startTopoReplacementAction` creates or resumes a `topo_replacement` draft while the source image remains public. The editor accepts one replacement photo, lets the manager draw perspective-specific lines, and requires each existing climb to be mapped to a saved line or marked not visible. Draft labels are only visual references: publication uses the existing `climb_id`, so route names, grades, canonical identity, user sends, and logs do not move.
+
+`publish_topo_replacement` validates media readiness and the complete one-to-one relinking set, then publishes the replacement image, creates its route lines, archives/deletes the source lines, and tombstones the source image in one transaction. A failed validation leaves the current topo unchanged. Deleting the replacement draft cancels the job and also leaves the source unchanged.
+
+Direct topo removal always deletes and audits that image's route-line coordinates. By default it retains the underlying climb rows and all user history. Administrators may explicitly select **Also remove associated routes**; this soft-deletes those climbs and removes their lines from every topo, while retaining historical `user_climbs` sends and logs.
+
 ## Active Interfaces
 
 - Server Actions: draft create/publish/delete in [`manage-submissions.ts`](../features/submissions/actions/manage-submissions.ts), and collaborator management in [`collaboration-actions.ts`](../features/submissions/actions/collaboration-actions.ts).

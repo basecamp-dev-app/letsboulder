@@ -8,14 +8,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ManagedCragImages from '@/features/crag-management/components/ManagedCragImages'
 import { removeCragImageAction } from '@/features/crag-management/actions/remove-crag-image'
+import { startTopoReplacementAction } from '@/features/crag-management/actions/topo-replacement'
 import type { ManagedCragImage } from '@/features/crag-management/types/managed-crag-image'
+
+const navigation = vi.hoisted(() => ({ push: vi.fn() }))
 
 vi.mock('next/image', () => ({
   default: ({ alt, src }: { alt: string; src: string }) => <img alt={alt} src={src} />,
 }))
+vi.mock('next/navigation', () => ({ useRouter: () => navigation }))
 
 vi.mock('@/features/crag-management/actions/remove-crag-image', () => ({
   removeCragImageAction: vi.fn(),
+}))
+vi.mock('@/features/crag-management/actions/topo-replacement', () => ({
+  startTopoReplacementAction: vi.fn(),
 }))
 
 const canonicalImage: ManagedCragImage = {
@@ -32,6 +39,7 @@ const canonicalImage: ManagedCragImage = {
   routeNames: ['First route', 'Second route'],
   createdAt: '2026-08-24T12:00:00Z',
   canRemove: true,
+  canReplace: true,
 }
 
 const legacyImage: ManagedCragImage = {
@@ -48,6 +56,7 @@ const legacyImage: ManagedCragImage = {
   routeNames: [],
   createdAt: '2026-08-23T12:00:00Z',
   canRemove: false,
+  canReplace: false,
 }
 
 function renderGallery(images: ManagedCragImage[] = [canonicalImage]) {
@@ -65,6 +74,8 @@ function renderGallery(images: ManagedCragImage[] = [canonicalImage]) {
 describe('ManagedCragImages', () => {
   beforeEach(() => {
     vi.mocked(removeCragImageAction).mockReset()
+    vi.mocked(startTopoReplacementAction).mockReset()
+    navigation.push.mockReset()
   })
 
   it('renders the responsive image grid and accessible removal dialog', async () => {
@@ -73,7 +84,7 @@ describe('ManagedCragImages', () => {
 
     expect(container.querySelector('.grid')?.className).toContain('sm:grid-cols-2')
     expect(screen.getByText('First route')).toBeTruthy()
-    expect(screen.getByText(/1 route has no other active image/i)).toBeTruthy()
+    expect(screen.getByText(/sole public topo for 1 associated route/i)).toBeTruthy()
     expect(screen.getByRole('link', { name: /view public image/i }).getAttribute('href'))
       .toBe('/gb/test-crag/i/11111111-1111-4111-8111-111111111111')
 
@@ -81,7 +92,7 @@ describe('ManagedCragImages', () => {
     await user.click(screen.getByRole('menuitem', { name: /remove from crag/i }))
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Remove image from crag?' })).toBeTruthy()
-    expect(screen.getByText(/routes and edit history will be preserved/i)).toBeTruthy()
+    expect(screen.getByText(/route metadata, edit history, and user sends remain preserved/i)).toBeTruthy()
     expect(screen.getByLabelText('Deletion reason')).toBeTruthy()
   })
 
@@ -94,7 +105,7 @@ describe('ManagedCragImages', () => {
     await user.click(screen.getByRole('button', { name: /image actions/i }))
     await user.click(screen.getByRole('menuitem', { name: /remove from crag/i }))
     await user.type(screen.getByLabelText('Deletion reason'), 'Duplicate image')
-    await user.click(screen.getByRole('button', { name: 'Remove image' }))
+    await user.click(screen.getByRole('button', { name: 'Remove topo' }))
 
     expect(screen.getByText('First route')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Removing…' })).toBeTruthy()
@@ -115,7 +126,7 @@ describe('ManagedCragImages', () => {
     await user.click(screen.getByRole('button', { name: /image actions/i }))
     await user.click(screen.getByRole('menuitem', { name: /remove from crag/i }))
     fireEvent.change(screen.getByLabelText('Deletion reason'), { target: { value: 'Duplicate image' } })
-    await user.click(screen.getByRole('button', { name: 'Remove image' }))
+    await user.click(screen.getByRole('button', { name: 'Remove topo' }))
 
     await waitFor(() => expect(screen.queryByText('First route')).toBeNull())
     expect(screen.getByText('Image removed from the public crag')).toBeTruthy()
@@ -123,7 +134,52 @@ describe('ManagedCragImages', () => {
       cragId: '33333333-3333-4333-8333-333333333333',
       imageId: canonicalImage.imageId,
       reason: 'Duplicate image',
+      deleteRoutes: false,
     })
+  })
+
+  it('makes route-data removal an explicit option while retaining log history', async () => {
+    vi.mocked(removeCragImageAction).mockResolvedValue({
+      success: true,
+      data: { imageId: canonicalImage.imageId as string },
+    })
+    const user = userEvent.setup()
+    renderGallery()
+
+    await user.click(screen.getByRole('button', { name: /image actions/i }))
+    await user.click(screen.getByRole('menuitem', { name: /remove from crag/i }))
+    await user.click(screen.getByRole('checkbox'))
+    expect(screen.getByText(/historical user sends and logs will still be retained/i)).toBeTruthy()
+    await user.type(screen.getByLabelText('Deletion reason'), 'Routes are invalid')
+    await user.click(screen.getByRole('button', { name: 'Remove topo and routes' }))
+
+    expect(removeCragImageAction).toHaveBeenCalledWith(expect.objectContaining({ deleteRoutes: true }))
+  })
+
+  it('starts a resumable replacement draft and opens its editor', async () => {
+    vi.mocked(startTopoReplacementAction).mockResolvedValue({
+      success: true,
+      data: {
+        replacementId: '44444444-4444-4444-8444-444444444444',
+        draftId: '55555555-5555-4555-8555-555555555555',
+        status: 'draft',
+        resumed: false,
+      },
+    })
+    const user = userEvent.setup()
+    renderGallery()
+
+    await user.click(screen.getByRole('button', { name: /image actions/i }))
+    await user.click(screen.getByRole('menuitem', { name: /edit\/replace topo/i }))
+    await user.type(screen.getByLabelText('Replacement reason'), 'Use a clearer angle')
+    await user.click(screen.getByRole('button', { name: 'Continue to replacement editor' }))
+
+    expect(startTopoReplacementAction).toHaveBeenCalledWith({
+      cragId: '33333333-3333-4333-8333-333333333333',
+      imageId: canonicalImage.imageId,
+      reason: 'Use a clearer angle',
+    })
+    expect(navigation.push).toHaveBeenCalledWith('/logbook/drafts/55555555-5555-4555-8555-555555555555/edit')
   })
 
   it('never sends a legacy crag image ID to canonical deletion', () => {

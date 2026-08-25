@@ -229,6 +229,7 @@ export async function loadManagedCragImages(
         routeNames: [],
         createdAt: candidate.row.created_at,
         canRemove: false,
+        canReplace: false,
       }
     }
 
@@ -259,6 +260,7 @@ export async function loadManagedCragImages(
         .slice(0, 3),
       createdAt: image.created_at,
       canRemove: isAdmin === true && image.status !== 'deleted',
+      canReplace: image.status !== 'deleted',
     }
   })
 

@@ -72,6 +72,7 @@ describe('removeCragImageAction', () => {
       p_crag_id: input.cragId,
       p_image_id: input.imageId,
       p_reason: input.reason,
+      p_delete_routes: false,
     })
     expect(mocks.revalidatePublicCragPaths).toHaveBeenCalledWith({
       cragId: input.cragId,

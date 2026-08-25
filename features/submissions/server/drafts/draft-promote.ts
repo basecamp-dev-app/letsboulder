@@ -319,7 +319,7 @@ export async function promoteDraftToSubmission(input: {
 
   const { data: draft, error: draftError } = await supabase
     .from('submission_drafts')
-    .select('id, user_id, crag_id, status, metadata, updated_at')
+    .select('id, user_id, crag_id, status, metadata, updated_at, draft_kind')
     .eq('id', draftId)
     .maybeSingle()
 
@@ -333,6 +333,32 @@ export async function promoteDraftToSubmission(input: {
 
   if (draft.user_id !== userId) {
     return publishFailure(403, { error: 'Only the draft owner can publish this draft' })
+  }
+
+  if (draft.draft_kind === 'topo_replacement') {
+    const { data: replacement, error: replacementError } = await supabase
+      .from('topo_replacements')
+      .select('id')
+      .eq('draft_id', draftId)
+      .maybeSingle()
+    if (replacementError) return publishInternalError(replacementError, 'Failed to load topo replacement')
+    if (!replacement) return publishFailure(409, { error: 'Topo replacement workflow is missing' })
+
+    const { data, error } = await supabase.rpc('publish_topo_replacement', {
+      p_replacement_id: replacement.id,
+    })
+    if (error) {
+      if (isPermissionDeniedError(error)) return publishFailure(403, { error: 'Crag management access required' })
+      if (error.code === '22023' || error.code === 'P0002' || error.code === '23514') {
+        return publishFailure(409, { error: error.message })
+      }
+      return publishInternalError(error, 'Failed to publish topo replacement')
+    }
+    const result = (Array.isArray(data) ? data[0] : data) as PromoteResult | null
+    if (!result?.success || !result.image_id) {
+      return publishFailure(500, { error: 'Failed to publish topo replacement' })
+    }
+    return buildPublishedResponse({ supabase, result, userId, runPostPublishEffects: false })
   }
 
   const { data: draftImages, error: draftImagesError } = await supabase

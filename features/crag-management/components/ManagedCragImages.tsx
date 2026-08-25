@@ -2,10 +2,12 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { AlertTriangle, ExternalLink, ImageOff, Loader2, MoreVertical } from 'lucide-react'
+import { AlertTriangle, ExternalLink, ImageOff, Loader2, MoreVertical, Replace } from 'lucide-react'
 
 import { removeCragImageAction } from '@/features/crag-management/actions/remove-crag-image'
+import { startTopoReplacementAction } from '@/features/crag-management/actions/topo-replacement'
 import type { ManagedCragImage } from '@/features/crag-management/types/managed-crag-image'
 import { Button } from '@/components/ui/button'
 import {
@@ -68,15 +70,21 @@ export default function ManagedCragImages({
   const [removedImageIds, setRemovedImageIds] = useState<Set<string>>(() => new Set())
   const [selected, setSelected] = useState<ManagedCragImage | null>(null)
   const [reason, setReason] = useState('')
+  const [deleteRoutes, setDeleteRoutes] = useState(false)
+  const [replacementSelected, setReplacementSelected] = useState<ManagedCragImage | null>(null)
+  const [replacementReason, setReplacementReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  const [startingReplacement, setStartingReplacement] = useState(false)
   const { toasts, addToast, removeToast } = useToast()
+  const router = useRouter()
   const images = initialImages.filter((image) => !image.imageId || !removedImageIds.has(image.imageId))
 
   function closeDialog() {
     if (pending) return
     setSelected(null)
     setReason('')
+    setDeleteRoutes(false)
     setError(null)
   }
 
@@ -84,7 +92,7 @@ export default function ManagedCragImages({
     if (!selected?.imageId) return
     setPending(true)
     setError(null)
-    const result = await removeCragImageAction({ cragId, imageId: selected.imageId, reason })
+    const result = await removeCragImageAction({ cragId, imageId: selected.imageId, reason, deleteRoutes })
     setPending(false)
     if (!result.success) {
       setError(result.error || 'Failed to remove image')
@@ -94,6 +102,23 @@ export default function ManagedCragImages({
     setRemovedImageIds((current) => new Set(current).add(selected.imageId as string))
     addToast('Image removed from the public crag', 'success')
     closeDialog()
+  }
+
+  async function startReplacement() {
+    if (!replacementSelected?.imageId) return
+    setStartingReplacement(true)
+    setError(null)
+    const result = await startTopoReplacementAction({
+      cragId,
+      imageId: replacementSelected.imageId,
+      reason: replacementReason,
+    })
+    setStartingReplacement(false)
+    if (!result.success || !result.data?.draftId) {
+      setError(result.error || 'Failed to start topo replacement')
+      return
+    }
+    router.push(`/logbook/drafts/${result.data.draftId}/edit`)
   }
 
   if (images.length === 0) {
@@ -154,6 +179,19 @@ export default function ManagedCragImages({
                   </summary>
                   <div className="absolute right-0 z-10 mt-2 w-52 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg" role="menu">
                     <button
+                      className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:text-muted-foreground"
+                      disabled={!image.canReplace}
+                      onClick={() => {
+                        setReplacementSelected(image)
+                        setReplacementReason('')
+                        setError(null)
+                      }}
+                      role="menuitem"
+                      type="button"
+                    >
+                      Edit/replace topo
+                    </button>
+                    <button
                       className="w-full rounded-md px-3 py-2 text-left text-sm text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:text-muted-foreground"
                       disabled={!image.canRemove}
                       onClick={() => {
@@ -194,8 +232,11 @@ export default function ManagedCragImages({
                   {image.routesWithoutAlternativeImage > 0 ? (
                     <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-300">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                      {image.routesWithoutAlternativeImage} {image.routesWithoutAlternativeImage === 1 ? 'route has' : 'routes have'} no other active image
+                      Sole public topo for {image.routesWithoutAlternativeImage === image.routeCount ? 'all ' : ''}{image.routesWithoutAlternativeImage} associated {image.routesWithoutAlternativeImage === 1 ? 'route' : 'routes'}
                     </p>
+                  ) : null}
+                  {image.routeCount > image.routeNames.length ? (
+                    <p className="mt-1 text-xs text-muted-foreground">+{image.routeCount - image.routeNames.length} more</p>
                   ) : null}
                 </div>
 
@@ -223,7 +264,7 @@ export default function ManagedCragImages({
           <DialogHeader>
             <DialogTitle>Remove image from crag?</DialogTitle>
             <DialogDescription>
-              The image will disappear publicly. Routes and edit history will be preserved. Routes without another active image may lose their topo.
+              This deletes the perspective-specific topo lines. Route metadata, edit history, and user sends remain preserved unless you explicitly remove the routes below.
             </DialogDescription>
           </DialogHeader>
           {selected?.previewUrl ? (
@@ -247,11 +288,68 @@ export default function ManagedCragImages({
             <p className="text-right text-xs text-muted-foreground">{reason.trim().length}/500</p>
             {error ? <p className="text-sm text-red-300" id="image-removal-error" role="alert">{error}</p> : null}
           </div>
+          {selected && selected.routeCount > 0 ? (
+            <label className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-sm">
+              <input
+                checked={deleteRoutes}
+                className="mt-1 size-4"
+                disabled={pending}
+                onChange={(event) => setDeleteRoutes(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <span className="block font-medium text-red-200">Also remove {selected.routeCount} associated {selected.routeCount === 1 ? 'route' : 'routes'} from the public crag</span>
+                <span className="mt-1 block text-xs text-muted-foreground">Their metadata will be soft-deleted and all remaining topo lines removed. Historical user sends and logs will still be retained.</span>
+              </span>
+            </label>
+          ) : null}
           <DialogFooter>
             <Button disabled={pending} onClick={closeDialog} type="button" variant="outline">Cancel</Button>
             <Button disabled={pending || reason.trim().length === 0} onClick={() => { void removeImage() }} type="button" variant="destructive">
               {pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
-              {pending ? 'Removing…' : 'Remove image'}
+              {pending ? 'Removing…' : deleteRoutes ? 'Remove topo and routes' : 'Remove topo'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={replacementSelected !== null} onOpenChange={(open) => {
+        if (!open && !startingReplacement) {
+          setReplacementSelected(null)
+          setReplacementReason('')
+          setError(null)
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Replace this topo?</DialogTitle>
+            <DialogDescription>
+              The current topo stays public while you upload a new photo, redraw its lines, and map them to the existing routes. Route IDs and user logs will not change.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-xl border bg-muted/40 p-3 text-sm">
+            <p className="flex items-center gap-2 font-medium"><Replace className="h-4 w-4" aria-hidden="true" /> {replacementSelected?.routeCount || 0} routes to resolve</p>
+            <p className="mt-1 text-xs text-muted-foreground">Map each redrawn line or mark a route as not visible in the replacement photo.</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="topo-replacement-reason">Replacement reason</label>
+            <textarea
+              className="min-h-24 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              disabled={startingReplacement}
+              id="topo-replacement-reason"
+              maxLength={500}
+              onChange={(event) => setReplacementReason(event.target.value)}
+              placeholder="Explain why this topo needs a new photo"
+              required
+              value={replacementReason}
+            />
+            {error ? <p className="text-sm text-red-300" role="alert">{error}</p> : null}
+          </div>
+          <DialogFooter>
+            <Button disabled={startingReplacement} onClick={() => setReplacementSelected(null)} type="button" variant="outline">Cancel</Button>
+            <Button disabled={startingReplacement || replacementReason.trim().length === 0} onClick={() => { void startReplacement() }} type="button">
+              {startingReplacement ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
+              {startingReplacement ? 'Preparing…' : 'Continue to replacement editor'}
             </Button>
           </DialogFooter>
         </DialogContent>
