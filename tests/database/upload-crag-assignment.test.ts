@@ -10,7 +10,6 @@ async function transaction(run: (client: PoolClient) => Promise<void>) {
   const client = await pool.connect()
   await client.query('begin')
   try {
-    await client.query('set local role service_role')
     await run(client)
   } finally {
     await client.query('rollback')
@@ -37,16 +36,16 @@ describe('upload crag assignment', () => {
 
       await client.query(
         `insert into public.crags (id, name, latitude, longitude, type)
-         values ($1, 'Deleted direct', 51.5000, -0.1000, 'boulder'),
-                ($2, 'Active direct', 51.5005, -0.1000, 'boulder'),
+         values ($1, 'Deleted direct', 84.12345, 179.54321, 'boulder'),
+                ($2, 'Active direct', 84.12395, 179.54321, 'boulder'),
                 ($3, 'Deleted fallback', null, null, 'boulder'),
                 ($4, 'Active fallback', null, null, 'boulder')`,
         [deletedDirectId, activeDirectId, deletedFallbackId, activeFallbackId],
       )
       await client.query(
         `insert into public.crag_images (crag_id, url, latitude, longitude)
-         values ($1, 'https://example.test/deleted.jpg', 52.0000, -0.2000),
-                ($2, 'https://example.test/active.jpg', 52.0002, -0.2000)`,
+         values ($1, 'https://example.test/deleted.jpg', -84.12345, -179.54321),
+                ($2, 'https://example.test/active.jpg', -84.12325, -179.54321)`,
         [deletedFallbackId, activeFallbackId],
       )
       await client.query(
@@ -57,10 +56,10 @@ describe('upload crag assignment', () => {
       )
 
       const direct = await client.query(
-        `select public.get_upload_context(51.5000, -0.1000)::jsonb #>> '{crag,id}' as crag_id`,
+        `select public.get_upload_context(84.12345, 179.54321)::jsonb #>> '{crag,id}' as crag_id`,
       )
       const fallback = await client.query(
-        `select public.get_upload_context(52.0000, -0.2000)::jsonb #>> '{crag,id}' as crag_id`,
+        `select public.get_upload_context(-84.12345, -179.54321)::jsonb #>> '{crag,id}' as crag_id`,
       )
 
       expect(direct.rows[0].crag_id).toBe(activeDirectId)
