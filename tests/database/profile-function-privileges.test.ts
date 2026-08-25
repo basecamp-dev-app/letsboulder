@@ -73,6 +73,7 @@ const API_EXECUTABLE_DEFINERS = [
   'soft_delete_climb(uuid,text,uuid)',
   'soft_delete_comment(uuid)',
   'soft_delete_crag(uuid,text,uuid)',
+  'soft_delete_crag_image(uuid,uuid,text)',
   'soft_delete_image(uuid,text)',
   'update_own_profile_submission_credit(text,text)',
   'update_own_submission_anonymity(uuid,boolean)',

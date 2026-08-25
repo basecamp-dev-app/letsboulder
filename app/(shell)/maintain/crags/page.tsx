@@ -1,4 +1,6 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { ArrowRight, Mountain } from 'lucide-react'
 
 import { listCragMetadataProposalsAction } from '@/features/crags/actions/crag-governance-actions'
 import CragMetadataReviewList from '@/features/crags/components/CragMetadataReviewList'
@@ -16,7 +18,14 @@ export default async function MaintainCragsPage({ searchParams }: MaintainCragsP
   if (!user) redirect('/auth?redirect_to=/maintain/crags')
 
   const params = await searchParams
-  const result = await listCragMetadataProposalsAction(params.proposalId)
+  const [result, { data: assignments }] = await Promise.all([
+    listCragMetadataProposalsAction(params.proposalId),
+    supabase
+      .from('crag_maintainers')
+      .select('crag_id, crags!inner(id, name, region_name, sub_area)')
+      .eq('user_id', user.id)
+      .order('created_at'),
+  ])
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
@@ -27,6 +36,33 @@ export default async function MaintainCragsPage({ searchParams }: MaintainCragsP
           Compare community proposals with canonical crag metadata. Approval updates the crag and records a revision.
         </p>
       </header>
+
+      {assignments && assignments.length > 0 ? (
+        <section aria-labelledby="managed-crags-heading" className="mb-10">
+          <h2 className="text-xl font-semibold" id="managed-crags-heading">Your managed crags</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {assignments.map((assignment) => {
+              const crag = Array.isArray(assignment.crags) ? assignment.crags[0] : assignment.crags
+              if (!crag) return null
+              const location = [crag.sub_area, crag.region_name].filter(Boolean).join(', ') || 'Location not specified'
+              return (
+                <Link
+                  className="group flex items-center gap-3 rounded-xl border bg-card p-4 transition hover:border-blue-400/50 hover:bg-blue-500/5"
+                  href={`/maintain/crags/${crag.id}`}
+                  key={assignment.crag_id}
+                >
+                  <Mountain className="h-5 w-5 text-blue-400" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">{crag.name}</span>
+                    <span className="block truncate text-sm text-muted-foreground">{location}</span>
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5" aria-hidden="true" />
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {result.success ? (
         <CragMetadataReviewList

@@ -5194,6 +5194,84 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      soft_delete_crag_image: {
+        Args: { p_crag_id: string; p_image_id: string; p_reason: string }
+        Returns: {
+          admin_region_name: string | null
+          asset_version: number
+          capture_date: string | null
+          checksum_sha256: string | null
+          client_upload_id: string | null
+          continent_name: string | null
+          contribution_credit_handle: string | null
+          contribution_credit_platform: string | null
+          country_code: string | null
+          country_id: string | null
+          country_name: string | null
+          crag_id: string | null
+          created_at: string | null
+          created_by: string | null
+          face_direction: string | null
+          face_directions: string[] | null
+          face_order: number | null
+          has_humans: boolean | null
+          height: number | null
+          id: string
+          is_anonymous_submission: boolean
+          is_primary: boolean
+          is_verified: boolean | null
+          last_edited_by: string | null
+          latitude: number | null
+          location_mode: string | null
+          longitude: number | null
+          moderated_at: string | null
+          moderation_error: string | null
+          moderation_labels: Json | null
+          moderation_provider: string | null
+          moderation_status: string | null
+          natural_height: number | null
+          natural_width: number | null
+          optimized_bucket: string | null
+          optimized_bytes: number | null
+          optimized_height: number | null
+          optimized_key: string | null
+          optimized_mime: string | null
+          optimized_width: number | null
+          original_bucket: string | null
+          original_bytes: number | null
+          original_deleted_at: string | null
+          original_deletion_queued_at: string | null
+          original_height: number | null
+          original_key: string | null
+          original_mime_type: string | null
+          original_width: number | null
+          parent_image_id: string | null
+          place_id: string | null
+          processed_at: string | null
+          processing_status: string
+          status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          storage_provider: string
+          submission_id: string | null
+          un_region_name: string | null
+          upload_crag_id: string | null
+          upload_draft_id: string | null
+          upload_purpose: string | null
+          url: string
+          variants: Json
+          verification_count: number | null
+          visibility: string
+          width: number | null
+          wiki_revision: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "images"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       soft_delete_image: {
         Args: { p_image_id: string; p_reason: string }
         Returns: {

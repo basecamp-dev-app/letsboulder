@@ -1,6 +1,7 @@
 'use client'
 
 import { ArrowRightLeft, Edit2, Mountain, Trash2, Users } from 'lucide-react'
+import Link from 'next/link'
 import type { AdminCrag } from '@/features/admin/crags/types'
 import { formatRouteTypeLabel } from '@/features/admin/crags/types'
 
@@ -35,7 +36,9 @@ export default function CragsTable({ crags, moveImageDisabled, onDelete, onMaint
                 <div className="flex items-center gap-3">
                   <Mountain className="w-5 h-5 text-gray-500" />
                   <div>
-                    <p className="text-white font-medium">{crag.name}</p>
+                    <Link className="font-medium text-white hover:text-blue-300" href={`/maintain/crags/${crag.id}`}>
+                      {crag.name}
+                    </Link>
                     <p className="text-xs text-gray-500">
                       {crag.latitude != null && crag.longitude != null
                         ? `${crag.latitude.toFixed(4)}, ${crag.longitude.toFixed(4)}`
