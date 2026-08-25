@@ -105,6 +105,7 @@ describe('topo replacement workflow', () => {
         [cragId, sourceImageId, 'A clearer photo', randomUUID()],
       )).rows[0].result
 
+      await client.query("select public.accept_open_data_consent('2026-07-29-v1')")
       await client.query(
         `insert into public.images (
            id, url, created_by, status, moderation_status, visibility, processing_status,
