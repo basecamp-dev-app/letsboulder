@@ -65,6 +65,79 @@ ALTER TABLE public.topo_replacements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.topo_replacement_routes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.topo_route_line_tombstones ENABLE ROW LEVEL SECURITY;
 
+-- A replacement keeps an existing crag assignment, so legacy topos without
+-- coordinates must not be forced through the new-submission location gate.
+-- The rest of the promotion handoff (location propagation when present and
+-- collaborator transfer) remains unchanged.
+CREATE OR REPLACE FUNCTION public.handle_submission_draft_promoted()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  draft_latitude double precision;
+  draft_longitude double precision;
+BEGIN
+  IF NEW.status = 'submitted' AND OLD.status = 'draft' THEN
+    IF jsonb_typeof(COALESCE(NEW.metadata->'submission'->'location'->'latitude', 'null'::jsonb)) = 'number' THEN
+      draft_latitude := (NEW.metadata->'submission'->'location'->>'latitude')::double precision;
+    END IF;
+    IF jsonb_typeof(COALESCE(NEW.metadata->'submission'->'location'->'longitude', 'null'::jsonb)) = 'number' THEN
+      draft_longitude := (NEW.metadata->'submission'->'location'->>'longitude')::double precision;
+    END IF;
+    IF draft_latitude IS NULL
+      AND jsonb_typeof(COALESCE(NEW.metadata->'location'->'latitude', 'null'::jsonb)) = 'number' THEN
+      draft_latitude := (NEW.metadata->'location'->>'latitude')::double precision;
+    END IF;
+    IF draft_longitude IS NULL
+      AND jsonb_typeof(COALESCE(NEW.metadata->'location'->'longitude', 'null'::jsonb)) = 'number' THEN
+      draft_longitude := (NEW.metadata->'location'->>'longitude')::double precision;
+    END IF;
+
+    IF NEW.draft_kind IS DISTINCT FROM 'topo_replacement' AND (
+      draft_latitude IS NULL OR draft_longitude IS NULL
+      OR draft_latitude < -90 OR draft_latitude > 90
+      OR draft_longitude < -180 OR draft_longitude > 180
+    ) THEN
+      RAISE EXCEPTION 'Draft location is required before publishing';
+    END IF;
+
+    IF draft_latitude BETWEEN -90 AND 90 AND draft_longitude BETWEEN -180 AND 180 THEN
+      UPDATE public.images image
+      SET latitude = COALESCE(draft_image.latitude::double precision, draft_latitude),
+          longitude = COALESCE(draft_image.longitude::double precision, draft_longitude)
+      FROM public.submission_draft_images draft_image
+      WHERE draft_image.draft_id = NEW.id
+        AND draft_image.linked_image_id IS NOT NULL
+        AND image.id = draft_image.linked_image_id;
+
+      UPDATE public.crag_images image
+      SET latitude = COALESCE(draft_image.latitude::double precision, draft_latitude),
+          longitude = COALESCE(draft_image.longitude::double precision, draft_longitude)
+      FROM public.submission_draft_images draft_image
+      WHERE draft_image.draft_id = NEW.id
+        AND draft_image.linked_crag_image_id IS NOT NULL
+        AND image.id = draft_image.linked_crag_image_id;
+    END IF;
+
+    INSERT INTO public.submission_collaborators (image_id, user_id, role, created_by)
+    SELECT draft_image.linked_image_id, collaborator.user_id, collaborator.role,
+      COALESCE(collaborator.created_by, NEW.user_id)
+    FROM public.submission_draft_collaborators collaborator
+    CROSS JOIN public.submission_draft_images draft_image
+    WHERE collaborator.draft_id = NEW.id
+      AND draft_image.draft_id = NEW.id
+      AND draft_image.linked_image_id IS NOT NULL
+    ON CONFLICT (image_id, user_id) DO NOTHING;
+
+    DELETE FROM public.submission_draft_collaborator_invites
+    WHERE draft_id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.can_manage_topo_replacement(p_crag_id uuid)
 RETURNS boolean
 LANGUAGE sql
