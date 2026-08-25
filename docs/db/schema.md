@@ -116,7 +116,6 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 ### Moderation Tables
 | Table | Purpose |
 |-------|---------|
-| `climb_flags` | Flagged climbs for moderation |
 | `climb_corrections` | Route correction requests with voting |
 | `correction_votes` | Votes on climb corrections |
 | `crag_reports` | User reports on crags (access, safety, etc.) |
@@ -125,19 +124,16 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `crag_metadata_proposals` | Immutable-head proposals with a required rationale for existing active crag metadata changes |
 
 ### Operational Data Access
-`community_post_rsvps`, `climb_flags`, and `crag_reports` contain user identities or moderation details. Anonymous callers have no direct table access. Authenticated callers can read their own rows, while administrators can read all rows through the identity-bound `is_current_user_admin()` RLS predicate.
+`community_post_rsvps` and `crag_reports` contain user identities or moderation details. Anonymous callers have no direct table access. Authenticated callers can read their own rows, while administrators can read all rows through the identity-bound `is_current_user_admin()` RLS predicate.
 
 Public totals are available only through sanitized aggregate views:
 
 | View | Public columns |
 |------|----------------|
 | `community_post_rsvp_counts` | Post ID and going/interested counts |
-| `climb_flag_counts` | Target type/ID and total/pending counts |
 | `crag_report_counts` | Crag ID and total/per-status counts |
 
-These views are owned by the non-login, non-bypass `operational_aggregate_reader` role. That role receives column-level access only to grouping keys, statuses, and active-target predicates and has dedicated RLS policies; it cannot read identities or free-form moderation fields. Flag/report rows for deleted crags, deleted climbs, deleted images, or images under deleted crags are excluded explicitly.
-
-Image rows in `climb_flag_counts` are limited to publicly deliverable images. Authenticated callers use `get_image_pending_flag_count(image_id)` for a scalar count on public images, their own private images, or private images shared with them; the RPC returns zero when the image is not visible to the caller.
+These views are owned by the non-login, non-bypass `operational_aggregate_reader` role. That role receives column-level access only to grouping keys and statuses and has dedicated RLS policies; it cannot read identities or free-form moderation fields. Report rows for deleted crags are excluded explicitly.
 
 ### Public Data Export
 `location_visibility` is an enum with `exact`, `approximate`, and `hidden`. `crags.location_visibility` is required and defaults to fail-closed `hidden`; `climbs.location_visibility` is a nullable override. A route's effective policy is the stricter parent/route value (`hidden` > `approximate` > `exact`). Crag exports round approximate coordinates to two decimals and omit hidden coordinates. Route coordinates are exported only under an effective `exact` policy; approximate and hidden route coordinates are omitted.
@@ -244,7 +240,6 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 | `places` | `images` | SET NULL |
 | `sectors` | `climbs` | SET NULL |
 | `sectors` | `crag_images` | SET NULL |
-| `images` | `climb_flags` | CASCADE |
 | `images` | `media_jobs` | CASCADE |
 | `images` | `route_lines` | CASCADE |
 | `images` | `submission_collaborators` | CASCADE |
@@ -252,7 +247,6 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 | `images` | `submission_contributors` | CASCADE |
 | `images` | `submission_edit_history` | RESTRICT |
 | `climbs` | `climb_corrections` | CASCADE |
-| `climbs` | `climb_flags` | CASCADE |
 | `climbs` | `climb_verifications` | CASCADE |
 | `climbs` | `climb_video_betas` | CASCADE |
 | `climbs` | `grade_votes` | CASCADE |
@@ -273,7 +267,6 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 | `countries` | `places` | SET NULL |
 | `countries` | `images` | no action |
 | `regions` | `countries` | SET NULL |
-| `crags` | `climb_flags` | SET NULL |
 | `crags` | `comments` | Trigger soft-delete (crag) |
 | `images` | `comments` | Trigger soft-delete (image) |
 | `climbs` | `comments` | Trigger soft-delete (climb) |
@@ -302,7 +295,6 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 ### Published Content Deletion
 - `crags` and `climbs` use `deleted_at`, a required trimmed `deletion_reason` of at most 500 characters, and optional same-table `superseded_by`. Existing soft-deleted climbs are backfilled with `Legacy soft deletion`.
 - `soft_delete_climb` and `soft_delete_crag` are authenticated admin-only `SECURITY DEFINER` RPCs bound to `auth.uid()` through `is_current_user_admin()`. They lock target/replacement rows, require an active replacement, reject self-reference/cycles, and insert `admin_actions` in the same transaction. Crag deletion also locks and soft-deletes every active child climb.
-- `resolve_flag_and_soft_delete` is authenticated admin-only and atomically resolves one pending `climb_flags` row while invoking the matching canonical climb, image, or crag soft-delete RPC.
 - Submitted climb corrections have no direct API-role UPDATE policy. Their identity and payload fields are also trigger-immutable; voting may update only resolution state and counters through the canonical RPC.
 - Lifecycle changes are trigger-gated to the admin soft-delete RPCs and service-only account/submission deletion workflows. Authenticated direct DELETE grants/policies are removed. Hard-delete guards apply even to `service_role`: only fully empty crags and unassociated, never-published climbs/images can be physically deleted.
 - The physical `crags` to `climbs` FK remains `ON DELETE CASCADE` for legacy compatibility, but the crag hard-delete guard prevents that cascade whenever any climb exists.
@@ -436,7 +428,7 @@ Both `crags` and `places` have a `synced_at TIMESTAMPTZ` column. When a sync ope
 Non-delete synchronization remains bidirectional. Delete synchronization is intentionally one-way: deleting a `crags` row removes its paired `places` projection, while deleting a `places` row never deletes the source crag.
 
 ### Empty Crag Cleanup
-- A crag is empty only when no row references either the crag directly (`images`, `climbs`, `submission_drafts`, `crag_images`, `sectors`, `crag_reports`, `climb_flags`, `crag_location_tags`, `saved_crags`, `contribution_events`, `contribution_bounties`, or polymorphic crag `comments`) or its paired place (`climbs`, `images`, `community_place_follows`, `community_posts`, `gym_floor_plans`, `gym_memberships`, `gym_routes`, `contribution_events`, `contribution_bounties`, or `user_place_contributor_scores`). Crag metadata proposal history independently retains its target with `ON DELETE RESTRICT`, so a crag with any proposal is never eligible for hard deletion.
+- A crag is empty only when no row references either the crag directly (`images`, `climbs`, `submission_drafts`, `crag_images`, `sectors`, `crag_reports`, `crag_location_tags`, `saved_crags`, `contribution_events`, `contribution_bounties`, or polymorphic crag `comments`) or its paired place (`climbs`, `images`, `community_place_follows`, `community_posts`, `gym_floor_plans`, `gym_memberships`, `gym_routes`, `contribution_events`, `contribution_bounties`, or `user_place_contributor_scores`). Crag metadata proposal history independently retains its target with `ON DELETE RESTRICT`, so a crag with any proposal is never eligible for hard deletion.
 - Cleanup requires `created_at` to be older than the grace period, which defaults to one hour. The image recompute trigger explicitly uses the same one-hour grace after reassignment or deletion.
 - `delete_empty_crag` locks the crag and paired place parent rows, locks polymorphic comments against concurrent inserts, checks the complete predicate, and repeats that predicate in the final DELETE. `delete_empty_crags` processes eligible IDs in deterministic UUID order and delegates each final decision to the single-row function.
 - Both cleanup RPCs are executable only by `service_role`; `anon` and `authenticated` cannot invoke them directly. The invoking image trigger is `SECURITY DEFINER`.
@@ -548,7 +540,6 @@ may request at most 30 rows.
 | `delete_empty_crags(grace_period)` | Deterministically batch-delete strictly empty crags after the grace period |
 | `soft_delete_crag(crag_id, reason, superseded_by)` | Admin-only audited crag/child-climb soft deletion |
 | `soft_delete_climb(climb_id, reason, superseded_by)` | Admin-only audited climb soft deletion |
-| `resolve_flag_and_soft_delete(flag_id, reason)` | Admin-only atomic flag resolution and canonical content soft deletion |
 | `soft_delete_image(image_id, reason)` | Admin-only audited image tombstoning |
 | `soft_delete_published_submission(image_ids, owner_id)` | Service-only owner submission tombstoning |
 

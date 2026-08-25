@@ -92,14 +92,6 @@ async function createFixtures(client: PoolClient) {
     [postId, ownerId, otherId],
   )
   await client.query(
-    `insert into public.climb_flags (
-       crag_id, flagger_id, flag_type, comment, status, action_taken, resolved_by, resolved_at
-     ) values
-       ($1, $2, 'access', 'owner flag secret', 'pending', null, null, null),
-       ($1, $3, 'other', 'other flag secret', 'resolved', 'keep', $4, now())`,
-    [cragId, ownerId, otherId, adminId],
-  )
-  await client.query(
     `insert into public.crag_reports (
        crag_id, reporter_id, reason, details, status, moderator_id, moderator_note, resolved_at
      ) values
@@ -114,7 +106,6 @@ async function createFixtures(client: PoolClient) {
 beforeAll(async () => {
   const migration = await pool.query(
     `select to_regclass('public.community_post_rsvp_counts') is not null
-       and to_regclass('public.climb_flag_counts') is not null
        and to_regclass('public.crag_report_counts') is not null as installed`,
   )
   if (!migration.rows[0].installed) {
@@ -130,26 +121,9 @@ describe('operational table access hardening', () => {
   it('denies anonymous table reads but exposes sanitized aggregate counts', async () => {
     await transaction(async (client) => {
       const fixtures = await createFixtures(client)
-      const publicImageId = randomUUID()
-      const privateImageId = randomUUID()
-      await client.query(
-        `insert into public.images (
-           id, url, crag_id, created_by, status, moderation_status, visibility, processing_status
-         ) values
-           ($1, 'https://example.test/public.jpg', $3, $4, 'approved', 'skipped', 'public', 'ready'),
-           ($2, 'https://example.test/private.jpg', $3, $4, 'approved', 'skipped', 'private', 'ready')`,
-        [publicImageId, privateImageId, fixtures.cragId, fixtures.ownerId],
-      )
-      await client.query(
-        `insert into public.climb_flags (image_id, flagger_id, flag_type, comment, status)
-         values
-           ($1, $3, 'image_quality', 'public image flag', 'pending'),
-           ($2, $3, 'image_quality', 'private image flag', 'pending')`,
-        [publicImageId, privateImageId, fixtures.ownerId],
-      )
       await setRequestRole(client, 'anon')
 
-      for (const table of ['climb_flags', 'community_post_rsvps', 'crag_reports']) {
+      for (const table of ['community_post_rsvps', 'crag_reports']) {
         expect(await expectedFailure(client, `select * from public.${table}`)).toContain('permission denied')
       }
 
@@ -157,20 +131,6 @@ describe('operational table access hardening', () => {
         'select going_count, interested_count from public.community_post_rsvp_counts where post_id = $1',
         [fixtures.postId],
       )).rows).toEqual([{ going_count: '1', interested_count: '1' }])
-      expect((await client.query(
-        `select total_count, pending_count from public.climb_flag_counts
-         where target_type = 'crag' and target_id = $1`,
-        [fixtures.cragId],
-      )).rows).toEqual([{ total_count: '2', pending_count: '1' }])
-      expect((await client.query(
-        `select target_id from public.climb_flag_counts
-         where target_type = 'image' order by target_id`,
-      )).rows).toEqual([{ target_id: publicImageId }])
-      expect(await expectedFailure(
-        client,
-        'select public.get_image_pending_flag_count($1)',
-        [publicImageId],
-      )).toContain('permission denied')
       expect((await client.query(
         `select total_count, pending_count, investigating_count, resolved_count, dismissed_count
          from public.crag_report_counts where crag_id = $1`,
@@ -192,47 +152,13 @@ describe('operational table access hardening', () => {
 
       expect((await client.query('select user_id from public.community_post_rsvps')).rows)
         .toEqual([{ user_id: fixtures.ownerId }])
-      expect((await client.query('select flagger_id, comment from public.climb_flags')).rows)
-        .toEqual([{ flagger_id: fixtures.ownerId, comment: 'owner flag secret' }])
       expect((await client.query('select reporter_id, details from public.crag_reports')).rows)
         .toEqual([{ reporter_id: fixtures.ownerId, details: 'owner report secret' }])
 
       await setRequestRole(client, 'authenticated', fixtures.adminId)
       expect((await client.query('select user_id from public.community_post_rsvps')).rows).toHaveLength(2)
-      expect((await client.query('select flagger_id, comment from public.climb_flags')).rows).toHaveLength(2)
       expect((await client.query('select reporter_id, moderator_note from public.crag_reports')).rows)
         .toHaveLength(2)
-    })
-  })
-
-  it('counts private image flags only for callers who can access the image', async () => {
-    await transaction(async (client) => {
-      const fixtures = await createFixtures(client)
-      const privateImageId = randomUUID()
-      await client.query(
-        `insert into public.images (
-           id, url, crag_id, created_by, status, moderation_status, visibility, processing_status
-         ) values ($1, 'https://example.test/private-rpc.jpg', $2, $3,
-           'approved', 'skipped', 'private', 'ready')`,
-        [privateImageId, fixtures.cragId, fixtures.ownerId],
-      )
-      await client.query(
-        `insert into public.climb_flags (image_id, flagger_id, flag_type, comment, status)
-         values ($1, $2, 'image_quality', 'private image flag', 'pending')`,
-        [privateImageId, fixtures.ownerId],
-      )
-
-      await setRequestRole(client, 'authenticated', fixtures.ownerId)
-      expect((await client.query(
-        'select public.get_image_pending_flag_count($1) as count',
-        [privateImageId],
-      )).rows).toEqual([{ count: '1' }])
-
-      await setRequestRole(client, 'authenticated', fixtures.otherId)
-      expect((await client.query(
-        'select public.get_image_pending_flag_count($1) as count',
-        [privateImageId],
-      )).rows).toEqual([{ count: '0' }])
     })
   })
 
@@ -311,18 +237,6 @@ describe('operational table access hardening', () => {
 
       expect(await expectedFailure(
         client,
-        `insert into public.climb_flags (crag_id, flagger_id, flag_type, comment, status)
-         values ($1, $2, 'other', 'forged identity', 'pending')`,
-        [fixtures.cragId, fixtures.otherId],
-      )).toContain('row-level security policy')
-      expect(await expectedFailure(
-        client,
-        `insert into public.climb_flags (crag_id, flagger_id, flag_type, comment, status, action_taken)
-         values ($1, $2, 'other', 'pre-resolved', 'resolved', 'keep')`,
-        [fixtures.cragId, fixtures.ownerId],
-      )).toContain('row-level security policy')
-      expect(await expectedFailure(
-        client,
         `insert into public.crag_reports (
            crag_id, reporter_id, reason, status, moderator_id, moderator_note
          ) values ($1, $2, 'access', 'resolved', $3, 'forged moderation')`,
@@ -342,12 +256,6 @@ describe('operational table access hardening', () => {
       expect((await client.query(
         `select
            has_column_privilege(
-             'operational_aggregate_reader', 'public.climb_flags', 'status', 'SELECT'
-           ) as can_count_status,
-           has_column_privilege(
-             'operational_aggregate_reader', 'public.climb_flags', 'flagger_id', 'SELECT'
-           ) as can_read_flagger,
-           has_column_privilege(
              'operational_aggregate_reader', 'public.crag_reports', 'moderator_note', 'SELECT'
            ) as can_read_moderator_note,
            has_column_privilege(
@@ -360,10 +268,8 @@ describe('operational table access hardening', () => {
              'operational_aggregate_reader', 'public', 'CREATE'
            ) as can_create_public_objects`,
       )).rows[0]).toEqual({
-        can_count_status: true,
-        can_read_flagger: false,
         can_read_moderator_note: false,
-        can_read_image_id: true,
+        can_read_image_id: false,
         can_read_image_url: false,
         can_create_public_objects: false,
       })
@@ -380,14 +286,10 @@ describe('operational table access hardening', () => {
         `select table_name, array_agg(column_name::text order by ordinal_position) as columns
          from information_schema.columns
          where table_schema = 'public'
-           and table_name in ('community_post_rsvp_counts', 'climb_flag_counts', 'crag_report_counts')
+           and table_name in ('community_post_rsvp_counts', 'crag_report_counts')
          group by table_name order by table_name`,
       )
       expect(columns.rows).toEqual([
-        {
-          table_name: 'climb_flag_counts',
-          columns: ['target_type', 'target_id', 'total_count', 'pending_count'],
-        },
         {
           table_name: 'community_post_rsvp_counts',
           columns: ['post_id', 'going_count', 'interested_count'],
@@ -407,15 +309,11 @@ describe('operational table access hardening', () => {
 
       expect((await client.query(
         `select
-           has_table_privilege('anon', 'public.climb_flags', 'SELECT') as anon_flags,
            has_table_privilege('anon', 'public.community_post_rsvps', 'SELECT') as anon_rsvps,
-           has_table_privilege('anon', 'public.crag_reports', 'SELECT') as anon_reports,
-           has_table_privilege('anon', 'public.climb_flag_counts', 'SELECT') as anon_flag_counts`,
+           has_table_privilege('anon', 'public.crag_reports', 'SELECT') as anon_reports`,
       )).rows[0]).toEqual({
-        anon_flags: false,
         anon_rsvps: false,
         anon_reports: false,
-        anon_flag_counts: true,
       })
     })
   })
