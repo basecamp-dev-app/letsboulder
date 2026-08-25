@@ -124,87 +124,6 @@ export type Database = {
           },
         ]
       }
-      climb_flags: {
-        Row: {
-          action_taken: string | null
-          climb_id: string | null
-          comment: string
-          crag_id: string | null
-          created_at: string | null
-          flag_type: string
-          flagger_id: string | null
-          id: string
-          image_id: string | null
-          resolved_at: string | null
-          resolved_by: string | null
-          status: string | null
-        }
-        Insert: {
-          action_taken?: string | null
-          climb_id?: string | null
-          comment: string
-          crag_id?: string | null
-          created_at?: string | null
-          flag_type: string
-          flagger_id?: string | null
-          id?: string
-          image_id?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          status?: string | null
-        }
-        Update: {
-          action_taken?: string | null
-          climb_id?: string | null
-          comment?: string
-          crag_id?: string | null
-          created_at?: string | null
-          flag_type?: string
-          flagger_id?: string | null
-          id?: string
-          image_id?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          status?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "climb_flags_climb_id_fkey"
-            columns: ["climb_id"]
-            isOneToOne: false
-            referencedRelation: "climbs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "climb_flags_climb_id_fkey"
-            columns: ["climb_id"]
-            isOneToOne: false
-            referencedRelation: "public_data_export_routes_v1"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "climb_flags_crag_id_fkey"
-            columns: ["crag_id"]
-            isOneToOne: false
-            referencedRelation: "crags"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "climb_flags_crag_id_fkey"
-            columns: ["crag_id"]
-            isOneToOne: false
-            referencedRelation: "public_data_export_crags_v1"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "climb_flags_image_id_fkey"
-            columns: ["image_id"]
-            isOneToOne: false
-            referencedRelation: "images"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       climb_verifications: {
         Row: {
           climb_id: string
@@ -3683,15 +3602,6 @@ export type Database = {
       }
     }
     Views: {
-      climb_flag_counts: {
-        Row: {
-          pending_count: number | null
-          target_id: string | null
-          target_type: string | null
-          total_count: number | null
-        }
-        Relationships: []
-      }
       community_post_rsvp_counts: {
         Row: {
           going_count: number | null
@@ -4494,10 +4404,6 @@ export type Database = {
           total_routes_combined: number
         }[]
       }
-      get_image_pending_flag_count: {
-        Args: { p_image_id: string }
-        Returns: number
-      }
       get_logbook_lifetime_stats: {
         Args: { p_user_id: string }
         Returns: {
@@ -5079,29 +4985,6 @@ export type Database = {
         Returns: string
       }
       require_open_data_consent: { Args: never; Returns: undefined }
-      resolve_flag_and_soft_delete: {
-        Args: { p_flag_id: string; p_reason: string }
-        Returns: {
-          action_taken: string | null
-          climb_id: string | null
-          comment: string
-          crag_id: string | null
-          created_at: string | null
-          flag_type: string
-          flagger_id: string | null
-          id: string
-          image_id: string | null
-          resolved_at: string | null
-          resolved_by: string | null
-          status: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "climb_flags"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       resolve_legacy_climb_redirect: {
         Args: { p_climb_id: string }
         Returns: {
