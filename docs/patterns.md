@@ -232,7 +232,6 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - **Validation:** Session posts require a valid start time; end time cannot precede it, and discipline must be allowlisted.
 - **Authorization:** Resolve the author server-side and rely on RLS as an additional boundary; never accept an author ID from the client.
 - **RSVP counts:** Do not calculate totals by selecting all RSVP rows. Direct reads return only the caller's row, so totals must use the sanitized aggregate view.
-- **Image flag counts:** Public aggregate rows include only deliverable images. Use the identity-bound `get_image_pending_flag_count(image_id)` RPC when an authenticated owner or collaborator needs a count for a private image.
 - **Persistence:** Community queries are deliberately excluded from the persisted React Query cache.
 
 ---
