@@ -28,9 +28,14 @@ try {
   writeFileSync(temporaryTypesPath, result.stdout)
 
   if (normalizeGeneratedOutput(readFileSync(generatedTypesPath, 'utf8')) !== normalizeGeneratedOutput(readFileSync(temporaryTypesPath, 'utf8'))) {
+    const diff = spawnSync('diff', ['-u', generatedTypesPath, temporaryTypesPath], {
+      cwd: root,
+      encoding: 'utf8',
+    })
     process.stderr.write(
       'Generated database types are out of date. Run `npx --no-install supabase gen types typescript --local > types/database.ts` and review the result.\n',
     )
+    if (diff.stdout) process.stderr.write(diff.stdout)
     process.exit(1)
   }
 
