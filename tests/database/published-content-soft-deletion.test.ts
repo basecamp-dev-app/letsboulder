@@ -151,6 +151,42 @@ describe('published crag and climb soft deletion', () => {
     })
   })
 
+  it('resolves a legacy route through a shared climb alias with the topo line', async () => {
+    await transaction(async (client) => {
+      const user = await createUser(client)
+      const crag = await createCrag(client, 'Shared legacy redirect crag')
+      const climb = await createClimb(client, crag.id, user.id)
+      const alias = await createClimb(client, crag.id, user.id)
+      const imageId = randomUUID()
+
+      await client.query('update public.climbs set shared_climb_id = $1 where id = $2', [climb.id, alias.id])
+      await client.query(
+        `insert into public.images (
+           id, url, crag_id, created_by, status, moderation_status, visibility, processing_status
+         ) values ($1, 'https://example.test/shared-legacy-redirect.jpg', $2, $3,
+           'approved', 'skipped', 'public', 'ready')`,
+        [imageId, crag.id, user.id],
+      )
+      await client.query(
+        `insert into public.route_lines (id, image_id, climb_id, points)
+         values ($1, $2, $3, '[{"x":0,"y":0},{"x":1,"y":1}]'::jsonb)`,
+        [randomUUID(), imageId, alias.id],
+      )
+
+      await setRole(client, 'anon')
+      expect((await client.query(
+        'select * from public.resolve_legacy_route_redirect($1, $2, $3)',
+        ['GB', crag.slug, climb.slug],
+      )).rows).toEqual([{
+        country_code: 'GB',
+        crag_slug: crag.slug,
+        climb_slug: climb.slug,
+        effective_climb_id: climb.id,
+        image_id: imageId,
+      }])
+    })
+  })
+
   it('allows only admins, validates replacements, resolves the active climb, and audits atomically', async () => {
     await transaction(async (client) => {
       const admin = await createUser(client, true)
