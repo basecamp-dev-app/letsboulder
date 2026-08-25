@@ -47,6 +47,8 @@ export async function searchCrags({ supabase, query, latitude, longitude }: Sear
   let nameSelect = supabase
     .from('crags')
     .select('id,name,latitude,longitude,slug,country_code,region_name,sub_area,rock_type')
+    .is('deleted_at', null)
+    .is('superseded_by', null)
 
   if (hasLocation) {
     const latRange = 0.1
@@ -81,6 +83,8 @@ export async function searchCrags({ supabase, query, latitude, longitude }: Sear
     const { data: nearbyRows, error: nearbyNormalizedError } = await supabase
       .from('crags')
       .select('id,name,latitude,longitude,slug,country_code,region_name,sub_area,rock_type')
+      .is('deleted_at', null)
+      .is('superseded_by', null)
       .gte('latitude', latitude - 0.02)
       .lte('latitude', latitude + 0.02)
       .gte('longitude', longitude - 0.03)
@@ -105,6 +109,8 @@ export async function searchCrags({ supabase, query, latitude, longitude }: Sear
     const { data: tagRows, error: tagError } = await supabase
       .from('crag_location_tags')
       .select('crag_id, crags!inner(id,name,latitude,longitude,slug,country_code,region_name,sub_area,rock_type), location_tags!inner(name,kind)')
+      .is('crags.deleted_at', null)
+      .is('crags.superseded_by', null)
       .eq('location_tags.kind', 'region')
       .ilike('location_tags.name', `%${query}%`)
       .limit(80)

@@ -450,7 +450,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `get_admin_viewport_map_features(north, south, east, west, zoom)` | Authenticated, identity-bound administrator preview that may additionally include ready/public/moderation-approved legacy-pending media |
 | `get_nearby_crags(latitude, longitude, radius_meters, limit)` | RLS-aware crags within a metre radius, ordered nearest-first with the spatial index |
 | `get_crag_route_intelligence(p_crag_id)` | Per-route metrics: directions, topo coverage, weighted rating, unique sender counts |
-| `get_upload_context(lat, lng)` | Country/region context from coordinates |
+| `get_upload_context(lat, lng)` | Country/region context and nearest active, unsuperseded crag from coordinates |
 | `find_region_by_location(lat, lng)` | Find region by GPS coordinates |
 | `get_consensus_grade(p_climb_id)` | Compute consensus grade for a climb |
 | `get_climbs_with_consensus()` | Batch fetch climbs with consensus grades |

@@ -75,6 +75,18 @@ function hasValidAtomicRoutePoints(routeSets: DraftAtomicSaveInput['routeSets'])
     }))
 }
 
+async function isActiveCrag(supabase: DraftSupabaseClient, cragId: string | null | undefined) {
+  if (!cragId) return true
+  const { data, error } = await supabase
+    .from('crags')
+    .select('id')
+    .eq('id', cragId)
+    .is('deleted_at', null)
+    .is('superseded_by', null)
+    .maybeSingle()
+  return !error && Boolean(data)
+}
+
 export function mergeDraftMetadata(existingMetadata: Record<string, unknown>, metadataPatch: Record<string, unknown>) {
   const existingSubmission = asRecord(existingMetadata.submission)
   const patchSubmission = asRecord(metadataPatch.submission)
@@ -113,6 +125,9 @@ async function assertDraftWriteAccess(supabase: DraftSupabaseClient, draftId: st
 
 export async function patchSubmissionDraft(input: DraftPatchInput & { supabase: DraftSupabaseClient; userId: string }): Promise<DraftPatchServiceResult> {
   try {
+    if (!(await isActiveCrag(input.supabase, input.cragId))) {
+      return { kind: 'invalid', error: 'The selected crag is no longer available. Choose another crag.' }
+    }
     const access = await assertDraftWriteAccess(input.supabase, input.draftId, input.userId)
     if (access.kind !== 'success') return access
     if (access.draft.status !== 'draft') return { kind: 'not_editable' }
@@ -138,7 +153,12 @@ export async function patchSubmissionDraft(input: DraftPatchInput & { supabase: 
     if (input.metadata) updatePayload.metadata = mergeDraftMetadata(asRecord(existing?.metadata), input.metadata)
     if (input.cragId !== undefined) updatePayload.crag_id = input.cragId
     const { data: updated, error: updateError } = await input.supabase.from('submission_drafts').update(updatePayload).eq('id', input.draftId).eq('status', 'draft').select('updated_at').maybeSingle()
-    if (updateError) return { kind: 'failed', ...sanitizeError(updateError, 'Failed to update submission draft metadata') }
+    if (updateError) {
+      if (getRpcErrorDetail(updateError) === 'inactive_crag') {
+        return { kind: 'invalid', error: 'The selected crag is no longer available. Choose another crag.' }
+      }
+      return { kind: 'failed', ...sanitizeError(updateError, 'Failed to update submission draft metadata') }
+    }
     return { kind: 'success', draft, updatedAt: updated?.updated_at || draft?.updated_at || updatedAt }
   } catch (error) {
     return { kind: 'failed', ...sanitizeError(error, 'Failed to patch submission draft') }
@@ -150,6 +170,9 @@ export async function saveSubmissionDraftAtomic(input: DraftAtomicSaveInput & { 
     if (!hasValidAtomicRoutePoints(input.routeSets)) return { kind: 'invalid', error: 'Invalid draft route points' }
     const routeSets = normalizeDraftRouteBatchPayload(input.routeSets)
     if (!routeSets) return { kind: 'invalid', error: 'Invalid draft route payload' }
+    if (!(await isActiveCrag(input.supabase, input.cragId))) {
+      return { kind: 'invalid', error: 'The selected crag is no longer available. Choose another crag.' }
+    }
     const imagePayload: Json = input.images.map((image) => ({
       id: image.id,
       display_order: image.display_order,
@@ -184,6 +207,7 @@ export async function saveSubmissionDraftAtomic(input: DraftAtomicSaveInput & { 
       if (detail === 'permission_denied') return { kind: 'forbidden' }
       if (detail === 'draft_not_editable') return { kind: 'not_editable' }
       if (detail === 'invalid_payload') return { kind: 'invalid', error: error.message }
+      if (detail === 'inactive_crag') return { kind: 'invalid', error: 'The selected crag is no longer available. Choose another crag.' }
       if (detail === 'open_data_consent_required' || isOpenDataConsentError(error)) return { kind: 'consent_required' }
       if (detail === 'draft_conflict') {
         const { data: current } = await input.supabase.from('submission_drafts').select('updated_at, last_edited_by').eq('id', input.draftId).maybeSingle()

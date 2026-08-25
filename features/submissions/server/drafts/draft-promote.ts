@@ -94,12 +94,29 @@ async function ensureCanonicalCrag(input: {
 
   const { data: crag, error: cragError } = await supabase
     .from('crags')
-    .select('id, country_code, slug, latitude, longitude')
+    .select('id, country_code, slug, latitude, longitude, deleted_at, superseded_by')
     .eq('id', cragId)
     .maybeSingle()
 
-  if (cragError || !crag) {
-    return publishInternalError(cragError || new Error('Draft crag not found'), 'Failed to validate publish destination')
+  if (cragError) {
+    return publishInternalError(cragError, 'Failed to validate publish destination')
+  }
+
+  if (!crag || crag.deleted_at || crag.superseded_by) {
+    const { error: clearError } = await supabase
+      .from('submission_drafts')
+      .update({ crag_id: null })
+      .eq('id', draftId)
+      .eq('user_id', userId)
+      .eq('status', 'draft')
+
+    if (clearError) {
+      return publishInternalError(clearError, 'Failed to clear unavailable publish destination')
+    }
+    return publishFailure(409, {
+      code: 'crag_unavailable',
+      error: 'The selected crag is no longer available. Choose a crag before publishing.',
+    })
   }
 
   if (!crag.slug) {
@@ -476,6 +493,18 @@ export async function promoteDraftToSubmission(input: {
     }
     if (typeof error.message === 'string' && error.message.includes('Draft location is required before publishing')) {
       return publishFailure(400, { error: 'Add climb location before publishing this draft' })
+    }
+    if (typeof error.message === 'string' && error.message.includes('Content cannot be associated with a deleted crag')) {
+      await supabase
+        .from('submission_drafts')
+        .update({ crag_id: null })
+        .eq('id', draftId)
+        .eq('user_id', userId)
+        .eq('status', 'draft')
+      return publishFailure(409, {
+        code: 'crag_unavailable',
+        error: 'The selected crag is no longer available. Choose a crag before publishing.',
+      })
     }
     if (isPermissionDeniedError(error)) {
       return publishFailure(403, { error: 'Forbidden' })
