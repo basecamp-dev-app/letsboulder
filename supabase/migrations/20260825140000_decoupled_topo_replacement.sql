@@ -40,7 +40,7 @@ CREATE TABLE public.topo_replacement_routes (
     CHECK (resolution IN ('pending', 'mapped', 'not_visible')),
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (replacement_id, climb_id),
-  CONSTRAINT topo_replacement_routes_resolution_check CHECK (
+  CONSTRAINT topo_replacement_routes_mapping_check CHECK (
     (resolution = 'mapped' AND draft_route_id IS NOT NULL)
     OR (resolution <> 'mapped' AND draft_route_id IS NULL)
   )
