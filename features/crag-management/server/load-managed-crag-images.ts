@@ -9,6 +9,10 @@ import type {
   ManagedCragImage,
   ManagedCragImagesPage,
 } from '@/features/crag-management/types/managed-crag-image'
+import {
+  buildImageRouteAssociationIds,
+  type CragImageAssociationLink,
+} from '@/features/crag-management/lib/image-route-associations'
 
 type ImageRow = Pick<Database['public']['Tables']['images']['Row'],
   'id' | 'url' | 'optimized_bucket' | 'optimized_key' | 'storage_bucket' | 'storage_path'
@@ -25,6 +29,8 @@ type ClimbRow = Pick<Database['public']['Tables']['climbs']['Row'],
   'id' | 'name' | 'deleted_at'>
 
 export const MANAGED_CRAG_IMAGES_PAGE_SIZE = 24
+const ASSOCIATION_PAGE_SIZE = 500
+const QUERY_BATCH_SIZE = 200
 
 export type ManagedCragImagesLoadResult =
   | { success: true; data: ManagedCragImagesPage }
@@ -131,35 +137,66 @@ export async function loadManagedCragImages(
     .map((candidate) => candidate.row)
   const pageImageIds = pageCanonical.map((image) => image.id)
 
-  let routeLines: RouteLineRow[] = []
+  const routeLines: RouteLineRow[] = []
   let climbsById = new Map<string, ClimbRow>()
   const activeImagesByClimb = new Map<string, Set<string>>()
+  let associationIdsByImage = new Map(pageImageIds.map((imageId) => [imageId, new Set([imageId])]))
   if (pageImageIds.length > 0) {
-    const { data, error } = await admin
-      .from('route_lines')
-      .select('image_id, climb_id')
-      .in('image_id', pageImageIds)
-    if (error) return { success: false, status: 500, error: 'Failed to load image route impact' }
-    routeLines = (data || []) as RouteLineRow[]
+    const associationLinks: CragImageAssociationLink[] = []
+    for (let from = 0; ; from += ASSOCIATION_PAGE_SIZE) {
+      const { data, error } = await admin
+        .from('crag_images')
+        .select('source_image_id, linked_image_id')
+        .eq('crag_id', cragId)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + ASSOCIATION_PAGE_SIZE - 1)
+      if (error) return { success: false, status: 500, error: 'Failed to load image associations' }
+      const rows = (data || []) as CragImageAssociationLink[]
+      associationLinks.push(...rows)
+      if (rows.length < ASSOCIATION_PAGE_SIZE) break
+    }
+    associationIdsByImage = buildImageRouteAssociationIds(pageImageIds, associationLinks)
+    const associatedImageIds = [...new Set([...associationIdsByImage.values()].flatMap((ids) => [...ids]))]
+    for (let index = 0; index < associatedImageIds.length; index += QUERY_BATCH_SIZE) {
+      const { data, error } = await admin
+        .from('route_lines')
+        .select('image_id, climb_id')
+        .in('image_id', associatedImageIds.slice(index, index + QUERY_BATCH_SIZE))
+      if (error) return { success: false, status: 500, error: 'Failed to load image route impact' }
+      routeLines.push(...((data || []) as RouteLineRow[]))
+    }
     const climbIds = [...new Set(routeLines.map((line) => line.climb_id))]
     if (climbIds.length > 0) {
-      const [{ data: climbs, error: climbsError }, { data: alternativeLines, error: alternativeError }] = await Promise.all([
-        admin.from('climbs').select('id, name, deleted_at').in('id', climbIds).eq('crag_id', cragId),
-        admin.from('route_lines').select('image_id, climb_id').in('climb_id', climbIds),
-      ])
-      if (climbsError || alternativeError) {
-        return { success: false, status: 500, error: 'Failed to calculate route impact' }
+      const climbs: ClimbRow[] = []
+      const alternativeLines: RouteLineRow[] = []
+      for (let index = 0; index < climbIds.length; index += QUERY_BATCH_SIZE) {
+        const batch = climbIds.slice(index, index + QUERY_BATCH_SIZE)
+        const [{ data: climbRows, error: climbsError }, { data: lineRows, error: alternativeError }] = await Promise.all([
+          admin.from('climbs').select('id, name, deleted_at').in('id', batch).eq('crag_id', cragId),
+          admin.from('route_lines').select('image_id, climb_id').in('climb_id', batch),
+        ])
+        if (climbsError || alternativeError) {
+          return { success: false, status: 500, error: 'Failed to calculate route impact' }
+        }
+        climbs.push(...((climbRows || []) as ClimbRow[]))
+        alternativeLines.push(...((lineRows || []) as RouteLineRow[]))
       }
-      climbsById = new Map(((climbs || []) as ClimbRow[]).map((climb) => [climb.id, climb]))
-      const alternativeImageIds = [...new Set(((alternativeLines || []) as RouteLineRow[]).map((line) => line.image_id))]
+      climbsById = new Map(climbs.map((climb) => [climb.id, climb]))
+      const alternativeImageIds = [...new Set(alternativeLines.map((line) => line.image_id))]
       if (alternativeImageIds.length > 0) {
-        const { data: alternatives, error: alternativesError } = await admin
-          .from('images')
-          .select('id, status, visibility, processing_status, moderation_status')
-          .in('id', alternativeImageIds)
-        if (alternativesError) return { success: false, status: 500, error: 'Failed to calculate alternative images' }
-        const activeImageIds = new Set((alternatives || []).filter(isPubliclyDeliverable).map((image) => image.id))
-        for (const line of (alternativeLines || []) as RouteLineRow[]) {
+        const activeImageIds = new Set<string>()
+        for (let index = 0; index < alternativeImageIds.length; index += QUERY_BATCH_SIZE) {
+          const { data: alternatives, error: alternativesError } = await admin
+            .from('images')
+            .select('id, status, visibility, processing_status, moderation_status')
+            .in('id', alternativeImageIds.slice(index, index + QUERY_BATCH_SIZE))
+          if (alternativesError) return { success: false, status: 500, error: 'Failed to calculate alternative images' }
+          for (const alternative of alternatives || []) {
+            if (isPubliclyDeliverable(alternative)) activeImageIds.add(alternative.id)
+          }
+        }
+        for (const line of alternativeLines) {
           if (!activeImageIds.has(line.image_id)) continue
           const current = activeImagesByClimb.get(line.climb_id) || new Set<string>()
           current.add(line.image_id)
@@ -197,7 +234,10 @@ export async function loadManagedCragImages(
 
     const image = candidate.row
     const ref = getImageStorageRef(image)
-    const climbIds = [...new Set(routeLines.filter((line) => line.image_id === image.id).map((line) => line.climb_id))]
+    const associatedImageIds = associationIdsByImage.get(image.id) || new Set([image.id])
+    const climbIds = [...new Set(routeLines
+      .filter((line) => associatedImageIds.has(line.image_id))
+      .map((line) => line.climb_id))]
     const activeClimbs = climbIds.map((id) => climbsById.get(id)).filter((climb): climb is ClimbRow => Boolean(climb && !climb.deleted_at))
     return {
       imageId: image.id,
