@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { CheckCircle2, EyeOff, Link2, Loader2 } from 'lucide-react'
 
 import { setTopoReplacementRouteAction } from '@/features/crag-management/actions/topo-replacement'
-import type { DraftRoute, TopoReplacementDraft } from '@/features/draft-editor/lib/edit-draft-types'
+import type { DraftRoute, TopoReplacementDraft } from '@/features/draft-editor/public'
 import { Button } from '@/components/ui/button'
 
 interface DrawnRoute extends DraftRoute {
