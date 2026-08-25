@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 46203)
-Total output lines: 6164
-
 export type Json =
   | string
   | number
@@ -1991,7 +1988,2151 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           mutation_id?: string
-   …16203 tokens truncated…       Returns: boolean
+          operation_type?: string
+          request_hash?: string
+          result?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      media_deletion_jobs: {
+        Row: {
+          attempts: number
+          bucket: string
+          claim_token: string | null
+          completed_at: string | null
+          created_at: string
+          delivery_verified_at: string | null
+          expected_object_bytes: number | null
+          expected_object_etag: string | null
+          id: string
+          image_id: string | null
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          object_key: string
+          reason: string
+          reconciliation_artifact_digest: string | null
+          reconciliation_run_id: number | null
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
+          run_at: string
+          source_id: string | null
+          source_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          bucket: string
+          claim_token?: string | null
+          completed_at?: string | null
+          created_at?: string
+          delivery_verified_at?: string | null
+          expected_object_bytes?: number | null
+          expected_object_etag?: string | null
+          id?: string
+          image_id?: string | null
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          object_key: string
+          reason: string
+          reconciliation_artifact_digest?: string | null
+          reconciliation_run_id?: number | null
+          recovery_artifact_digest?: string | null
+          recovery_reason?: string | null
+          recovery_run_id?: number | null
+          replay_of_job_id?: string | null
+          run_at?: string
+          source_id?: string | null
+          source_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          bucket?: string
+          claim_token?: string | null
+          completed_at?: string | null
+          created_at?: string
+          delivery_verified_at?: string | null
+          expected_object_bytes?: number | null
+          expected_object_etag?: string | null
+          id?: string
+          image_id?: string | null
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          object_key?: string
+          reason?: string
+          reconciliation_artifact_digest?: string | null
+          reconciliation_run_id?: number | null
+          recovery_artifact_digest?: string | null
+          recovery_reason?: string | null
+          recovery_run_id?: number | null
+          replay_of_job_id?: string | null
+          run_at?: string
+          source_id?: string | null
+          source_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_deletion_jobs_replay_of_job_id_fkey"
+            columns: ["replay_of_job_id"]
+            isOneToOne: false
+            referencedRelation: "media_deletion_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_jobs: {
+        Row: {
+          attempts: number
+          claim_token: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          image_id: string
+          job_type: string
+          last_error: string | null
+          lease_expires_at: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          claim_token?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          image_id: string
+          job_type: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          payload?: Json
+          recovery_artifact_digest?: string | null
+          recovery_reason?: string | null
+          recovery_run_id?: number | null
+          replay_of_job_id?: string | null
+          run_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          claim_token?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          image_id?: string
+          job_type?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          payload?: Json
+          recovery_artifact_digest?: string | null
+          recovery_reason?: string | null
+          recovery_run_id?: number | null
+          replay_of_job_id?: string | null
+          run_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_jobs_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_jobs_replay_of_job_id_fkey"
+            columns: ["replay_of_job_id"]
+            isOneToOne: false
+            referencedRelation: "media_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          link: string | null
+          message: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          link?: string | null
+          message?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          link?: string | null
+          message?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      places: {
+        Row: {
+          access_notes: string | null
+          country: string | null
+          country_code: string | null
+          country_id: string | null
+          created_at: string
+          description: string | null
+          disciplines: string[]
+          id: string
+          is_flagged: boolean
+          latitude: number | null
+          longitude: number | null
+          name: string
+          primary_discipline: string | null
+          region_id: string | null
+          region_name: string | null
+          report_count: number
+          rock_type: string | null
+          slug: string | null
+          synced_at: string | null
+          tide_dependency: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          access_notes?: string | null
+          country?: string | null
+          country_code?: string | null
+          country_id?: string | null
+          created_at?: string
+          description?: string | null
+          disciplines?: string[]
+          id?: string
+          is_flagged?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          primary_discipline?: string | null
+          region_id?: string | null
+          region_name?: string | null
+          report_count?: number
+          rock_type?: string | null
+          slug?: string | null
+          synced_at?: string | null
+          tide_dependency?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          access_notes?: string | null
+          country?: string | null
+          country_code?: string | null
+          country_id?: string | null
+          created_at?: string
+          description?: string | null
+          disciplines?: string[]
+          id?: string
+          is_flagged?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          primary_discipline?: string | null
+          region_id?: string | null
+          region_name?: string | null
+          report_count?: number
+          rock_type?: string | null
+          slug?: string | null
+          synced_at?: string | null
+          tide_dependency?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "places_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_clicks: {
+        Row: {
+          click_count: number | null
+          product_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          click_count?: number | null
+          product_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          click_count?: number | null
+          product_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          accepted_contribution_count: number
+          avatar_url: string | null
+          bio: string | null
+          boulder_system: string | null
+          consent_timestamp: string | null
+          contribution_credit_handle: string | null
+          contribution_credit_platform: string | null
+          contributor_score_total: number
+          contributor_tier: string | null
+          country: string | null
+          country_code: string | null
+          created_at: string | null
+          default_location: string | null
+          default_location_lat: number | null
+          default_location_lng: number | null
+          default_location_name: string | null
+          default_location_zoom: number | null
+          display_name: string | null
+          email: string | null
+          first_name: string | null
+          gender: string | null
+          grade_system: string | null
+          height_cm: number | null
+          highest_grade: string | null
+          id: string
+          is_admin: boolean | null
+          is_public: boolean | null
+          last_name: string | null
+          name: string | null
+          name_updated_at: string | null
+          open_data_consent_version: string | null
+          preferred_grade_system: string | null
+          preferred_style: string | null
+          reach_cm: number | null
+          route_system: string | null
+          theme_preference: string | null
+          tos_accepted_at: string | null
+          total_climbs: number | null
+          total_points: number | null
+          trad_system: string | null
+          units: string | null
+          updated_at: string | null
+          username: string | null
+          welcome_email_sent_at: string | null
+        }
+        Insert: {
+          accepted_contribution_count?: number
+          avatar_url?: string | null
+          bio?: string | null
+          boulder_system?: string | null
+          consent_timestamp?: string | null
+          contribution_credit_handle?: string | null
+          contribution_credit_platform?: string | null
+          contributor_score_total?: number
+          contributor_tier?: string | null
+          country?: string | null
+          country_code?: string | null
+          created_at?: string | null
+          default_location?: string | null
+          default_location_lat?: number | null
+          default_location_lng?: number | null
+          default_location_name?: string | null
+          default_location_zoom?: number | null
+          display_name?: string | null
+          email?: string | null
+          first_name?: string | null
+          gender?: string | null
+          grade_system?: string | null
+          height_cm?: number | null
+          highest_grade?: string | null
+          id: string
+          is_admin?: boolean | null
+          is_public?: boolean | null
+          last_name?: string | null
+          name?: string | null
+          name_updated_at?: string | null
+          open_data_consent_version?: string | null
+          preferred_grade_system?: string | null
+          preferred_style?: string | null
+          reach_cm?: number | null
+          route_system?: string | null
+          theme_preference?: string | null
+          tos_accepted_at?: string | null
+          total_climbs?: number | null
+          total_points?: number | null
+          trad_system?: string | null
+          units?: string | null
+          updated_at?: string | null
+          username?: string | null
+          welcome_email_sent_at?: string | null
+        }
+        Update: {
+          accepted_contribution_count?: number
+          avatar_url?: string | null
+          bio?: string | null
+          boulder_system?: string | null
+          consent_timestamp?: string | null
+          contribution_credit_handle?: string | null
+          contribution_credit_platform?: string | null
+          contributor_score_total?: number
+          contributor_tier?: string | null
+          country?: string | null
+          country_code?: string | null
+          created_at?: string | null
+          default_location?: string | null
+          default_location_lat?: number | null
+          default_location_lng?: number | null
+          default_location_name?: string | null
+          default_location_zoom?: number | null
+          display_name?: string | null
+          email?: string | null
+          first_name?: string | null
+          gender?: string | null
+          grade_system?: string | null
+          height_cm?: number | null
+          highest_grade?: string | null
+          id?: string
+          is_admin?: boolean | null
+          is_public?: boolean | null
+          last_name?: string | null
+          name?: string | null
+          name_updated_at?: string | null
+          open_data_consent_version?: string | null
+          preferred_grade_system?: string | null
+          preferred_style?: string | null
+          reach_cm?: number | null
+          route_system?: string | null
+          theme_preference?: string | null
+          tos_accepted_at?: string | null
+          total_climbs?: number | null
+          total_points?: number | null
+          trad_system?: string | null
+          units?: string | null
+          updated_at?: string | null
+          username?: string | null
+          welcome_email_sent_at?: string | null
+        }
+        Relationships: []
+      }
+      public_data_export_registry: {
+        Row: {
+          deleted_at: string | null
+          entity_id: string
+          entity_type: string
+          first_eligible_at: string
+          superseded_by: string | null
+        }
+        Insert: {
+          deleted_at?: string | null
+          entity_id: string
+          entity_type: string
+          first_eligible_at?: string
+          superseded_by?: string | null
+        }
+        Update: {
+          deleted_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          first_eligible_at?: string
+          superseded_by?: string | null
+        }
+        Relationships: []
+      }
+      published_edit_mutations: {
+        Row: {
+          base_revision: number
+          client_mutation_id: string
+          committed_revision: number | null
+          created_at: string
+          editor_id: string
+          image_id: string
+          request_hash: string
+          result: Json | null
+        }
+        Insert: {
+          base_revision: number
+          client_mutation_id: string
+          committed_revision?: number | null
+          created_at?: string
+          editor_id: string
+          image_id: string
+          request_hash: string
+          result?: Json | null
+        }
+        Update: {
+          base_revision?: number
+          client_mutation_id?: string
+          committed_revision?: number | null
+          created_at?: string
+          editor_id?: string
+          image_id?: string
+          request_hash?: string
+          result?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "published_edit_mutations_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      regions: {
+        Row: {
+          boundary: unknown
+          center_lat: number | null
+          center_lon: number | null
+          country_code: string | null
+          created_at: string
+          id: string
+          name: string
+          un_region_name: string
+        }
+        Insert: {
+          boundary?: unknown
+          center_lat?: number | null
+          center_lon?: number | null
+          country_code?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          un_region_name: string
+        }
+        Update: {
+          boundary?: unknown
+          center_lat?: number | null
+          center_lon?: number | null
+          country_code?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          un_region_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regions_un_region_name_fkey"
+            columns: ["un_region_name"]
+            isOneToOne: false
+            referencedRelation: "un_regions"
+            referencedColumns: ["name"]
+          },
+        ]
+      }
+      route_grades: {
+        Row: {
+          climb_id: string
+          created_at: string | null
+          grade: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          climb_id: string
+          created_at?: string | null
+          grade: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          climb_id?: string
+          created_at?: string | null
+          grade?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_grades_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_grades_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      route_lines: {
+        Row: {
+          climb_id: string
+          color: string | null
+          created_at: string | null
+          id: string
+          image_height: number | null
+          image_id: string
+          image_width: number | null
+          points: Json
+          sequence_order: number | null
+        }
+        Insert: {
+          climb_id: string
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          image_height?: number | null
+          image_id: string
+          image_width?: number | null
+          points: Json
+          sequence_order?: number | null
+        }
+        Update: {
+          climb_id?: string
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          image_height?: number | null
+          image_id?: string
+          image_width?: number | null
+          points?: Json
+          sequence_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_lines_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_lines_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_lines_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_climbs: {
+        Row: {
+          climb_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          climb_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          climb_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_climbs_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_climbs_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_crags: {
+        Row: {
+          crag_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          crag_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          crag_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_crags_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_crags_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sectors: {
+        Row: {
+          crag_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          crag_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          crag_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sectors_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sectors_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_collaborator_invites: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          image_id: string
+          max_uses: number | null
+          token: string
+          used_count: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          image_id: string
+          max_uses?: number | null
+          token?: string
+          used_count?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          image_id?: string
+          max_uses?: number | null
+          token?: string
+          used_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_collaborator_invites_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_collaborators: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          image_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          image_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          image_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_collaborators_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_contributors: {
+        Row: {
+          first_contributed_at: string
+          image_id: string
+          last_contributed_at: string
+          user_id: string
+        }
+        Insert: {
+          first_contributed_at?: string
+          image_id: string
+          last_contributed_at?: string
+          user_id: string
+        }
+        Update: {
+          first_contributed_at?: string
+          image_id?: string
+          last_contributed_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_contributors_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_draft_collaborator_invites: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          draft_id: string
+          expires_at: string | null
+          id: string
+          max_uses: number | null
+          token: string
+          used_count: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          draft_id: string
+          expires_at?: string | null
+          id?: string
+          max_uses?: number | null
+          token?: string
+          used_count?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          draft_id?: string
+          expires_at?: string | null
+          id?: string
+          max_uses?: number | null
+          token?: string
+          used_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_draft_collaborator_invites_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "submission_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_draft_collaborators: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          draft_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          draft_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          draft_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_draft_collaborators_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "submission_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_draft_images: {
+        Row: {
+          capture_date: string | null
+          checksum_sha256: string | null
+          created_at: string
+          display_order: number
+          draft_id: string
+          height: number | null
+          id: string
+          latitude: number | null
+          linked_crag_image_id: string | null
+          linked_image_id: string | null
+          longitude: number | null
+          original_bucket: string | null
+          original_bytes: number | null
+          original_key: string | null
+          original_mime_type: string | null
+          preview_variants: Json
+          processed_at: string | null
+          processing_status: string
+          route_data: Json
+          storage_bucket: string
+          storage_path: string
+          storage_provider: string
+          submitted_at: string | null
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          capture_date?: string | null
+          checksum_sha256?: string | null
+          created_at?: string
+          display_order: number
+          draft_id: string
+          height?: number | null
+          id?: string
+          latitude?: number | null
+          linked_crag_image_id?: string | null
+          linked_image_id?: string | null
+          longitude?: number | null
+          original_bucket?: string | null
+          original_bytes?: number | null
+          original_key?: string | null
+          original_mime_type?: string | null
+          preview_variants?: Json
+          processed_at?: string | null
+          processing_status?: string
+          route_data?: Json
+          storage_bucket: string
+          storage_path: string
+          storage_provider?: string
+          submitted_at?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          capture_date?: string | null
+          checksum_sha256?: string | null
+          created_at?: string
+          display_order?: number
+          draft_id?: string
+          height?: number | null
+          id?: string
+          latitude?: number | null
+          linked_crag_image_id?: string | null
+          linked_image_id?: string | null
+          longitude?: number | null
+          original_bucket?: string | null
+          original_bytes?: number | null
+          original_key?: string | null
+          original_mime_type?: string | null
+          preview_variants?: Json
+          processed_at?: string | null
+          processing_status?: string
+          route_data?: Json
+          storage_bucket?: string
+          storage_path?: string
+          storage_provider?: string
+          submitted_at?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_draft_images_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "submission_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submission_draft_images_linked_crag_image_id_fkey"
+            columns: ["linked_crag_image_id"]
+            isOneToOne: false
+            referencedRelation: "crag_images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submission_draft_images_linked_image_id_fkey"
+            columns: ["linked_image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_draft_routes: {
+        Row: {
+          climb_type: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          draft_id: string
+          draft_image_id: string
+          grade: string
+          id: string
+          image_height: number | null
+          image_width: number | null
+          name: string
+          points: Json
+          sequence_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          climb_type?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          draft_id: string
+          draft_image_id: string
+          grade?: string
+          id?: string
+          image_height?: number | null
+          image_width?: number | null
+          name?: string
+          points?: Json
+          sequence_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          climb_type?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          draft_id?: string
+          draft_image_id?: string
+          grade?: string
+          id?: string
+          image_height?: number | null
+          image_width?: number | null
+          name?: string
+          points?: Json
+          sequence_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_draft_routes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submission_draft_routes_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "submission_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submission_draft_routes_draft_image_id_fkey"
+            columns: ["draft_image_id"]
+            isOneToOne: false
+            referencedRelation: "submission_draft_images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submission_draft_routes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_drafts: {
+        Row: {
+          crag_id: string | null
+          created_at: string
+          id: string
+          last_edited_by: string | null
+          metadata: Json
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          crag_id?: string | null
+          created_at?: string
+          id?: string
+          last_edited_by?: string | null
+          metadata?: Json
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          crag_id?: string | null
+          created_at?: string
+          id?: string
+          last_edited_by?: string | null
+          metadata?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_drafts_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submission_drafts_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submission_edit_history: {
+        Row: {
+          after_data: Json | null
+          before_data: Json | null
+          created_at: string
+          edit_kind: string
+          edited_by: string | null
+          field_targets: string[]
+          id: string
+          image_id: string
+          moderation_state: string
+          risk_level: string
+          risk_reasons: string[]
+          summary: string
+        }
+        Insert: {
+          after_data?: Json | null
+          before_data?: Json | null
+          created_at?: string
+          edit_kind: string
+          edited_by?: string | null
+          field_targets?: string[]
+          id?: string
+          image_id: string
+          moderation_state?: string
+          risk_level?: string
+          risk_reasons?: string[]
+          summary: string
+        }
+        Update: {
+          after_data?: Json | null
+          before_data?: Json | null
+          created_at?: string
+          edit_kind?: string
+          edited_by?: string | null
+          field_targets?: string[]
+          id?: string
+          image_id?: string
+          moderation_state?: string
+          risk_level?: string
+          risk_reasons?: string[]
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_edit_history_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      un_regions: {
+        Row: {
+          continent_name: string
+          name: string
+        }
+        Insert: {
+          continent_name: string
+          name: string
+        }
+        Update: {
+          continent_name?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "un_regions_continent_name_fkey"
+            columns: ["continent_name"]
+            isOneToOne: false
+            referencedRelation: "continents"
+            referencedColumns: ["name"]
+          },
+        ]
+      }
+      user_climbs: {
+        Row: {
+          climb_id: string
+          created_at: string | null
+          date_climbed: string | null
+          grade_opinion: string | null
+          grade_vote_baseline: string | null
+          id: string
+          notes: string | null
+          star_rating: number | null
+          style: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          climb_id: string
+          created_at?: string | null
+          date_climbed?: string | null
+          grade_opinion?: string | null
+          grade_vote_baseline?: string | null
+          id?: string
+          notes?: string | null
+          star_rating?: number | null
+          style: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          climb_id?: string
+          created_at?: string | null
+          date_climbed?: string | null
+          grade_opinion?: string | null
+          grade_vote_baseline?: string | null
+          id?: string
+          notes?: string | null
+          star_rating?: number | null
+          style?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_climbs_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_climbs_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_place_contributor_scores: {
+        Row: {
+          accepted_contribution_count: number
+          contributor_score_total: number
+          last_contribution_at: string | null
+          place_id: string
+          user_id: string
+        }
+        Insert: {
+          accepted_contribution_count?: number
+          contributor_score_total?: number
+          last_contribution_at?: string | null
+          place_id: string
+          user_id: string
+        }
+        Update: {
+          accepted_contribution_count?: number
+          contributor_score_total?: number
+          last_contribution_at?: string | null
+          place_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_place_contributor_scores_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiki_entities: {
+        Row: {
+          climb_id: string | null
+          crag_id: string | null
+          created_at: string
+          entity_kind: string
+          id: string
+          image_id: string | null
+          route_line_id: string | null
+        }
+        Insert: {
+          climb_id?: string | null
+          crag_id?: string | null
+          created_at?: string
+          entity_kind: string
+          id?: string
+          image_id?: string | null
+          route_line_id?: string | null
+        }
+        Update: {
+          climb_id?: string | null
+          crag_id?: string | null
+          created_at?: string
+          entity_kind?: string
+          id?: string
+          image_id?: string | null
+          route_line_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_entities_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: true
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entities_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: true
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entities_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: true
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entities_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: true
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entities_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: true
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entities_route_line_id_fkey"
+            columns: ["route_line_id"]
+            isOneToOne: true
+            referencedRelation: "public_data_export_route_lines_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entities_route_line_id_fkey"
+            columns: ["route_line_id"]
+            isOneToOne: true
+            referencedRelation: "route_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiki_entity_heads: {
+        Row: {
+          entity_id: string
+          revision_id: string
+          revision_number: number
+          updated_at: string
+        }
+        Insert: {
+          entity_id: string
+          revision_id: string
+          revision_number: number
+          updated_at?: string
+        }
+        Update: {
+          entity_id?: string
+          revision_id?: string
+          revision_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_entity_heads_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: true
+            referencedRelation: "wiki_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entity_heads_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: true
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiki_entity_revisions: {
+        Row: {
+          commit_id: string
+          content_hash: string
+          created_at: string
+          entity_id: string
+          id: string
+          parent_revision_id: string | null
+          patch: Json
+          restored_from_revision_id: string | null
+          revision_number: number
+          schema_version: number
+          snapshot: Json
+          supersedes_revision_id: string | null
+        }
+        Insert: {
+          commit_id: string
+          content_hash: string
+          created_at?: string
+          entity_id: string
+          id?: string
+          parent_revision_id?: string | null
+          patch: Json
+          restored_from_revision_id?: string | null
+          revision_number: number
+          schema_version?: number
+          snapshot: Json
+          supersedes_revision_id?: string | null
+        }
+        Update: {
+          commit_id?: string
+          content_hash?: string
+          created_at?: string
+          entity_id?: string
+          id?: string
+          parent_revision_id?: string | null
+          patch?: Json
+          restored_from_revision_id?: string | null
+          revision_number?: number
+          schema_version?: number
+          snapshot?: Json
+          supersedes_revision_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_entity_revisions_commit_id_fkey"
+            columns: ["commit_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_revision_commits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entity_revisions_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entity_revisions_parent_revision_id_fkey"
+            columns: ["parent_revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entity_revisions_restored_from_revision_id_fkey"
+            columns: ["restored_from_revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_entity_revisions_supersedes_revision_id_fkey"
+            columns: ["supersedes_revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiki_revision_commits: {
+        Row: {
+          author_kind: string
+          author_user_id: string | null
+          client_mutation_id: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          revision_kind: string
+          summary: string
+          transaction_id: number | null
+        }
+        Insert: {
+          author_kind: string
+          author_user_id?: string | null
+          client_mutation_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          revision_kind: string
+          summary: string
+          transaction_id?: number | null
+        }
+        Update: {
+          author_kind?: string
+          author_user_id?: string | null
+          client_mutation_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          revision_kind?: string
+          summary?: string
+          transaction_id?: number | null
+        }
+        Relationships: []
+      }
+      wiki_revision_merge_parents: {
+        Row: {
+          ordinal: number
+          parent_revision_id: string
+          revision_id: string
+        }
+        Insert: {
+          ordinal: number
+          parent_revision_id: string
+          revision_id: string
+        }
+        Update: {
+          ordinal?: number
+          parent_revision_id?: string
+          revision_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_revision_merge_parents_parent_revision_id_fkey"
+            columns: ["parent_revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_revision_merge_parents_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_entity_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      community_post_rsvp_counts: {
+        Row: {
+          going_count: number | null
+          interested_count: number | null
+          post_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_post_rsvps_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crag_report_counts: {
+        Row: {
+          crag_id: string | null
+          dismissed_count: number | null
+          investigating_count: number | null
+          pending_count: number | null
+          resolved_count: number | null
+          total_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crag_reports_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crag_reports_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_data_export_crags_v1: {
+        Row: {
+          country: string | null
+          country_code: string | null
+          country_id: string | null
+          created_at: string | null
+          id: string | null
+          latitude: number | null
+          location_visibility:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
+          longitude: number | null
+          name: string | null
+          region_id: string | null
+          region_name: string | null
+          rock_type: string | null
+          slug: string | null
+          sub_area: string | null
+          tide_dependency: string | null
+          type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          country?: string | null
+          country_code?: string | null
+          country_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          latitude?: never
+          location_visibility?:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
+          longitude?: never
+          name?: string | null
+          region_id?: string | null
+          region_name?: string | null
+          rock_type?: string | null
+          slug?: string | null
+          sub_area?: string | null
+          tide_dependency?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          country?: string | null
+          country_code?: string | null
+          country_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          latitude?: never
+          location_visibility?:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
+          longitude?: never
+          name?: string | null
+          region_id?: string | null
+          region_name?: string | null
+          rock_type?: string | null
+          slug?: string | null
+          sub_area?: string | null
+          tide_dependency?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crags_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crags_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_data_export_route_lines_v1: {
+        Row: {
+          climb_id: string | null
+          color: string | null
+          created_at: string | null
+          id: string | null
+          image_height: number | null
+          image_width: number | null
+          points: Json | null
+          sequence_order: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_lines_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_lines_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_data_export_routes_v1: {
+        Row: {
+          consensus_grade: string | null
+          crag_id: string | null
+          created_at: string | null
+          effective_climb_id: string | null
+          grade: string | null
+          grade_index: number | null
+          id: string | null
+          is_verified: boolean | null
+          latitude: number | null
+          location_visibility:
+            | Database["public"]["Enums"]["location_visibility"]
+            | null
+          longitude: number | null
+          name: string | null
+          original_grade_string: string | null
+          route_type: string | null
+          sector_id: string | null
+          shared_climb_id: string | null
+          slug: string | null
+          updated_at: string | null
+          verification_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "climbs_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_grade_index_fkey"
+            columns: ["grade_index"]
+            isOneToOne: false
+            referencedRelation: "grade_mappings"
+            referencedColumns: ["grade_index"]
+          },
+          {
+            foreignKeyName: "climbs_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_sectors_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "sectors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_shared_climb_id_fkey"
+            columns: ["shared_climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_shared_climb_id_fkey"
+            columns: ["shared_climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_data_export_sectors_v1: {
+        Row: {
+          crag_id: string | null
+          created_at: string | null
+          id: string | null
+          name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sectors_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sectors_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_data_export_tombstones_v1: {
+        Row: {
+          deleted_at: string | null
+          entity_type: string | null
+          id: string | null
+          superseded_by: string | null
+        }
+        Insert: {
+          deleted_at?: string | null
+          entity_type?: string | null
+          id?: string | null
+          superseded_by?: string | null
+        }
+        Update: {
+          deleted_at?: string | null
+          entity_type?: string | null
+          id?: string | null
+          superseded_by?: string | null
+        }
+        Relationships: []
+      }
+    }
+    Functions: {
+      accept_open_data_consent: {
+        Args: { p_expected_version: string }
+        Returns: {
+          consent_timestamp: string
+          open_data_consent_version: string
+        }[]
+      }
+      add_correction_type_value:
+        | { Args: { new_value: string }; Returns: undefined }
+        | { Args: { p_type: string; p_value: string }; Returns: undefined }
+      append_submission_draft_images_atomic: {
+        Args: {
+          p_draft_id: string
+          p_expected_updated_at: string
+          p_images: Json
+        }
+        Returns: Json
+      }
+      apply_published_submission_edit: {
+        Args: {
+          p_client_mutation_id: string
+          p_image_id: string
+          p_operations: Json
+        }
+        Returns: Json
+      }
+      apply_published_submission_edit_without_revisions: {
+        Args: {
+          p_client_mutation_id: string
+          p_image_id: string
+          p_operations: Json
+        }
+        Returns: Json
+      }
+      assert_media_ready_for_publication: {
+        Args: { p_image_ids: string[] }
+        Returns: undefined
+      }
+      claim_media_deletion_job: {
+        Args: { lease_seconds?: number; worker_name: string }
+        Returns: {
+          attempts: number
+          bucket: string
+          claim_token: string | null
+          completed_at: string | null
+          created_at: string
+          delivery_verified_at: string | null
+          expected_object_bytes: number | null
+          expected_object_etag: string | null
+          id: string
+          image_id: string | null
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          object_key: string
+          reason: string
+          reconciliation_artifact_digest: string | null
+          reconciliation_run_id: number | null
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
+          run_at: string
+          source_id: string | null
+          source_type: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "media_deletion_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      claim_media_job: {
+        Args: { lease_seconds?: number; worker_name: string }
+        Returns: {
+          attempts: number
+          claim_token: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          image_id: string
+          job_type: string
+          last_error: string | null
+          lease_expires_at: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "media_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      claim_media_job_for_image: {
+        Args: {
+          lease_seconds?: number
+          p_image_id: string
+          worker_name: string
+        }
+        Returns: {
+          attempts: number
+          claim_token: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          image_id: string
+          job_type: string
+          last_error: string | null
+          lease_expires_at: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          recovery_artifact_digest: string | null
+          recovery_reason: string | null
+          recovery_run_id: number | null
+          replay_of_job_id: string | null
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "media_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      claim_submission_collaborator_invite: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      claim_submission_draft_collaborator_invite: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      cleanup_orphan_route_uploads: {
+        Args: { max_age?: string; max_delete?: number }
+        Returns: number
+      }
+      climb_is_hard_deletable: {
+        Args: { p_climb_id: string }
+        Returns: boolean
+      }
+      commit_media_webp: {
+        Args: {
+          p_claim_token: string
+          p_expected_original_bucket: string
+          p_expected_original_key: string
+          p_image_id: string
+          p_manifest: Json
+          p_media_job_id: string
+          p_optimized_bucket: string
+          p_optimized_bytes: number
+          p_optimized_height: number
+          p_optimized_key: string
+          p_optimized_mime: string
+          p_optimized_width: number
+          p_url: string
+        }
+        Returns: string
+      }
+      complete_media_deletion_job: {
+        Args: { p_claim_token: string; p_job_id: string }
+        Returns: undefined
+      }
+      complete_media_job: {
+        Args: { p_claim_token: string; p_job_id: string }
+        Returns: undefined
+      }
+      compute_contributor_tier: {
+        Args: { p_accepted_count: number; p_score: number }
+        Returns: string
+      }
+      crag_is_hard_deletable: { Args: { p_crag_id: string }; Returns: boolean }
+      create_notification: {
+        Args: {
+          p_link?: string
+          p_message?: string
+          p_target_user_id: string
+          p_title: string
+          p_type: string
+        }
+        Returns: string
+      }
+      create_submission_routes_atomic: {
+        Args: {
+          p_crag_id: string
+          p_image_id: string
+          p_route_type: string
+          p_routes: Json
+        }
+        Returns: {
+          climb_id: string
+          grade: string
+          name: string
+        }[]
+      }
+      create_submission_routes_service: {
+        Args: {
+          p_crag_id: string
+          p_image_id: string
+          p_route_type: string
+          p_routes: Json
+          p_user_id: string
+        }
+        Returns: {
+          climb_id: string
+          grade: string
+          name: string
+        }[]
+      }
+      create_unified_submission_atomic: {
+        Args: {
+          p_crag_id: string
+          p_primary_image: Json
+          p_route_type: string
+          p_routes: Json
+          p_supplementary_images: Json[]
+        }
+        Returns: Json
+      }
+      current_open_data_consent_version: { Args: never; Returns: string }
+      delete_account_atomic: {
+        Args: {
+          p_delete_route_uploads: boolean
+          p_email: string
+          p_user_id: string
+        }
+        Returns: {
+          deleted_climbs: number
+          deleted_images: number
+          deleted_logs: number
+          deleted_profile: boolean
+          deleted_route_upload_images: number
+          deleted_user_climbs: number
+          nullified_climbs: number
+          nullified_images: number
+        }[]
+      }
+      delete_empty_crag: {
+        Args: { grace_period?: string; target_crag_id: string }
+        Returns: boolean
       }
       delete_empty_crags: { Args: { grace_period?: string }; Returns: number }
       delete_submission_draft_atomic: {
