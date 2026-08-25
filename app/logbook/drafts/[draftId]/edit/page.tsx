@@ -16,6 +16,7 @@ import { DraftDetailsPanel } from '@/features/draft-editor/components/DraftDetai
 import { DraftUploadQueue } from '@/features/media-upload/components/DraftUploadQueue'
 import { resolveDraftClimbType } from '@/features/draft-editor/lib/edit-draft-types'
 import { useUnsavedChangesWarning } from '@/features/editor/hooks/use-unsaved-changes-warning'
+import TopoReplacementMappingPanel from '@/features/crag-management/components/TopoReplacementMappingPanel'
 
 
 export default function EditDraftPage() {
@@ -48,6 +49,9 @@ export default function EditDraftPage() {
   } = refs
 
   const collaborationAdded = searchParams.get('collab') === 'added'
+  const isTopoReplacement = draft.draft?.draft_kind === 'topo_replacement'
+  const replacementHasPhoto = isTopoReplacement
+    && ((draft.draft?.images.length || 0) + uploads.pendingDraftUploads.length >= 1)
 
   if (draft.isInitialLoading && !draft.draft) {
     return (
@@ -73,6 +77,7 @@ export default function EditDraftPage() {
           onManualSave={actions.handleManualSave}
           onPublish={() => { void actions.publishDraft() }}
           onDeleteDraft={() => { void actions.handleDeleteDraft() }}
+          publishLabel={isTopoReplacement ? 'Publish replacement' : 'Publish'}
         />
 
         {collaborationAdded ? (
@@ -94,14 +99,23 @@ export default function EditDraftPage() {
         ) : null}
 
         {!draft.error && draft.draft && draft.manageImages.length === 0 ? (
-          <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
-            {uploads.pendingDraftUploads.length > 0 || draft.draft.images.some((image) => image.readiness_status === 'processing')
-              ? 'Photos are still preparing for the editor. They should appear here once image access is ready.'
-              : draft.draft.images.length > 0 && draft.draft.images.every((image) => image.readiness_status === 'error')
-                ? 'Some photos failed to prepare for the editor. Try re-uploading the affected images.'
-                : draft.draft.images.length === 0 && uploads.pendingDraftUploads.length === 0
-                  ? 'This draft has no photos yet. Add at least one image to continue.'
-                  : 'Photos are still preparing for the editor. They should appear here once image access is ready.'}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+            <p>{uploads.pendingDraftUploads.length > 0 || draft.draft.images.some((image) => image.readiness_status === 'processing')
+                ? 'Photos are still preparing for the editor. They should appear here once image access is ready.'
+                : draft.draft.images.length > 0 && draft.draft.images.every((image) => image.readiness_status === 'error')
+                  ? 'Some photos failed to prepare for the editor. Try re-uploading the affected images.'
+                  : draft.draft.images.length === 0 && uploads.pendingDraftUploads.length === 0
+                    ? 'This draft has no photos yet. Add at least one image to continue.'
+                    : 'Photos are still preparing for the editor. They should appear here once image access is ready.'}</p>
+            {draft.draft.images.length === 0 && uploads.pendingDraftUploads.length === 0 ? (
+              <button
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                onClick={() => addImageInputRef.current?.click()}
+                type="button"
+              >
+                Upload photo
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -126,7 +140,7 @@ export default function EditDraftPage() {
           ref={addImageInputRef}
           type="file"
           accept="image/*"
-          multiple
+          multiple={!isTopoReplacement}
           className="hidden"
           onChange={(event) => {
             void actions.handleAddImages(event.target.files)
@@ -187,17 +201,34 @@ export default function EditDraftPage() {
                 Default
               </button>
             ) : null}
-            addAction={{ loading: false, disabled: !!conflict, onClick: () => addImageInputRef.current?.click() }}
+            addAction={{
+              loading: false,
+              disabled: !!conflict || replacementHasPhoto,
+              onClick: () => addImageInputRef.current?.click(),
+            }}
             removeAction={derived.activeImageTab ? {
               loading: false,
-              disabled: derived.quickSwitcherImages.length <= 1 || !!conflict,
+              disabled: (!isTopoReplacement && derived.quickSwitcherImages.length <= 1) || !!conflict,
               onClick: () => { void actions.handleRemoveImage(derived.activeImageTab!.imageId) },
             } : undefined}
-            onQuickBarDropFiles={actions.handleQuickBarDropFiles}
+            onQuickBarDropFiles={replacementHasPhoto
+              ? undefined
+              : isTopoReplacement
+                ? (files) => actions.handleQuickBarDropFiles(files.slice(0, 1))
+              : actions.handleQuickBarDropFiles}
           />
         ) : null}
 
-        <DraftMetadataPanel
+        {draft.draft?.topo_replacement ? (
+          <TopoReplacementMappingPanel
+            key={draft.draft.topo_replacement.routes.map((route) => `${route.climbId}:${route.resolution}:${route.draftRouteId || ''}`).join('|')}
+            replacement={draft.draft.topo_replacement}
+            routesByImageId={draft.routesByImageId}
+            hasPendingChanges={actions.hasPendingChanges}
+          />
+        ) : null}
+
+        {!isTopoReplacement ? <DraftMetadataPanel
           atlasSync={derived.atlasSync}
           selectedCrag={draft.selectedCrag}
           showCragSelector={location.showCragSelector}
@@ -227,9 +258,9 @@ export default function EditDraftPage() {
           onSearchQueryChange={actions.onSearchQueryChange}
           onSearchLocation={location.handleSearchLocation}
           onRouteTypeChange={actions.onRouteTypeChange}
-        />
+        /> : null}
 
-        <DraftDetailsPanel
+        {!isTopoReplacement ? <DraftDetailsPanel
           detailsOpen={routeEditing.detailsOpen}
           onDetailsToggle={() => routeEditing.setDetailsOpen((prev) => !prev)}
           orientationOpen={routeEditing.orientationOpen}
@@ -244,7 +275,7 @@ export default function EditDraftPage() {
           onCreditPlatformChange={actions.onCreditPlatformChange}
           creditHandle={draft.creditHandle}
           onCreditHandleChange={actions.onCreditHandleChange}
-        />
+        /> : null}
 
         <CollaboratorDialog
           open={collaboration.shareOpen}

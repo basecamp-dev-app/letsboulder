@@ -3125,6 +3125,7 @@ export type Database = {
         Row: {
           crag_id: string | null
           created_at: string
+          draft_kind: string
           id: string
           last_edited_by: string | null
           metadata: Json
@@ -3135,6 +3136,7 @@ export type Database = {
         Insert: {
           crag_id?: string | null
           created_at?: string
+          draft_kind?: string
           id?: string
           last_edited_by?: string | null
           metadata?: Json
@@ -3145,6 +3147,7 @@ export type Database = {
         Update: {
           crag_id?: string | null
           created_at?: string
+          draft_kind?: string
           id?: string
           last_edited_by?: string | null
           metadata?: Json
@@ -3218,6 +3221,205 @@ export type Database = {
             columns: ["image_id"]
             isOneToOne: false
             referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      topo_replacement_routes: {
+        Row: {
+          climb_id: string
+          draft_route_id: string | null
+          replacement_id: string
+          resolution: string
+          updated_at: string
+        }
+        Insert: {
+          climb_id: string
+          draft_route_id?: string | null
+          replacement_id: string
+          resolution?: string
+          updated_at?: string
+        }
+        Update: {
+          climb_id?: string
+          draft_route_id?: string | null
+          replacement_id?: string
+          resolution?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "topo_replacement_routes_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topo_replacement_routes_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topo_replacement_routes_draft_route_id_fkey"
+            columns: ["draft_route_id"]
+            isOneToOne: false
+            referencedRelation: "submission_draft_routes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topo_replacement_routes_replacement_id_fkey"
+            columns: ["replacement_id"]
+            isOneToOne: false
+            referencedRelation: "topo_replacements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      topo_replacements: {
+        Row: {
+          client_mutation_id: string | null
+          crag_id: string
+          created_at: string
+          created_by: string | null
+          draft_id: string | null
+          id: string
+          published_at: string | null
+          published_by: string | null
+          reason: string
+          replacement_image_id: string | null
+          source_image_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_mutation_id?: string | null
+          crag_id: string
+          created_at?: string
+          created_by?: string | null
+          draft_id?: string | null
+          id?: string
+          published_at?: string | null
+          published_by?: string | null
+          reason: string
+          replacement_image_id?: string | null
+          source_image_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_mutation_id?: string | null
+          crag_id?: string
+          created_at?: string
+          created_by?: string | null
+          draft_id?: string | null
+          id?: string
+          published_at?: string | null
+          published_by?: string | null
+          reason?: string
+          replacement_image_id?: string | null
+          source_image_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "topo_replacements_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topo_replacements_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topo_replacements_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: true
+            referencedRelation: "submission_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topo_replacements_replacement_image_id_fkey"
+            columns: ["replacement_image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topo_replacements_source_image_id_fkey"
+            columns: ["source_image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      topo_route_line_tombstones: {
+        Row: {
+          climb_id: string
+          deleted_at: string
+          deleted_by: string | null
+          image_id: string
+          reason: string
+          replacement_id: string | null
+          route_line_id: string
+          snapshot: Json
+        }
+        Insert: {
+          climb_id: string
+          deleted_at?: string
+          deleted_by?: string | null
+          image_id: string
+          reason: string
+          replacement_id?: string | null
+          route_line_id: string
+          snapshot: Json
+        }
+        Update: {
+          climb_id?: string
+          deleted_at?: string
+          deleted_by?: string | null
+          image_id?: string
+          reason?: string
+          replacement_id?: string | null
+          route_line_id?: string
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "topo_route_line_tombstones_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topo_route_line_tombstones_climb_id_fkey"
+            columns: ["climb_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_routes_v1"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topo_route_line_tombstones_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topo_route_line_tombstones_replacement_id_fkey"
+            columns: ["replacement_id"]
+            isOneToOne: false
+            referencedRelation: "topo_replacements"
             referencedColumns: ["id"]
           },
         ]
@@ -3910,9 +4112,25 @@ export type Database = {
         }
         Returns: Json
       }
+      archive_and_delete_climb_topo_lines: {
+        Args: { p_climb_id: string; p_reason: string }
+        Returns: number
+      }
+      archive_and_delete_topo_lines: {
+        Args: {
+          p_image_id: string
+          p_reason: string
+          p_replacement_id?: string
+        }
+        Returns: number
+      }
       assert_media_ready_for_publication: {
         Args: { p_image_ids: string[] }
         Returns: undefined
+      }
+      can_manage_topo_replacement: {
+        Args: { p_crag_id: string }
+        Returns: boolean
       }
       claim_media_deletion_job: {
         Args: { lease_seconds?: number; worker_name: string }
@@ -4819,6 +5037,10 @@ export type Database = {
         Args: { max_delete?: number; retention_days?: number }
         Returns: number
       }
+      publish_topo_replacement: {
+        Args: { p_replacement_id: string }
+        Returns: Json
+      }
       queue_media_ingest_job: {
         Args: {
           p_auto_approve?: boolean
@@ -5111,6 +5333,15 @@ export type Database = {
         Args: { p_crag_id: string; p_is_maintainer: boolean; p_user_id: string }
         Returns: boolean
       }
+      set_topo_replacement_route_resolution: {
+        Args: {
+          p_climb_id: string
+          p_draft_route_id?: string
+          p_replacement_id: string
+          p_resolution: string
+        }
+        Returns: Json
+      }
       slugify: { Args: { input: string }; Returns: string }
       soft_delete_climb: {
         Args: { p_climb_id: string; p_reason: string; p_superseded_by?: string }
@@ -5194,84 +5425,168 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      soft_delete_crag_image: {
-        Args: { p_crag_id: string; p_image_id: string; p_reason: string }
-        Returns: {
-          admin_region_name: string | null
-          asset_version: number
-          capture_date: string | null
-          checksum_sha256: string | null
-          client_upload_id: string | null
-          continent_name: string | null
-          contribution_credit_handle: string | null
-          contribution_credit_platform: string | null
-          country_code: string | null
-          country_id: string | null
-          country_name: string | null
-          crag_id: string | null
-          created_at: string | null
-          created_by: string | null
-          face_direction: string | null
-          face_directions: string[] | null
-          face_order: number | null
-          has_humans: boolean | null
-          height: number | null
-          id: string
-          is_anonymous_submission: boolean
-          is_primary: boolean
-          is_verified: boolean | null
-          last_edited_by: string | null
-          latitude: number | null
-          location_mode: string | null
-          longitude: number | null
-          moderated_at: string | null
-          moderation_error: string | null
-          moderation_labels: Json | null
-          moderation_provider: string | null
-          moderation_status: string | null
-          natural_height: number | null
-          natural_width: number | null
-          optimized_bucket: string | null
-          optimized_bytes: number | null
-          optimized_height: number | null
-          optimized_key: string | null
-          optimized_mime: string | null
-          optimized_width: number | null
-          original_bucket: string | null
-          original_bytes: number | null
-          original_deleted_at: string | null
-          original_deletion_queued_at: string | null
-          original_height: number | null
-          original_key: string | null
-          original_mime_type: string | null
-          original_width: number | null
-          parent_image_id: string | null
-          place_id: string | null
-          processed_at: string | null
-          processing_status: string
-          status: string
-          storage_bucket: string | null
-          storage_path: string | null
-          storage_provider: string
-          submission_id: string | null
-          un_region_name: string | null
-          upload_crag_id: string | null
-          upload_draft_id: string | null
-          upload_purpose: string | null
-          url: string
-          variants: Json
-          verification_count: number | null
-          visibility: string
-          width: number | null
-          wiki_revision: number
-        }
-        SetofOptions: {
-          from: "*"
-          to: "images"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      soft_delete_crag_image:
+        | {
+            Args: { p_crag_id: string; p_image_id: string; p_reason: string }
+            Returns: {
+              admin_region_name: string | null
+              asset_version: number
+              capture_date: string | null
+              checksum_sha256: string | null
+              client_upload_id: string | null
+              continent_name: string | null
+              contribution_credit_handle: string | null
+              contribution_credit_platform: string | null
+              country_code: string | null
+              country_id: string | null
+              country_name: string | null
+              crag_id: string | null
+              created_at: string | null
+              created_by: string | null
+              face_direction: string | null
+              face_directions: string[] | null
+              face_order: number | null
+              has_humans: boolean | null
+              height: number | null
+              id: string
+              is_anonymous_submission: boolean
+              is_primary: boolean
+              is_verified: boolean | null
+              last_edited_by: string | null
+              latitude: number | null
+              location_mode: string | null
+              longitude: number | null
+              moderated_at: string | null
+              moderation_error: string | null
+              moderation_labels: Json | null
+              moderation_provider: string | null
+              moderation_status: string | null
+              natural_height: number | null
+              natural_width: number | null
+              optimized_bucket: string | null
+              optimized_bytes: number | null
+              optimized_height: number | null
+              optimized_key: string | null
+              optimized_mime: string | null
+              optimized_width: number | null
+              original_bucket: string | null
+              original_bytes: number | null
+              original_deleted_at: string | null
+              original_deletion_queued_at: string | null
+              original_height: number | null
+              original_key: string | null
+              original_mime_type: string | null
+              original_width: number | null
+              parent_image_id: string | null
+              place_id: string | null
+              processed_at: string | null
+              processing_status: string
+              status: string
+              storage_bucket: string | null
+              storage_path: string | null
+              storage_provider: string
+              submission_id: string | null
+              un_region_name: string | null
+              upload_crag_id: string | null
+              upload_draft_id: string | null
+              upload_purpose: string | null
+              url: string
+              variants: Json
+              verification_count: number | null
+              visibility: string
+              width: number | null
+              wiki_revision: number
+            }
+            SetofOptions: {
+              from: "*"
+              to: "images"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              p_crag_id: string
+              p_delete_routes: boolean
+              p_image_id: string
+              p_reason: string
+            }
+            Returns: {
+              admin_region_name: string | null
+              asset_version: number
+              capture_date: string | null
+              checksum_sha256: string | null
+              client_upload_id: string | null
+              continent_name: string | null
+              contribution_credit_handle: string | null
+              contribution_credit_platform: string | null
+              country_code: string | null
+              country_id: string | null
+              country_name: string | null
+              crag_id: string | null
+              created_at: string | null
+              created_by: string | null
+              face_direction: string | null
+              face_directions: string[] | null
+              face_order: number | null
+              has_humans: boolean | null
+              height: number | null
+              id: string
+              is_anonymous_submission: boolean
+              is_primary: boolean
+              is_verified: boolean | null
+              last_edited_by: string | null
+              latitude: number | null
+              location_mode: string | null
+              longitude: number | null
+              moderated_at: string | null
+              moderation_error: string | null
+              moderation_labels: Json | null
+              moderation_provider: string | null
+              moderation_status: string | null
+              natural_height: number | null
+              natural_width: number | null
+              optimized_bucket: string | null
+              optimized_bytes: number | null
+              optimized_height: number | null
+              optimized_key: string | null
+              optimized_mime: string | null
+              optimized_width: number | null
+              original_bucket: string | null
+              original_bytes: number | null
+              original_deleted_at: string | null
+              original_deletion_queued_at: string | null
+              original_height: number | null
+              original_key: string | null
+              original_mime_type: string | null
+              original_width: number | null
+              parent_image_id: string | null
+              place_id: string | null
+              processed_at: string | null
+              processing_status: string
+              status: string
+              storage_bucket: string | null
+              storage_path: string | null
+              storage_provider: string
+              submission_id: string | null
+              un_region_name: string | null
+              upload_crag_id: string | null
+              upload_draft_id: string | null
+              upload_purpose: string | null
+              url: string
+              variants: Json
+              verification_count: number | null
+              visibility: string
+              width: number | null
+              wiki_revision: number
+            }
+            SetofOptions: {
+              from: "*"
+              to: "images"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
       soft_delete_image: {
         Args: { p_image_id: string; p_reason: string }
         Returns: {
@@ -5352,6 +5667,15 @@ export type Database = {
       }
       soft_delete_published_submission: {
         Args: { p_image_ids: string[]; p_owner_id: string }
+        Returns: Json
+      }
+      start_topo_replacement: {
+        Args: {
+          p_client_mutation_id?: string
+          p_crag_id: string
+          p_reason: string
+          p_source_image_id: string
+        }
         Returns: Json
       }
       sync_climb_grade_from_votes: {

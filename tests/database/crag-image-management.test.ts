@@ -153,7 +153,7 @@ describe('atomic crag image removal', () => {
     })
   })
 
-  it('soft-deletes the image and audit record while preserving routes and edit history', async () => {
+  it('deletes perspective-specific lines while preserving routes, user logs, and edit history', async () => {
     await transaction(async (client) => {
       const admin = await createUser(client, true)
       const owner = await createUser(client, false)
@@ -162,9 +162,10 @@ describe('atomic crag image removal', () => {
       const climb = randomUUID()
       const routeLine = randomUUID()
       const edit = randomUUID()
+      const userLog = randomUUID()
       await client.query(
-        `insert into public.climbs (id, name, grade, status, route_type, crag_id, place_id, user_id, slug)
-         values ($1, 'Preserved route', '6A', 'approved', 'boulder', $2, $2, $3, $4)`,
+        `insert into public.climbs (id, name, grade, status, route_type, crag_id, user_id, slug)
+         values ($1, 'Preserved route', '6A', 'approved', 'boulder', $2, $3, $4)`,
         [climb, crag, owner, `preserved-${climb}`],
       )
       await client.query(
@@ -176,6 +177,11 @@ describe('atomic crag image removal', () => {
         `insert into public.submission_edit_history (id, image_id, edit_kind, summary)
          values ($1, $2, 'metadata', 'Preserved edit history')`,
         [edit, image],
+      )
+      await client.query(
+        `insert into public.user_climbs (id, user_id, climb_id, style, notes)
+         values ($1, $2, $3, 'top', 'Historical send')`,
+        [userLog, owner, climb],
       )
 
       await setRole(client, 'authenticated', admin)
@@ -192,7 +198,25 @@ describe('atomic crag image removal', () => {
       expect((await client.query(
         'select id, image_id, climb_id from public.route_lines where id = $1',
         [routeLine],
-      )).rows).toEqual([{ id: routeLine, image_id: image, climb_id: climb }])
+      )).rows).toEqual([])
+      expect((await client.query(
+        'select id, name, grade from public.climbs where id = $1',
+        [climb],
+      )).rows).toEqual([{ id: climb, name: 'Preserved route', grade: '6A' }])
+      expect((await client.query(
+        'select id, climb_id, notes from public.user_climbs where id = $1',
+        [userLog],
+      )).rows).toEqual([{ id: userLog, climb_id: climb, notes: 'Historical send' }])
+      expect((await client.query(
+        `select route_line_id, image_id, climb_id, snapshot->'points' as points
+         from public.topo_route_line_tombstones where route_line_id = $1`,
+        [routeLine],
+      )).rows).toEqual([{
+        route_line_id: routeLine,
+        image_id: image,
+        climb_id: climb,
+        points: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+      }])
       expect((await client.query(
         'select id, image_id from public.submission_edit_history where id = $1',
         [edit],
@@ -205,6 +229,58 @@ describe('atomic crag image removal', () => {
 
       await setRole(client, 'anon')
       expect((await client.query('select id from public.images where id = $1', [image])).rows).toEqual([])
+    })
+  })
+
+  it('optionally soft-deletes associated route data while retaining user logs', async () => {
+    await transaction(async (client) => {
+      const admin = await createUser(client, true)
+      const climber = await createUser(client, false)
+      const crag = await createCrag(client, 'Route removal crag')
+      const image = await createImage(client, crag, admin)
+      const otherImage = await createImage(client, crag, admin)
+      const climb = randomUUID()
+      const log = randomUUID()
+      await client.query(
+        `insert into public.climbs (id, name, grade, status, route_type, crag_id, slug)
+         values ($1, 'Remove this route', '6C', 'approved', 'boulder', $2, $3)`,
+        [climb, crag, `remove-${climb}`],
+      )
+      await client.query(
+        `insert into public.route_lines (image_id, climb_id, points) values
+           ($1, $3, '[{"x":0,"y":0},{"x":1,"y":1}]'::jsonb),
+           ($2, $3, '[{"x":0.2,"y":0.1},{"x":0.8,"y":0.9}]'::jsonb)`,
+        [image, otherImage, climb],
+      )
+      await client.query(
+        `insert into public.user_climbs (id, user_id, climb_id, style)
+         values ($1, $2, $3, 'top')`,
+        [log, climber, climb],
+      )
+
+      await setRole(client, 'authenticated', admin)
+      await client.query(
+        'select public.soft_delete_crag_image($1, $2, $3, true)',
+        [crag, image, 'Route no longer exists'],
+      )
+      await client.query('reset role')
+
+      expect((await client.query(
+        'select deleted_at is not null as deleted, deletion_reason from public.climbs where id = $1',
+        [climb],
+      )).rows).toEqual([{ deleted: true, deletion_reason: 'Removed with topo: Route no longer exists' }])
+      expect((await client.query(
+        'select count(*)::int as count from public.route_lines where climb_id = $1',
+        [climb],
+      )).rows).toEqual([{ count: 0 }])
+      expect((await client.query(
+        'select id, climb_id from public.user_climbs where id = $1',
+        [log],
+      )).rows).toEqual([{ id: log, climb_id: climb }])
+      expect((await client.query(
+        'select count(*)::int as count from public.topo_route_line_tombstones where climb_id = $1',
+        [climb],
+      )).rows).toEqual([{ count: 2 }])
     })
   })
 })

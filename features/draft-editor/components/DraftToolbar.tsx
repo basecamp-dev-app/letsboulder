@@ -16,6 +16,7 @@ interface DraftToolbarProps {
   onManualSave: () => void
   onPublish: () => void
   onDeleteDraft: () => void
+  publishLabel?: string
 }
 
 export function DraftToolbar({
@@ -30,6 +31,7 @@ export function DraftToolbar({
   onManualSave,
   onPublish,
   onDeleteDraft,
+  publishLabel = 'Publish',
 }: DraftToolbarProps) {
   return (
     <>
@@ -58,7 +60,7 @@ export function DraftToolbar({
                   className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
                 >
                   {publishingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                  Publish
+                  {publishLabel}
                 </button>
                 <button
                   type="button"

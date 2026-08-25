@@ -12,6 +12,7 @@ export interface ManagedCragImage {
   routeNames: string[]
   createdAt: string | null
   canRemove: boolean
+  canReplace: boolean
 }
 export interface ManagedCragSummary {
   id: string

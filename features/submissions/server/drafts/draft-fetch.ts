@@ -30,7 +30,7 @@ export async function fetchDraft(id: string, request: NextRequest) {
 
     const { data: draft, error: draftError } = await supabase
       .from('submission_drafts')
-      .select('id, user_id, crag_id, status, metadata, created_at, updated_at, last_edited_by, crags(name, latitude, longitude)')
+      .select('id, user_id, crag_id, status, metadata, draft_kind, created_at, updated_at, last_edited_by, crags(name, latitude, longitude)')
       .eq('id', id)
       .maybeSingle()
 
@@ -59,6 +59,57 @@ export async function fetchDraft(id: string, request: NextRequest) {
 
     if (draftRoutesError) {
       return createErrorResponse(draftRoutesError, 'Failed to fetch draft routes')
+    }
+
+    let topoReplacement: {
+      id: string
+      sourceImageId: string
+      status: string
+      reason: string
+      routes: Array<{
+        climbId: string
+        name: string
+        grade: string
+        routeType: string | null
+        description: string | null
+        resolution: 'pending' | 'mapped' | 'not_visible'
+        draftRouteId: string | null
+      }>
+    } | null = null
+    if (draft.draft_kind === 'topo_replacement') {
+      const { data: replacement, error: replacementError } = await supabase
+        .from('topo_replacements')
+        .select('id, source_image_id, status, reason')
+        .eq('draft_id', id)
+        .maybeSingle()
+      if (replacementError || !replacement) {
+        return createErrorResponse(replacementError || new Error('Topo replacement not found'), 'Failed to fetch topo replacement')
+      }
+      const { data: targets, error: targetsError } = await supabase
+        .from('topo_replacement_routes')
+        .select('climb_id, resolution, draft_route_id, climbs(id, name, grade, route_type, description)')
+        .eq('replacement_id', replacement.id)
+        .order('updated_at', { ascending: true })
+      if (targetsError) return createErrorResponse(targetsError, 'Failed to fetch topo route mappings')
+
+      topoReplacement = {
+        id: replacement.id,
+        sourceImageId: replacement.source_image_id,
+        status: replacement.status,
+        reason: replacement.reason,
+        routes: (targets || []).map((target) => {
+          const relation = Array.isArray(target.climbs) ? target.climbs[0] : target.climbs
+          return {
+            climbId: target.climb_id,
+            name: relation?.name || 'Unnamed route',
+            grade: relation?.grade || 'Unknown',
+            routeType: relation?.route_type || null,
+            description: relation?.description || null,
+            resolution: target.resolution as 'pending' | 'mapped' | 'not_visible',
+            draftRouteId: target.draft_route_id,
+          }
+        }),
+      }
     }
 
     const draftRoutesByImageId = ((draftRoutes || []) as DraftRouteRow[]).reduce<Record<string, Array<Record<string, unknown>>>>((acc, route) => {
@@ -94,7 +145,15 @@ export async function fetchDraft(id: string, request: NextRequest) {
     })
 
     const isOwner = draft.user_id === userId
-    return NextResponse.json({ draft: { ...draft, metadata: normalizeJsonRecord(draft.metadata), images: withSignedUrls }, isOwner })
+    return NextResponse.json({
+      draft: {
+        ...draft,
+        metadata: normalizeJsonRecord(draft.metadata),
+        images: withSignedUrls,
+        topo_replacement: topoReplacement,
+      },
+      isOwner,
+    })
   } catch (error) {
     return createErrorResponse(error, 'Failed to fetch submission draft')
   }

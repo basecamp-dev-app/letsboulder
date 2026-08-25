@@ -26,8 +26,28 @@ export interface DraftPayload {
   updated_at: string
   last_edited_by: string | null
   metadata: Record<string, unknown> | null
+  draft_kind?: 'new_submission' | 'topo_replacement'
+  topo_replacement?: TopoReplacementDraft | null
   crags: { name?: string; latitude?: number | null; longitude?: number | null } | Array<{ name?: string; latitude?: number | null; longitude?: number | null }> | null
   images: DraftImagePayload[]
+}
+
+export interface TopoReplacementRouteTarget {
+  climbId: string
+  name: string
+  grade: string
+  routeType: string | null
+  description: string | null
+  resolution: 'pending' | 'mapped' | 'not_visible'
+  draftRouteId: string | null
+}
+
+export interface TopoReplacementDraft {
+  id: string
+  sourceImageId: string
+  status: string
+  reason: string
+  routes: TopoReplacementRouteTarget[]
 }
 
 export interface CragImagePayload {

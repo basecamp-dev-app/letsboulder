@@ -10,6 +10,7 @@ const API_EXECUTABLE_DEFINERS = [
   'accept_open_data_consent(text)',
   'apply_published_submission_edit(uuid,uuid,jsonb)',
   'assert_media_ready_for_publication(uuid[])',
+  'can_manage_topo_replacement(uuid)',
   'claim_submission_collaborator_invite(uuid)',
   'claim_submission_draft_collaborator_invite(uuid)',
   'create_notification(uuid,character varying,text,text,text)',
@@ -59,6 +60,7 @@ const API_EXECUTABLE_DEFINERS = [
   'log_submission_edit(uuid,uuid,text,text,jsonb,jsonb)',
   'log_submission_edit(uuid,uuid,text,text,jsonb,jsonb,text,text,text[],text[])',
   'promote_draft_to_submission(uuid)',
+  'publish_topo_replacement(uuid)',
   'propose_crag_metadata(uuid,uuid,text,text,text,text,uuid)',
   'queue_media_ingest_job(uuid,text,text,text,text,uuid,text,boolean)',
   'resolve_legacy_climb_redirect(uuid)',
@@ -70,11 +72,14 @@ const API_EXECUTABLE_DEFINERS = [
   'rollback_wiki_entity_revision(uuid,uuid,text)',
   'save_submission_draft_atomic(uuid,timestamp with time zone,jsonb,jsonb,jsonb,uuid)',
   'set_crag_maintainer(uuid,uuid,boolean)',
+  'set_topo_replacement_route_resolution(uuid,uuid,text,uuid)',
   'soft_delete_climb(uuid,text,uuid)',
   'soft_delete_comment(uuid)',
   'soft_delete_crag(uuid,text,uuid)',
   'soft_delete_crag_image(uuid,uuid,text)',
+  'soft_delete_crag_image(uuid,uuid,text,boolean)',
   'soft_delete_image(uuid,text)',
+  'start_topo_replacement(uuid,uuid,text,uuid)',
   'update_own_profile_submission_credit(text,text)',
   'update_own_submission_anonymity(uuid,boolean)',
   'update_own_submission_credit(uuid,text,text)',
@@ -87,6 +92,8 @@ const API_EXECUTABLE_DEFINERS = [
 const RESTRICTED_FUNCTIONS = [
   'add_correction_type_value(text)',
   'add_correction_type_value(text,text)',
+  'archive_and_delete_climb_topo_lines(uuid,text)',
+  'archive_and_delete_topo_lines(uuid,text,uuid)',
   'claim_media_job(text,integer)',
   'claim_media_job_for_image(text,uuid,integer)',
   'claim_media_deletion_job(text,integer)',
@@ -118,6 +125,8 @@ const RESTRICTED_FUNCTIONS = [
 ]
 
 const SERVICE_FUNCTIONS = [
+  'archive_and_delete_climb_topo_lines(uuid,text)',
+  'archive_and_delete_topo_lines(uuid,text,uuid)',
   'claim_media_job(text,integer)',
   'claim_media_job_for_image(text,uuid,integer)',
   'claim_media_deletion_job(text,integer)',

@@ -156,6 +156,9 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 | `submission_drafts` | Draft submissions with metadata |
 | `submission_draft_images` | Images attached to drafts (storage-aware) |
 | `submission_draft_routes` | Durable per-image draft routes for image-scoped sync |
+| `topo_replacements` | Resumable replacement jobs that keep a published source topo live until atomic cutover |
+| `topo_replacement_routes` | Per-climb mapping from existing route identity to a replacement draft line or `not_visible` resolution |
+| `topo_route_line_tombstones` | Audited snapshots of perspective-specific route lines removed with a topo |
 | `crag_images` | Multi-image crag gallery |
 | `submission_collaborators` | Legacy invite-based published collaboration rows; no longer required for published wiki editing |
 | `submission_collaborator_invites` | Legacy token-based invites for published collaboration |
@@ -242,6 +245,9 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 | `sectors` | `crag_images` | SET NULL |
 | `images` | `media_jobs` | CASCADE |
 | `images` | `route_lines` | CASCADE |
+| `images` | `topo_replacements.source_image_id` | RESTRICT |
+| `images` | `topo_replacements.replacement_image_id` | RESTRICT |
+| `images` | `topo_route_line_tombstones` | RESTRICT |
 | `images` | `submission_collaborators` | CASCADE |
 | `images` | `submission_collaborator_invites` | CASCADE |
 | `images` | `submission_contributors` | CASCADE |
@@ -252,6 +258,8 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 | `climbs` | `grade_votes` | CASCADE |
 | `climbs` | `route_grades` | CASCADE |
 | `climbs` | `route_lines` | CASCADE |
+| `climbs` | `topo_replacement_routes` | RESTRICT |
+| `climbs` | `topo_route_line_tombstones` | RESTRICT |
 | `climbs` | `saved_climbs` | CASCADE |
 | `climbs` | `user_climbs` | CASCADE |
 | `climbs` | `climbs` (self-ref via shared_climb_id) | SET NULL |
@@ -260,6 +268,7 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 | `crags` | `saved_crags` | CASCADE |
 | `submission_drafts` | `submission_draft_images` | CASCADE |
 | `submission_drafts` | `submission_draft_routes` | CASCADE |
+| `submission_drafts` | `topo_replacements` | SET NULL |
 | `submission_drafts` | `submission_draft_collaborators` | CASCADE |
 | `submission_drafts` | `submission_draft_collaborator_invites` | CASCADE |
 | `submission_draft_images` | `submission_draft_routes` | CASCADE |
@@ -296,6 +305,8 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `crags` and `climbs` use `deleted_at`, a required trimmed `deletion_reason` of at most 500 characters, and optional same-table `superseded_by`. Existing soft-deleted climbs are backfilled with `Legacy soft deletion`.
 - `soft_delete_climb` and `soft_delete_crag` are authenticated admin-only `SECURITY DEFINER` RPCs bound to `auth.uid()` through `is_current_user_admin()`. They lock target/replacement rows, require an active replacement, reject self-reference/cycles, and insert `admin_actions` in the same transaction. Crag deletion also locks and soft-deletes every active child climb.
 - `soft_delete_crag_image(crag_id, image_id, reason)` binds the management request to the displayed crag under the same row lock before delegating to `soft_delete_image`; a canonical image ID from another crag cannot be mutated. Legacy `crag_images.id` values are not accepted by this path.
+- Image tombstoning archives and deletes that image's `route_lines`, because their coordinates are perspective-specific. It does not delete `climbs`, user sends, or logs. The four-argument `soft_delete_crag_image(crag_id, image_id, reason, delete_routes)` adds an explicit admin-only option to soft-delete each associated climb and remove all of its remaining topo lines; `user_climbs` history is retained.
+- Topo replacement stages exactly one new processed image in a `draft_kind = 'topo_replacement'` draft. Every climb attached to the source image must map to one saved draft line or be marked `not_visible`, and every drawn line must map to exactly one existing climb. Publication inserts replacement geometry with the original `climb_id` values, archives/deletes source geometry, and swaps image visibility in one transaction. Names, grades, route URLs, sends, and logs therefore retain their existing identities.
 - Submitted climb corrections have no direct API-role UPDATE policy. Their identity and payload fields are also trigger-immutable; voting may update only resolution state and counters through the canonical RPC.
 - Lifecycle changes are trigger-gated to the admin soft-delete RPCs and service-only account/submission deletion workflows. Authenticated direct DELETE grants/policies are removed. Hard-delete guards apply even to `service_role`: only fully empty crags and unassociated, never-published climbs/images can be physically deleted.
 - The physical `crags` to `climbs` FK remains `ON DELETE CASCADE` for legacy compatibility, but the crag hard-delete guard prevents that cascade whenever any climb exists.
@@ -541,9 +552,12 @@ may request at most 30 rows.
 | `delete_empty_crags(grace_period)` | Deterministically batch-delete strictly empty crags after the grace period |
 | `soft_delete_crag(crag_id, reason, superseded_by)` | Admin-only audited crag/child-climb soft deletion |
 | `soft_delete_climb(climb_id, reason, superseded_by)` | Admin-only audited climb soft deletion |
-| `soft_delete_crag_image(crag_id, image_id, reason)` | Admin-only crag-bound canonical image tombstoning |
+| `soft_delete_crag_image(crag_id, image_id, reason[, delete_routes])` | Admin-only crag-bound topo tombstoning; optional route soft deletion preserves user logs |
 | `soft_delete_image(image_id, reason)` | Admin-only audited image tombstoning |
 | `soft_delete_published_submission(image_ids, owner_id)` | Service-only owner submission tombstoning |
+| `start_topo_replacement(crag_id, source_image_id, reason, client_mutation_id)` | Start or resume a manager-owned replacement draft while the source remains public |
+| `set_topo_replacement_route_resolution(replacement_id, climb_id, resolution, draft_route_id)` | Map an existing climb to a saved replacement line or mark it not visible |
+| `publish_topo_replacement(replacement_id)` | Atomically publish replacement media/geometry while preserving climb identities |
 
 ### Notifications
 | Function | Purpose |

@@ -13,6 +13,7 @@ const removeCragImageSchema = z.object({
   cragId: z.uuid(),
   imageId: z.uuid(),
   reason: z.string().trim().min(1, 'Enter a deletion reason').max(500, 'Deletion reason must be 500 characters or fewer'),
+  deleteRoutes: z.boolean().optional().default(false),
 })
 
 export interface RemovedCragImageResult {
@@ -41,6 +42,7 @@ export async function removeCragImageAction(input: unknown): Promise<ActionResul
     p_crag_id: validation.data.cragId,
     p_image_id: validation.data.imageId,
     p_reason: validation.data.reason,
+    p_delete_routes: validation.data.deleteRoutes,
   })
   if (error) {
     if (error.code === '42501') return fail('Administrator access required', 403)
