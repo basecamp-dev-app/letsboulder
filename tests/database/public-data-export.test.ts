@@ -195,11 +195,13 @@ describe('public data export views', () => {
       )
       const route = randomUUID()
       const ineligibleRoute = randomUUID()
+      const deletedParentRoute = randomUUID()
       await client.query(
         `insert into public.climbs (id, crag_id, name, grade, status, route_type)
          values ($1, $3, 'Exported route', '6A', 'approved', 'boulder'),
-                ($2, $4, 'Pending route', '6A', 'pending', 'boulder')`,
-        [route, ineligibleRoute, crag, ineligibleCrag],
+                ($2, $4, 'Pending route', '6A', 'pending', 'boulder'),
+                ($5, $6, 'Deleted parent route', '6A', 'approved', 'boulder')`,
+        [route, ineligibleRoute, crag, ineligibleCrag, deletedParentRoute, deletedImageCrag],
       )
 
       const readyImage = randomUUID()
@@ -208,6 +210,7 @@ describe('public data export views', () => {
       const privateImage = randomUUID()
       const pendingImage = randomUUID()
       const deletedParentImage = randomUUID()
+      const ineligibleImage = randomUUID()
       await client.query(
         `insert into public.images (
            id, url, crag_id, processing_status, moderation_status, visibility, status
@@ -217,9 +220,10 @@ describe('public data export views', () => {
            ($3, 'https://example.test/moderated.jpg', $7, 'ready', 'approved', 'public', 'approved'),
            ($4, 'https://example.test/private.jpg', $7, 'ready', 'skipped', 'public', 'approved'),
            ($5, 'https://example.test/pending.jpg', $7, 'ready', 'skipped', 'public', 'approved'),
-           ($6, 'https://example.test/deleted-parent.jpg', $8, 'ready', 'skipped', 'public', 'approved')`,
+           ($6, 'https://example.test/deleted-parent.jpg', $8, 'ready', 'skipped', 'public', 'approved'),
+           ($9, 'https://example.test/ineligible.jpg', $10, 'ready', 'skipped', 'public', 'approved')`,
         [readyImage, processingImage, moderatedImage, privateImage, pendingImage, deletedParentImage,
-          crag, deletedImageCrag],
+          crag, deletedImageCrag, ineligibleImage, ineligibleCrag],
       )
       await markDeleted(client, 'crags', deletedImageCrag)
 
@@ -230,14 +234,14 @@ describe('public data export views', () => {
         await client.query(
           `insert into public.route_lines (id, climb_id, image_id, points, sequence_order)
            values ($1, $2, $3, '[{"x":0.2,"y":0.8},{"x":0.5,"y":0.5}]'::jsonb, $4)`,
-          [lineIds[index], route, imageId, index],
+          [lineIds[index], imageId === deletedParentImage ? deletedParentRoute : route, imageId, index],
         )
       }
       const ineligibleLine = randomUUID()
       await client.query(
         `insert into public.route_lines (id, climb_id, image_id, points)
          values ($1, $2, $3, '[]'::jsonb)`,
-        [ineligibleLine, ineligibleRoute, readyImage],
+        [ineligibleLine, ineligibleRoute, ineligibleImage],
       )
       await client.query("update public.images set processing_status = 'processing' where id = $1", [processingImage])
       await client.query("update public.images set moderation_status = 'pending' where id = $1", [moderatedImage])

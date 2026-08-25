@@ -228,7 +228,7 @@ AS $$
 DECLARE
   source_image public.images%ROWTYPE;
   draft_id uuid;
-  replacement_id uuid;
+  replacement_id uuid := extensions.gen_random_uuid();
   existing public.topo_replacements%ROWTYPE;
   reason text := btrim(COALESCE(p_reason, ''));
   route_type text;
@@ -288,6 +288,7 @@ BEGIN
     auth.uid(), p_crag_id, 'draft', 'topo_replacement', auth.uid(),
     jsonb_build_object(
       'version', 2,
+      'topoReplacementId', replacement_id,
       'navigation', jsonb_build_object('defaultImageId', NULL),
       'images', '{}'::jsonb,
       'submission', jsonb_build_object(
@@ -306,14 +307,10 @@ BEGIN
   ) RETURNING id INTO draft_id;
 
   INSERT INTO public.topo_replacements (
-    crag_id, source_image_id, draft_id, reason, created_by, client_mutation_id
+    id, crag_id, source_image_id, draft_id, reason, created_by, client_mutation_id
   ) VALUES (
-    p_crag_id, p_source_image_id, draft_id, reason, auth.uid(), p_client_mutation_id
-  ) RETURNING id INTO replacement_id;
-
-  UPDATE public.submission_drafts
-  SET metadata = metadata || jsonb_build_object('topoReplacementId', replacement_id)
-  WHERE id = draft_id;
+    replacement_id, p_crag_id, p_source_image_id, draft_id, reason, auth.uid(), p_client_mutation_id
+  );
 
   INSERT INTO public.topo_replacement_routes (replacement_id, climb_id)
   SELECT replacement_id, line.climb_id

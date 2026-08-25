@@ -13,6 +13,7 @@ describe('get_crag_route_targets_page', () => {
       const cragId = randomUUID()
       const otherCragId = randomUUID()
       const climbId = randomUUID()
+      const otherClimbId = randomUUID()
       const imageIds = Array.from({ length: 7 }, randomUUID)
       await client.query(
         `insert into public.crags (id, name, slug, country_code) values
@@ -20,9 +21,10 @@ describe('get_crag_route_targets_page', () => {
         [cragId, otherCragId],
       )
       await client.query(
-        `insert into public.climbs (id, crag_id, name, slug, grade, status, route_type)
-         values ($1, $2, 'Target route', 'target-route', '6A', 'approved', 'boulder')`,
-        [climbId, cragId],
+        `insert into public.climbs (id, crag_id, name, slug, grade, status, route_type) values
+          ($1, $3, 'Target route', 'target-route', '6A', 'approved', 'boulder'),
+          ($2, $4, 'Other route', 'other-route', '6A', 'approved', 'boulder')`,
+        [climbId, otherClimbId, cragId, otherCragId],
       )
       await client.query(
         `insert into public.images (id, url, crag_id, processing_status, moderation_status, visibility, status)
@@ -38,7 +40,8 @@ describe('get_crag_route_targets_page', () => {
       for (const [index, imageId] of imageIds.entries()) {
         await client.query(
           `insert into public.route_lines (id, climb_id, image_id, points, sequence_order)
-           values ($1, $2, $3, '[]'::jsonb, $4)`, [randomUUID(), climbId, imageId, index],
+           values ($1, $2, $3, '[]'::jsonb, $4)`,
+          [randomUUID(), index === imageIds.length - 1 ? otherClimbId : climbId, imageId, index],
         )
       }
       await client.query(`update public.images set processing_status = 'processing' where id = $1`, [imageIds[1]])
