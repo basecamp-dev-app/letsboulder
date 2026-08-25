@@ -21,6 +21,7 @@ export const TRACK_NAV_ITEMS: NavItem[] = [
 ]
 
 export const ACCOUNT_NAV_ITEMS: NavItem[] = [
+  { label: 'Maintain crags', href: '/maintain/crags' },
   { label: 'Settings', href: '/settings' },
 ]
 

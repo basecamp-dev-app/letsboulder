@@ -31,9 +31,9 @@ export default async function MaintainCragsPage({ searchParams }: MaintainCragsP
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
       <header className="mb-8">
         <p className="text-sm font-semibold uppercase tracking-widest text-blue-400">Crag stewardship</p>
-        <h1 className="mt-2 text-3xl font-bold">Metadata review queue</h1>
+        <h1 className="mt-2 text-3xl font-bold">Crag maintenance</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
-          Compare community proposals with canonical crag metadata. Approval updates the crag and records a revision.
+          Open an assigned crag to manage its images, or review community metadata proposals below.
         </p>
       </header>
 
