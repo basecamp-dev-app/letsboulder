@@ -15,6 +15,7 @@ import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, ok, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { getServerClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { rateLimit } from '@/lib/rate-limit'
 import type { Database, Json } from '@/types/database'
@@ -217,9 +218,11 @@ export async function listCragMaintainersAction(input: unknown): Promise<ActionR
 
   const assignments = (data || []) as MaintainerRow[]
   const userIds = assignments.map((assignment) => assignment.user_id)
-  const { data: profiles } = userIds.length > 0
-    ? await supabase.from('profiles').select('id, display_name, username, email').in('id', userIds)
-    : { data: [] }
+  const profileAdmin = getAdminClientWithAudit(`list crag maintainers for ${validation.data.cragId}`)
+  const { data: profiles, error: profilesError } = userIds.length > 0
+    ? await profileAdmin.from('profiles').select('id, display_name, username, email').in('id', userIds)
+    : { data: [], error: null }
+  if (profilesError) return fail('Failed to load crag maintainer profiles', 500)
   const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]))
 
   return ok(assignments.map((assignment) => {
@@ -245,7 +248,8 @@ export async function setCragMaintainerAction(input: unknown): Promise<ActionRes
   if (!userId) {
     const profileReference = reference.startsWith('@') ? reference.slice(1) : reference
     const column = profileReference.includes('@') ? 'email' : 'username'
-    const { data: profile, error } = await supabase
+    const profileAdmin = getAdminClientWithAudit(`resolve crag maintainer by ${column}`)
+    const { data: profile, error } = await profileAdmin
       .from('profiles')
       .select('id')
       .eq(column, profileReference)
