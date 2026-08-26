@@ -1,0 +1,142 @@
+name: Production Media Remediation
+
+on:
+  workflow_dispatch:
+    inputs:
+      health_run_id:
+        description: Reviewed Production Media Lifecycle Health run ID
+        required: true
+        type: string
+      health_artifact_digest:
+        description: Exact API-reported sha256 digest for the reviewed artifact
+        required: true
+        type: string
+      remediation_kind:
+        description: Narrow remediation surface
+        required: true
+        type: choice
+        options:
+          - missing_reference
+          - source_replacement
+          - possible_orphan
+      batch_size:
+        description: Deterministic batch size (maximum 25)
+        required: true
+        default: '1'
+        type: string
+      confirmation:
+        description: Type REMEDIATE_MEDIA exactly
+        required: true
+        type: string
+      dry_run:
+        description: Revalidate without changing Supabase or enqueueing deletion
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-media-remediation
+  cancel-in-progress: false
+
+jobs:
+  remediate:
+    name: Guarded production media remediation
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 45
+    env:
+      SOURCE_RUN_ID: ${{ inputs.health_run_id }}
+      ARTIFACT_DIGEST: ${{ inputs.health_artifact_digest }}
+      REMEDIATION_KIND: ${{ inputs.remediation_kind }}
+      BATCH_SIZE: ${{ inputs.batch_size }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      LIFECYCLE_HEALTH_INPUT: lifecycle-health/production-media-lifecycle-health.json
+      REMEDIATION_OUTPUT: production-media-remediation.json
+      SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      R2_ENDPOINT: https://${{ vars.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      MEDIA_CDN_URL: https://static.letsboulder.com
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize remediation manifest
+        run: printf '%s\n' '{"schemaVersion":1,"dryRun":true,"selected":[],"actions":[],"fatalError":"Remediation did not start"}' > "$REMEDIATION_OUTPUT"
+
+      - name: Validate dispatch authorization
+        shell: bash
+        run: |
+          if [ "$CONFIRMATION" != 'REMEDIATE_MEDIA' ]; then
+            echo '::error::Confirmation must exactly equal REMEDIATE_MEDIA'
+            exit 1
+          fi
+          if ! [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]] \
+            || ! [[ "$ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] \
+            || ! [[ "$BATCH_SIZE" =~ ^[0-9]+$ ]] \
+            || [ "$BATCH_SIZE" -lt 1 ] || [ "$BATCH_SIZE" -gt 25 ]; then
+            echo '::error::Run ID, digest, or batch size is invalid'
+            exit 1
+          fi
+
+      - name: Verify reviewed lifecycle artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          run_json="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID")"
+          conclusion="$(jq -r '.conclusion' <<< "$run_json")"
+          if [ "$(jq -r '.name' <<< "$run_json")" != 'Production Media Lifecycle Health' ] \
+            || [ "$(jq -r '.path' <<< "$run_json")" != '.github/workflows/production-media-lifecycle-health.yml' ] \
+            || [ "$(jq -r '.status' <<< "$run_json")" != 'completed' ] \
+            || { [ "$conclusion" != 'success' ] && [ "$conclusion" != 'failure' ]; } \
+            || [ "$(jq -r '.head_repository.full_name' <<< "$run_json")" != "$GITHUB_REPOSITORY" ] \
+            || [ "$(jq -r '.head_branch' <<< "$run_json")" != 'main' ] \
+            || [ "$(jq -r '.head_sha' <<< "$run_json")" != "$GITHUB_SHA" ]; then
+            echo '::error::Health run is not a completed same-repository main run for this SHA'
+            exit 1
+          fi
+          artifacts_json="$(gh api --paginate "/repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" --slurp)"
+          match_count="$(jq '[.[].artifacts[] | select(.name == "production-media-lifecycle-health" and .expired == false)] | length' <<< "$artifacts_json")"
+          api_digest="$(jq -r '[.[].artifacts[] | select(.name == "production-media-lifecycle-health" and .expired == false)][0].digest // ""' <<< "$artifacts_json")"
+          if [ "$match_count" != '1' ] || [ "$api_digest" != "$ARTIFACT_DIGEST" ]; then
+            echo '::error::Health artifact association or digest mismatch'
+            exit 1
+          fi
+
+      - name: Download verified lifecycle artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: production-media-lifecycle-health
+          path: lifecycle-health
+          run-id: ${{ inputs.health_run_id }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Revalidate and remediate selected media
+        run: npx tsx scripts/media/remediate-production-media.ts
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_PRIVATE_INVENTORY_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_PRIVATE_INVENTORY_SECRET_ACCESS_KEY }}
+
+      - name: Upload remediation manifest
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-media-remediation-${{ github.run_id }}
+          path: production-media-remediation.json
+          if-no-files-found: error
+          retention-days: 30

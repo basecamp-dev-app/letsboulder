@@ -286,6 +286,10 @@ export function isActiveIngestStatus(status: string): boolean {
   return status === 'queued' || status === 'processing'
 }
 
+export function isQuarantinedMediaState(processingStatus: string): boolean {
+  return processingStatus === 'failed'
+}
+
 export function shouldReportMissingSource(input: {
   live: boolean
   sourceCount: number
@@ -339,7 +343,9 @@ async function main(): Promise<void> {
   }
 
   for (const image of database.images) {
-    const live = image.status !== 'deleted' && liveReferences.has(image.id)
+    const live = image.status !== 'deleted'
+      && !isQuarantinedMediaState(image.processing_status)
+      && liveReferences.has(image.id)
     const originalLocator = { bucket: image.original_bucket, key: image.original_key }
     const storageLocator = { bucket: image.storage_bucket, key: image.storage_path }
     addImageSource(image.id, originalLocator, {
@@ -393,7 +399,9 @@ async function main(): Promise<void> {
     addSurface(surfaces, { bucket: draftImage.original_bucket, key: draftImage.original_key }, {
       surface: 'submission_draft_images.original', recordId: draftImage.id, imageId,
     })
-    if (draftImage.draft_status === 'draft' && draftImage.storage_bucket === BUCKET) {
+    if (draftImage.draft_status === 'draft'
+      && !isQuarantinedMediaState(draftImage.processing_status)
+      && draftImage.storage_bucket === BUCKET) {
       expectedObjectKeys.add(draftImage.storage_path)
     }
   }
@@ -427,7 +435,9 @@ async function main(): Promise<void> {
     const existingSources = sources.filter((key) => objectKeys.has(key))
     const canonicalTracked = image.optimized_bucket === BUCKET && Boolean(image.optimized_key)
     const canonicalPresent = canonicalTracked && objectKeys.has(image.optimized_key as string)
-    const live = image.status !== 'deleted' && liveReferences.has(image.id)
+    const live = image.status !== 'deleted'
+      && !isQuarantinedMediaState(image.processing_status)
+      && liveReferences.has(image.id)
     const base = {
       imageId: image.id,
       imageStatus: image.status,
