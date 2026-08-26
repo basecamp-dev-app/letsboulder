@@ -308,6 +308,31 @@ describe('profile and function privilege hardening', () => {
     })
   })
 
+  it('assigns crag creators as maintainers and exposes the public badge state', async () => {
+    await transaction(async (client) => {
+      const creator = await createProfile(client, true)
+      const cragId = randomUUID()
+
+      await setRequestRole(client, 'authenticated', creator.userId)
+      await client.query(
+        `insert into public.crags (id, name, slug, country_code, created_by)
+         values ($1, 'Creator Crag', $2, 'GB', $3)`,
+        [cragId, `creator-${cragId}`, creator.userId],
+      )
+
+      expect((await client.query(
+        'select assigned_by from public.crag_maintainers where crag_id = $1 and user_id = $2',
+        [cragId, creator.userId],
+      )).rows).toEqual([{ assigned_by: creator.userId }])
+
+      await setRequestRole(client, 'anon')
+      expect((await client.query(
+        'select is_crag_maintainer from public.get_visible_profile($1)',
+        [creator.userId],
+      )).rows).toEqual([{ is_crag_maintainer: true }])
+    })
+  })
+
   it('lists authorized draft collaborators with profile visibility applied inside the RPC', async () => {
     await transaction(async (client) => {
       const fixture = await createDraftCollaboratorFixture(client)

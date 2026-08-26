@@ -120,7 +120,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `correction_votes` | Votes on climb corrections |
 | `crag_reports` | User reports on crags (access, safety, etc.) |
 | `admin_actions` | Admin audit log of moderation actions |
-| `crag_maintainers` | Current admin-assigned, crag-scoped metadata review permissions |
+| `crag_maintainers` | Crag-scoped management permissions assigned to creators automatically or by administrators |
 | `crag_metadata_proposals` | Immutable-head proposals with a required rationale for existing active crag metadata changes |
 
 ### Operational Data Access
@@ -352,7 +352,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `crags.created_by` binds authenticated crag creation to `auth.uid()`. The creator may attach the initial region edge only while that new crag has no images, climbs, drafts, or crag images; authenticated callers cannot directly attach taxonomy edges to a shared crag.
 - A newly inserted proposal transactionally creates one `crag_metadata_review_requested` notification for every assigned crag maintainer and `profiles.is_admin` moderator except the proposer; overlapping roles are deduplicated and idempotent replays do not notify again. Links target `/maintain/crags` with crag and proposal query parameters.
 - `review_crag_metadata_proposal` permits only a different user who is an admin or an assigned maintainer for that crag. Rejection changes proposal state only. Approval locks the proposal, active crag, and wiki head; any head mismatch permanently resolves the proposal as `conflict` without canonical mutation. A successful approval resolves the country-scoped region tag, updates the single primary region edge and crag (thereby running the crag-to-place trigger), appends one immutable crag revision, and marks the proposal approved in the same transaction. Approved, rejected, and conflict outcomes transactionally notify the proposer when that account still exists.
-- `set_crag_maintainer` is admin-only and identity-bound. Maintainer and proposal tables are directly read-only to API roles; assignment, proposal, and review writes are RPC-only. The legacy `update_submission_crag_metadata` RPC is no longer executable by authenticated callers.
+- New crags automatically assign their creator as a crag maintainer in the insert transaction; existing active creator-owned crags are backfilled. `set_crag_maintainer` remains admin-only and identity-bound for later assignment changes. Maintainer and proposal tables are directly read-only to API roles; assignment, proposal, and review writes are otherwise RPC-only. The legacy `update_submission_crag_metadata` RPC is no longer executable by authenticated callers.
 - `submission_draft_collaborators` and `submission_draft_collaborator_invites` continue to enable shared editing on drafts. Authenticated owners and collaborators may call `list_submission_draft_collaborators(draft_id)` to receive every membership row for that draft. It returns only user ID, role, creation time, and public display fields; another user's private display fields are null, while callers may receive their own.
 - RLS helper functions: `is_submission_collaborator(image_id, user_id)` and `is_submission_draft_collaborator(draft_id, user_id)`.
 - Wiki helper function: `user_can_wiki_edit_submission(image_id, user_id)`; the supplied user must equal `auth.uid()`, and deleted images or images under deleted crags are rejected.
@@ -494,7 +494,7 @@ Non-delete synchronization remains bidirectional. Delete synchronization is inte
 | `get_total_logs_count()` | Total logs count |
 | `log_routes_idempotent(...)` | Identity-bound, replay-safe climb logging with stale-write protection |
 | `get_top_contributors(p_limit)` | Public-safe top contributor rows from public profiles |
-| `get_visible_profile(p_user_id)` | Public-safe profile display and statistics when the profile is visible |
+| `get_visible_profile(p_user_id)` | Public-safe profile display, statistics, and active crag-maintainer badge state when the profile is visible |
 
 ### Submissions
 | Function | Purpose |

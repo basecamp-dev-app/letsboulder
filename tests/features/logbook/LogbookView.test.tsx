@@ -72,6 +72,33 @@ describe('LogbookView states', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
+  it('shows the crag maintainer badge on a maintainer profile', () => {
+    renderLogbook({
+      profile: {
+        id: 'user-1',
+        username: 'alex',
+        display_name: 'Alex Climber',
+        is_crag_maintainer: true,
+      },
+    })
+
+    expect(screen.getByText('Crag Maintainer')).toBeVisible()
+  })
+
+  it('shows the crag maintainer badge on a public profile', () => {
+    renderLogbook({
+      isOwnProfile: false,
+      profile: {
+        id: 'user-2',
+        username: 'sam',
+        display_name: 'Sam Climber',
+        is_crag_maintainer: true,
+      },
+    })
+
+    expect(screen.getByText('Crag Maintainer')).toBeVisible()
+  })
+
   it('derives submission expansion from the current URL', () => {
     const { rerender } = renderLogbook()
     expect(screen.getByTestId('submissions')).toHaveAttribute('data-expanded', 'false')
