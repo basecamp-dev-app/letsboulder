@@ -107,8 +107,8 @@ async function readLifecycle(): Promise<{ asOf: Date; jobs: JobRow[]; invariants
               AND image.optimized_mime = 'image/webp'
               AND image.storage_bucket = image.optimized_bucket
               AND image.storage_path = image.optimized_key
-              AND image.original_deleted_at IS NOT NULL
-          ) THEN 'canonical_source_deleted'
+              AND image.original_deletion_queued_at IS NOT NULL
+          ) THEN 'canonical_ready'
           ELSE NULL
         END AS resolution
       FROM public.media_jobs

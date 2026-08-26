@@ -2177,6 +2177,39 @@ export type Database = {
           },
         ]
       }
+      media_quarantine_events: {
+        Row: {
+          artifact_digest: string
+          created_at: string
+          id: string
+          object_key: string
+          record_id: string
+          record_kind: string
+          snapshot_before: Json
+          source_run_id: number
+        }
+        Insert: {
+          artifact_digest: string
+          created_at?: string
+          id?: string
+          object_key: string
+          record_id: string
+          record_kind: string
+          snapshot_before: Json
+          source_run_id: number
+        }
+        Update: {
+          artifact_digest?: string
+          created_at?: string
+          id?: string
+          object_key?: string
+          record_id?: string
+          record_kind?: string
+          snapshot_before?: Json
+          source_run_id?: number
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string | null
@@ -5048,6 +5081,18 @@ export type Database = {
       publish_topo_replacement: {
         Args: { p_replacement_id: string }
         Returns: Json
+      }
+      quarantine_missing_media_references: {
+        Args: {
+          p_artifact_digest: string
+          p_items: Json
+          p_source_run_id: number
+        }
+        Returns: {
+          action: string
+          record_id: string
+          record_kind: string
+        }[]
       }
       queue_media_ingest_job: {
         Args: {

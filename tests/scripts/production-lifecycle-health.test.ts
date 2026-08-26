@@ -48,5 +48,10 @@ describe('jobFinding', () => {
       severity: 'info',
       detail: 'Resolved historical ingest failure: completed_replay',
     })
+    expect(jobFinding({ ...row, resolution: 'canonical_ready' }, asOf)).toMatchObject({
+      category: 'ingest_failed_resolved',
+      severity: 'info',
+      detail: 'Resolved historical ingest failure: canonical_ready',
+    })
   })
 })

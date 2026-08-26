@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { isActiveIngestStatus, shouldReportMissingSource } from '@/scripts/media/reconcile-r2-media'
+import {
+  isActiveIngestStatus,
+  isQuarantinedMediaState,
+  shouldReportMissingSource,
+} from '@/scripts/media/reconcile-r2-media'
 
 describe('media reconciliation lifecycle classification', () => {
   it('requires objects only for active ingest jobs', () => {
@@ -8,6 +12,12 @@ describe('media reconciliation lifecycle classification', () => {
     expect(isActiveIngestStatus('processing')).toBe(true)
     expect(isActiveIngestStatus('failed')).toBe(false)
     expect(isActiveIngestStatus('completed')).toBe(false)
+  })
+
+  it('does not require a missing object after its database record is quarantined', () => {
+    expect(isQuarantinedMediaState('failed')).toBe(true)
+    expect(isQuarantinedMediaState('ready')).toBe(false)
+    expect(isQuarantinedMediaState('processing')).toBe(false)
   })
 
   it('reports a missing source only for a live image', () => {
