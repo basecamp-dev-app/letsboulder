@@ -97,8 +97,7 @@ BEGIN
         record_kind, record_id, object_key, source_run_id, artifact_digest, snapshot_before
       ) VALUES ('image', image_row.id, expected_key, p_source_run_id, p_artifact_digest, to_jsonb(image_row));
       UPDATE public.images SET status = 'pending', visibility = 'private', processing_status = 'failed',
-        moderation_error = 'Media source missing; quarantined by lifecycle remediation run ' || p_source_run_id::text,
-        updated_at = now()
+        moderation_error = 'Media source missing; quarantined by lifecycle remediation run ' || p_source_run_id::text
       WHERE id = image_row.id;
       record_kind := 'image'; record_id := image_row.id; action := 'quarantined';
       RETURN NEXT;

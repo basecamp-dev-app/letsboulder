@@ -73,10 +73,12 @@ describe('missing media quarantine', () => {
         [id, `private://${bucket}/${key}`, bucket, key],
       )
       const drifted = [{ kind: 'image', id, objectKey: key, status: 'pending', processingStatus: 'ready' }]
+      await client.query('savepoint drift_check')
       await expect(client.query(
         'select * from public.quarantine_missing_media_references($1::jsonb, 321, $2)',
         [JSON.stringify(drifted), digest],
       )).rejects.toThrow(/changed after reviewed reconciliation/)
+      await client.query('rollback to savepoint drift_check')
 
       await client.query('set local role authenticated')
       await client.query("select set_config('request.jwt.claims', '{\"role\":\"authenticated\"}', true)")
