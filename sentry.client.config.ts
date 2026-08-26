@@ -25,7 +25,7 @@ const replayEnabled = isProduction && isReplayAllowed(pathname)
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
   enabled: isProduction,
-  tracesSampleRate: isProduction ? getSampleRate(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE, 0.05) : 1,
+  tracesSampleRate: isProduction ? getSampleRate(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE, 0.01) : 1,
   profilesSampleRate: isProduction ? getSampleRate(process.env.NEXT_PUBLIC_SENTRY_PROFILES_SAMPLE_RATE, 0) : 1,
   replaysOnErrorSampleRate: replayEnabled
     ? getSampleRate(process.env.NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE, 0.1)

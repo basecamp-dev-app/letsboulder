@@ -9,7 +9,7 @@ import { getCachedInitialCragRouteData } from '@/features/crags/server/crag-cach
 import { getCragSlugCacheTag } from '@/features/crags/server/crag-cache-tags'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
-export const revalidate = 60
+export const revalidate = 3600
 
 export function generateStaticParams() {
   return []

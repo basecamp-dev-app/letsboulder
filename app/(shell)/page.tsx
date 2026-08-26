@@ -11,7 +11,7 @@ import {
 } from '@/features/home/server/homepage-data'
 import { SITE_URL } from '@/lib/site'
 
-export const revalidate = 60
+export const revalidate = 900
 
 function RecentCragUpdatesFallback() {
   return (

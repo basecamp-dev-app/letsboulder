@@ -42,7 +42,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
         },
         {
           headers: {
-            'Cache-Control': 'no-store',
+            'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
           },
         }
       )
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       },
       {
         headers: {
-          'Cache-Control': 'no-store',
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
         },
       }
     )

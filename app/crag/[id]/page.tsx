@@ -6,7 +6,7 @@ import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { getCragById } from '@/features/crags/server/get-crag-by-id'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 
-export const revalidate = 60
+export const revalidate = 3600
 
 export function generateStaticParams() {
   return []
