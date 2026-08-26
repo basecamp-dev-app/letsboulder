@@ -103,10 +103,16 @@ BEGIN
       record_kind := 'image'; record_id := image_row.id; action := 'quarantined';
       RETURN NEXT;
     ELSE
-      SELECT draft_image, draft.status INTO draft_row, draft_status
-      FROM public.submission_draft_images draft_image
-      JOIN public.submission_drafts draft ON draft.id = draft_image.draft_id
-      WHERE draft_image.id = expected_id FOR UPDATE OF draft_image;
+      SELECT * INTO draft_row
+      FROM public.submission_draft_images
+      WHERE id = expected_id
+      FOR UPDATE;
+      IF FOUND THEN
+        SELECT status INTO draft_status
+        FROM public.submission_drafts
+        WHERE id = draft_row.draft_id
+        FOR SHARE;
+      END IF;
       IF NOT FOUND OR draft_status IS DISTINCT FROM expected_status
         OR draft_row.processing_status IS DISTINCT FROM expected_processing_status
         OR draft_row.storage_provider IS DISTINCT FROM 'r2'
