@@ -123,7 +123,7 @@ function isNotFound(error: unknown): boolean {
     || (isRecord(error.$metadata) && error.$metadata.httpStatusCode === 404)
 }
 
-async function requireMissing(s3: S3Client, item: { objectKey: string }): Promise<void> {
+export async function requireMissing(s3: S3Client, item: { objectKey: string }): Promise<void> {
   try {
     await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: item.objectKey }))
   } catch (error) {
@@ -133,7 +133,7 @@ async function requireMissing(s3: S3Client, item: { objectKey: string }): Promis
   throw new Error(`Object is present and must not be quarantined: ${item.objectKey}`)
 }
 
-async function requireMatchingOrphan(s3: S3Client, item: Orphan): Promise<void> {
+export async function requireMatchingOrphan(s3: S3Client, item: Orphan): Promise<void> {
   const head = await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: item.key }))
   const modified = head.LastModified ? Math.floor(head.LastModified.getTime() / 1_000) : null
   if (head.ContentLength !== item.size || normalizeEtag(head.ETag ?? '') !== item.etag
@@ -147,13 +147,20 @@ function encodeObjectPath(key: string): string {
 }
 
 async function requirePublicImage(url: string): Promise<void> {
-  const response = await fetch(url, { method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(60_000) })
+  let response: Response
+  try {
+    response = await fetch(url, { method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(60_000) })
+  } catch (error) {
+    throw new Error(`Public delivery verification request failed: ${url}: ${remediationError(error)}`)
+  }
   const contentType = response.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase()
   if (response.status !== 200 || !contentType?.startsWith('image/')) {
     await response.body?.cancel().catch(() => undefined)
     throw new Error(`Public delivery verification failed with status ${response.status}: ${url}`)
   }
-  if ((await response.arrayBuffer()).byteLength === 0) throw new Error('Public delivery verification returned an empty image')
+  if ((await response.arrayBuffer()).byteLength === 0) {
+    throw new Error(`Public delivery verification returned an empty image with status 200: ${url}`)
+  }
 }
 
 function remediationError(error: unknown): string {
@@ -179,7 +186,7 @@ export async function verifySourceReplacementBatch(
   return { actions, blocked }
 }
 
-async function verifySourceReplacement(
+export async function verifySourceReplacement(
   supabase: SupabaseClient<Database>,
   s3: S3Client,
   candidate: SourceReplacement,
@@ -234,7 +241,7 @@ async function verifySourceReplacement(
   return { ...candidate, canonicalKey: image.optimized_key, action: dryRun ? 'validated' : 'delivery_verified' }
 }
 
-async function loadCurrentMissingReferences(
+export async function loadCurrentMissingReferences(
   supabase: SupabaseClient<Database>,
   reviewed: Array<Omit<MissingReference, 'status' | 'processingStatus'>>,
 ): Promise<MissingReference[]> {
