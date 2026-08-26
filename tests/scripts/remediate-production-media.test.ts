@@ -5,6 +5,7 @@ import {
   parseMissingImages,
   parseOrphans,
   parseSourceReplacements,
+  verifySourceReplacementBatch,
 } from '@/scripts/media/remediate-production-media'
 
 const imageId = '11111111-1111-4111-8111-111111111111'
@@ -90,5 +91,26 @@ describe('production media remediation artifact parsing', () => {
     const unsafe = artifact()
     ;(unsafe.findings[0].snapshot as Record<string, unknown>).canonicalKey = 'images/assets/canonical.webp'
     expect(() => parseMissingImages(unsafe)).toThrow(/uncanonicalized/)
+  })
+
+  it('isolates a blocked source replacement and continues validating the batch', async () => {
+    const selected = parseSourceReplacements(artifact())
+    const later = {
+      ...selected[0],
+      jobId: '66666666-6666-4666-8666-666666666666',
+      imageId: '77777777-7777-4777-8777-777777777777',
+    }
+    const result = await verifySourceReplacementBatch([selected[0], later], async (candidate) => {
+      if (candidate === selected[0]) throw new Error('Public delivery verification failed with status 404: https://static.example/test.webp')
+      return { ...candidate, action: 'validated' }
+    })
+
+    expect(result).toEqual({
+      blocked: 1,
+      actions: [
+        { ...selected[0], action: 'blocked', error: 'Public delivery verification failed with status 404: https://static.example/test.webp' },
+        { ...later, action: 'validated' },
+      ],
+    })
   })
 })
