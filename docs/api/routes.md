@@ -47,6 +47,7 @@ This is the canonical path inventory for route handlers under `app/api/**/route.
 
 <!-- API ROUTES START -->
 ```text
+/api/admin/crags/pins
 /api/admin/gyms
 /api/admin/gyms/[id]/floor-plan
 /api/admin/gyms/[id]/starter-routes
@@ -132,7 +133,7 @@ This is the canonical path inventory for route handlers under `app/api/**/route.
 
 ### admin
 
-Admin operations for gym creation/floor plans/starter routes and moving images between crags. Restricted to authenticated admins; state changes use CSRF protection.
+Admin operations for gym creation/floor plans/starter routes, private pending-media map pins, and moving images between crags. Restricted to authenticated admins; state changes use CSRF protection.
 
 ### climbs
 
@@ -160,7 +161,8 @@ Route correction requests and voting. Requires authentication to submit and vote
 
 Crag CRUD operations, search, nearby queries, pin data, reports, image management, and sector operations. Read operations are public; write operations require authentication. Uses CSRF protection.
 
-- `GET crags/pins` requires one `north`, `south`, `east`, `west`, and integer `zoom` query parameter. Bounds may wrap across the antimeridian; zoom 12+ requests use a progressively smaller maximum span. Public responses contain canonical crag and gym pins backed only by publicly deliverable media, use server-generated clusters at zoom 11 and below, and retain shared-cache headers. When pending previews are enabled, a verified administrator is routed through a separate identity-bound RPC and receives a private, non-cacheable response. The endpoint uses the public-search rate-limit tier.
+- `GET crags/pins` requires one `north`, `south`, `east`, `west`, and integer `zoom` query parameter. Bounds may wrap across the antimeridian; zoom 12+ requests use a progressively smaller maximum span. Responses contain canonical crag and gym pins backed only by publicly deliverable media, use server-generated clusters at zoom 11 and below, and retain shared-cache headers. The endpoint enforces the public-search rate-limit tier directly so cached reads bypass Routing Middleware.
+- `GET admin/crags/pins` accepts the same viewport contract, verifies administrator status, calls the separate identity-bound pending-preview RPC, and always returns a private, non-cacheable response.
 
 ### csrf
 

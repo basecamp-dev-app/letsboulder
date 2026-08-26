@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { getCragById } from '@/features/crags/server/get-crag-by-id'
 
-export const revalidate = 60
+export const revalidate = 3600
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params

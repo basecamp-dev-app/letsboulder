@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 
+const PUBLIC_CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600'
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -25,10 +27,13 @@ export async function GET(
     const ratingAvgRaw = summary?.avg_rating
     const ratingAvg = ratingAvgRaw === null || ratingAvgRaw === undefined ? null : Number(ratingAvgRaw)
 
-    return NextResponse.json({
-      rating_avg: ratingAvg,
-      rating_count: ratingCount,
-    })
+    return NextResponse.json(
+      {
+        rating_avg: ratingAvg,
+        rating_count: ratingCount,
+      },
+      { headers: { 'Cache-Control': PUBLIC_CACHE_CONTROL } }
+    )
   } catch (error) {
     return createErrorResponse(error, 'Get star rating route error')
   }

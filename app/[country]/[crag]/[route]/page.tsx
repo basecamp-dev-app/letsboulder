@@ -1,7 +1,7 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { getLegacyRouteRedirect } from '@/features/image-first/server/legacy-redirects'
 
-export const revalidate = 60
+export const revalidate = 3600
 
 export default async function RoutePage({
   params,

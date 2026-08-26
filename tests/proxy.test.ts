@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 
 vi.mock('@/lib/csrf', () => ({
@@ -13,7 +14,7 @@ vi.mock('@/lib/proxy-auth', () => ({
   applyProxyAuth: vi.fn(),
 }))
 
-import proxy from '@/proxy'
+import proxy, { config } from '@/proxy'
 import { validateCsrfToken } from '@/lib/csrf'
 import { applyProxyRateLimit } from '@/lib/proxy-rate-limit'
 import { applyProxyAuth } from '@/lib/proxy-auth'
@@ -70,16 +71,6 @@ describe('proxy CSRF handling', () => {
     expect(applyProxyAuth).not.toHaveBeenCalled()
   })
 
-  test('rate limits public viewport map reads', async () => {
-    const request = new NextRequest('https://letsboulder.com/api/crags/pins?north=1&south=0&east=1&west=0&zoom=12')
-
-    const response = await proxy(request)
-
-    expect(response.status).toBe(200)
-    expect(applyProxyRateLimit).toHaveBeenCalledWith(request)
-    expect(applyProxyAuth).toHaveBeenCalledOnce()
-  })
-
   test('allows same-origin server action posts without x-csrf-token', async () => {
     const request = new NextRequest('https://letsboulder.com/submit', {
       method: 'POST',
@@ -128,5 +119,28 @@ describe('proxy CSRF handling', () => {
     expect(validateCsrfToken).toHaveBeenCalledWith(request)
     expect(applyProxyRateLimit).toHaveBeenCalledWith(request)
     expect(applyProxyAuth).toHaveBeenCalledOnce()
+  })
+})
+
+describe('proxy matcher scope', () => {
+  test.each([
+    '/api/community/places/example/rankings',
+    '/api/image-first/images',
+    '/api/crags/pins',
+    '/api/locations/search',
+    '/api/offline-packs/crags/example/manifest',
+    '/logbook/public-user-id',
+  ])('bypasses public read route %s', (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(false)
+  })
+
+  test.each([
+    '/api/comments',
+    '/api/admin/crags/pins',
+    '/submit',
+    '/logbook',
+    '/logbook/drafts/example',
+  ])('retains protection for route %s', (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(true)
   })
 })

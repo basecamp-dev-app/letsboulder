@@ -10,4 +10,8 @@ describe('getContentSecurityPolicy', () => {
   it('retains unsafe-eval for development tooling', () => {
     expect(getContentSecurityPolicy('development')).toContain("'unsafe-eval'")
   })
+
+  it('allows direct browser telemetry delivery to Sentry ingest', () => {
+    expect(getContentSecurityPolicy('production')).toContain('https://*.sentry.io')
+  })
 })

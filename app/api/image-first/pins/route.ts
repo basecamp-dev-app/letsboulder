@@ -9,6 +9,8 @@ interface ImagePinRow {
   created_at: string | null
 }
 
+const PUBLIC_CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600'
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const cragId = searchParams.get('cragId')
@@ -60,5 +62,7 @@ export async function GET(request: Request) {
     }
   })
 
-  return NextResponse.json({ pins })
+  return NextResponse.json({ pins }, {
+    headers: { 'Cache-Control': PUBLIC_CACHE_CONTROL },
+  })
 }

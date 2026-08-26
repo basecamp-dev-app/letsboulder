@@ -12,8 +12,6 @@ function isStateChangingMethod(method: string): boolean {
 
 function shouldSkipMiddleware(pathname: string, method: string): boolean {
   const normalizedMethod = method.toUpperCase()
-  if (pathname === '/api/crags/pins') return false
-
   const publicReadOnlyPrefixes = [
     '/api/regions',
     '/api/rankings',
@@ -130,12 +128,14 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/api/:path*',
+    '/api/((?!community/|image-first/|rankings$|regions/|location-tags/|locations/search$|locations/reverse$|places/search$|places/nearby$|crags/pins$|crags/search$|crags/search-by-id$|crags/nearby$|images/search$|offline-packs/|offline-tiles/).*)',
     '/auth/:path*',
     '/settings/:path*',
     '/submit/:path*',
     '/admin/:path*',
     '/gym-admin/:path*',
-    '/logbook/:path*',
+    '/logbook',
+    '/logbook/drafts/:path*',
+    '/logbook/submissions/:path*',
   ],
 }

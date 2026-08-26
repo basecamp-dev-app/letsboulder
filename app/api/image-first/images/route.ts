@@ -3,6 +3,7 @@ import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { buildThumbnailUrl } from '@/lib/media/thumbnail-url'
 
 const PAGE_SIZE = 48
+const PUBLIC_CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -26,12 +27,15 @@ export async function GET(request: Request) {
 
   if (error) return NextResponse.json({ error: 'Failed to load image navigation' }, { status: 500 })
 
-  return NextResponse.json({
-    images: (data || []).map((image) => ({
-      ...image,
-      src: buildThumbnailUrl(image.url, 1200),
-    })),
-    nextOffset: offset + (data?.length || 0),
-    hasMore: (data?.length || 0) === PAGE_SIZE,
-  })
+  return NextResponse.json(
+    {
+      images: (data || []).map((image) => ({
+        ...image,
+        src: buildThumbnailUrl(image.url, 1200),
+      })),
+      nextOffset: offset + (data?.length || 0),
+      hasMore: (data?.length || 0) === PAGE_SIZE,
+    },
+    { headers: { 'Cache-Control': PUBLIC_CACHE_CONTROL } }
+  )
 }

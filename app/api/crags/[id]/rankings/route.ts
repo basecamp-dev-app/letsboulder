@@ -80,7 +80,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       },
       {
         headers: {
-          'Cache-Control': 'no-store',
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
         },
       }
     )

@@ -2,30 +2,29 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  fetchAdminViewportMapFeaturesWithClient,
   fetchViewportMapFeaturesWithClient,
-  getServerClientFromRequest,
-  isCurrentUserAdmin,
+  getUnauthenticatedClient,
+  rateLimit,
   reportError,
 } = vi.hoisted(() => ({
-  fetchAdminViewportMapFeaturesWithClient: vi.fn(),
   fetchViewportMapFeaturesWithClient: vi.fn(),
-  getServerClientFromRequest: vi.fn(() => ({ auth: { getUser: vi.fn() } })),
-  isCurrentUserAdmin: vi.fn(),
+  getUnauthenticatedClient: vi.fn(() => ({ from: vi.fn() })),
+  rateLimit: vi.fn(),
   reportError: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase-server', () => ({
-  fetchAdminViewportMapFeaturesWithClient,
   fetchViewportMapFeaturesWithClient,
-  getServerClientFromRequest,
+  getUnauthenticatedClient,
 }))
-
+vi.mock('@/lib/rate-limit', () => ({
+  rateLimit,
+  createRateLimitResponse: (result: { resetTime: number }) => Response.json(
+    { error: 'Rate limit exceeded. Please try again later.' },
+    { status: 429, headers: { 'X-RateLimit-Reset': String(result.resetTime) } }
+  ),
+}))
 vi.mock('@/lib/errors', () => ({ reportError }))
-vi.mock('@/lib/profile-rpc', () => ({ isCurrentUserAdmin }))
-vi.mock('@/lib/env.server', () => ({
-  serverEnv: { NEXT_PUBLIC_ALLOW_PENDING_IMAGES: true },
-}))
 
 import { GET } from '@/app/api/crags/pins/route'
 
@@ -36,80 +35,38 @@ function request(query = '') {
 describe('GET /api/crags/pins', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    fetchAdminViewportMapFeaturesWithClient.mockResolvedValue([])
     fetchViewportMapFeaturesWithClient.mockResolvedValue([])
-    getServerClientFromRequest.mockReturnValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-id' } }, error: null }) },
-    })
-    isCurrentUserAdmin.mockResolvedValue({ data: true, error: null })
+    rateLimit.mockResolvedValue({ success: true, remaining: 99, resetTime: Date.now() + 60_000, limit: 100 })
   })
 
-  it('requires a complete viewport', async () => {
+  it('requires a complete viewport before rate limiting or querying', async () => {
     const response = await GET(request())
 
     expect(response.status).toBe(400)
-    expect(getServerClientFromRequest).not.toHaveBeenCalled()
+    expect(rateLimit).not.toHaveBeenCalled()
+    expect(getUnauthenticatedClient).not.toHaveBeenCalled()
   })
 
-  it('passes valid normal and antimeridian viewports to the viewport helper', async () => {
+  it('passes valid normal and antimeridian viewports to the public helper', async () => {
     const response = await GET(request('?north=50&south=40&west=-10&east=0&zoom=12'))
     await GET(request('?north=20&south=-20&west=170&east=-170&zoom=5'))
 
-    expect(fetchAdminViewportMapFeaturesWithClient).toHaveBeenNthCalledWith(1, expect.anything(), {
+    expect(fetchViewportMapFeaturesWithClient).toHaveBeenNthCalledWith(1, expect.anything(), {
       north: 50, south: 40, west: -10, east: 0, zoom: 12,
     })
-    expect(fetchAdminViewportMapFeaturesWithClient).toHaveBeenNthCalledWith(2, expect.anything(), {
+    expect(fetchViewportMapFeaturesWithClient).toHaveBeenNthCalledWith(2, expect.anything(), {
       north: 20, south: -20, west: 170, east: -170, zoom: 5,
     })
+    expect(response.headers.get('Cache-Control')).toBe('public, s-maxage=300, stale-while-revalidate=3600')
+  })
+
+  it('enforces the public-search rate limit in the route', async () => {
+    rateLimit.mockResolvedValue({ success: false, remaining: 0, resetTime: 123, limit: 100 })
+
+    const response = await GET(request('?north=50&south=40&west=-10&east=0&zoom=12'))
+
+    expect(response.status).toBe(429)
     expect(fetchViewportMapFeaturesWithClient).not.toHaveBeenCalled()
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
-  })
-
-  it('does not include pending images for unauthenticated callers', async () => {
-    getServerClientFromRequest.mockReturnValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }) },
-    })
-
-    await GET(request('?north=50&south=40&west=-10&east=0&zoom=12'))
-
-    expect(fetchViewportMapFeaturesWithClient).toHaveBeenCalledWith(expect.anything(), expect.anything())
-    expect(fetchAdminViewportMapFeaturesWithClient).not.toHaveBeenCalled()
-    expect(isCurrentUserAdmin).not.toHaveBeenCalled()
-  })
-
-  it('does not include pending images for authenticated non-admin callers', async () => {
-    isCurrentUserAdmin.mockResolvedValue({ data: false, error: null })
-
-    await GET(request('?north=50&south=40&west=-10&east=0&zoom=12'))
-
-    expect(fetchViewportMapFeaturesWithClient).toHaveBeenCalledWith(expect.anything(), expect.anything())
-    expect(fetchAdminViewportMapFeaturesWithClient).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    { auth: { data: { user: null }, error: new Error('auth failed') }, admin: undefined },
-    { auth: { data: { user: { id: 'admin-id' } }, error: null }, admin: { data: null, error: new Error('admin failed') } },
-  ])('fails closed to the public RPC when identity checks fail', async ({ auth, admin }) => {
-    getServerClientFromRequest.mockReturnValue({
-      auth: { getUser: vi.fn().mockResolvedValue(auth) },
-    })
-    if (admin) isCurrentUserAdmin.mockResolvedValue(admin)
-
-    const response = await GET(request('?north=50&south=40&west=-10&east=0&zoom=12'))
-
-    expect(fetchViewportMapFeaturesWithClient).toHaveBeenCalledOnce()
-    expect(fetchAdminViewportMapFeaturesWithClient).not.toHaveBeenCalled()
-    expect(response.headers.get('Cache-Control')).toBe('public, s-maxage=60, stale-while-revalidate=300')
-  })
-
-  it('uses shared caching for public-only responses', async () => {
-    getServerClientFromRequest.mockReturnValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }) },
-    })
-
-    const response = await GET(request('?north=50&south=40&west=-10&east=0&zoom=12'))
-
-    expect(response.headers.get('Cache-Control')).toBe('public, s-maxage=60, stale-while-revalidate=300')
   })
 
   it.each([
@@ -125,11 +82,11 @@ describe('GET /api/crags/pins', () => {
     const response = await GET(request(query))
 
     expect(response.status).toBe(400)
-    expect(getServerClientFromRequest).not.toHaveBeenCalled()
+    expect(fetchViewportMapFeaturesWithClient).not.toHaveBeenCalled()
   })
 
   it('returns an error rather than converting an RPC failure to empty pins', async () => {
-    fetchAdminViewportMapFeaturesWithClient.mockRejectedValueOnce(new Error('database unavailable'))
+    fetchViewportMapFeaturesWithClient.mockRejectedValueOnce(new Error('database unavailable'))
 
     const response = await GET(request('?north=60&south=40&west=-10&east=20&zoom=5'))
 

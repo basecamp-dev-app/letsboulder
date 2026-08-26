@@ -37,6 +37,8 @@ interface ProfileRow {
   avatar_url: string | null
 }
 
+const PUBLIC_CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=300'
+
 export async function GET(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
   const { slug } = await params
   if (!slug) {
@@ -92,7 +94,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       author: authorMap.get(post.author_id) || null,
     }))
 
-    return NextResponse.json({ place: typedPlace, posts })
+    return NextResponse.json({ place: typedPlace, posts }, {
+      headers: { 'Cache-Control': PUBLIC_CACHE_CONTROL },
+    })
   } catch (error) {
     return createErrorResponse(error, 'Error loading community place posts')
   }
