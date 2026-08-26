@@ -224,4 +224,13 @@ describe('GitHub Actions security contracts', () => {
     expect(privateInventory).toContain('path: lb-prod-media-private-inventory.json')
     expect(publicInventory).toContain('path: lb-prod-media-public-inventory.json')
   })
+
+  it('uses the shared production R2 credential names for media remediation', () => {
+    const remediation = workflow('production-media-remediation.yml')
+
+    expect(remediation).toContain('R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}')
+    expect(remediation).toContain('R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}')
+    expect(remediation).not.toContain('R2_PRIVATE_INVENTORY_ACCESS_KEY_ID')
+    expect(remediation).not.toContain('R2_PRIVATE_INVENTORY_SECRET_ACCESS_KEY')
+  })
 })
