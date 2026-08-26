@@ -1,0 +1,199 @@
+name: Production Media Lifecycle Automation
+
+on:
+  schedule:
+    - cron: '37 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Observe only, or apply eligible guarded recovery actions
+        required: true
+        default: observe
+        type: choice
+        options:
+          - observe
+          - apply
+      batch_size:
+        description: Maximum candidates per recovery category (1-25)
+        required: true
+        default: '25'
+        type: string
+      confirmation:
+        description: For apply, type APPLY_MEDIA_LIFECYCLE_RECOVERY exactly
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-media-lifecycle-automation
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    name: Inspect and safely recover production media
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 45
+    env:
+      RECOVERY_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'observe' }}
+      BATCH_SIZE: ${{ github.event_name == 'workflow_dispatch' && inputs.batch_size || '25' }}
+      CONFIRMATION: ${{ github.event_name == 'workflow_dispatch' && inputs.confirmation || 'OBSERVE_ONLY' }}
+      MINIMUM_OBSERVATION_DELAY_SECONDS: '3600'
+      COMMIT_SHA: ${{ github.sha }}
+      RECOVERY_RUN_ID: ${{ github.run_id }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+      SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
+      SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
+      SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+      SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      R2_ENDPOINT: https://${{ vars.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      MEDIA_CDN_URL: https://static.letsboulder.com
+      RECONCILIATION_OUTPUT: production-media-reconciliation.json
+      RECONCILIATION_INPUT: production-media-reconciliation.json
+      LIFECYCLE_HEALTH_OUTPUT: production-media-lifecycle-health.json
+      LIFECYCLE_HEALTH_INPUT: production-media-lifecycle-health.json
+      PREVIOUS_RECOVERY_INPUT: previous-recovery/production-media-lifecycle-automation.json
+      RECOVERY_OUTPUT: production-media-lifecycle-automation.json
+      POLL_TIMEOUT_SECONDS: '600'
+      POLL_INTERVAL_SECONDS: '15'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize consolidated report
+        run: |
+          printf '%s\n' '{"schemaVersion":1,"mode":"observe","commitSha":"unknown","recoveryRunId":"unknown","generatedAt":"unknown","evidenceDigest":"unknown","healthBefore":{"summary":{}},"selections":[],"actions":[],"blocked":[],"workerFollowUp":[],"fatalError":"Recovery did not start"}' > "$RECOVERY_OUTPUT"
+          printf '%s\n' '{"schemaVersion":2,"fatalError":"Reconciliation did not start"}' > "$RECONCILIATION_OUTPUT"
+          printf '%s\n' '{"schemaVersion":1,"readOnly":true,"generatedAt":"1970-01-01T00:00:00.000Z","summary":{"critical":1,"status":"critical"},"findings":[],"fatalError":"Lifecycle health did not start"}' > "$LIFECYCLE_HEALTH_OUTPUT"
+
+      - name: Validate mode and batch guard
+        shell: bash
+        run: |
+          if [ "$RECOVERY_MODE" != 'observe' ] && [ "$RECOVERY_MODE" != 'apply' ]; then
+            echo '::error::Mode must be observe or apply'
+            exit 1
+          fi
+          if ! [[ "$BATCH_SIZE" =~ ^[0-9]+$ ]] || [ "$BATCH_SIZE" -lt 1 ] || [ "$BATCH_SIZE" -gt 25 ]; then
+            echo '::error::Batch size must be an integer between 1 and 25'
+            exit 1
+          fi
+          if [ "$RECOVERY_MODE" = 'apply' ] && [ "$CONFIRMATION" != 'APPLY_MEDIA_LIFECYCLE_RECOVERY' ]; then
+            echo '::error::Apply confirmation must exactly equal APPLY_MEDIA_LIFECYCLE_RECOVERY'
+            exit 1
+          fi
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Validate required production configuration
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          required=(CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID SUPABASE_DB_HOST SUPABASE_DB_PORT SUPABASE_DB_USER SUPABASE_DB_NAME PGPASSWORD SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY)
+          for variable in "${required[@]}"; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::Missing required production configuration: $variable"
+              exit 1
+            fi
+          done
+
+      - name: Restore the latest observation ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p previous-recovery
+          runs="$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/production-media-lifecycle-automation.yml/runs?branch=main&status=completed&per_page=20")"
+          while read -r run_id; do
+            artifact_name="production-media-lifecycle-automation-$run_id"
+            count="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?per_page=100" --jq ".artifacts | map(select(.name == \"$artifact_name\" and .expired == false)) | length")"
+            if [ "$count" = '1' ]; then
+              gh run download "$run_id" --name "$artifact_name" --dir previous-recovery
+              break
+            fi
+          done < <(jq -r '.workflow_runs[].id' <<< "$runs")
+
+      - name: Run read-only private R2 reconciliation
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npx tsx scripts/media/reconcile-r2-media.ts
+
+      - name: Capture reviewed lifecycle evidence
+        continue-on-error: true
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npx tsx scripts/media/production-lifecycle-health.ts
+
+      - name: Validate and apply staged recovery policy
+        id: recovery
+        continue-on-error: true
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: npx tsx scripts/media/automate-production-media-lifecycle.ts
+
+      - name: Refresh reconciliation after apply
+        if: env.RECOVERY_MODE == 'apply'
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          RECONCILIATION_OUTPUT: production-media-reconciliation-after.json
+        run: npx tsx scripts/media/reconcile-r2-media.ts
+
+      - name: Capture lifecycle health after apply
+        if: env.RECOVERY_MODE == 'apply'
+        continue-on-error: true
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          RECONCILIATION_INPUT: production-media-reconciliation-after.json
+          LIFECYCLE_HEALTH_OUTPUT: production-media-lifecycle-health-after.json
+        run: npx tsx scripts/media/production-lifecycle-health.ts
+
+      - name: Add after-health summary to consolidated report
+        if: env.RECOVERY_MODE == 'apply'
+        continue-on-error: true
+        env:
+          HEALTH_AFTER_INPUT: production-media-lifecycle-health-after.json
+        run: npx tsx scripts/media/finalize-production-media-lifecycle-automation.ts
+
+      - name: Upload consolidated audit artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-media-lifecycle-automation-${{ github.run_id }}
+          path: |
+            production-media-lifecycle-automation.json
+            production-media-lifecycle-health.json
+            production-media-reconciliation.json
+            production-media-lifecycle-health-after.json
+            production-media-reconciliation-after.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Surface blocked or fatal recovery results
+        if: always()
+        shell: bash
+        run: |
+          fatal="$(jq -r '.fatalError // empty' "$RECOVERY_OUTPUT")"
+          blocked="$(jq '.blocked | length' "$RECOVERY_OUTPUT")"
+          if [ -n "$fatal" ] || [ "$blocked" -gt 0 ] || [ '${{ steps.recovery.outcome }}' != 'success' ]; then
+            echo "::error::Recovery requires operator review (blocked=$blocked, fatal=${fatal:-none})"
+            exit 1
+          fi
