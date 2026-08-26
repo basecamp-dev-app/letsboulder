@@ -50,7 +50,7 @@ BEGIN
     RAISE EXCEPTION 'Remediation requires 1 to 25 items' USING ERRCODE = '22023';
   END IF;
   IF (SELECT count(*) FROM jsonb_array_elements(p_items)) IS DISTINCT FROM
-    (SELECT count(DISTINCT value->>'kind' || ':' || value->>'id') FROM jsonb_array_elements(p_items)) THEN
+    (SELECT count(DISTINCT (value->>'kind') || ':' || (value->>'id')) FROM jsonb_array_elements(p_items)) THEN
     RAISE EXCEPTION 'Remediation items contain duplicates' USING ERRCODE = '22023';
   END IF;
 
