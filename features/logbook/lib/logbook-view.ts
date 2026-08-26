@@ -57,6 +57,7 @@ export interface LogbookProfile {
   contributor_score_total?: number
   accepted_contribution_count?: number
   contributor_tier?: string | null
+  is_crag_maintainer?: boolean
   first_name?: string
   last_name?: string
 }

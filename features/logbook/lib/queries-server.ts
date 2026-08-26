@@ -44,6 +44,7 @@ interface LogbookProfile {
   contributor_score_total?: number
   accepted_contribution_count?: number
   contributor_tier?: string | null
+  is_crag_maintainer?: boolean
 }
 
 interface ContributionRow {
@@ -290,7 +291,7 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
   const profileData = profileRes.data
   const profileError = profileRes.error
 
-  const [logsRes, lifetimeStatsRes] = await Promise.all([
+  const [logsRes, lifetimeStatsRes, maintainerRes] = await Promise.all([
     timeServerStep('fetchServerLogbookLogsAndProfile', 'recent-logs', async () =>
       supabase
         .from('user_climbs')
@@ -303,11 +304,20 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
     timeServerStep('fetchServerLogbookLogsAndProfile', 'lifetime-stats', async () =>
       supabase.rpc('get_logbook_lifetime_stats', { p_user_id: userId }).single()
     ),
+    timeServerStep('fetchServerLogbookLogsAndProfile', 'maintainer-status', async () =>
+      supabase
+        .from('crag_maintainers')
+        .select('crag_id, crags!inner(deleted_at)')
+        .eq('user_id', userId)
+        .is('crags.deleted_at', null)
+        .limit(1)
+    ),
   ])
   const logsData = logsRes.data
   const logsError = logsRes.error
   const lifetimeStatsData = lifetimeStatsRes.data as LogbookLifetimeStatsRow | null
   const lifetimeStatsError = lifetimeStatsRes.error
+  const maintainerError = maintainerRes.error
 
   if (profileError && profileError.code !== 'PGRST116') {
     throw profileError
@@ -319,6 +329,10 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
 
   if (lifetimeStatsError) {
     throw lifetimeStatsError
+  }
+
+  if (maintainerError) {
+    throw maintainerError
   }
 
   const logsWithCrags = ((logsData || []) as unknown as RawLogbookRow[]).map((log) => {
@@ -381,7 +395,9 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
       totalTops: lifetimeStatsData?.total_tops ?? 0,
       totalTries: lifetimeStatsData?.total_tries ?? 0,
     },
-    profile: (profileData || null) as LogbookProfile | null,
+    profile: profileData
+      ? { ...(profileData as LogbookProfile), is_crag_maintainer: (maintainerRes.data?.length || 0) > 0 }
+      : null,
   }
 }
 

@@ -172,6 +172,11 @@ export default function LogbookView({
               )}
               <div className="leading-tight">
                 <p className="text-sm text-gray-500 dark:text-gray-400">@{profile.username}</p>
+                {profile.is_crag_maintainer ? (
+                  <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
+                    Crag Maintainer
+                  </span>
+                ) : null}
               </div>
             </div>
           </CardContent>
@@ -207,6 +212,11 @@ export default function LogbookView({
               <p className="text-gray-500 dark:text-gray-400">@{profile.username}</p>
               {profile.bio && <p className="mt-3 max-w-xl text-gray-600 dark:text-gray-300">{profile.bio}</p>}
               <div className="mt-4 flex flex-wrap gap-2">
+                {profile.is_crag_maintainer ? (
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
+                    Crag Maintainer
+                  </span>
+                ) : null}
                 <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200">
                   Contributor Score {profile.contributor_score_total || 0}
                 </span>

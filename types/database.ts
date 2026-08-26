@@ -4921,6 +4921,7 @@ export type Database = {
           display_name: string
           highest_grade: string
           id: string
+          is_crag_maintainer: boolean
           is_public: boolean
           total_climbs: number
           total_points: number
