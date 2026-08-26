@@ -151,9 +151,32 @@ async function requirePublicImage(url: string): Promise<void> {
   const contentType = response.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase()
   if (response.status !== 200 || !contentType?.startsWith('image/')) {
     await response.body?.cancel().catch(() => undefined)
-    throw new Error(`Public delivery verification failed with status ${response.status}`)
+    throw new Error(`Public delivery verification failed with status ${response.status}: ${url}`)
   }
   if ((await response.arrayBuffer()).byteLength === 0) throw new Error('Public delivery verification returned an empty image')
+}
+
+function remediationError(error: unknown): string {
+  return (error instanceof Error ? error.message : 'Unknown remediation error')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .slice(0, 2_000)
+}
+
+export async function verifySourceReplacementBatch(
+  selected: SourceReplacement[],
+  verify: (candidate: SourceReplacement) => Promise<Record<string, unknown>>,
+): Promise<{ actions: Record<string, unknown>[]; blocked: number }> {
+  const actions: Record<string, unknown>[] = []
+  let blocked = 0
+  for (const candidate of selected) {
+    try {
+      actions.push(await verify(candidate))
+    } catch (error) {
+      blocked += 1
+      actions.push({ ...candidate, action: 'blocked', error: remediationError(error) })
+    }
+  }
+  return { actions, blocked }
 }
 
 async function verifySourceReplacement(
@@ -270,10 +293,11 @@ async function main(): Promise<void> {
     const supabase = createClient<Database>(requiredEnv('SUPABASE_URL'), requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     })
-    s3 = new S3Client({
+    const r2 = new S3Client({
       region: 'auto', endpoint: requiredEnv('R2_ENDPOINT'),
       credentials: { accessKeyId: requiredEnv('R2_ACCESS_KEY_ID'), secretAccessKey: requiredEnv('R2_SECRET_ACCESS_KEY') },
     })
+    s3 = r2
     Object.assign(manifest, { dryRun, kind, sourceRunId, artifactDigest: digest })
 
     if (kind === 'missing_reference') {
@@ -281,7 +305,7 @@ async function main(): Promise<void> {
         .sort((a, b) => `${a.kind}:${a.id}`.localeCompare(`${b.kind}:${b.id}`, 'en')).slice(0, batchSize)
       if (!reviewed.length) throw new Error('Artifact has no missing references to remediate')
       const selected = await loadCurrentMissingReferences(supabase, reviewed)
-      for (const item of selected) await requireMissing(s3, item)
+      for (const item of selected) await requireMissing(r2, item)
       manifest.selected = selected
       if (!dryRun) {
         const response = await supabase.rpc('quarantine_missing_media_references', {
@@ -297,13 +321,16 @@ async function main(): Promise<void> {
       manifest.selected = selected
       const cdnUrl = requiredEnv('MEDIA_CDN_URL').replace(/\/$/, '')
       if (new URL(cdnUrl).protocol !== 'https:') throw new Error('MEDIA_CDN_URL must use HTTPS')
-      for (const item of selected) {
-        ;(manifest.actions as unknown[]).push(await verifySourceReplacement(supabase, s3, item, cdnUrl, dryRun))
-      }
+      const result = await verifySourceReplacementBatch(
+        selected,
+        (item) => verifySourceReplacement(supabase, r2, item, cdnUrl, dryRun),
+      )
+      manifest.actions = result.actions
+      if (result.blocked) throw new Error(`${result.blocked} source replacement candidate(s) remain blocked`)
     } else if (kind === 'possible_orphan') {
       const selected = parseOrphans(artifact).sort((a, b) => a.key.localeCompare(b.key, 'en')).slice(0, batchSize)
       if (!selected.length) throw new Error('Artifact has no possible orphans to remediate')
-      for (const item of selected) await requireMatchingOrphan(s3, item)
+      for (const item of selected) await requireMatchingOrphan(r2, item)
       manifest.selected = selected
       if (!dryRun) {
         const response = await supabase.rpc('enqueue_reconciled_media_orphans', {
@@ -319,7 +346,7 @@ async function main(): Promise<void> {
       throw new Error('REMEDIATION_KIND must be missing_reference, source_replacement, or possible_orphan')
     }
   } catch (error) {
-    manifest.fatalError = error instanceof Error ? error.message.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 2_000) : 'Unknown remediation error'
+    manifest.fatalError = remediationError(error)
     process.exitCode = 1
   } finally {
     s3?.destroy()
