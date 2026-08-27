@@ -182,7 +182,7 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 
 ### Key Files
 - `components/ServiceWorkerRegistration.tsx` — root-mounted registration and safe update prompt for `/sw.js`
-- `public/sw.js` — active offline shells, network-first navigation fallback, and immutable build/pack media caching
+- `public/sw.js` — cache-first saved-guide shells, network-first online navigation fallback, and immutable build/pack media caching
 - `features/offline/components/OfflineLibraryView.tsx` — installed pack library backed by the offline pack store
 - `features/offline/components/OfflineCragViewer.tsx` — standalone IndexedDB-backed crag metadata, topo, route-line, and pins-only viewer
 - `components/map/MapLibreVectorMap.tsx` — shared MapLibre primitive for live vector maps
@@ -201,6 +201,7 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 ### Known Edge Cases
 - **Cache retirement:** Activation deletes only the explicit retired cache names in `/sw.js`; never delete unrelated Cache Storage entries or the active immutable pack cache.
 - **Shell releases:** Bump the shell/static cache suffix when changing the worker or offline shell contract. Installation must fully cache required shells and discovered Next assets before activation removes the preceding owned release cache.
+- **Offline navigation:** `/offline`, `/offline/library`, and `/offline/crag` must resolve from the shell cache before any network request. `/offline` renders the library directly; connectivity verification is informational and must never gate saved content. The worker stores its build-cache manifest in the shell cache so cached application chunks remain readable after the worker is suspended and restarted offline.
 - **Stored data:** Pack versions activate only after every owned immutable asset is cached; removal keeps assets still owned by another installed pack.
 - **Quota:** Compare browser storage estimates against uncached incremental bytes with safety headroom. Browser persistence requests remain best-effort and the UI must surface failures.
 - **Updates:** Opening a downloaded crag checks its deterministic manifest version while online. Changed packs require user confirmation; a failed update leaves the active version intact.

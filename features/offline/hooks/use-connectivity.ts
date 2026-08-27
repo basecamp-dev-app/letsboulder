@@ -12,7 +12,6 @@ export function useConnectivity() {
 
   const check = useCallback(async () => {
     const sequence = ++requestSequence.current
-    setStatus((current) => current === 'online' ? current : 'checking')
     const reachable = await probeConnectivity()
     if (sequence === requestSequence.current) setStatus(reachable ? 'online' : 'offline')
     return reachable
@@ -24,6 +23,7 @@ export function useConnectivity() {
       setStatus('offline')
     }
     const verifyConnection = () => { void check() }
+    const initialOffline = !navigator.onLine ? window.setTimeout(markOffline, 0) : undefined
     const initialCheck = window.setTimeout(verifyConnection, 0)
     window.addEventListener('offline', markOffline)
     window.addEventListener('online', verifyConnection)
@@ -31,6 +31,7 @@ export function useConnectivity() {
     document.addEventListener('visibilitychange', verifyConnection)
     return () => {
       window.clearTimeout(initialCheck)
+      if (initialOffline !== undefined) window.clearTimeout(initialOffline)
       window.removeEventListener('offline', markOffline)
       window.removeEventListener('online', verifyConnection)
       window.removeEventListener('pageshow', verifyConnection)

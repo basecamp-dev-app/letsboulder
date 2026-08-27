@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 
-import OfflineStatusView from '@/features/offline/components/OfflineStatusView'
+import OfflineLibraryView from '@/features/offline/components/OfflineLibraryView'
 
 export const metadata: Metadata = {
-  title: 'Offline',
-  description: 'Open climbing guides saved on this device or retry the network.',
+  title: 'Offline library',
+  description: 'Open climbing guides saved on this device.',
   robots: {
     index: false,
     follow: false,
@@ -12,5 +12,5 @@ export const metadata: Metadata = {
 }
 
 export default function OfflinePage() {
-  return <OfflineStatusView />
+  return <OfflineLibraryView />
 }

@@ -32,10 +32,10 @@ vi.stubGlobal('self', {
   addEventListener: vi.fn((type: string, handler: WorkerHandler) => handlers.set(type, handler)),
 })
 vi.stubGlobal('caches', {
-  open: vi.fn(async (name: string) => name === 'letsboulder-offline-shell-v3' ? shellCache : name === 'letsboulder-offline-immutable-v1' ? mediaCache : staticCache),
-  keys: vi.fn(async () => ['offline-shell-v4', 'runtime-transient-v2', 'letsboulder-offline-shell-v2', staticCacheName, 'letsboulder-next-static-old-release', 'unrelated-cache']),
+  open: vi.fn(async (name: string) => name === 'letsboulder-offline-shell-v4' ? shellCache : name === 'letsboulder-offline-immutable-v1' ? mediaCache : staticCache),
+  keys: vi.fn(async () => ['offline-shell-v4', 'runtime-transient-v2', 'letsboulder-offline-shell-v3', staticCacheName, 'letsboulder-next-static-old-release', 'unrelated-cache']),
   delete: deleteCache,
-  match: vi.fn(async (request: Request) => shellEntries.get(request.url)),
+  match: vi.fn(async (request: Request) => staticEntries.get(request.url) || shellEntries.get(request.url)),
 })
 vi.stubGlobal('fetch', fetchMock)
 
@@ -75,7 +75,8 @@ describe('active service worker', () => {
     expect(fetchMock).toHaveBeenCalledWith('/offline/library')
     expect(fetchMock).toHaveBeenCalledWith('/offline/crag')
     expect(fetchMock).toHaveBeenCalledWith('/_next/static/chunks/offline.js')
-    expect(shellCache.put).toHaveBeenCalledTimes(3)
+    expect(shellCache.put).toHaveBeenCalledTimes(4)
+    expect(shellCache.put).toHaveBeenCalledWith('/sw-build-assets.json', expect.any(Response))
   })
 
   it('does not install when a required shell cannot be cached', async () => {
@@ -93,7 +94,7 @@ describe('active service worker', () => {
 
     expect(deleteCache).toHaveBeenCalledWith('offline-shell-v4')
     expect(deleteCache).toHaveBeenCalledWith('runtime-transient-v2')
-    expect(deleteCache).toHaveBeenCalledWith('letsboulder-offline-shell-v2')
+    expect(deleteCache).toHaveBeenCalledWith('letsboulder-offline-shell-v3')
     expect(deleteCache).toHaveBeenCalledWith('letsboulder-next-static-old-release')
     expect(deleteCache).not.toHaveBeenCalledWith(staticCacheName)
     expect(deleteCache).not.toHaveBeenCalledWith('unrelated-cache')
@@ -113,13 +114,24 @@ describe('active service worker', () => {
 
   it('uses the crag shell for an offline viewer navigation with an id query', async () => {
     shellEntries.set('/offline/crag', new Response('saved crag shell'))
-    fetchMock.mockRejectedValueOnce(new Error('offline'))
     const request = new Request('https://letsboulder.com/offline/crag?id=123')
     Object.defineProperty(request, 'mode', { configurable: true, value: 'navigate' })
 
     const response = await dispatch('fetch', { request })
 
     expect(await (await response)?.text()).toBe('saved crag shell')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('opens the cached offline library without waiting for a failed network request', async () => {
+    shellEntries.set('/offline/library', new Response('saved guide library'))
+    const request = new Request('https://letsboulder.com/offline/library')
+    Object.defineProperty(request, 'mode', { configurable: true, value: 'navigate' })
+
+    const response = await dispatch('fetch', { request })
+
+    expect(await (await response)?.text()).toBe('saved guide library')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('serves a packed image from CacheStorage before the network', async () => {
@@ -160,6 +172,22 @@ describe('active service worker', () => {
 
     expect(await (await response)?.text()).toBe('asset')
     expect(staticCache.put).toHaveBeenCalledWith(request, expect.any(Response))
+  })
+
+  it('serves cached Next code after a worker restart without fetching the build manifest', async () => {
+    await dispatch('install')
+    handlers.clear()
+    fetchMock.mockClear()
+    fetchMock.mockRejectedValue(new Error('airplane mode'))
+    vi.resetModules()
+    await import('../../public/sw.js')
+
+    const request = new Request('https://letsboulder.com/_next/static/chunks/offline.js')
+    staticEntries.set(request.url, new Response('cached app code'))
+    const response = await dispatch('fetch', { request })
+
+    expect(await (await response)?.text()).toBe('cached app code')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('does not intercept unrelated remote images', async () => {

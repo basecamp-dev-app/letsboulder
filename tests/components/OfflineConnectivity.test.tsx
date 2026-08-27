@@ -1,56 +1,56 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import OfflineStatusView from '@/features/offline/components/OfflineStatusView'
+import { useConnectivity } from '@/features/offline/hooks/use-connectivity'
 import { CONNECTIVITY_RESPONSE_HEADER } from '@/lib/offline/connectivity'
 
-describe('offline connectivity recovery', () => {
+function ConnectivityStatus() {
+  const { status } = useConnectivity()
+  return <output>{status}</output>
+}
+
+function onlineResponse() {
+  return new Response(null, {
+    status: 204,
+    headers: { [CONNECTIVITY_RESPONSE_HEADER]: 'online' },
+  })
+}
+
+describe('offline connectivity indicator', () => {
+  beforeEach(() => Object.defineProperty(navigator, 'onLine', { configurable: true, value: true }))
   afterEach(() => vi.unstubAllGlobals())
 
-  it('uses verified reachability even when navigator.onLine is stale', async () => {
+  it('shows airplane mode immediately while verification remains non-blocking', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, {
-      status: 204,
-      headers: { [CONNECTIVITY_RESPONSE_HEADER]: 'online' },
-    })))
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => undefined)))
 
-    render(<OfflineStatusView />)
+    render(<ConnectivityStatus />)
 
-    expect(await screen.findByRole('heading', { name: 'You’re back online' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Return to online app' })).toHaveAttribute('href', '/')
+    expect(await screen.findByText('offline')).toBeInTheDocument()
   })
 
-  it('updates automatically across offline and online browser events', async () => {
-    const fetchMock = vi.fn(async () => new Response(null, {
-      status: 204,
-      headers: { [CONNECTIVITY_RESPONSE_HEADER]: 'online' },
-    }))
+  it('recognizes reconnection automatically', async () => {
+    const fetchMock = vi.fn(async () => onlineResponse())
     vi.stubGlobal('fetch', fetchMock)
-    render(<OfflineStatusView />)
-    await screen.findByRole('heading', { name: 'You’re back online' })
-
-    window.dispatchEvent(new Event('offline'))
-    expect(await screen.findByRole('heading', { name: 'You’re offline' })).toBeInTheDocument()
-
-    window.dispatchEvent(new Event('online'))
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'You’re back online' })).toBeInTheDocument())
-    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2)
-  })
-
-  it('does not let an older successful probe overwrite a newer offline event', async () => {
-    let resolveProbe: (response: Response) => void = () => undefined
-    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { resolveProbe = resolve }))
-    vi.stubGlobal('fetch', fetchMock)
-    render(<OfflineStatusView />)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    render(<ConnectivityStatus />)
+    await screen.findByText('online')
 
     act(() => window.dispatchEvent(new Event('offline')))
-    expect(screen.getByRole('heading', { name: 'You’re offline' })).toBeInTheDocument()
-    await act(async () => resolveProbe(new Response(null, {
-      status: 204,
-      headers: { [CONNECTIVITY_RESPONSE_HEADER]: 'online' },
-    })))
+    expect(screen.getByText('offline')).toBeInTheDocument()
 
-    expect(screen.getByRole('heading', { name: 'You’re offline' })).toBeInTheDocument()
+    act(() => window.dispatchEvent(new Event('online')))
+    await waitFor(() => expect(screen.getByText('online')).toBeInTheDocument())
+  })
+
+  it('does not let an older probe overwrite a newer offline event', async () => {
+    let resolveProbe: (response: Response) => void = () => undefined
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { resolveProbe = resolve })))
+    render(<ConnectivityStatus />)
+    await waitFor(() => expect(fetch).toHaveBeenCalled())
+
+    act(() => window.dispatchEvent(new Event('offline')))
+    await act(async () => resolveProbe(onlineResponse()))
+
+    expect(screen.getByText('offline')).toBeInTheDocument()
   })
 })
