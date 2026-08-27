@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import maplibregl, { type Map as MapLibreMap, type Marker } from 'maplibre-gl'
 
 import { buildMapLibreStyle } from '@/lib/map/maplibre-style'
+import { classifyMapFailure, type MapFailure } from '@/lib/map/map-failure'
 import { getVectorMapConfig } from '@/lib/map/vector-map-config'
 
 interface LocationPoint {
@@ -17,6 +18,7 @@ interface MapLibreStaticLocationMapProps {
   zoom?: number
   offline?: boolean
   className?: string
+  onFailure?: (failure: MapFailure) => void
 }
 
 function createDot(color: string, size: number, halo = false) {
@@ -30,27 +32,42 @@ function createDot(color: string, size: number, halo = false) {
   return element
 }
 
-export default function MapLibreStaticLocationMap({ point, secondaryPoint = null, zoom = 17, offline = false, className }: MapLibreStaticLocationMapProps) {
+export default function MapLibreStaticLocationMap({ point, secondaryPoint = null, zoom = 17, offline = false, className, onFailure }: MapLibreStaticLocationMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const primaryMarkerRef = useRef<Marker | null>(null)
   const secondaryMarkerRef = useRef<Marker | null>(null)
+  const onFailureRef = useRef(onFailure)
   const style = useMemo(() => buildMapLibreStyle(getVectorMapConfig({ offline })), [offline])
+
+  useEffect(() => {
+    onFailureRef.current = onFailure
+  }, [onFailure])
 
   useEffect(() => {
     const container = containerRef.current
     if (!container || mapRef.current) return
 
-    const map = new maplibregl.Map({
-      container,
-      style,
-      center: [point.longitude, point.latitude],
-      zoom,
-      minZoom: 1,
-      maxZoom: 19,
-      attributionControl: false,
-    })
+    let map: MapLibreMap
+    try {
+      map = new maplibregl.Map({
+        container,
+        style,
+        center: [point.longitude, point.latitude],
+        zoom,
+        minZoom: 1,
+        maxZoom: 19,
+        attributionControl: false,
+      })
+    } catch (error) {
+      onFailureRef.current?.(classifyMapFailure(error))
+      return
+    }
     mapRef.current = map
+    map.on('error', (event) => {
+      const error = 'error' in event ? event.error : new Error('Map resource failed to load')
+      onFailureRef.current?.(classifyMapFailure(error, { resource: true }))
+    })
     map.dragPan.disable()
     map.scrollZoom.disable()
     map.boxZoom.disable()

@@ -3,13 +3,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import LightweightCragMap from '@/components/LightweightCragMap'
 
+const mapFailureState = vi.hoisted(() => ({
+  failure: null as null | { error: Error; kind: 'webgl-unavailable' | 'initialization'; severity: 'fatal' },
+}))
+
 vi.mock('@/components/map/MapLibreVectorMap', () => ({
   default: (props: {
     pinsGeoJson: GeoJSON.FeatureCollection<GeoJSON.Point>
     userLocation?: { latitude: number; longitude: number } | null
     onReady?: () => void
     onPinSelect?: (id: string) => void
+    onFailure?: (failure: { error: Error; kind: 'webgl-unavailable' | 'initialization'; severity: 'fatal' }) => void
   }) => {
+    if (mapFailureState.failure) window.setTimeout(() => props.onFailure?.(mapFailureState.failure!), 0)
     window.setTimeout(() => props.onReady?.(), 0)
     const firstPinId = props.pinsGeoJson.features[0]?.properties?.selectId as string | undefined
     return (
@@ -46,6 +52,7 @@ describe('LightweightCragMap', () => {
   ]
 
   afterEach(() => {
+    mapFailureState.failure = null
     vi.restoreAllMocks()
   })
 
@@ -153,5 +160,43 @@ describe('LightweightCragMap', () => {
       expect(getByTestId('mock-maplibre-map')).toHaveAttribute('data-user-latitude', '48.86')
     })
     expect(getByTestId('mock-maplibre-map')).toHaveAttribute('data-user-longitude', '2.36')
+  })
+
+  it('contains WebGL failure and keeps a keyboard-accessible route-list alternative', async () => {
+    mapFailureState.failure = {
+      error: new Error('Failed to initialize WebGL'),
+      kind: 'webgl-unavailable',
+      severity: 'fatal',
+    }
+
+    const { findByRole, queryByTestId } = render(
+      <LightweightCragMap
+        pins={pins}
+        initialCenter={[48.85, 2.35]}
+        fallbackHref="#crag-routes"
+        fallbackLabel="Browse routes"
+      />
+    )
+
+    expect(await findByRole('heading', { name: 'Interactive map unavailable' })).toBeInTheDocument()
+    expect(await findByRole('link', { name: 'Browse routes' })).toHaveAttribute('href', '#crag-routes')
+    expect(queryByTestId('mock-maplibre-map')).not.toBeInTheDocument()
+    expect(document.body).toHaveTextContent('Crag details, routes, and topo images remain available.')
+    expect(document.body).not.toHaveTextContent('Try map')
+  })
+
+  it('offers retry for a recoverable map-library initialization failure', async () => {
+    mapFailureState.failure = {
+      error: new Error('Map constructor failed'),
+      kind: 'initialization',
+      severity: 'fatal',
+    }
+
+    const { findByRole } = render(
+      <LightweightCragMap pins={pins} initialCenter={[48.85, 2.35]} />
+    )
+
+    expect(await findByRole('button', { name: 'Retry map' })).toBeEnabled()
+    expect(await findByRole('link', { name: 'Continue without the map' })).toBeVisible()
   })
 })

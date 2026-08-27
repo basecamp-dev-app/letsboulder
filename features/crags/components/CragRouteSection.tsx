@@ -136,7 +136,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
   const placeLabel = communityPlace?.type === 'gym' ? 'Gym' : 'Crag'
 
   return (
-    <div className="relative mx-auto max-w-[90rem] space-y-5 px-4 py-4 lg:space-y-6 lg:py-5">
+    <div id="crag-routes" className="relative mx-auto max-w-[90rem] scroll-mt-24 space-y-5 px-4 py-4 lg:space-y-6 lg:py-5">
       <section className="grid gap-4 lg:grid-cols-[minmax(0,0.56fr)_minmax(0,1fr)] lg:items-start lg:gap-5">
         <div className="rounded-[28px] border border-stone-200/90 bg-white px-4 py-4 shadow-sm shadow-stone-950/5 dark:border-gray-800 dark:bg-gray-900 lg:px-5 lg:py-5">
           <div className="border-b border-stone-100 pb-3 dark:border-gray-800">

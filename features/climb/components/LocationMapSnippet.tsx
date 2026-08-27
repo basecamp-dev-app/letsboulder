@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import MapLibreStaticLocationMap from '@/components/map/MapLibreStaticLocationMap'
+import MapUnavailableState from '@/components/map/MapUnavailableState'
+import { useMapFailureRecovery } from '@/hooks/use-map-failure-recovery'
 import { haversineMeters } from '@/lib/geo/haversine'
 
 interface LocationMapSnippetProps {
@@ -19,6 +21,7 @@ function getDistanceMeters(aLat: number, aLng: number, bLat: number, bLng: numbe
 
 export default function LocationMapSnippet({ latitude, longitude, className }: LocationMapSnippetProps) {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+  const mapRecovery = useMapFailureRecovery('climb-location-map')
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
@@ -49,11 +52,24 @@ export default function LocationMapSnippet({ latitude, longitude, className }: L
           <span>Image location</span>
           <span>{nearbyUserLocation ? 'You nearby' : 'Climb pin'}</span>
         </div>
-        <MapLibreStaticLocationMap
+        {mapRecovery.fatalFailure ? (
+          <MapUnavailableState
+            errorId={mapRecovery.fatalFailure.errorId}
+            failureKind={mapRecovery.fatalFailure.kind}
+            title="Location map unavailable"
+            description={`The climb location is ${latitude.toFixed(5)}, ${longitude.toFixed(5)}. The rest of the climb details remain available.`}
+            recoveryHref="#climb-details"
+            recoveryLabel="Return to climb details"
+            onRetry={mapRecovery.retry}
+            className="min-h-36"
+          />
+        ) : <MapLibreStaticLocationMap
+          key={mapRecovery.attempt}
           point={climbPosition}
           secondaryPoint={nearbyUserLocation}
           className="h-36 w-full"
-        />
+          onFailure={mapRecovery.handleFailure}
+        />}
       </div>
     </div>
   )

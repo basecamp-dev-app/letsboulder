@@ -32,7 +32,7 @@ export default function HomeRecentCragUpdates({ updates }: HomeRecentCragUpdates
   }
 
   return (
-    <section className="mx-auto w-full max-w-7xl px-4 pt-4 pb-8 sm:px-6 lg:px-8 lg:pt-5 lg:pb-10">
+    <section id="recent-crag-updates" className="mx-auto w-full max-w-7xl scroll-mt-24 px-4 pt-4 pb-8 sm:px-6 lg:px-8 lg:pt-5 lg:pb-10">
       <div className="mb-4 flex items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-stone-950 dark:text-stone-50">Recent crag updates</h2>

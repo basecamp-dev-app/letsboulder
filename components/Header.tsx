@@ -360,6 +360,7 @@ export default function Header() {
 
         <div ref={searchRef} className="relative flex-1 max-w-md">
           <input
+            id="global-search"
             type="text"
             placeholder="Search all crags and climbs"
             aria-label="Search all crags and climbs"

@@ -5,6 +5,7 @@ import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from 'maplibr
 
 import type { MapBounds } from '@/lib/map/map-bounds'
 import { buildMapLibreStyle } from '@/lib/map/maplibre-style'
+import { classifyMapFailure, type MapFailure } from '@/lib/map/map-failure'
 import { getVectorMapConfig } from '@/lib/map/vector-map-config'
 
 export type { MapBounds } from '@/lib/map/map-bounds'
@@ -37,6 +38,8 @@ interface MapLibreVectorMapProps {
   onViewportChange?: (state: { zoom: number; bounds: MapBounds }) => void
   onPinSelect?: (id: string) => void
   onClusterSelect?: (clusterId: number, coordinates: MapLibreLngLat) => void
+  onFailure?: (failure: MapFailure) => void
+  focusOnReady?: boolean
 }
 
 function getSource(map: MapLibreMap, sourceId: string) {
@@ -95,6 +98,8 @@ export default function MapLibreVectorMap({
   onViewportChange,
   onPinSelect,
   onClusterSelect,
+  onFailure,
+  focusOnReady = false,
 }: MapLibreVectorMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
@@ -103,6 +108,7 @@ export default function MapLibreVectorMap({
   const onViewportChangeRef = useRef(onViewportChange)
   const onPinSelectRef = useRef(onPinSelect)
   const onClusterSelectRef = useRef(onClusterSelect)
+  const onFailureRef = useRef(onFailure)
   const style = useMemo(() => buildMapLibreStyle(getVectorMapConfig({ offline })), [offline])
   const userLocationGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(() => ({
     type: 'FeatureCollection',
@@ -126,28 +132,42 @@ export default function MapLibreVectorMap({
     onViewportChangeRef.current = onViewportChange
     onPinSelectRef.current = onPinSelect
     onClusterSelectRef.current = onClusterSelect
-  }, [onClusterSelect, onPinSelect, onReady, onViewportChange])
+    onFailureRef.current = onFailure
+  }, [onClusterSelect, onFailure, onPinSelect, onReady, onViewportChange])
 
   useEffect(() => {
     const container = containerRef.current
     if (!container || mapRef.current) return
 
-    const map = new maplibregl.Map({
-      container,
-      style,
-      center,
-      zoom,
-      minZoom,
-      maxZoom,
-      attributionControl: false,
-    })
-    mapRef.current = map
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
-
-    if (!staticPreview) {
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
+    let map: MapLibreMap
+    try {
+      map = new maplibregl.Map({
+        container,
+        style,
+        center,
+        zoom,
+        minZoom,
+        maxZoom,
+        attributionControl: false,
+      })
+    } catch (error) {
+      onFailureRef.current?.(classifyMapFailure(error))
+      return
     }
-    setInteractions(map, interactive && !staticPreview)
+    mapRef.current = map
+    try {
+      map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
+
+      if (!staticPreview) {
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
+      }
+      setInteractions(map, interactive && !staticPreview)
+    } catch (error) {
+      onFailureRef.current?.(classifyMapFailure(error))
+      map.remove()
+      mapRef.current = null
+      return
+    }
 
     let viewportTimer: ReturnType<typeof setTimeout> | null = null
     const emitViewport = () => {
@@ -164,7 +184,13 @@ export default function MapLibreVectorMap({
     map.on('movestart', cancelPendingViewport)
     map.on('moveend', emitViewportDebounced)
 
+    map.on('error', (event) => {
+      const error = 'error' in event ? event.error : new Error('Map resource failed to load')
+      onFailureRef.current?.(classifyMapFailure(error, { resource: true, fatal: !readyRef.current }))
+    })
+
     map.on('load', () => {
+      try {
       map.addSource('letsboulder-pins', { type: 'geojson', data: pinsGeoJsonRef.current })
       map.addLayer({
         id: 'letsboulder-pin-circles',
@@ -287,7 +313,11 @@ export default function MapLibreVectorMap({
       readyRef.current = true
       if (fitBoundsRef.current) fitMapToBounds(map, fitBoundsRef.current, maxZoom)
       emitViewport()
+      if (focusOnReady) container.focus({ preventScroll: true })
       onReadyRef.current?.()
+      } catch (error) {
+        onFailureRef.current?.(classifyMapFailure(error))
+      }
     })
 
     return () => {
@@ -343,5 +373,5 @@ export default function MapLibreVectorMap({
     map.easeTo({ center: focusTarget.center, zoom: Math.min(focusTarget.zoom, maxZoom), duration: 450 })
   }, [focusTarget, maxZoom])
 
-  return <div ref={containerRef} className={className} data-testid="maplibre-vector-map" role="region" aria-label={ariaLabel} />
+  return <div ref={containerRef} className={className} data-testid="maplibre-vector-map" role="region" aria-label={ariaLabel} tabIndex={focusOnReady ? -1 : undefined} />
 }

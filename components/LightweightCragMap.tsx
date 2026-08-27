@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import MapLibreVectorMap, { type MapBounds, type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
+import MapUnavailableState from '@/components/map/MapUnavailableState'
 import { useBrowserGeolocation } from '@/hooks/use-browser-geolocation'
+import { useMapFailureRecovery } from '@/hooks/use-map-failure-recovery'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult } from '@/lib/map/place-pins'
 
@@ -55,6 +57,8 @@ interface LightweightCragMapProps {
   className?: string
   heightMode?: 'intrinsic' | 'fill'
   heightClassName?: string
+  fallbackHref?: string
+  fallbackLabel?: string
 }
 
 export default function LightweightCragMap({
@@ -75,6 +79,8 @@ export default function LightweightCragMap({
   className,
   heightMode = 'intrinsic',
   heightClassName,
+  fallbackHref = '#main-content',
+  fallbackLabel = 'Continue without the map',
 }: LightweightCragMapProps) {
   const [mapReady, setMapReady] = useState(false)
   const [mapZoom, setMapZoom] = useState(initialZoom)
@@ -83,6 +89,7 @@ export default function LightweightCragMap({
   const [isOffline, setIsOffline] = useState(false)
   const lastMapStateRef = useRef<{ zoom: number; bounds: MapBounds } | null>(null)
   const { location: userLocation } = useBrowserGeolocation(showUserLocation)
+  const mapRecovery = useMapFailureRecovery('crag-map')
 
   const resolvedPins = useMemo(() => {
     if (draftPins || publishedPins) {
@@ -278,7 +285,20 @@ export default function LightweightCragMap({
   return (
     <div className={[className, outerWrapperClasses].filter(Boolean).join(' ')}>
       <div className={`lightweight-crag-map relative overflow-hidden rounded-[28px] border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-800 dark:bg-gray-900 ${heightClasses}`}>
-        <MapLibreVectorMap
+        {mapRecovery.fatalFailure ? (
+          <MapUnavailableState
+            errorId={mapRecovery.fatalFailure.errorId}
+            failureKind={mapRecovery.fatalFailure.kind}
+            description={mapRecovery.fatalFailure.kind === 'webgl-unavailable'
+              ? 'This browser cannot display the map. Crag details, routes, and topo images remain available.'
+              : 'The map could not start. Crag details, routes, and topo images remain available.'}
+            recoveryHref={fallbackHref}
+            recoveryLabel={fallbackLabel}
+            onRetry={mapRecovery.retry}
+            className="absolute inset-0 z-10"
+          />
+        ) : <MapLibreVectorMap
+          key={mapRecovery.attempt}
           center={center}
           zoom={initialZoom}
           minZoom={usesStaticPreview ? initialZoom : 13}
@@ -291,13 +311,25 @@ export default function LightweightCragMap({
           staticPreview={usesStaticPreview}
           offline={isOffline}
           className="h-full w-full"
-          onReady={() => setMapReady(true)}
+          onReady={() => {
+            setMapReady(true)
+            mapRecovery.completeRetry()
+          }}
           onViewportChange={interactiveViewport && !usesStaticPreview ? handleMapStateChange : undefined}
           onPinSelect={onPinSelect}
-        />
-        {!mapReady ? (
+          onFailure={mapRecovery.handleFailure}
+          focusOnReady={mapRecovery.retrying}
+        />}
+        {!mapReady && !mapRecovery.fatalFailure ? (
           <div className="absolute inset-0 flex h-full w-full items-center justify-center bg-stone-100/90 dark:bg-gray-900/90" data-testid="map-loading-state">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-stone-400 border-t-transparent" />
+          </div>
+        ) : null}
+        {mapRecovery.resourceFailure ? (
+          <div role="status" className="absolute inset-x-3 bottom-3 z-10 rounded-2xl border border-amber-300/30 bg-slate-950/90 px-3 py-2 text-xs text-white shadow-lg">
+            Map resources are incomplete. Page content still works.{' '}
+            <button type="button" onClick={mapRecovery.retry} className="font-bold text-amber-300 underline underline-offset-2">Retry map</button>
+            <span className="sr-only"> Diagnostic ID: {mapRecovery.resourceFailure.errorId}</span>
           </div>
         ) : null}
         {isOffline ? (

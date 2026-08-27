@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import MapLibreVectorMap, { type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
 import type { BrowserLocationPoint } from '@/hooks/use-browser-geolocation'
 import { reportError } from '@/lib/errors'
+import type { MapFailure } from '@/lib/map/map-failure'
 import { normalizePaddedViewport, type MapBounds, type MapViewportQuery } from '@/lib/map/map-bounds'
 import { mapPinsQueryOptions } from '@/lib/map/map-pins-query'
 import { buildPinFeatures, type PinFeature, type PlacePin, type ViewportPinCluster, type ViewportPlacePin } from '@/lib/map/place-pins'
@@ -48,10 +49,14 @@ export default function InteractiveClimbingMap({
   initialPlacePins = [],
   onReady,
   userLocation = null,
+  onMapFailure,
+  focusMapOnReady = false,
 }: {
   initialPlacePins?: PlacePin[]
   onReady?: () => void
   userLocation?: BrowserLocationPoint | null
+  onMapFailure?: (failure: MapFailure) => void
+  focusMapOnReady?: boolean
 }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -166,6 +171,8 @@ export default function InteractiveClimbingMap({
           const place = placesById.get(id)
           if (place) setSelectedPlace(place)
         }}
+        onFailure={onMapFailure}
+        focusOnReady={focusMapOnReady}
       />
       <aside aria-label="Climbing locations" className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:left-4 focus-within:top-20 focus-within:z-[1001] focus-within:max-h-[calc(100%-6rem)] focus-within:w-72 focus-within:overflow-y-auto focus-within:rounded-2xl focus-within:bg-white/95 focus-within:p-2 focus-within:shadow-2xl focus-within:backdrop-blur-md">
         <ul className="space-y-1">
