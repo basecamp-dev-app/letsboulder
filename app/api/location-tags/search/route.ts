@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 
 type TagKind = 'region' | 'sub_area'
@@ -7,8 +7,6 @@ type TagKind = 'region' | 'sub_area'
 export const revalidate = 30
 
 export async function GET(request: NextRequest) {
-  const supabase = getServerClientFromRequest(request)
-
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q')?.trim() || ''
   const kindParam = searchParams.get('kind')?.trim().toLowerCase() || 'region'
@@ -23,6 +21,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const supabase = getUnauthenticatedClient()
     const { data, error } = await supabase
       .from('location_tags')
       .select('id, kind, name, country_code')

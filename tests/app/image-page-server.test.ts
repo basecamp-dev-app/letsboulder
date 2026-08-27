@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { createServerClient } from '@supabase/ssr'
 
 const { clientEnv } = vi.hoisted(() => ({
   clientEnv: {
@@ -103,6 +104,7 @@ vi.mock('@supabase/ssr', () => ({
 
 describe('image-page-server raw image fallback', () => {
   beforeEach(() => {
+    vi.mocked(createServerClient).mockClear()
     getStoredClimbManifestMock.mockReset()
     getStoredClimbManifestByImageIdMock.mockReset()
     getStoredClimbManifestMock.mockResolvedValue(null)
@@ -194,6 +196,7 @@ describe('image-page-server raw image fallback', () => {
     expect(result.payload?.attribution.ownerProfileId).toBe('user-1')
     expect(result.payload?.attribution.formattedContributionHandle).toBe('@maya_beta')
     expect(result.payload?.attribution.communityEditorsCount).toBe(2)
+    expect(createServerClient).toHaveBeenCalledOnce()
   }, 15000)
 
   test('resolves redirected params using route id without slug ambiguity', async () => {

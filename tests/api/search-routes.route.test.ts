@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { getServerClientFromRequest } = vi.hoisted(() => ({
+const { getServerClientFromRequest, getUnauthenticatedClient } = vi.hoisted(() => ({
   getServerClientFromRequest: vi.fn(),
+  getUnauthenticatedClient: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase-server', () => ({
   getServerClientFromRequest,
+  getUnauthenticatedClient,
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -156,6 +158,7 @@ describe('Search routes', () => {
 
     expect(response.status).toBe(200)
     expect(json).toEqual([])
+    expect(getUnauthenticatedClient).not.toHaveBeenCalled()
   })
 
   test('regions search returns empty array for short queries', async () => {
@@ -185,7 +188,7 @@ describe('Search routes', () => {
   })
 
   test('places search filters by type and sorts by distance', async () => {
-    getServerClientFromRequest.mockReturnValue(createPlacesClient({
+    getUnauthenticatedClient.mockReturnValue(createPlacesClient({
       data: [
         { id: 'gym-1', name: 'Far Gym', type: 'gym', latitude: 49.23, longitude: -2.1, primary_discipline: null, disciplines: [] },
         { id: 'gym-2', name: 'Near Gym', type: 'gym', latitude: 49.2005, longitude: -2.1005, primary_discipline: null, disciplines: [] },
@@ -201,7 +204,7 @@ describe('Search routes', () => {
   })
 
   test('places search keeps zero coordinates when computing distance', async () => {
-    getServerClientFromRequest.mockReturnValue(createPlacesClient({
+    getUnauthenticatedClient.mockReturnValue(createPlacesClient({
       data: [
         { id: 'gym-0', name: 'Prime Meridian Gym', type: 'gym', latitude: 0, longitude: 0, primary_discipline: null, disciplines: [] },
       ],
@@ -216,7 +219,7 @@ describe('Search routes', () => {
   })
 
   test('crag search merges tag matches and normalizes country names', async () => {
-    getServerClientFromRequest.mockReturnValue(createCragsClient(
+    getUnauthenticatedClient.mockReturnValue(createCragsClient(
       [
         { id: 'crag-2', name: 'Needles', latitude: 49.2, longitude: -2.1, slug: 'needles', country_code: 'gb', region_name: 'Jersey', sub_area: 'North', rock_type: 'granite' },
       ],
@@ -243,7 +246,7 @@ describe('Search routes', () => {
   })
 
   test('crag search keeps zero coordinates when computing distance', async () => {
-    getServerClientFromRequest.mockReturnValue(createCragsClient([
+    getUnauthenticatedClient.mockReturnValue(createCragsClient([
       { id: 'crag-0', name: 'Meridian Boulder', latitude: 0, longitude: 0, slug: 'meridian-boulder', country_code: 'gb', region_name: 'Greenwich', sub_area: null, rock_type: 'sandstone' },
     ]))
 
@@ -255,7 +258,7 @@ describe('Search routes', () => {
   })
 
   test('places nearby keeps zero coordinates when computing distance', async () => {
-    getServerClientFromRequest.mockReturnValue(createNearbyPlacesClient({
+    getUnauthenticatedClient.mockReturnValue(createNearbyPlacesClient({
       data: [
         { id: 'gym-0', name: 'Origin Gym', type: 'gym', latitude: 0, longitude: 0, rock_type: null, primary_discipline: null, disciplines: [] },
       ],
@@ -276,7 +279,7 @@ describe('Search routes', () => {
       ],
       error: null,
     })
-    getServerClientFromRequest.mockReturnValue(client)
+    getUnauthenticatedClient.mockReturnValue(client)
 
     const response = await getCragNearby(new NextRequest('http://localhost:3000/api/crags/nearby?lat=0&lng=0'))
     const json = await response.json()
@@ -294,7 +297,7 @@ describe('Search routes', () => {
 
   test('crags nearby accepts a custom radius in meters', async () => {
     const client = createNearbyCragsClient({ data: [], error: null })
-    getServerClientFromRequest.mockReturnValue(client)
+    getUnauthenticatedClient.mockReturnValue(client)
 
     const response = await getCragNearby(new NextRequest(
       'http://localhost:3000/api/crags/nearby?lat=85&lng=179.9&radiusMeters=25000'
@@ -311,7 +314,7 @@ describe('Search routes', () => {
 
   test('crags nearby accepts coordinate range boundaries', async () => {
     const client = createNearbyCragsClient({ data: [], error: null })
-    getServerClientFromRequest.mockReturnValue(client)
+    getUnauthenticatedClient.mockReturnValue(client)
 
     const response = await getCragNearby(new NextRequest(
       'http://localhost:3000/api/crags/nearby?lat=-90&lng=180'
@@ -336,7 +339,7 @@ describe('Search routes', () => {
 
     expect(response.status).toBe(400)
     expect(await response.json()).toEqual({ error: 'Valid lat and lng are required' })
-    expect(getServerClientFromRequest).not.toHaveBeenCalled()
+    expect(getUnauthenticatedClient).not.toHaveBeenCalled()
   })
 
   test.each(['0', '-1', '100001', 'NaN', '10km'])('crags nearby rejects invalid radius: %s', async (radius) => {
@@ -345,7 +348,7 @@ describe('Search routes', () => {
     ))
 
     expect(response.status).toBe(400)
-    expect(getServerClientFromRequest).not.toHaveBeenCalled()
+    expect(getUnauthenticatedClient).not.toHaveBeenCalled()
   })
 
   test('crag by id returns normalized crag payload', async () => {

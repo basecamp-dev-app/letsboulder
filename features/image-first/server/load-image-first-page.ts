@@ -9,6 +9,8 @@ import { buildRouteAttribution } from '@/features/image-first/lib/route-attribut
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
 import type { ProfileRow } from '@/lib/profile-helpers'
 
+type PublicSupabaseClient = ReturnType<typeof getUnauthenticatedClient>
+
 interface RoutePageAttributionRow {
   created_by: string | null
   is_anonymous_submission: boolean | null
@@ -16,8 +18,7 @@ interface RoutePageAttributionRow {
   contribution_credit_handle: string | null
 }
 
-async function getImageAttribution(displayImageId: string) {
-  const supabase = await getSupabase()
+async function getImageAttribution(supabase: PublicSupabaseClient, displayImageId: string) {
   const [{ data: imageRow }, contributorCountResult] = await Promise.all([
     supabase
       .from('images')
@@ -133,12 +134,10 @@ interface RouteLineRow {
     | null
 }
 
-async function getSupabase() {
-  return getUnauthenticatedClient()
-}
-
-async function resolveCragImageRow(displayImageId: string): Promise<ResolvedImageRow | null> {
-  const supabase = await getSupabase()
+async function resolveCragImageRow(
+  supabase: PublicSupabaseClient,
+  displayImageId: string,
+): Promise<ResolvedImageRow | null> {
   const baseSelect = 'id, linked_image_id, url, width, height, latitude, longitude, created_at, crag_id, crags(id, slug, country_code, name)'
 
   const { data, error } = await supabase
@@ -175,9 +174,8 @@ async function resolveCragImageRow(displayImageId: string): Promise<ResolvedImag
   return ((fallbackRows || []) as ResolvedImageRow[])[0] || null
 }
 
-export const getImageByDisplayId = cache(async (displayImageId: string) => {
-  const supabase = await getSupabase()
-  const resolved = await resolveCragImageRow(displayImageId)
+async function loadImageByDisplayId(supabase: PublicSupabaseClient, displayImageId: string) {
+  const resolved = await resolveCragImageRow(supabase, displayImageId)
   if (resolved) {
     const canonicalId = getDisplayImageId(resolved)
     if (!canonicalId) return null
@@ -239,10 +237,13 @@ export const getImageByDisplayId = cache(async (displayImageId: string) => {
     cragName: crag.name,
     fromCragImages: false,
   } satisfies ResolvedImageRecord
+}
+
+export const getImageByDisplayId = cache(async (displayImageId: string) => {
+  return loadImageByDisplayId(getUnauthenticatedClient(), displayImageId)
 })
 
-export async function getRoutesByImage(displayImageId: string) {
-  const supabase = await getSupabase()
+async function loadRoutesByImage(supabase: PublicSupabaseClient, displayImageId: string) {
   const { data, error } = await supabase
     .from('route_lines')
     .select(`
@@ -264,6 +265,10 @@ export async function getRoutesByImage(displayImageId: string) {
   return (data || []) as RouteLineRow[]
 }
 
+export async function getRoutesByImage(displayImageId: string) {
+  return loadRoutesByImage(getUnauthenticatedClient(), displayImageId)
+}
+
 export async function buildImageFirstPayload(args: {
   country: string
   crag: string
@@ -274,7 +279,8 @@ export async function buildImageFirstPayload(args: {
   climbId?: string | null
 }): Promise<{ redirectTo: string | null; payload: ImageFirstPayload | null }> {
   const timing = startServerTiming('buildImageFirstPayload')
-  const image = await timeServerStep('buildImageFirstPayload', 'resolve-image', () => getImageByDisplayId(args.imageId))
+  const supabase = getUnauthenticatedClient()
+  const image = await timeServerStep('buildImageFirstPayload', 'resolve-image', () => loadImageByDisplayId(supabase, args.imageId))
   if (!image) return { redirectTo: null, payload: null }
 
   const canonicalPath = `/${image.countryCode}/${image.cragSlug}/i/${image.canonicalId}`
@@ -300,10 +306,9 @@ export async function buildImageFirstPayload(args: {
   }
 
   const [initialRouteRows, cragImages, cragImageRows, attributionData] = await Promise.all([
-    timeServerStep('buildImageFirstPayload', 'initial-routes', () => getRoutesByImage(image.canonicalId)),
+    timeServerStep('buildImageFirstPayload', 'initial-routes', () => loadRoutesByImage(supabase, image.canonicalId)),
     (async () => {
       return timeServerStep('buildImageFirstPayload', 'crag-images', async () => {
-        const supabase = await getSupabase()
         const { data, error } = await supabase
           .from('images')
           .select('id, url, width, height, created_at, latitude, longitude')
@@ -325,7 +330,6 @@ export async function buildImageFirstPayload(args: {
     })(),
     (async () => {
       return timeServerStep('buildImageFirstPayload', 'crag-image-links', async () => {
-        const supabase = await getSupabase()
         const { data, error } = await supabase
           .from('crag_images')
           .select('id, linked_image_id')
@@ -338,7 +342,7 @@ export async function buildImageFirstPayload(args: {
         }>
       })
     })(),
-    getImageAttribution(image.canonicalId),
+    getImageAttribution(supabase, image.canonicalId),
   ])
 
   const heroWasAddedToNavigation = !cragImages.some((row) => row.id === image.canonicalId)

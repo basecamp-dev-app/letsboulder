@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { loadGlobalRankingsLeaderboard } from '@/features/rankings/server/leaderboard'
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid sort parameter' }, { status: 400 })
   }
 
-  const supabase = getServerClientFromRequest(request)
+  const supabase = getUnauthenticatedClient()
 
   try {
     const genderParam = gender === 'all' ? null : gender

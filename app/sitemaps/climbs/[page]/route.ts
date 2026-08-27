@@ -31,27 +31,38 @@ export type SitemapClimbRow = Pick<ClimbRow, 'id' | 'shared_climb_id' | 'slug' |
   route_lines: SitemapRouteLineRow[]
 }
 
+function getRouteLineImage(routeLine: SitemapRouteLineRow): SitemapImageRow | null {
+  return Array.isArray(routeLine.images) ? routeLine.images[0] || null : routeLine.images
+}
+
+function isPreferredRouteLine(candidate: SitemapRouteLineRow, current: SitemapRouteLineRow): boolean {
+  const candidateImage = getRouteLineImage(candidate)
+  const currentImage = getRouteLineImage(current)
+  const candidateVerified = candidateImage?.is_verified ? 1 : 0
+  const currentVerified = currentImage?.is_verified ? 1 : 0
+
+  if (candidateVerified !== currentVerified) return candidateVerified > currentVerified
+
+  const candidateCount = candidateImage?.verification_count ?? 0
+  const currentCount = currentImage?.verification_count ?? 0
+  if (candidateCount !== currentCount) return candidateCount > currentCount
+
+  const candidateCreatedAt = candidateImage?.created_at ? new Date(candidateImage.created_at).getTime() : 0
+  const currentCreatedAt = currentImage?.created_at ? new Date(currentImage.created_at).getTime() : 0
+  if (candidateCreatedAt !== currentCreatedAt) return candidateCreatedAt > currentCreatedAt
+
+  return candidate.id.localeCompare(current.id) < 0
+}
+
 export function buildSitemapClimbEntry(climb: SitemapClimbRow): SitemapEntry | null {
   const crag = Array.isArray(climb.crags) ? climb.crags[0] : climb.crags
-  const bestRouteLine = [...climb.route_lines]
-    .filter((line) => {
-      const image = Array.isArray(line.images) ? line.images[0] : line.images
-      return Boolean(image?.url)
-    })
-    .sort((a, b) => {
-      const aImage = Array.isArray(a.images) ? a.images[0] : a.images
-      const bImage = Array.isArray(b.images) ? b.images[0] : b.images
-      const av = aImage?.is_verified ? 1 : 0
-      const bv = bImage?.is_verified ? 1 : 0
-      if (av !== bv) return bv - av
-      const ac = aImage?.verification_count ?? 0
-      const bc = bImage?.verification_count ?? 0
-      if (ac !== bc) return bc - ac
-      const ad = aImage?.created_at ? new Date(aImage.created_at).getTime() : 0
-      const bd = bImage?.created_at ? new Date(bImage.created_at).getTime() : 0
-      if (ad !== bd) return bd - ad
-      return a.id.localeCompare(b.id)
-    })[0]
+  let bestRouteLine: SitemapRouteLineRow | null = null
+  for (const routeLine of climb.route_lines) {
+    if (!getRouteLineImage(routeLine)?.url) continue
+    if (!bestRouteLine || isPreferredRouteLine(routeLine, bestRouteLine)) {
+      bestRouteLine = routeLine
+    }
+  }
 
   if (!climb.slug || !crag?.slug || !crag.country_code || !bestRouteLine) return null
 

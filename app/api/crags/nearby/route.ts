@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import type { Database } from '@/types/database'
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const supabase = getServerClientFromRequest(request)
+    const supabase = getUnauthenticatedClient()
     const { data, error } = await supabase.rpc('get_nearby_crags', {
       p_latitude: latitude,
       p_longitude: longitude,

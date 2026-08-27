@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { haversineMeters } from '@/lib/geo/haversine'
 
 type PlaceTypeFilter = 'all' | 'crag' | 'gym'
 
 export async function GET(request: NextRequest) {
-  const supabase = getServerClientFromRequest(request)
-
   const { searchParams } = new URL(request.url)
   const latParam = searchParams.get('lat')
   const lngParam = searchParams.get('lng')
@@ -37,6 +35,7 @@ export async function GET(request: NextRequest) {
   const lngRange = 0.1
 
   try {
+    const supabase = getUnauthenticatedClient()
     let query = supabase
       .from('places')
       .select('id,name,type,latitude,longitude,rock_type,primary_discipline,disciplines')
