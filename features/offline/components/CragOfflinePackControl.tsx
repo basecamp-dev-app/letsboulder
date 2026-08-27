@@ -4,6 +4,7 @@ import { Download, RefreshCw, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { useConnectivity } from '@/features/offline/hooks/use-connectivity'
 import { useOfflinePacks } from '@/features/offline/hooks/use-offline-packs'
 import { fetchOfflinePackManifest } from '@/features/offline/lib/offline-pack-manifest'
 import type { OfflinePackManifest, OfflineStorageStatus } from '@/features/offline/lib/offline-pack-types'
@@ -15,10 +16,11 @@ function formatBytes(bytes: number) {
 
 export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
   const { packs, loading, error, install, repair, remove, discardFailed } = useOfflinePacks()
+  const { status: connectivity } = useConnectivity()
   const packId = `crag:${cragId}`
   const manifestUrl = `/api/offline-packs/crags/${encodeURIComponent(cragId)}/manifest`
   const pack = packs.find((candidate) => candidate.packId === packId)
-  const ready = pack?.activeVersion !== null && pack?.status !== 'error'
+  const ready = Boolean(pack?.activeVersion) && pack?.status !== 'error'
   const degraded = pack?.status === 'degraded'
   const failedDownload = pack?.error !== null && pack?.error !== undefined
   const [availableUpdate, setAvailableUpdate] = useState<OfflinePackManifest | null>(null)
@@ -26,7 +28,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
 
   useEffect(() => {
     let active = true
-    if (!ready || !navigator.onLine) return () => { active = false }
+    if (!ready || connectivity !== 'online') return () => { active = false }
 
     void fetchOfflinePackManifest(manifestUrl)
       .then((manifest) => {
@@ -35,7 +37,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
       .catch(() => undefined)
 
     return () => { active = false }
-  }, [manifestUrl, pack?.activeVersion, ready])
+  }, [connectivity, manifestUrl, pack?.activeVersion, ready])
 
   const handleInstall = async () => {
     setStorageStatus(null)
@@ -94,8 +96,8 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
           <a href={`/offline/crag?id=${encodeURIComponent(cragId)}`}><Download className="size-4" /> Offline guide</a>
         </Button>
       ) : (
-        <Button type="button" variant="outline" onClick={() => void handleInstall()} disabled={loading} className="min-h-11 rounded-full border-stone-200 bg-stone-50 px-3 text-stone-700 shadow-none hover:bg-stone-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
-          <Download className="size-4" /> {loading ? 'Downloading...' : pack?.status === 'error' ? 'Retry download' : 'Download offline'}
+        <Button type="button" variant="outline" onClick={() => void handleInstall()} disabled={loading || connectivity !== 'online'} className="min-h-11 rounded-full border-stone-200 bg-stone-50 px-3 text-stone-700 shadow-none hover:bg-stone-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+          <Download className="size-4" /> {loading ? 'Downloading...' : connectivity === 'checking' ? 'Checking connection...' : connectivity === 'offline' ? 'Reconnect to download' : pack?.status === 'error' ? 'Retry download' : 'Download offline'}
         </Button>
       )}
       {ready && degraded ? (
@@ -121,7 +123,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
       {storageStatus ? (
         <div className="basis-full rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100" role="status">
           <div className="flex items-start justify-between gap-3">
-            <p className="font-medium">{storageStatus.persisted === true ? 'Protected storage enabled' : 'Browser may evict this content'}</p>
+            <p className="font-medium">Download complete · {storageStatus.persisted === true ? 'Protected storage enabled' : 'Browser may evict this content'}</p>
             <Button type="button" variant="ghost" size="icon-sm" onClick={() => setStorageStatus(null)} aria-label="Dismiss storage status" className="-mr-1 -mt-1 rounded-full">
               <X aria-hidden="true" />
             </Button>

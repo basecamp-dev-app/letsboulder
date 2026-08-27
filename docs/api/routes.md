@@ -9,6 +9,7 @@
 | climbs | Individual climb data and operations | Optional | Yes |
 | comments | Public comment reads and authenticated comment creation | Optional | Yes |
 | community | Public place-community query endpoints | No | No |
+| connectivity | Uncached same-origin reachability probe | No | No |
 | corrections | Route correction requests and voting | Yes | Yes |
 | crags | Crag CRUD, search, nearby, pins, reports, images, sectors | Optional | Yes |
 | csrf | User-bound CSRF token and cookie issuance | Yes | No |
@@ -65,6 +66,7 @@ This is the canonical path inventory for route handlers under `app/api/**/route.
 /api/community/places/[slug]/rankings
 /api/community/places/[slug]/recent-sends
 /api/community/posts/[postId]/engagement
+/api/connectivity
 /api/corrections/[id]/vote
 /api/crags
 /api/crags/[id]
@@ -152,6 +154,10 @@ Public read-only community data organized under places. App-owned post, RSVP, an
 - `community/places/[slug]/recent-sends` — recent sends for a specific place
 - `community/places/[slug]/contributors` — contributor leaderboard for a specific place
 - `community/posts/[postId]/engagement` — engagement data for a specific post
+
+### connectivity
+
+`GET /api/connectivity` returns an uncached `204` with an app-specific response header. Offline screens use it to verify actual same-origin reachability rather than treating browser connectivity hints as authoritative.
 
 ### corrections
 

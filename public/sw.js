@@ -1,8 +1,8 @@
-// Authoritative offline worker. Cache versions: shell v2, immutable media v1,
+// Authoritative offline worker. Cache versions: shell v3, immutable media v1,
 // and static assets under letsboulder-next-static-{build-manifest.version}.
 // Responsible for offline shell precaching, navigation fallback, Next static
 // asset caching, immutable packed-media caching, cache retirement, and updates.
-const SHELL_CACHE = 'letsboulder-offline-shell-v2'
+const SHELL_CACHE = 'letsboulder-offline-shell-v3'
 const STATIC_CACHE_PREFIX = 'letsboulder-next-static-'
 const PACKED_MEDIA_CACHE = 'letsboulder-offline-immutable-v1'
 const BUILD_ASSET_MANIFEST_URL = '/sw-build-assets.json'
@@ -21,6 +21,7 @@ const RETIRED_CACHE_NAMES = new Set([
   'offline-route-assets-v2',
   'runtime-transient-v2',
   'letsboulder-offline-shell-v1',
+  'letsboulder-offline-shell-v2',
   'letsboulder-next-static-v1',
 ])
 let staticCacheName

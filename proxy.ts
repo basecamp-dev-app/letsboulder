@@ -13,6 +13,7 @@ function isStateChangingMethod(method: string): boolean {
 function shouldSkipMiddleware(pathname: string, method: string): boolean {
   const normalizedMethod = method.toUpperCase()
   const publicReadOnlyPrefixes = [
+    '/api/connectivity',
     '/api/regions',
     '/api/rankings',
     '/api/places/search',
