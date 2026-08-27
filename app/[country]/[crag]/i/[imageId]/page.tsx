@@ -214,8 +214,8 @@ export default async function ImagePage({
   return result.payload ? (
     <>
       <JsonLd data={buildJsonLd(result.payload)} />
-      <ImageFirstServerShell payload={result.payload} />
       <ImageFirstClientLoader payload={result.payload} />
+      <ImageFirstServerShell payload={result.payload} />
     </>
   ) : <NotFound />
 }
