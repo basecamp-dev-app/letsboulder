@@ -1065,6 +1065,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
       <ImageFirstFooterRail visibleRoutes={visibleRoutes} activeRouteId={activeRouteId} onRouteSelect={handleRouteSelect} />
 
+      <div id="climb-details" className="scroll-mt-24">
       <ClimbInfoPanel
         selectedClimb={selectedClimb}
         selectedRouteExists={!!activeRouteId}
@@ -1114,6 +1115,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onGoToLogbook={handleGoToLogbook}
         deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
       />
+      </div>
 
       <ClimbShareDialog
         open={shareOpen}
@@ -1140,6 +1142,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                 disableAutoFit={true}
                 showUserLocation={true}
                 heightClassName="h-[240px] md:h-[280px]"
+                fallbackHref="#climb-details"
+                fallbackLabel="Return to climb details"
               />
               <SelectedPinImageRail
                 pin={selectedMapPin}

@@ -15,6 +15,7 @@ interface HomeMapHeroProps {
 export default function HomeMapHero({ className }: HomeMapHeroProps) {
   const [locateRequested, setLocateRequested] = useState(false)
   const [locationStatus, setLocationStatus] = useState<BrowserGeolocationStatus>('idle')
+  const [mapAvailable, setMapAvailable] = useState(true)
   const locationUnavailable = locationStatus === 'error' || locationStatus === 'unsupported'
   const handleLocationStatusChange = (status: BrowserGeolocationStatus) => {
     setLocationStatus(status)
@@ -29,8 +30,9 @@ export default function HomeMapHero({ className }: HomeMapHeroProps) {
         className="h-full w-full"
         showUserLocation={locateRequested}
         onGeolocationStatusChange={handleLocationStatusChange}
+        onMapAvailabilityChange={setMapAvailable}
       />
-      <Button
+      {mapAvailable ? <Button
         type="button"
         onClick={() => setLocateRequested(true)}
         disabled={locationStatus === 'requesting' || locationStatus === 'success'}
@@ -44,8 +46,8 @@ export default function HomeMapHero({ className }: HomeMapHeroProps) {
             : locationUnavailable
               ? 'Try location again'
               : 'Find climbing near me'}
-      </Button>
-      {locationUnavailable ? (
+      </Button> : null}
+      {mapAvailable && locationUnavailable ? (
         <p role="status" className="absolute left-4 top-16 z-[1001] rounded-full bg-slate-950/80 px-3 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md md:left-6 md:top-[4.75rem]">
           Location unavailable. You can still explore the map.
         </p>
