@@ -1,8 +1,8 @@
-// Authoritative offline worker. Cache versions: shell v3, immutable media v1,
+// Authoritative offline worker. Cache versions: shell v4, immutable media v1,
 // and static assets under letsboulder-next-static-{build-manifest.version}.
 // Responsible for offline shell precaching, navigation fallback, Next static
 // asset caching, immutable packed-media caching, cache retirement, and updates.
-const SHELL_CACHE = 'letsboulder-offline-shell-v3'
+const SHELL_CACHE = 'letsboulder-offline-shell-v4'
 const STATIC_CACHE_PREFIX = 'letsboulder-next-static-'
 const PACKED_MEDIA_CACHE = 'letsboulder-offline-immutable-v1'
 const BUILD_ASSET_MANIFEST_URL = '/sw-build-assets.json'
@@ -22,14 +22,20 @@ const RETIRED_CACHE_NAMES = new Set([
   'runtime-transient-v2',
   'letsboulder-offline-shell-v1',
   'letsboulder-offline-shell-v2',
+  'letsboulder-offline-shell-v3',
   'letsboulder-next-static-v1',
 ])
 let staticCacheName
 
-async function getStaticCacheName() {
-  if (staticCacheName) return staticCacheName
+async function getStaticCacheName({ refresh = false } = {}) {
+  if (staticCacheName && !refresh) return staticCacheName
 
-  const response = await fetch(BUILD_ASSET_MANIFEST_URL, { cache: 'no-store' })
+  const shellCache = await caches.open(SHELL_CACHE)
+  let response = refresh ? undefined : await shellCache.match(BUILD_ASSET_MANIFEST_URL)
+  if (!response) {
+    response = await fetch(BUILD_ASSET_MANIFEST_URL, { cache: 'no-store' })
+    if (response.ok) await shellCache.put(BUILD_ASSET_MANIFEST_URL, response.clone())
+  }
   if (!response.ok) throw new Error('Unable to load the service worker build manifest')
   const manifest = await response.json()
   if (typeof manifest.version !== 'string' || manifest.version.length === 0) {
@@ -42,7 +48,7 @@ async function getStaticCacheName() {
 
 async function cacheShell() {
   const shellCache = await caches.open(SHELL_CACHE)
-  const staticCache = await caches.open(await getStaticCacheName())
+  const staticCache = await caches.open(await getStaticCacheName({ refresh: true }))
 
   await Promise.all(SHELL_PATHS.map(async (path) => {
     const response = await fetch(path)
@@ -63,6 +69,9 @@ async function cacheShell() {
 }
 
 async function cacheFirstStatic(request) {
+  const cachedAcrossReleases = await caches.match(request)
+  if (cachedAcrossReleases) return cachedAcrossReleases
+
   const cache = await caches.open(await getStaticCacheName())
   const cached = await cache.match(request)
   if (cached) return cached
@@ -117,6 +126,13 @@ async function navigationNetworkFirst(request) {
   }
 }
 
+async function offlineNavigationCacheFirst(request) {
+  const pathname = new URL(request.url).pathname
+  const shellCache = await caches.open(SHELL_CACHE)
+  const cached = await shellCache.match(pathname)
+  return cached || navigationNetworkFirst(request)
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(cacheShell())
 })
@@ -142,7 +158,9 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url)
   if (request.mode === 'navigate') {
-    event.respondWith(navigationNetworkFirst(request))
+    event.respondWith(SHELL_PATHS.includes(url.pathname)
+      ? offlineNavigationCacheFirst(request)
+      : navigationNetworkFirst(request))
   } else if (url.origin === self.location.origin && url.pathname.startsWith('/_next/static/')) {
     event.respondWith(cacheFirstStatic(request))
   } else if (isPackedMediaRequest(request, url)) {

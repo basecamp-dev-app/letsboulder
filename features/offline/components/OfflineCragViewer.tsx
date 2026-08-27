@@ -167,7 +167,7 @@ export default function OfflineCragViewer() {
           <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-gray-300">{explanation}</p>
           <div className="mt-6 flex flex-wrap gap-2">
             <Button asChild className="rounded-xl"><a href="/offline/library">Back to offline library</a></Button>
-            <Button asChild variant="outline" className="rounded-xl"><a href="/">Return to online app</a></Button>
+            {connected ? <Button asChild variant="outline" className="rounded-xl"><a href="/">Return to online app</a></Button> : null}
             {incompatible ? <Button type="button" variant="outline" className="rounded-xl" disabled={loading || !connected} onClick={() => void recover()}><RefreshCw aria-hidden="true" /> Update guide</Button> : null}
             {incompatible ? <Button type="button" variant="ghost" className="rounded-xl text-red-700 dark:text-red-300" disabled={loading} onClick={() => void removeBroken()}><Trash2 aria-hidden="true" /> Remove download</Button> : null}
           </div>
@@ -186,7 +186,11 @@ export default function OfflineCragViewer() {
       <div className="mx-auto max-w-5xl">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <Button asChild variant="ghost" className="rounded-xl"><a href="/offline/library"><ArrowLeft aria-hidden="true" /> Library</a></Button>
-          <Button asChild variant="outline" className="rounded-xl"><a href="/">Return to online app</a></Button>
+          {connected ? (
+            <Button asChild variant="outline" className="rounded-xl"><a href="/">Return to online app</a></Button>
+          ) : (
+            <Button type="button" variant="outline" className="rounded-xl" disabled>Reconnect for online app</Button>
+          )}
         </div>
         <header className="rounded-3xl bg-emerald-950 p-6 text-white sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">Saved field guide</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">{manifest.metadata.crag.name}</h1>

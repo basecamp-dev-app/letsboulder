@@ -14,7 +14,8 @@ test.describe('offline crag packs', () => {
 
   test('installs online, reloads offline, and opens the saved crag', async ({ page, context }) => {
     await installPack(page)
-    await page.goto('/offline/library')
+    await page.goto('/offline')
+    await expect(page.getByRole('heading', { name: 'Offline library' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Open saved crag' })).toBeVisible()
 
     await context.setOffline(true)
@@ -24,8 +25,7 @@ test.describe('offline crag packs', () => {
     await expect(page.getByText('Pins-only context')).toBeVisible()
 
     await context.setOffline(false)
-    await page.goto('/offline')
-    await expect(page.getByRole('heading', { name: 'You’re back online' })).toBeVisible()
+    await page.reload()
     await expect(page.getByRole('link', { name: 'Return to online app' })).toBeVisible()
   })
 

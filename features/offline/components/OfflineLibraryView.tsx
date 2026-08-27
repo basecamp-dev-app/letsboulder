@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable @next/next/no-html-link-for-pages -- Standalone offline routes require service-worker-controlled document navigations. */
 
-import { ArrowLeft, MapPinned, Mountain, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react'
+import { MapPinned, Mountain, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useConnectivity } from '@/features/offline/hooks/use-connectivity'
@@ -35,11 +35,12 @@ export default function OfflineLibraryView() {
   return (
     <main id="main-content" className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 dark:bg-gray-950 dark:text-gray-50 sm:py-12">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-          <Button asChild variant="ghost" className="rounded-xl px-3">
-            <a href="/offline"><ArrowLeft aria-hidden="true" /> Connection status</a>
-          </Button>
-          <Button asChild variant="outline" className="rounded-xl"><a href="/">Return to online app</a></Button>
+        <div className="mb-5 flex justify-end">
+          {connected ? (
+            <Button asChild variant="outline" className="rounded-xl"><a href="/">Return to online app</a></Button>
+          ) : (
+            <Button type="button" variant="outline" className="rounded-xl" disabled>Reconnect for online app</Button>
+          )}
         </div>
 
         <header className="rounded-3xl bg-emerald-950 p-6 text-white shadow-xl shadow-emerald-950/15 sm:p-8">

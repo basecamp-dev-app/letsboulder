@@ -12,7 +12,7 @@ export const CONNECTIVITY_RESPONSE_HEADER = 'x-letsboulder-connectivity'
 
 export async function probeConnectivity(
   fetcher: typeof fetch = fetch,
-  timeoutMs = 5_000,
+  timeoutMs = 2_500,
 ): Promise<boolean> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)

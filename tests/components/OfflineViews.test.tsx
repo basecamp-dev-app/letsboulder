@@ -5,14 +5,15 @@ import OfflineCragViewer from '@/features/offline/components/OfflineCragViewer'
 import OfflineLibraryView from '@/features/offline/components/OfflineLibraryView'
 
 const CRAG_ID = '123e4567-e89b-42d3-a456-426614174000'
-const { getActiveMock, listMock, useOfflinePacksMock } = vi.hoisted(() => ({
+const { getActiveMock, listMock, useConnectivityMock, useOfflinePacksMock } = vi.hoisted(() => ({
   getActiveMock: vi.fn(),
   listMock: vi.fn(),
+  useConnectivityMock: vi.fn(),
   useOfflinePacksMock: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(`id=${CRAG_ID}`) }))
-vi.mock('@/features/offline/hooks/use-connectivity', () => ({ useConnectivity: () => ({ status: 'online', check: vi.fn() }) }))
+vi.mock('@/features/offline/hooks/use-connectivity', () => ({ useConnectivity: useConnectivityMock }))
 vi.mock('@/features/offline/hooks/use-offline-packs', () => ({ useOfflinePacks: useOfflinePacksMock }))
 vi.mock('@/features/offline/lib/offline-pack-manager', () => ({
   OfflinePackManager: class {
@@ -27,6 +28,7 @@ vi.mock('@/features/offline/lib/offline-pack-manager', () => ({
 
 describe('offline standalone views', () => {
   beforeEach(() => {
+    useConnectivityMock.mockReturnValue({ status: 'online', check: vi.fn() })
     useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn() })
     listMock.mockResolvedValue([])
     getActiveMock.mockResolvedValue(null)
@@ -44,6 +46,21 @@ describe('offline standalone views', () => {
 
     expect(await screen.findByRole('heading', { name: 'Cobo Bay' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open saved crag' })).toHaveAttribute('href', `/offline/crag?id=${CRAG_ID}`)
+  })
+
+  it('keeps saved guides available while the connection check is offline', async () => {
+    useConnectivityMock.mockReturnValue({ status: 'offline', check: vi.fn() })
+    useOfflinePacksMock.mockReturnValue({
+      loading: false,
+      error: null,
+      repair: vi.fn(),
+      packs: [{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'ready', installedAt: '2026-07-29T10:00:00.000Z', updatedAt: '2026-07-29T10:00:00.000Z', error: null }],
+    })
+
+    render(<OfflineLibraryView />)
+
+    expect(await screen.findByRole('link', { name: 'Open saved crag' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Connection status' })).not.toBeInTheDocument()
   })
 
   it('shows loading and empty library states', () => {
