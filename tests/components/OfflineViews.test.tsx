@@ -12,6 +12,7 @@ const { getActiveMock, listMock, useOfflinePacksMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(`id=${CRAG_ID}`) }))
+vi.mock('@/features/offline/hooks/use-connectivity', () => ({ useConnectivity: () => ({ status: 'online', check: vi.fn() }) }))
 vi.mock('@/features/offline/hooks/use-offline-packs', () => ({ useOfflinePacks: useOfflinePacksMock }))
 vi.mock('@/features/offline/lib/offline-pack-manager', () => ({
   OfflinePackManager: class {
@@ -53,6 +54,14 @@ describe('offline standalone views', () => {
     useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn() })
     rerender(<OfflineLibraryView />)
     expect(screen.getByRole('heading', { name: 'No guides saved yet' })).toBeInTheDocument()
+  })
+
+  it('provides recovery navigation when the requested crag is not installed', async () => {
+    render(<OfflineCragViewer />)
+
+    expect(await screen.findByRole('heading', { name: 'Saved crag not found' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to offline library' })).toHaveAttribute('href', '/offline/library')
+    expect(screen.getByRole('link', { name: 'Return to online app' })).toHaveAttribute('href', '/')
   })
 
   it('shows degraded packs with repair and failed updates without hiding the active viewer', () => {
@@ -109,5 +118,42 @@ describe('offline standalone views', () => {
     expect(document.querySelector('polyline')).toHaveAttribute('points', '120,560 600,80')
     expect(screen.getByText('49.48000, -2.62000')).toBeInTheDocument()
     expect(getActiveMock).toHaveBeenCalledWith('crag-pack')
+  })
+
+  it('opens legacy packs whose crag payload was wrapped with child manifests', async () => {
+    listMock.mockResolvedValue([{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, activeVersion: 'v1', status: 'ready' }])
+    getActiveMock.mockResolvedValue({
+      pack: { packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Legacy Crag', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'ready', installedAt: 'now', updatedAt: 'now', error: null },
+      version: {
+        id: 'crag-pack:v1', packId: 'crag-pack', version: 'v1', state: 'active', createdAt: 'now',
+        manifest: {
+          packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Legacy Crag', version: 'v1', manifestUrl: '/pack.json', estimatedBytes: 0, assets: [], dependentManifestUrls: ['/climb.json'],
+          payload: { manifest: {
+            type: 'crag', packId: 'crag-pack', cragId: CRAG_ID, cragName: 'Legacy Crag',
+            metadata: { crag: { name: 'Legacy Crag', description: null }, climbs: [], images: [], routeLines: [] }, assets: [],
+          }, children: [{ type: 'climb' }] },
+        },
+      },
+    })
+
+    render(<OfflineCragViewer />)
+
+    expect(await screen.findByRole('heading', { name: 'Legacy Crag' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Saved crag not found' })).not.toBeInTheDocument()
+  })
+
+  it('offers update and removal for incompatible stored guide metadata', async () => {
+    useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn(), update: vi.fn(), remove: vi.fn() })
+    listMock.mockResolvedValue([{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, activeVersion: 'v1', status: 'ready' }])
+    getActiveMock.mockResolvedValue({
+      pack: { packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Broken Crag', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'ready', installedAt: 'now', updatedAt: 'now', error: null },
+      version: { id: 'crag-pack:v1', packId: 'crag-pack', version: 'v1', state: 'active', createdAt: 'now', manifest: { payload: { type: 'crag' } } },
+    })
+
+    render(<OfflineCragViewer />)
+
+    expect(await screen.findByRole('heading', { name: 'Saved guide needs attention' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Update guide' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Remove download' })).toBeEnabled()
   })
 })

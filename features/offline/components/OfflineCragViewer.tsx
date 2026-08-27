@@ -1,12 +1,14 @@
 'use client'
 /* eslint-disable @next/next/no-html-link-for-pages -- Standalone offline routes require service-worker-controlled document navigations. */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { ArrowLeft, MapPin, Mountain } from 'lucide-react'
+import { ArrowLeft, MapPin, Mountain, RefreshCw, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { useConnectivity } from '@/features/offline/hooks/use-connectivity'
 import { useOfflinePacks } from '@/features/offline/hooks/use-offline-packs'
+import { readOfflineCragPayload } from '@/features/offline/lib/offline-crag-reader'
 import { OfflinePackManager } from '@/features/offline/lib/offline-pack-manager'
 import type { ActiveOfflinePack } from '@/features/offline/lib/offline-pack-types'
 import type { CragPackManifest } from '@/types/crag-pack-manifest'
@@ -30,17 +32,6 @@ interface TopoImage {
   width: number
   height: number
   routes: TopoRoute[]
-}
-
-function isCragPackManifest(value: unknown): value is CragPackManifest {
-  if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Partial<CragPackManifest>
-  const metadata = candidate.metadata
-  return candidate.type === 'crag' && typeof candidate.cragId === 'string'
-    && typeof candidate.cragName === 'string' && typeof metadata === 'object' && metadata !== null
-    && typeof metadata.crag === 'object' && metadata.crag !== null
-    && Array.isArray(metadata.climbs) && Array.isArray(metadata.images)
-    && Array.isArray(metadata.routeLines) && Array.isArray(candidate.assets)
 }
 
 function parsePoints(value: unknown): RoutePoint[] {
@@ -113,42 +104,73 @@ function TopoFigure({ topo }: { topo: TopoImage }) {
 }
 
 export default function OfflineCragViewer() {
-  const { repair, loading } = useOfflinePacks()
+  const { repair, update, remove, loading } = useOfflinePacks()
+  const { status: connectivity } = useConnectivity()
+  const connected = connectivity === 'online'
   const searchParams = useSearchParams()
   const cragId = searchParams.get('id') || ''
   const validCragId = UUID_PATTERN.test(cragId)
   const [activePack, setActivePack] = useState<ActiveOfflinePack | null | undefined>(undefined)
-  const [failed, setFailed] = useState(false)
+  const [readError, setReadError] = useState(false)
   const [missingUrls, setMissingUrls] = useState<string[]>([])
+
+  const readActivePack = useCallback(async () => {
+    const packs = await packReader.list()
+    const pack = packs.find((candidate) => candidate.kind === 'crag' && candidate.entityId === cragId
+      && candidate.activeVersion !== null && candidate.status !== 'error')
+    return pack ? packReader.validateActive(pack.packId) : null
+  }, [cragId])
 
   useEffect(() => {
     let active = true
     if (!validCragId) return () => { active = false }
-    void packReader.list()
-      .then((packs) => packs.find((pack) => pack.kind === 'crag' && pack.entityId === cragId && pack.activeVersion !== null && pack.status !== 'error'))
-      .then((pack) => pack ? packReader.validateActive(pack.packId) : null)
+    void readActivePack()
       .then((validation) => {
         if (!active) return
         setMissingUrls(validation?.missingUrls ?? [])
         setActivePack(validation?.active ?? null)
       })
-      .catch(() => { if (active) setFailed(true) })
+      .catch(() => { if (active) setReadError(true) })
     return () => { active = false }
-  }, [cragId, validCragId])
+  }, [readActivePack, validCragId])
 
-  if (validCragId && activePack === undefined && !failed) {
+  if (validCragId && activePack === undefined && !readError) {
     return <main id="main-content" aria-live="polite" className="min-h-screen bg-stone-100 p-8 text-stone-700 dark:bg-gray-950 dark:text-gray-300">Reading saved crag...</main>
   }
 
   const payload = activePack?.version.manifest.payload
-  const manifest = isCragPackManifest(payload) ? payload : null
-  if (!validCragId || !manifest || failed) {
+  const manifest = readOfflineCragPayload(payload)
+  if (!validCragId || !manifest || readError) {
+    const incompatible = activePack !== null && activePack !== undefined && !manifest
+    const title = readError ? 'Unable to read saved guides' : incompatible ? 'Saved guide needs attention' : 'Saved crag not found'
+    const explanation = readError
+      ? 'Browser storage could not be read. Reload this screen or return to the library and try again.'
+      : incompatible
+        ? 'This download is incomplete or uses an older format. Update it while online, or remove it and download it again.'
+        : 'This crag is not available in the offline library on this device.'
+    const recover = async () => {
+      if (!activePack) return
+      await update(activePack.pack.packId)
+      const validation = await readActivePack()
+      setMissingUrls(validation?.missingUrls ?? [])
+      setActivePack(validation?.active ?? null)
+    }
+    const removeBroken = async () => {
+      if (!activePack || !globalThis.confirm(`Remove ${activePack.pack.displayName} from this device?`)) return
+      await remove(activePack.pack.packId)
+      setActivePack(null)
+    }
     return (
       <main id="main-content" className="min-h-screen bg-stone-100 px-4 py-12 dark:bg-gray-950">
-        <div role={failed ? 'alert' : undefined} className="mx-auto max-w-lg rounded-3xl border border-stone-200 bg-white p-7 text-stone-950 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-white">
-          <Mountain aria-hidden="true" className="text-emerald-700 dark:text-emerald-300" /><h1 className="mt-4 text-2xl font-semibold">Saved crag not found</h1>
-          <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-gray-300">This crag is not available in the offline library on this device.</p>
-          <Button asChild className="mt-6 rounded-xl"><a href="/offline/library">Back to offline library</a></Button>
+        <div role={readError || incompatible ? 'alert' : undefined} className="mx-auto max-w-lg rounded-3xl border border-stone-200 bg-white p-7 text-stone-950 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-white">
+          <Mountain aria-hidden="true" className="text-emerald-700 dark:text-emerald-300" /><h1 className="mt-4 text-2xl font-semibold">{title}</h1>
+          <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-gray-300">{explanation}</p>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Button asChild className="rounded-xl"><a href="/offline/library">Back to offline library</a></Button>
+            <Button asChild variant="outline" className="rounded-xl"><a href="/">Return to online app</a></Button>
+            {incompatible ? <Button type="button" variant="outline" className="rounded-xl" disabled={loading || !connected} onClick={() => void recover()}><RefreshCw aria-hidden="true" /> Update guide</Button> : null}
+            {incompatible ? <Button type="button" variant="ghost" className="rounded-xl text-red-700 dark:text-red-300" disabled={loading} onClick={() => void removeBroken()}><Trash2 aria-hidden="true" /> Remove download</Button> : null}
+          </div>
         </div>
       </main>
     )
@@ -162,7 +184,10 @@ export default function OfflineCragViewer() {
   return (
     <main id="main-content" className="min-h-screen bg-stone-100 px-4 py-6 text-stone-950 dark:bg-gray-950 dark:text-gray-50 sm:py-10">
       <div className="mx-auto max-w-5xl">
-        <Button asChild variant="ghost" className="mb-4 rounded-xl"><a href="/offline/library"><ArrowLeft aria-hidden="true" /> Library</a></Button>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <Button asChild variant="ghost" className="rounded-xl"><a href="/offline/library"><ArrowLeft aria-hidden="true" /> Library</a></Button>
+          <Button asChild variant="outline" className="rounded-xl"><a href="/">Return to online app</a></Button>
+        </div>
         <header className="rounded-3xl bg-emerald-950 p-6 text-white sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">Saved field guide</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">{manifest.metadata.crag.name}</h1>
           <p className="mt-3 text-sm text-emerald-50/80">{manifest.metadata.climbs.length} {manifest.metadata.climbs.length === 1 ? 'route' : 'routes'} · {topos.length} topo {topos.length === 1 ? 'image' : 'images'}</p>
@@ -173,7 +198,7 @@ export default function OfflineCragViewer() {
           <div role="alert" className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
             <p className="font-semibold">Some saved media is missing</p>
             <p className="mt-1">The guide details and pins are still available. Repair the guide when you have a connection to redownload {missingUrls.length === 1 ? 'the missing asset' : 'the missing assets'}.</p>
-            <Button type="button" variant="outline" disabled={loading} onClick={() => void repair(activePack?.pack.packId ?? '')} className="mt-3 rounded-xl border-amber-300 bg-transparent">{loading ? 'Repairing...' : 'Repair guide'}</Button>
+            <Button type="button" variant="outline" disabled={loading || !connected} onClick={() => void repair(activePack?.pack.packId ?? '')} className="mt-3 rounded-xl border-amber-300 bg-transparent">{loading ? 'Repairing...' : connected ? 'Repair guide' : 'Reconnect to repair'}</Button>
           </div>
         ) : null}
 

@@ -32,8 +32,8 @@ vi.stubGlobal('self', {
   addEventListener: vi.fn((type: string, handler: WorkerHandler) => handlers.set(type, handler)),
 })
 vi.stubGlobal('caches', {
-  open: vi.fn(async (name: string) => name === 'letsboulder-offline-shell-v2' ? shellCache : name === 'letsboulder-offline-immutable-v1' ? mediaCache : staticCache),
-  keys: vi.fn(async () => ['offline-shell-v4', 'runtime-transient-v2', staticCacheName, 'letsboulder-next-static-old-release', 'unrelated-cache']),
+  open: vi.fn(async (name: string) => name === 'letsboulder-offline-shell-v3' ? shellCache : name === 'letsboulder-offline-immutable-v1' ? mediaCache : staticCache),
+  keys: vi.fn(async () => ['offline-shell-v4', 'runtime-transient-v2', 'letsboulder-offline-shell-v2', staticCacheName, 'letsboulder-next-static-old-release', 'unrelated-cache']),
   delete: deleteCache,
   match: vi.fn(async (request: Request) => shellEntries.get(request.url)),
 })
@@ -93,6 +93,7 @@ describe('active service worker', () => {
 
     expect(deleteCache).toHaveBeenCalledWith('offline-shell-v4')
     expect(deleteCache).toHaveBeenCalledWith('runtime-transient-v2')
+    expect(deleteCache).toHaveBeenCalledWith('letsboulder-offline-shell-v2')
     expect(deleteCache).toHaveBeenCalledWith('letsboulder-next-static-old-release')
     expect(deleteCache).not.toHaveBeenCalledWith(staticCacheName)
     expect(deleteCache).not.toHaveBeenCalledWith('unrelated-cache')

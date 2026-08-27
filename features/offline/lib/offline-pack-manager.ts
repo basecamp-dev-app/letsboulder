@@ -1,4 +1,5 @@
 import { CacheApiOfflineMediaCache, type OfflineMediaCache } from '@/features/offline/lib/offline-pack-cache'
+import { readOfflineCragPayload } from '@/features/offline/lib/offline-crag-reader'
 import { OfflinePackDatabase, offlineVersionId } from '@/features/offline/lib/offline-pack-database'
 import { fetchOfflineChildPackManifest, fetchOfflinePackManifest } from '@/features/offline/lib/offline-pack-manifest'
 import type {
@@ -248,14 +249,26 @@ export class OfflinePackManager {
   private async loadManifest(url: string): Promise<OfflinePackManifest> {
     const manifest = await fetchOfflinePackManifest(url, this.fetcher)
     if (manifest.kind !== 'crag') throw new Error('Only crag guides can be saved offline')
-    if (manifest.dependentManifestUrls.length === 0) return manifest
+    if (manifest.dependentManifestUrls.length === 0) {
+      this.assertReadablePayload(manifest)
+      return manifest
+    }
     const children: Awaited<ReturnType<typeof fetchOfflineChildPackManifest>>[] = []
     await runBounded(manifest.dependentManifestUrls, this.concurrency, async (childUrl) => {
       children.push(await fetchOfflineChildPackManifest(new URL(childUrl, url).href, this.fetcher))
     })
     const assets = new Map(manifest.assets.map((asset) => [asset.url, asset]))
     for (const child of children) for (const asset of child.assets) assets.set(asset.url, asset)
-    return { ...manifest, assets: [...assets.values()], payload: { manifest: manifest.payload, children: children.map((child) => child.payload) } }
+    const combined = { ...manifest, assets: [...assets.values()], payload: { manifest: manifest.payload, children: children.map((child) => child.payload) } }
+    this.assertReadablePayload(combined)
+    return combined
+  }
+
+  private assertReadablePayload(manifest: OfflinePackManifest): void {
+    const payload = readOfflineCragPayload(manifest.payload)
+    if (!payload || payload.packId !== manifest.packId || payload.cragId !== manifest.entityId) {
+      throw new Error('Offline guide data is incomplete or incompatible')
+    }
   }
 
   private async requiredDownloadBytes(manifest: OfflinePackManifest): Promise<number> {

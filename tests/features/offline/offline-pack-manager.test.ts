@@ -26,7 +26,8 @@ function manifestResponse(version = 'v2'): Response {
       estimatedBytes: 100,
        mediaUrls: ['https://example.com/a.webp', 'https://example.com/shared.webp'],
        climbs: [],
-       metadata: { crag: {}, climbs: [], images: [], routeLines: [], sectors: [] },
+       metadata: { crag: { name: 'The Crag' }, climbs: [], images: [], routeLines: [], sectors: [] },
+       assets: [],
     },
   }), { status: 200, headers: { 'content-type': 'application/json' } })
 }
@@ -107,6 +108,20 @@ describe('offline pack manager', () => {
     expect(events.indexOf('activate')).toBeLessThan(events.indexOf('gc'))
     expect(cache.remove).not.toHaveBeenCalledWith('https://example.com/shared.webp')
     expect(lockRequest).toHaveBeenCalledWith('offline-pack-lock', expect.any(Function))
+  })
+
+  test('never stages a pack whose guide payload cannot be opened by the offline reader', async () => {
+    const { manager, repository, fetcher } = createHarness()
+    vi.mocked(fetcher).mockResolvedValueOnce(new Response(JSON.stringify({
+      offline_pack: {
+        type: 'crag', schemaVersion: 1, minReaderVersion: 1, packId: 'crag:1', cragId: 'crag-1',
+        cragName: 'Broken Crag', cragVersionHash: 'broken', estimatedBytes: 0, mediaUrls: [], climbs: [],
+        metadata: { crag: {}, climbs: [], images: [], routeLines: [], sectors: [] }, assets: [],
+      },
+    }), { headers: { 'content-type': 'application/json' } }))
+
+    await expect(manager.install('https://example.com/manifest')).rejects.toThrow('incomplete or incompatible')
+    expect(repository.stage).not.toHaveBeenCalled()
   })
 
   test('returns the browser persistence result after installation', async () => {

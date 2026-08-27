@@ -1,13 +1,16 @@
 'use client'
 /* eslint-disable @next/next/no-html-link-for-pages -- Standalone offline routes require service-worker-controlled document navigations. */
 
-import { ArrowLeft, MapPinned, Mountain, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, MapPinned, Mountain, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { useConnectivity } from '@/features/offline/hooks/use-connectivity'
 import { useOfflinePacks } from '@/features/offline/hooks/use-offline-packs'
 
 export default function OfflineLibraryView() {
   const { packs, loading, error, update, repair, remove, discardFailed } = useOfflinePacks()
+  const { status: connectivity } = useConnectivity()
+  const connected = connectivity === 'online'
 
   const handleUpdate = async (packId: string, displayName: string) => {
     if (!globalThis.confirm(`Check for and download updates to ${displayName}?`)) return
@@ -32,9 +35,12 @@ export default function OfflineLibraryView() {
   return (
     <main id="main-content" className="min-h-screen bg-stone-100 px-4 py-8 text-stone-950 dark:bg-gray-950 dark:text-gray-50 sm:py-12">
       <div className="mx-auto max-w-4xl">
-        <Button asChild variant="ghost" className="mb-5 rounded-xl px-3">
-          <a href="/offline"><ArrowLeft aria-hidden="true" /> Offline status</a>
-        </Button>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+          <Button asChild variant="ghost" className="rounded-xl px-3">
+            <a href="/offline"><ArrowLeft aria-hidden="true" /> Connection status</a>
+          </Button>
+          <Button asChild variant="outline" className="rounded-xl"><a href="/">Return to online app</a></Button>
+        </div>
 
         <header className="rounded-3xl bg-emerald-950 p-6 text-white shadow-xl shadow-emerald-950/15 sm:p-8">
           <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-300 text-emerald-950"><MapPinned aria-hidden="true" /></div>
@@ -42,6 +48,11 @@ export default function OfflineLibraryView() {
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Offline library</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-emerald-50/80">Open saved crags and routes without a signal. Content reflects the last successful install on this device.</p>
         </header>
+
+        <div role="status" className={`mt-4 flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm ${connected ? 'border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100'}`}>
+          {connected ? <Wifi aria-hidden="true" className="size-4" /> : <WifiOff aria-hidden="true" className="size-4" />}
+          {connectivity === 'checking' ? 'Checking connection…' : connected ? 'Online — updates and repairs are available.' : 'Offline — saved guides can still be opened.'}
+        </div>
 
         <section aria-labelledby="saved-guides-heading" className="mt-6">
           <h2 id="saved-guides-heading" className="sr-only">Saved guides</h2>
@@ -77,7 +88,7 @@ export default function OfflineLibraryView() {
                        )}
                        {usable ? (
                          <div className="mt-2 grid grid-cols-2 gap-2">
-                           <Button type="button" variant="outline" disabled={loading} onClick={() => void (pack.status === 'degraded' ? handleRepair(pack.packId, pack.displayName) : handleUpdate(pack.packId, pack.displayName))} className="rounded-xl"><RefreshCw aria-hidden="true" /> {pack.status === 'degraded' ? 'Repair' : 'Update'}</Button>
+                           <Button type="button" variant="outline" disabled={loading || !connected} onClick={() => void (pack.status === 'degraded' ? handleRepair(pack.packId, pack.displayName) : handleUpdate(pack.packId, pack.displayName))} className="rounded-xl"><RefreshCw aria-hidden="true" /> {pack.status === 'degraded' ? 'Repair' : 'Update'}</Button>
                           <Button type="button" variant="ghost" disabled={loading} onClick={() => void handleRemove(pack.packId, pack.displayName)} className="rounded-xl text-red-700 hover:text-red-800 dark:text-red-300"><Trash2 aria-hidden="true" /> Remove</Button>
                         </div>
                        ) : pack.error !== null ? (
