@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 
 const PUBLIC_CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600'
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = getServerClientFromRequest(request)
+  const supabase = getUnauthenticatedClient()
 
   try {
     const { id: climbId } = await params

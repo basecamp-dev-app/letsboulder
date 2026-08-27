@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { loadPlaceUserClimbs, enrichPlaceClimbsWithProfiles } from '@/features/community/server/load-place-climb-data'
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
   const searchParams = request.nextUrl.searchParams
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
 
-  const supabase = getServerClientFromRequest(request)
+  const supabase = getUnauthenticatedClient()
 
   try {
     const { data: place } = await supabase
@@ -32,7 +32,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
 
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
-    const climbs = await loadPlaceUserClimbs(supabase, place.id, { windowStart: sixtyDaysAgo })
+    const climbs = await loadPlaceUserClimbs(supabase, place.id, {
+      windowStart: sixtyDaysAgo,
+      limit,
+    })
 
     if (climbs.length === 0) {
       return NextResponse.json(

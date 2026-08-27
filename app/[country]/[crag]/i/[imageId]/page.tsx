@@ -24,19 +24,21 @@ interface ImagePageSearchParams {
   climb?: string
 }
 
-const getImagePageResult = cache((args: {
-  country: string
-  crag: string
-  imageId: string
-  searchParams: ImagePageSearchParams
-}) => buildImageFirstPayload({
-  country: args.country,
-  crag: args.crag,
-  imageId: args.imageId,
-  selectedImageId: args.searchParams.image || null,
-  routeId: args.searchParams.route || null,
+const getImagePageResult = cache((
+  country: string,
+  crag: string,
+  imageId: string,
+  selectedImageId: string | null,
+  routeId: string | null,
+  climbId: string | null,
+) => buildImageFirstPayload({
+  country,
+  crag,
+  imageId,
+  selectedImageId,
+  routeId,
   routeSlug: null,
-  climbId: args.searchParams.climb || null,
+  climbId,
 }))
 
 function getSelectedRoute(payload: ImageFirstPayload): ImageFirstRouteLine | null {
@@ -152,7 +154,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { country, crag, imageId } = await params
   const query = await searchParams
-  const result = await getImagePageResult({ country, crag, imageId, searchParams: query })
+  const result = await getImagePageResult(
+    country,
+    crag,
+    imageId,
+    query.image || null,
+    query.route || null,
+    query.climb || null,
+  )
   if (!result.payload) return { title: 'Topo Not Found' }
 
   const title = getPageTitle(result.payload)
@@ -189,12 +198,14 @@ export default async function ImagePage({
   const { country, crag, imageId } = await params
   const query = await searchParams
 
-  const result = await getImagePageResult({
+  const result = await getImagePageResult(
     country,
     crag,
     imageId,
-    searchParams: query,
-  })
+    query.image || null,
+    query.route || null,
+    query.climb || null,
+  )
 
   if (result.redirectTo) {
     permanentRedirect(result.redirectTo)

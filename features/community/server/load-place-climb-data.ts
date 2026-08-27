@@ -1,6 +1,8 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getDisplayName, getClimbRecord, type ProfileRow } from '@/lib/profile-helpers'
+import type { Database } from '@/types/database'
 
-type SupabaseClientFromRequest = ReturnType<typeof import('@/lib/supabase-server').getServerClientFromRequest>
+type PublicSupabaseClient = SupabaseClient<Database>
 
 export interface PlaceClimbRow {
   user_id: string
@@ -60,12 +62,13 @@ function getCanonicalClimbPath(climb: PlaceClimbRow['climbs']): string {
 }
 
 export async function loadPlaceUserClimbs(
-  supabase: SupabaseClientFromRequest,
+  supabase: PublicSupabaseClient,
   placeId: string,
-  options?: { windowStart?: string | null; styles?: string[] },
+  options?: { windowStart?: string | null; styles?: string[]; limit?: number },
 ): Promise<PlaceClimbRow[]> {
   const styles = options?.styles || ['top', 'flash', 'onsight']
   const windowStart = options?.windowStart
+  const limit = Math.min(50, Math.max(1, options?.limit ?? 50))
 
   let byPlaceQuery = supabase
     .from('user_climbs')
@@ -85,7 +88,10 @@ export async function loadPlaceUserClimbs(
     byLegacyCragQuery = byLegacyCragQuery.gte('created_at', windowStart)
   }
 
-  const [byPlaceResult, byLegacyCragResult] = await Promise.all([byPlaceQuery, byLegacyCragQuery])
+  const [byPlaceResult, byLegacyCragResult] = await Promise.all([
+    byPlaceQuery.order('created_at', { ascending: false }).limit(limit),
+    byLegacyCragQuery.order('created_at', { ascending: false }).limit(limit),
+  ])
 
   if (byPlaceResult.error) throw byPlaceResult.error
   if (byLegacyCragResult.error) throw byLegacyCragResult.error
@@ -99,11 +105,11 @@ export async function loadPlaceUserClimbs(
   }
 
   return Array.from(deduped.values())
-    .sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime())
+    .sort((a, b) => a.created_at === b.created_at ? 0 : a.created_at! < b.created_at! ? 1 : -1)
 }
 
 export async function enrichPlaceClimbsWithProfiles(
-  supabase: SupabaseClientFromRequest,
+  supabase: PublicSupabaseClient,
   rows: PlaceClimbRow[],
 ): Promise<EnrichedPlaceClimbRow[]> {
   const userIds = Array.from(new Set(rows.map((row) => row.user_id)))

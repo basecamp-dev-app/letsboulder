@@ -104,7 +104,7 @@ function buildCragHref(crag: { country_code: string | null; slug: string | null;
   return `/crag/${crag.id}`
 }
 
-export const fetchHomepageRecentCragUpdates = cache(async function fetchHomepageRecentCragUpdates(): Promise<HomeRecentCragUpdate[]> {
+const fetchHomepageRecentImages = cache(async function fetchHomepageRecentImages(): Promise<HomeRecentImageRow[]> {
   const supabase = getUnauthenticatedClient()
 
   const { data, error } = await supabase
@@ -120,9 +120,15 @@ export const fetchHomepageRecentCragUpdates = cache(async function fetchHomepage
     return []
   }
 
+  return data as HomeRecentImageRow[]
+})
+
+export const fetchHomepageRecentCragUpdates = cache(async function fetchHomepageRecentCragUpdates(): Promise<HomeRecentCragUpdate[]> {
+  const data = await fetchHomepageRecentImages()
+
   const groupedUpdates = new Map<string, HomeRecentCragUpdate>()
 
-  for (const row of data as HomeRecentImageRow[]) {
+  for (const row of data) {
     if (!row.crag_id || !row.url) {
       continue
     }
@@ -153,21 +159,10 @@ export const fetchHomepageRecentCragUpdates = cache(async function fetchHomepage
 
 export const fetchHomepageRecentContributors = cache(async function fetchHomepageRecentContributors(): Promise<HomeContributorHighlight[]> {
   const supabase = getUnauthenticatedClient()
-
-  const { data, error } = await supabase
-    .from('images')
-    .select('created_at, created_by')
-    .in('moderation_status', ['approved', 'skipped'])
-    .not('created_by', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(36)
-
-  if (error || !data) {
-    return []
-  }
+  const data = await fetchHomepageRecentImages()
 
   const latestContributionByUser = new Map<string, string>()
-  for (const row of data as Array<{ created_at: string; created_by: string | null }>) {
+  for (const row of data) {
     if (!row.created_by || latestContributionByUser.has(row.created_by)) {
       continue
     }

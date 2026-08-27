@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { getServerClientFromRequest } = vi.hoisted(() => ({
-  getServerClientFromRequest: vi.fn(),
+const { getUnauthenticatedClient } = vi.hoisted(() => ({
+  getUnauthenticatedClient: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase-server', () => ({
-  getServerClientFromRequest,
+  getUnauthenticatedClient,
 }))
 
 import { GET as getGlobalRankings } from '@/app/api/rankings/route'
@@ -88,7 +88,7 @@ describe('GET /api/rankings', () => {
       error: null,
     }))
 
-    getServerClientFromRequest.mockReturnValue(supabase)
+    getUnauthenticatedClient.mockReturnValue(supabase)
 
     const response = await getGlobalRankings(
       new NextRequest('http://localhost:3000/api/rankings?gender=all&region=region-1&sort=tops&page=2&limit=2')
@@ -135,7 +135,7 @@ describe('GET /api/rankings', () => {
 
   test('returns empty pagination when RPC returns no rows', async () => {
     const supabase = makeRpcClient(async () => ({ data: [], error: null }))
-    getServerClientFromRequest.mockReturnValue(supabase)
+    getUnauthenticatedClient.mockReturnValue(supabase)
 
     const response = await getGlobalRankings(new NextRequest('http://localhost:3000/api/rankings?limit=10'))
     const json = await response.json()
@@ -182,7 +182,7 @@ describe('GET /api/community/places/[slug]/rankings', () => {
       }
     })
 
-    getServerClientFromRequest.mockReturnValue(supabase)
+    getUnauthenticatedClient.mockReturnValue(supabase)
 
     const response = await getPlaceRankings(
       new NextRequest('http://localhost:3000/api/community/places/magic-wood/rankings?sort=grade&page=1&limit=20'),
@@ -255,7 +255,7 @@ describe('GET /api/crags/[id]/rankings', () => {
       }
     })
 
-    getServerClientFromRequest.mockReturnValue(supabase)
+    getUnauthenticatedClient.mockReturnValue(supabase)
 
     const response = await getCragRankings(
       new NextRequest('http://localhost:3000/api/crags/crag-1/rankings?sort=tops&page=1&limit=20'),

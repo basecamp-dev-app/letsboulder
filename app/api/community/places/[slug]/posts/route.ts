@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 
 interface RouteParams {
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
     return NextResponse.json({ error: 'Missing place slug' }, { status: 400 })
   }
 
-  const supabase = getServerClientFromRequest(request)
+  const supabase = getUnauthenticatedClient()
 
   try {
     const { data: place } = await supabase

@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchCrags } from '@/features/crags/server/search-crags'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 
 export const revalidate = 30
 
 export async function GET(request: NextRequest) {
-  const supabase = getServerClientFromRequest(request)
-
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q')?.toLowerCase() || ''
   const latParam = searchParams.get('lat')
@@ -26,6 +24,7 @@ export async function GET(request: NextRequest) {
   const longitude = hasLocation ? parseFloat(lngParam) : null
 
   try {
+    const supabase = getUnauthenticatedClient()
     const { rows, error } = await searchCrags({ supabase, query, latitude, longitude })
 
     if (error) {

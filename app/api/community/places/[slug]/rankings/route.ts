@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { loadPlaceRankingsLeaderboard } from '@/features/rankings/server/leaderboard'
 
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
 
-  const supabase = getServerClientFromRequest(request)
+  const supabase = getUnauthenticatedClient()
 
   try {
     const { data: place } = await supabase

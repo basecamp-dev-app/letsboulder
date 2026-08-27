@@ -162,4 +162,7 @@ export default withSentryConfig(nextConfig, {
   silent: !process.env.CI,
   widenClientFileUpload: true,
   disableLogger: true,
+  bundleSizeOptimizations: {
+    excludeTracing: true,
+  },
 })

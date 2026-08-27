@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
 import type { Database } from '@/types/database'
 import { getDisplayName, type ProfileRow } from '@/lib/profile-helpers'
 
 type RecentTopLogRow = Pick<Database['public']['Tables']['user_climbs']['Row'], 'user_id' | 'style' | 'created_at'>
+const PUBLIC_CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=300'
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = getServerClientFromRequest(request)
+  const supabase = getUnauthenticatedClient()
 
   try {
     const { id: climbId } = await params
@@ -47,7 +48,7 @@ export async function GET(
         },
         {
           headers: {
-            'Cache-Control': 'private, no-store',
+            'Cache-Control': PUBLIC_CACHE_CONTROL,
           },
         }
       )
@@ -88,7 +89,7 @@ export async function GET(
       },
       {
         headers: {
-          'Cache-Control': 'private, no-store',
+          'Cache-Control': PUBLIC_CACHE_CONTROL,
         },
       }
     )

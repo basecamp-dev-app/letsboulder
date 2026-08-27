@@ -50,6 +50,37 @@ describe('climb sitemap entries', () => {
     expect(SITEMAP_PAGE_SIZE).toBe(1_000)
   })
 
+  test('uses stable route-line id ordering when image quality is tied', () => {
+    const tied = createClimb({
+      route_lines: [
+        {
+          id: 'line-z',
+          image_id: 'image-z',
+          images: {
+            id: 'image-z',
+            url: 'https://static.letsboulder.com/z.jpg',
+            is_verified: true,
+            verification_count: 2,
+            created_at: '2026-01-01T00:00:00.000Z',
+          },
+        },
+        {
+          id: 'line-a',
+          image_id: 'image-a',
+          images: {
+            id: 'image-a',
+            url: 'https://static.letsboulder.com/a.jpg',
+            is_verified: true,
+            verification_count: 2,
+            created_at: '2026-01-01T00:00:00.000Z',
+          },
+        },
+      ],
+    })
+
+    expect(buildSitemapClimbEntry(tied)?.url).toContain('/i/image-a?')
+  })
+
   test('excludes climbs without an image-backed route line', () => {
     expect(buildSitemapClimbEntry(createClimb({ route_lines: [] }))).toBeNull()
   })

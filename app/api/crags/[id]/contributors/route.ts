@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createErrorResponse } from '@/lib/errors'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 interface RouteParams {
   id: string
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
 
   const page = Math.max(1, parseInt(request.nextUrl.searchParams.get('page') || '1', 10))
   const limit = Math.min(100, Math.max(1, parseInt(request.nextUrl.searchParams.get('limit') || '20', 10)))
-  const supabase = getServerClientFromRequest(request)
+  const supabase = getUnauthenticatedClient()
 
   try {
     const { data: leaderboard, error } = await supabase.rpc('get_crag_contributor_leaderboard', {
