@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import ClimbPageSkeleton from '@/features/climb/components/ClimbPageSkeleton'
+import ClimbPageSkeleton from '@/components/ClimbPageSkeleton'
 import type { ImageFirstPayload } from '@/features/image-first/types'
 
 type ImageFirstClientComponent = (props: { payload: ImageFirstPayload }) => ReactNode
