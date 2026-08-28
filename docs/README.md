@@ -8,6 +8,7 @@ Use this index to find the authoritative description of each subsystem. Code and
 - Start with `app/api/` and `docs/api/routes.md` for an HTTP endpoint. Keep route handlers thin when the behavior belongs to a feature server module.
 - Start with `supabase/migrations/` for database behavior. `types/database.ts` is generated from the local schema and must not be edited manually.
 - Start with `apps/media-worker/` for Cloudflare Worker behavior; it is an independent package with its own dependency installation and typecheck.
+- Start with `docs/deployment.md` for branch/environment isolation, hosted staging validation, migration promotion, and production release gates.
 - Start with `tests/` to find executable contracts. Test suffixes and suite boundaries are documented in [Testing](testing/README.md).
 
 When documentation and implementation disagree, verify the implementation and tests first, then update the document and its drift check rather than introducing a second convention.
@@ -20,6 +21,7 @@ When documentation and implementation disagree, verify the implementation and te
 | Local environment | [Local Setup](../LOCAL_SETUP.md) | `supabase/config.toml`, environment schemas |
 | Contribution and verification | [Contributing](../CONTRIBUTING.md) | `package.json`, CI workflows |
 | System topology and ownership | [Architecture](architecture.md) | App entrypoints and deployment configuration |
+| Deployment and release gates | [Deployment And Release Workflow](deployment.md) | Branches, Vercel configuration, GitHub environments, deployment workflows |
 
 ## Product Systems
 
@@ -40,6 +42,7 @@ When documentation and implementation disagree, verify the implementation and te
 |---|---|
 | Database schema and cascade behavior | [Database Schema](db/schema.md) |
 | Migration workflow | [Database Migrations](db/migrations.md) |
+| Deployment, staging validation, and promotion | [Deployment And Release Workflow](deployment.md) |
 | Route Handler inventory | [API Routes](api/routes.md) |
 | Test suites and prerequisites | [Testing](testing/README.md) |
 | Feature directory conventions | [Feature Structure](feature-structure.md) |
