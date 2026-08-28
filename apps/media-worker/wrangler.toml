@@ -15,8 +15,8 @@ MEDIA_HOST = "https://static.letsboulder.com"
 name = "media-worker-staging"
 
 [env.staging.vars]
-MEDIA_HOST = "https://static.dev.letsboulder.com"
-R2_ORIGIN_URL = "https://r2-origin-dev.letsboulder.com"
+MEDIA_HOST = "https://static.staging.letsboulder.com"
+R2_ORIGIN_URL = "https://static.staging.letsboulder.com/origin"
 R2_PRIVATE_BUCKET = "lb-staging-media-private"
 R2_PUBLIC_BUCKET = "lb-staging-media-public"
 
@@ -43,8 +43,8 @@ bucket_name = "lb-staging-media-public"
 binding = "IMAGES"
 
 [[env.staging.routes]]
-pattern = "static.dev.letsboulder.com/*"
-zone_name = "letsboulder.com"
+pattern = "static.staging.letsboulder.com"
+custom_domain = true
 
 [env.production]
 name = "media-worker-production"
