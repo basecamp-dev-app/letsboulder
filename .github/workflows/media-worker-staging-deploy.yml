@@ -39,11 +39,8 @@ jobs:
         run: npm run check
         working-directory: apps/media-worker
 
-      - name: Upload staging media worker secrets
-        working-directory: apps/media-worker
+      - name: Validate staging media worker secrets
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -59,6 +56,55 @@ jobs:
             fi
           done
 
+      - name: Ensure staging media infrastructure exists
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+
+          if npx --no-install wrangler r2 bucket list | grep -Fq 'lb-staging-media-private'; then
+            echo 'lb-staging-media-private already exists'
+          else
+            npx --no-install wrangler r2 bucket create lb-staging-media-private
+          fi
+
+          if npx --no-install wrangler r2 bucket list | grep -Fq 'lb-staging-media-public'; then
+            echo 'lb-staging-media-public already exists'
+          else
+            npx --no-install wrangler r2 bucket create lb-staging-media-public
+          fi
+
+          if npx --no-install wrangler queues list | grep -Fq 'media-transform-queue-staging'; then
+            echo 'media-transform-queue-staging already exists'
+          else
+            npx --no-install wrangler queues create media-transform-queue-staging
+          fi
+
+      # The legacy staging Worker has SUPABASE_URL stored as a plain-text var.
+      # Deploying the current config first removes that old binding so the same
+      # name can then be recreated as a Worker secret without Cloudflare 10053.
+      - name: Reconcile staging worker bindings
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/media-worker
+          command: deploy --env staging
+
+      - name: Upload staging media worker secrets
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INGRESS_SECRET: ${{ secrets.INGRESS_SECRET }}
+          INTERNAL_ORIGIN_SECRET: ${{ secrets.INTERNAL_ORIGIN_SECRET }}
+        run: |
+          set -euo pipefail
           for name in SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INGRESS_SECRET INTERNAL_ORIGIN_SECRET; do
             printf '%s' "${!name}" | npx --no-install wrangler secret put "$name" --env staging
           done
@@ -75,4 +121,4 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --retry 5 --retry-delay 3 \
-            https://static.dev.letsboulder.com/ >/dev/null
+            https://static.staging.letsboulder.com/ >/dev/null
