@@ -6,9 +6,12 @@ Small fixes are welcome. For larger changes, open an issue or start a discussion
 
 ## Branch Strategy
 
-- Create a feature branch from `main` for each change.
-- Open pull requests against `main`.
+- Create a feature branch for each change.
+- Open pull requests against `staging` so changes pass through the persistent pre-production environment before promotion to `main`.
+- `staging` is the mandatory hosted validation branch; `main` is production.
 - Keep changes focused when possible; discuss larger refactors or product changes first.
+
+See [`docs/deployment.md`](docs/deployment.md) for the full staging, hosted migration, and production promotion contract.
 
 ## Before You Start
 
@@ -70,11 +73,15 @@ Use the smallest relevant checks during development, then run the complete quali
 
 ## Database Changes
 
-- All schema changes go through `supabase/migrations/*.sql`
-- Never edit Supabase dashboard directly
-- Reset local Supabase and run `npm run test:database` for migrations, RLS, triggers, and RPC changes
-- Regenerate types with `npx --no-install supabase gen types typescript --local > types/database.ts`
-- Hosted pushes are maintainer-only; pushes to `main` trigger a production dry-run and never apply migrations. Applying requires manually dispatching the `Supabase Migrations` workflow with the current `main` commit SHA; the workflow validates that SHA again immediately before applying. For local pushes, verify the linked project and run `npx --no-install supabase db push --linked --dry-run` first
+- All schema changes go through `supabase/migrations/*.sql`.
+- Never edit Supabase schema manually through the dashboard except a true reviewed emergency; capture any emergency change in git immediately.
+- Reset local Supabase and run `npm run test:database` for migrations, RLS, triggers, and RPC changes.
+- Regenerate types with `npx --no-install supabase gen types typescript --local > types/database.ts`.
+- Local and CI checks are necessary but do not replace the hosted staging gate.
+- After merge to `staging`, the migration must successfully apply to the real hosted `letsboulder-staging` project through the linked Supabase CLI path before promotion to `main`.
+- Production migration apply remains maintainer-only and occurs only after hosted staging migration and post-migration verification succeed.
+
+See [`docs/db/migrations.md`](docs/db/migrations.md) for migration details and [`docs/deployment.md`](docs/deployment.md) for the release sequence and environment isolation requirements.
 
 ## PR Verification Checklist
 
@@ -86,6 +93,8 @@ Before opening a PR, verify docs are in sync with code:
 - [ ] The change has a short summary of what changed and why
 - [ ] Relevant screenshots or reproduction steps are included for UI changes
 - [ ] Run `bash docs/verify.sh` (zero drift)
+
+For changes intended for release, also confirm that promotion follows `feature branch -> staging -> hosted staging validation -> main`, not a direct feature-to-production path.
 
 ## Build Commands
 
