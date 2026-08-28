@@ -5516,6 +5516,7 @@ export type Database = {
         Args: { p_crag_id: string; p_reason: string; p_superseded_by?: string }
         Returns: {
           access_notes: string | null
+          content_origin: string
           country: string | null
           country_code: string | null
           country_id: string | null
@@ -5533,9 +5534,16 @@ export type Database = {
           location_visibility: Database["public"]["Enums"]["location_visibility"]
           longitude: number | null
           name: string
+          publication_notes: string | null
+          publication_status: string
+          published_at: string | null
+          published_by: string | null
+          readiness_version: number
           region_id: string | null
           region_name: string | null
           report_count: number | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           rock_type: string | null
           route_count: number | null
           slug: string | null
@@ -6614,3 +6622,4 @@ export const Constants = {
     },
   },
 } as const
+
