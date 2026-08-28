@@ -672,7 +672,7 @@ RESET ROLE;
 -- select an inherited grantor (for example supabase_admin), while local
 -- Supabase records postgres. Revoke every exact temporary grant so the
 -- least-privilege end state is identical in both environments.
-DO $
+DO $membership$
 DECLARE
   membership_grantor name;
 BEGIN
@@ -691,7 +691,7 @@ BEGIN
     );
   END LOOP;
 END
-$;
+$membership$;
 
 REVOKE CREATE ON SCHEMA public FROM public_data_export_owner;
 
