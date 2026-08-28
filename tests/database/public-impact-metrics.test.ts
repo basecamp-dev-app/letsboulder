@@ -32,6 +32,11 @@ describe('get_public_impact_metrics_v1', () => {
          where id = $1`,
         [published],
       )
+      const afterCrags = (await client.query(
+        'select public.get_public_impact_metrics_v1() as metrics',
+      )).rows[0].metrics
+      expect(Number(afterCrags.cragsMapped) - Number(before.cragsMapped)).toBe(1)
+
       await client.query(
         `insert into public.climbs (id, crag_id, name, grade, status, route_type)
          values ($1, $2, 'Published metric route', '6A', 'approved', 'boulder'),
@@ -44,7 +49,7 @@ describe('get_public_impact_metrics_v1', () => {
       expect(after.definitionVersion).toBe(1)
       expect(after.generatedAt).toEqual(expect.any(String))
       expect(Number(after.routesDocumented) - Number(before.routesDocumented)).toBe(1)
-      expect(Number(after.cragsMapped) - Number(before.cragsMapped)).toBe(1)
+      expect(after.cragsMapped).toBe(afterCrags.cragsMapped)
     })
   })
 

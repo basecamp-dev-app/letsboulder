@@ -488,6 +488,9 @@ describe('atomic explicit draft saves', () => {
       )).rows[0].result
 
       expect(promoted).toMatchObject({ success: true })
+      // Publication governance keeps content on review-state crags out of API
+      // reads. Inspect the persisted publication result as the database owner.
+      await client.query('reset role')
       expect((await client.query(
         `select id, latitude::double precision as latitude,
            longitude::double precision as longitude, location_mode from public.images

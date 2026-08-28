@@ -650,6 +650,9 @@ describe('forward publication safety migrations', () => {
       await setAuthenticatedContext(client, fixture.userId)
       const result = (await client.query('select public.promote_draft_to_submission($1) as result', [fixture.draftId])).rows[0].result
       expect(result).toMatchObject({ success: true, status: 'submitted', image_ids: [fixture.imageId], climb_ids: [], route_line_ids: [] })
+      // The promotion is durable even though the new crag remains in review
+      // and is intentionally hidden from authenticated public-table reads.
+      await client.query('reset role')
       expect((await client.query('select count(*)::int as count from public.crag_images where linked_image_id = $1', [fixture.imageId])).rows[0].count).toBe(1)
       expect((await client.query('select count(*)::int as count from public.climbs where crag_id = $1', [fixture.cragId])).rows[0].count).toBe(0)
     })

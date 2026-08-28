@@ -57,14 +57,17 @@ describe('crag publication governance', () => {
       expect((await client.query('select id from public.crags where id = $1', [cragId])).rows).toEqual([])
 
       await setAuthenticatedUser(client, userId)
-      await client.query('savepoint direct_publication_is_blocked')
-      await expect(client.query(
+      const directPublication = await client.query(
         `update public.crags
          set publication_status = 'published', published_at = now()
          where id = $1`,
         [cragId],
-      )).rejects.toMatchObject({ code: '42501' })
-      await client.query('rollback to savepoint direct_publication_is_blocked')
+      )
+      expect(directPublication.rowCount).toBe(0)
+      expect((await client.query(
+        'select publication_status from public.crags where id = $1',
+        [cragId],
+      )).rows).toEqual([{ publication_status: 'review' }])
 
       const transition = await client.query(
         'select public.set_crag_publication_status($1, $2, $3) as status',
