@@ -615,8 +615,13 @@ CREATE TRIGGER crags_register_public_data_export
 AFTER INSERT OR UPDATE OF deleted_at, superseded_by, slug, country_code, publication_status
 ON public.crags FOR EACH ROW EXECUTE FUNCTION public.register_public_data_export_entity();
 
+-- Replace the views as their least-privilege owner. PostgreSQL 16 records
+-- role grants per grantor, so pin both sides of the temporary membership to
+-- postgres instead of allowing Supabase to choose supabase_admin implicitly.
 GRANT CREATE ON SCHEMA public TO public_data_export_owner;
-GRANT public_data_export_owner TO postgres;
+GRANT public_data_export_owner TO postgres
+  WITH INHERIT FALSE, SET TRUE
+  GRANTED BY postgres;
 SET ROLE public_data_export_owner;
 
 CREATE OR REPLACE VIEW public.public_data_export_crags_v1
@@ -667,7 +672,7 @@ WHERE crag.deleted_at IS NULL AND crag.superseded_by IS NULL
   AND NULLIF(btrim(crag.country_code), '') IS NOT NULL;
 
 RESET ROLE;
-REVOKE public_data_export_owner FROM postgres;
+REVOKE public_data_export_owner FROM postgres GRANTED BY postgres;
 REVOKE CREATE ON SCHEMA public FROM public_data_export_owner;
 
 COMMENT ON COLUMN public.crags.publication_status IS
