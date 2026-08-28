@@ -1,5 +1,6 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest'
 import { submitGymOwnerApplicationAction } from '@/features/gym-owners/actions'
+import { getServerClient } from '@/lib/supabase-server'
 
 vi.mock('@/lib/supabase-server', () => ({
   getServerClient: vi.fn().mockResolvedValue({
@@ -89,7 +90,7 @@ describe('Gym Owner Application Validation', () => {
         turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
-      expect(result.error).toBe('A valid contact_email is required')
+      expect(result.error).toBe('Enter a valid email address.')
     })
 
     test('rejects invalid role', async () => {
@@ -106,7 +107,7 @@ describe('Gym Owner Application Validation', () => {
         turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
-      expect(result.error).toBe('Invalid role')
+      expect(result.error).toBe('Select a valid role.')
     })
 
     test('rejects empty facilities', async () => {
@@ -123,7 +124,7 @@ describe('Gym Owner Application Validation', () => {
         turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
-      expect(result.error).toBe('At least one facility is required')
+      expect(result.error).toBe('Select at least one gym facility.')
     })
 
     test('rejects invalid facility', async () => {
@@ -140,7 +141,7 @@ describe('Gym Owner Application Validation', () => {
         turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
-      expect(result.error).toBe('Invalid facility')
+      expect(result.error).toBe('Select a valid gym facility.')
     })
 
     test('rejects comments over 2000 chars', async () => {
@@ -159,7 +160,7 @@ describe('Gym Owner Application Validation', () => {
         turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(false)
-      expect(result.error).toBe('additional_comments must be 2000 characters or less')
+      expect(result.error).toBe('Additional comments must be 2,000 characters or less.')
     })
 
     test('accepts valid application', async () => {
@@ -176,6 +177,34 @@ describe('Gym Owner Application Validation', () => {
         turnstileToken: 'valid-token',
       })
       expect(result.success).toBe(true)
+    })
+
+    test('returns a recoverable duplicate state for a uniqueness conflict', async () => {
+      vi.mocked(getServerClient).mockResolvedValueOnce({
+        from: vi.fn().mockReturnValue({
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: null, error: { code: '23505', message: 'duplicate' } }),
+            }),
+          }),
+        }),
+      } as never)
+
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: 'Test Gym',
+        address: '123 Main St',
+        city: 'Test City',
+        country: 'US',
+        postcode_or_zip: '12345',
+        contact_phone: '555-1234',
+        contact_email: 'test@example.com',
+        role: 'owner',
+        facilities: ['sport'],
+        turnstileToken: 'valid-token',
+      })
+
+      expect(result).toMatchObject({ success: false, status: 409 })
+      expect(result.error).toContain('already been received')
     })
 
     test('deduplicates facilities', async () => {
