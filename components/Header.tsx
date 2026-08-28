@@ -22,6 +22,8 @@ interface SearchResult {
   crag_name?: string
   slug?: string | null
   country_code?: string | null
+  region_name?: string | null
+  sub_area?: string | null
   latitude?: number
   longitude?: number
 }
@@ -39,6 +41,8 @@ interface CragData {
   longitude: number | null
   slug: string | null
   country_code: string | null
+  region_name: string | null
+  sub_area: string | null
 }
 
 interface ClimbSearchRow {
@@ -48,7 +52,33 @@ interface ClimbSearchRow {
     name: string
     latitude: number | null
     longitude: number | null
+    country_code: string | null
+    region_name: string | null
+    sub_area: string | null
   } | null
+}
+
+function getCountryName(countryCode?: string | null) {
+  if (!countryCode) return null
+
+  try {
+    return new Intl.DisplayNames(undefined, { type: 'region' }).of(countryCode.toUpperCase()) ?? null
+  } catch {
+    return countryCode.toUpperCase()
+  }
+}
+
+function getLocationContext(result: SearchResult) {
+  const parts = [result.sub_area, result.region_name, getCountryName(result.country_code)]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .filter((part, index, allParts) => allParts.findIndex((candidate) => candidate.toLocaleLowerCase() === part.toLocaleLowerCase()) === index)
+
+  if (result.type === 'climb') {
+    const cragContext = result.crag_name ? `at ${result.crag_name}` : 'Climb'
+    return parts.length > 0 ? `${cragContext} — ${parts.join(', ')}` : cragContext
+  }
+
+  return parts.join(', ') || 'Crag'
 }
 
 export default function Header() {
@@ -63,11 +93,13 @@ export default function Header() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [showMoreDropdown, setShowMoreDropdown] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState(false)
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1)
   const latestSearchRequestRef = useRef(0)
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchAbortRef = useRef<AbortController | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const pathname = usePathname()
@@ -128,6 +160,7 @@ export default function Header() {
       setSearchResults([])
       setActiveSearchIndex(-1)
       setIsSearching(false)
+      setSearchError(false)
       return
     }
 
@@ -137,18 +170,19 @@ export default function Header() {
     const abortController = new AbortController()
     searchAbortRef.current = abortController
     setIsSearching(true)
+    setSearchError(false)
     try {
       const supabase = createClient()
       const [cragsResponse, climbsResponse] = await Promise.all([
         supabase
           .from('crags')
-          .select('id, name, latitude, longitude, slug, country_code')
+          .select('id, name, latitude, longitude, slug, country_code, region_name, sub_area')
           .ilike('name', `%${trimmedQuery}%`)
           .limit(5)
           .abortSignal(abortController.signal),
         supabase
           .from('climbs')
-          .select('id, name, crags!inner(name, latitude, longitude)')
+          .select('id, name, crags!inner(name, latitude, longitude, country_code, region_name, sub_area)')
           .ilike('name', `%${trimmedQuery}%`)
           .eq('status', 'approved')
           .limit(10)
@@ -160,6 +194,9 @@ export default function Header() {
       }
 
       const results: SearchResult[] = []
+      if (cragsResponse.error || climbsResponse.error) {
+        throw new Error('Search unavailable')
+      }
       const cragsData = cragsResponse.data
 
       if (cragsData) {
@@ -171,6 +208,8 @@ export default function Header() {
               name: crag.name,
               slug: crag.slug,
               country_code: crag.country_code,
+              region_name: crag.region_name,
+              sub_area: crag.sub_area,
               latitude: crag.latitude,
               longitude: crag.longitude
             })
@@ -189,6 +228,9 @@ export default function Header() {
             id: climb.id,
             name: climb.name,
             crag_name: crag?.name ?? undefined,
+            country_code: crag?.country_code,
+            region_name: crag?.region_name,
+            sub_area: crag?.sub_area,
             latitude: crag?.latitude ?? undefined,
             longitude: crag?.longitude ?? undefined
           })
@@ -198,6 +240,12 @@ export default function Header() {
       if (requestId === latestSearchRequestRef.current) {
         setSearchResults(results)
         setActiveSearchIndex(results.length > 0 ? 0 : -1)
+      }
+    } catch {
+      if (requestId === latestSearchRequestRef.current && !abortController.signal.aborted) {
+        setSearchResults([])
+        setActiveSearchIndex(-1)
+        setSearchError(true)
       }
     } finally {
       if (requestId === latestSearchRequestRef.current) {
@@ -214,18 +262,20 @@ export default function Header() {
       clearTimeout(searchTimeoutRef.current)
       searchTimeoutRef.current = null
     }
+    latestSearchRequestRef.current += 1
     searchAbortRef.current?.abort()
     searchAbortRef.current = null
 
     const trimmedQuery = searchQuery.trim()
     if (!trimmedQuery || trimmedQuery.length < 2) {
-      latestSearchRequestRef.current += 1
       setSearchResults([])
       setActiveSearchIndex(-1)
       setIsSearching(false)
+      setSearchError(false)
       return
     }
 
+    setIsSearching(true)
     searchTimeoutRef.current = setTimeout(() => {
       void searchClimbsAndCrags(searchQuery)
     }, 500)
@@ -241,8 +291,23 @@ export default function Header() {
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value
     setSearchQuery(query)
+    setSearchResults([])
+    setIsSearching(query.trim().length >= 2)
+    setSearchError(false)
     setShowSearchDropdown(true)
     setActiveSearchIndex(-1)
+  }
+
+  const clearSearch = () => {
+    latestSearchRequestRef.current += 1
+    searchAbortRef.current?.abort()
+    setSearchQuery('')
+    setSearchResults([])
+    setActiveSearchIndex(-1)
+    setIsSearching(false)
+    setSearchError(false)
+    setShowSearchDropdown(false)
+    searchInputRef.current?.focus()
   }
 
   const handleResultClick = (result: SearchResult) => {
@@ -361,6 +426,23 @@ export default function Header() {
     return groups.filter((group) => group.items.length > 0)
   }, [searchResults])
 
+  const searchStatusMessage = useMemo(() => {
+    const trimmedQuery = searchQuery.trim()
+    if (!showSearchDropdown || trimmedQuery.length === 0) return ''
+    if (trimmedQuery.length < 2) return 'Type at least 2 characters to search all crags and climbs.'
+    if (isSearching) return 'Searching crags and climbs.'
+    if (searchError) return 'Search is unavailable right now. Try again.'
+    if (searchResults.length === 0) return `No crags or climbs matched ${trimmedQuery}.`
+
+    const cragCount = searchResults.filter((result) => result.type === 'crag').length
+    const climbCount = searchResults.length - cragCount
+    const resultLabel = searchResults.length === 1 ? 'result' : 'results'
+    const cragLabel = cragCount === 1 ? 'crag' : 'crags'
+    const climbLabel = climbCount === 1 ? 'climb' : 'climbs'
+    return `${searchResults.length} ${resultLabel}: ${cragCount} ${cragLabel} and ${climbCount} ${climbLabel}.`
+  }, [isSearching, searchError, searchQuery, searchResults, showSearchDropdown])
+  const hasSearchPopup = showSearchDropdown && searchQuery.trim().length > 0
+
   return (
     <header ref={headerRef} className="relative z-[3000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none block">
       <div className="container mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2 md:flex-nowrap">
@@ -372,6 +454,7 @@ export default function Header() {
 
         <div ref={searchRef} className="relative order-3 w-full md:order-none md:flex-1 md:max-w-md">
           <input
+            ref={searchInputRef}
             id="global-search"
             type="text"
             placeholder="Search all crags and climbs"
@@ -382,8 +465,8 @@ export default function Header() {
             onFocus={() => setShowSearchDropdown(true)}
             role="combobox"
             aria-autocomplete="list"
-            aria-expanded={showSearchDropdown}
-            aria-controls={showSearchDropdown ? searchListboxId : undefined}
+            aria-expanded={hasSearchPopup}
+            aria-controls={hasSearchPopup ? searchListboxId : undefined}
             aria-activedescendant={
               showSearchDropdown && activeSearchIndex >= 0 && searchResults[activeSearchIndex]
                 ? `${searchListboxId}-${searchResults[activeSearchIndex].type}-${searchResults[activeSearchIndex].id}`
@@ -426,9 +509,9 @@ export default function Header() {
                         <div>
                           <p className="font-medium text-gray-900 dark:text-gray-100">{result.name}</p>
                           {result.type === 'climb' && result.crag_name ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">at {result.crag_name}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{getLocationContext(result)}</p>
                           ) : result.type === 'crag' ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{result.country_code ? `Open crag in ${result.country_code.toUpperCase()}` : 'Open crag page'}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{getLocationContext(result)}</p>
                           ) : null}
                         </div>
                       </button>
@@ -440,7 +523,7 @@ export default function Header() {
           )}
           {showSearchDropdown && searchQuery.trim().length > 0 && searchQuery.trim().length < 2 && !isSearching && (
             <div
-              role="status"
+              id={searchListboxId}
               className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-500 dark:text-gray-400 z-[1200] md:z-50"
             >
               Type at least 2 characters to search all crags and climbs.
@@ -448,20 +531,49 @@ export default function Header() {
           )}
           {showSearchDropdown && searchQuery.trim().length >= 2 && isSearching && (
             <div
-              role="status"
+              id={searchListboxId}
               className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-500 dark:text-gray-400 z-[1200] md:z-50"
             >
               Searching crags and climbs...
             </div>
           )}
-          {showSearchDropdown && searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
+          {showSearchDropdown && searchQuery.trim().length >= 2 && searchError && !isSearching && (
+            <div id={searchListboxId} className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-600 dark:text-gray-300 z-[1200] md:z-50">
+              <p>Search is unavailable right now. Try again.</p>
+              <button
+                type="button"
+                onClick={() => void searchClimbsAndCrags(searchQuery)}
+                className="mt-3 min-h-9 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+          {showSearchDropdown && searchQuery.trim().length >= 2 && searchResults.length === 0 && !isSearching && !searchError && (
               <div
-                role="status"
+                id={searchListboxId}
                 className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-500 dark:text-gray-400 z-[1200] md:z-50"
               >
-                No crags or climbs matched &quot;{searchQuery.trim()}&quot;.
+                <p>No crags or climbs matched &quot;{searchQuery.trim()}&quot;.</p>
+                <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="min-h-9 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800"
+                  >
+                    Clear search
+                  </button>
+                  <Link
+                    href="/"
+                    onClick={clearSearch}
+                    className="inline-flex min-h-9 items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-700 underline decoration-2 underline-offset-4 hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-gray-300 dark:hover:text-white"
+                  >
+                    Browse map
+                  </Link>
+                </div>
               </div>
             )}
+          <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">{searchStatusMessage}</p>
         </div>
 
         <nav aria-label="Primary navigation" className="hidden items-center gap-1 md:flex">
