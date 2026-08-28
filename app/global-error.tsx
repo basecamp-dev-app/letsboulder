@@ -40,7 +40,7 @@ export default function GlobalError({
           <h1 style={{ fontSize: '1.125rem', fontWeight: 600 }}>
             Something went wrong
           </h1>
-          <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+          <p role="alert" style={{ fontSize: '0.875rem', color: '#6b7280' }}>
             An unexpected error occurred. Error ID:{' '}
             <code
               style={{
