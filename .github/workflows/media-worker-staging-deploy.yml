@@ -120,5 +120,23 @@ jobs:
       - name: Smoke test staging media endpoint
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --retry 5 --retry-delay 3 \
-            https://static.staging.letsboulder.com/ >/dev/null
+
+          status="$(
+            curl \
+              --silent \
+              --show-error \
+              --retry 12 \
+              --retry-all-errors \
+              --retry-delay 5 \
+              --output /dev/null \
+              --write-out '%{http_code}' \
+              --request POST \
+              https://static.staging.letsboulder.com/enqueue
+          )"
+
+          if [ "$status" != "401" ]; then
+            echo "::error::Expected 401 from staging media worker, got $status"
+            exit 1
+          fi
+
+          echo "Staging media worker is reachable and ingress auth is enforced."
