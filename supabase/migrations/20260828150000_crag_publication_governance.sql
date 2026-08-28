@@ -671,8 +671,11 @@ WHERE crag.deleted_at IS NULL AND crag.superseded_by IS NULL
   AND NULLIF(btrim(crag.slug), '') IS NOT NULL
   AND NULLIF(btrim(crag.country_code), '') IS NOT NULL;
 
-RESET ROLE;
+-- Hosted migrations start as postgres under a separate session login role.
+-- Return to the grantor before revoking, then restore the original session role.
+SET ROLE postgres;
 REVOKE public_data_export_owner FROM postgres GRANTED BY postgres;
+RESET ROLE;
 REVOKE CREATE ON SCHEMA public FROM public_data_export_owner;
 
 COMMENT ON COLUMN public.crags.publication_status IS
