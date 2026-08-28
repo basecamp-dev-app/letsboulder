@@ -31,27 +31,27 @@ export function ImpactCard({
     >
       <CardContent className="pt-6 px-4 md:px-6">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+          <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
             {title}
-          </p>
-          <p className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100">
+          </dt>
+          <dd className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100">
             {value.toLocaleString()}
-          </p>
+          </dd>
           {description && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            <dd className="text-xs text-gray-400 dark:text-gray-500 mt-1">
               {description}
-            </p>
+            </dd>
           )}
         </div>
         {trend && (
-          <div className="mt-3 flex items-center gap-1">
+          <dd className="mt-3 flex items-center gap-1">
             <span className="text-sm font-medium text-green-600 dark:text-green-400">
               +{trend.value}%
             </span>
             <span className="text-xs text-gray-500 dark:text-gray-400">
               {trend.label}
             </span>
-          </div>
+          </dd>
         )}
       </CardContent>
     </Card>

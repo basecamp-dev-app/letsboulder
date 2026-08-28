@@ -39,7 +39,7 @@ export default function AboutPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Our Mission</CardTitle>
+            <CardTitle><h2>Our Mission</h2></CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <ul className="list-disc list-inside space-y-2 ml-2">
@@ -53,7 +53,7 @@ export default function AboutPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>How It Works</CardTitle>
+            <CardTitle><h2>How It Works</h2></CardTitle>
           </CardHeader>
           <CardContent>
             <ol className="list-decimal list-inside space-y-3">
@@ -66,7 +66,7 @@ export default function AboutPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Community Features</CardTitle>
+            <CardTitle><h2>Community Features</h2></CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="list-disc list-inside space-y-2">

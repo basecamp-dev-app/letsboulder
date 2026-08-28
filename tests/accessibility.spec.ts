@@ -1,4 +1,22 @@
 import { test, expect } from '@playwright/test'
+import { source as axeSource } from 'axe-core'
+
+async function expectNoSeriousAxeViolations(page: import('@playwright/test').Page) {
+  await page.evaluate(axeSource)
+  const violations = await page.evaluate(async () => {
+    const axe = (window as typeof window & {
+      axe: {
+        run: () => Promise<{
+          violations: Array<{ id: string; impact: string | null; nodes: unknown[] }>
+        }>
+      }
+    }).axe
+    const results = await axe.run()
+    return results.violations.filter(({ impact }) => impact === 'serious' || impact === 'critical')
+  })
+
+  expect(violations, JSON.stringify(violations, null, 2)).toEqual([])
+}
 
 test.describe('Accessibility', () => {
   test('@full mobile navigation exposes dialog semantics and closes on escape', async ({ page }) => {
@@ -83,10 +101,9 @@ test.describe('Accessibility', () => {
   test('@full form inputs have labels', async ({ page }) => {
     await page.goto('/auth')
 
-    await page.getByText('Sign in with email instead').click()
-
-    const emailInput = page.getByPlaceholder('you@example.com')
+    const emailInput = page.getByRole('textbox', { name: 'Email' })
     await expect(emailInput).toBeVisible({ timeout: 10000 })
+    await expect(emailInput).toHaveAttribute('autocomplete', 'email')
   })
 
   test('@full page has skip to main content link', async ({ page }) => {
@@ -121,8 +138,35 @@ test.describe('Accessibility', () => {
       await page.goto(route)
       await expect(page.locator('main#main-content')).toHaveCount(1)
       await expect(page.locator('#main-content')).toHaveCount(1)
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
     })
   }
+
+  test('@full normal crag and climb routes expose one main landmark and H1', async ({ page }) => {
+    for (const route of ['/gb/harrisons-rocks', '/gb/harrisons-rocks/giants-ear']) {
+      await page.goto(route)
+      await expect(page.locator('main#main-content')).toHaveCount(1)
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
+    }
+  })
+
+  test('@full about sections and impact metrics expose structural semantics', async ({ page }) => {
+    await page.goto('/about')
+    for (const name of ['Our Mission', 'How It Works', 'Community Features', 'Keep it free']) {
+      await expect(page.getByRole('heading', { level: 2, name })).toBeVisible()
+    }
+
+    await page.goto('/impact')
+    const metrics = page.locator('dl')
+    await expect(metrics.locator('dt')).toHaveCount(6)
+    await expect(metrics.locator('dd')).toHaveCount(12)
+  })
+
+  test('@full recovery page has a meaningful title and page heading', async ({ page }) => {
+    await page.goto('/this-route-does-not-exist')
+    await expect(page).toHaveTitle(/page not found/i)
+    await expect(page.getByRole('heading', { level: 1, name: /page not found/i })).toBeVisible()
+  })
 
   for (const width of [320, 430]) {
     test(`@full shell navigation reflows at ${width}px`, async ({ page }) => {
@@ -147,21 +191,11 @@ test.describe('Accessibility', () => {
     await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible()
   })
 
-  test('@full no critical accessibility violations on auth page', async ({ page }) => {
-    const violations: string[] = []
-    
-    page.on('console', msg => {
-      if (msg.type() === 'error') {
-        const text = msg.text()
-        if (text.includes('accessibility') || text.includes('a11y')) {
-          violations.push(text)
-        }
-      }
+  for (const route of ['/auth', '/gym-owners', '/gym-owners/apply', '/privacy', '/this-route-does-not-exist']) {
+    test(`@full ${route} has no serious or critical axe violations`, async ({ page }) => {
+      await page.goto(route)
+      await expect(page.locator('main#main-content')).toBeVisible()
+      await expectNoSeriousAxeViolations(page)
     })
-
-    await page.goto('/auth')
-    await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible({ timeout: 10000 })
-
-    expect(violations.length).toBe(0)
-  })
+  }
 })

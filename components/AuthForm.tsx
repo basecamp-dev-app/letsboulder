@@ -211,7 +211,7 @@ export default function AuthForm() {
           {!isEmbeddedBrowser && <div className="flex items-center gap-4 my-6"><div className="flex-1 h-px bg-border"></div><span className="text-xs text-muted-foreground">or</span><div className="flex-1 h-px bg-border"></div></div>}
 
           <div className="space-y-4">
-            <p className="mb-4 text-center text-sm text-muted-foreground">
+            <p id="email-sign-in-description" className="mb-4 text-center text-sm text-muted-foreground">
               {isEmbeddedBrowser 
                 ? 'Enter your email to receive a magic link. Click the link to sign in or create an account.'
                 : 'No password needed: we will email you a magic link.'}
@@ -219,15 +219,19 @@ export default function AuthForm() {
 
             <form onSubmit={handleMagicLink} className="space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">
+                <label htmlFor="email" className="mb-1 block text-sm font-medium text-foreground">
                   Email
                 </label>
                 <Input
+                  id="email"
+                  name="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoFocus
+                  autoComplete="email"
                   placeholder="you@example.com"
+                  aria-describedby="email-sign-in-description"
                   aria-invalid={!emailValid && email.length > 0}
                   className={cn(
                     'h-12 rounded-xl border-2 px-4 text-base md:text-base',

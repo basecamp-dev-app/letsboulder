@@ -1012,7 +1012,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     <div className="flex min-h-screen flex-col bg-black text-white">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-      <main
+      <div
         data-active-image-id={activePrimaryImageId}
         className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-14"
       >
@@ -1061,7 +1061,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         >
           Next
         </button>
-      </main>
+      </div>
 
       <ImageFirstFooterRail visibleRoutes={visibleRoutes} activeRouteId={activeRouteId} onRouteSelect={handleRouteSelect} />
 

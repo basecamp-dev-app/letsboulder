@@ -23,7 +23,7 @@ export default function SupportCard({ compact = false }: SupportCardProps) {
       <CardHeader className={compact ? 'pb-3' : 'pb-4'}>
         <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
           <Heart className="h-4 w-4" />
-          <span className="text-xs font-semibold uppercase tracking-[0.2em]">Keep it free</span>
+          <h2 className="text-xs font-semibold uppercase tracking-[0.2em]">Keep it free</h2>
         </div>
         <CardTitle className={compact ? 'text-lg' : 'text-2xl'}>
           Help keep letsboulder ad-free

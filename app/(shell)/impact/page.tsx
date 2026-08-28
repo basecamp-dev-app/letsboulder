@@ -48,7 +48,7 @@ export default async function ImpactPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <ImpactCard
             title="Routes Documented"
             value={totalClimbs}
@@ -85,7 +85,7 @@ export default async function ImpactPage() {
             description="People who have added routes or photos"
             className="rounded-3xl border border-gray-200 dark:border-gray-800"
           />
-        </div>
+        </dl>
 
         <section className="mt-10 rounded-3xl border border-gray-200 bg-gray-50 p-6 text-center dark:border-gray-800 dark:bg-gray-900 md:p-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Help the guide grow</h2>
