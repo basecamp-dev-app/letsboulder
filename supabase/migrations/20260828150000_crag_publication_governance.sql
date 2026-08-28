@@ -615,8 +615,14 @@ CREATE TRIGGER crags_register_public_data_export
 AFTER INSERT OR UPDATE OF deleted_at, superseded_by, slug, country_code, publication_status
 ON public.crags FOR EACH ROW EXECUTE FUNCTION public.register_public_data_export_entity();
 
--- CREATE OR REPLACE preserves the existing least-privilege view owner and
--- grants, so no temporary role membership is needed.
+-- Replace the views as their least-privilege owner. PostgreSQL 16 records
+-- role grants per grantor, so pin both sides of the temporary membership to
+-- postgres instead of allowing Supabase to choose supabase_admin implicitly.
+GRANT CREATE ON SCHEMA public TO public_data_export_owner;
+GRANT public_data_export_owner TO postgres
+  WITH INHERIT FALSE, SET TRUE
+  GRANTED BY postgres;
+SET ROLE public_data_export_owner;
 
 CREATE OR REPLACE VIEW public.public_data_export_crags_v1
 WITH (security_barrier = true, security_invoker = false) AS
@@ -664,6 +670,10 @@ WHERE crag.deleted_at IS NULL AND crag.superseded_by IS NULL
   AND crag.publication_status = 'published'
   AND NULLIF(btrim(crag.slug), '') IS NOT NULL
   AND NULLIF(btrim(crag.country_code), '') IS NOT NULL;
+
+RESET ROLE;
+REVOKE public_data_export_owner FROM postgres GRANTED BY postgres;
+REVOKE CREATE ON SCHEMA public FROM public_data_export_owner;
 
 COMMENT ON COLUMN public.crags.publication_status IS
   'Editorial lifecycle boundary shared by public routes, sitemap, search, map, metrics, and exports.';
