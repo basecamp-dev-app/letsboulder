@@ -38,9 +38,10 @@ describe('get_public_impact_metrics_v1', () => {
       expect(Number(afterCrags.cragsMapped) - Number(before.cragsMapped)).toBe(1)
 
       await client.query(
-        `insert into public.climbs (id, crag_id, name, grade, status, route_type)
-         values ($1, $2, 'Published metric route', '6A', 'approved', 'boulder'),
-                ($3, $4, 'Review metric route', '6A', 'approved', 'boulder')`,
+        `insert into public.climbs (
+           id, crag_id, name, grade, status, route_type, latitude, longitude
+         ) values ($1, $2, 'Published metric route', '6A', 'approved', 'boulder', 51, -1),
+                  ($3, $4, 'Review metric route', '6A', 'approved', 'boulder', 52, -2)`,
         [randomUUID(), published, randomUUID(), review],
       )
 
