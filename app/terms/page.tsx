@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { SOURCE_REPOSITORY_URL } from '@/lib/site'
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
@@ -150,7 +151,7 @@ export default function TermsPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">12. Third-Party Services</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            letsboulder relies on third-party services including Supabase, Vercel, Vercel Analytics, Vercel Speed Insights, Resend, Cloudflare (R2 storage, Workers, CDN), and Sentry. Their services are subject to their own terms and privacy practices.
+            letsboulder relies on third-party services including Supabase, Vercel, Resend, Cloudflare (R2 storage, Workers, CDN), and Sentry. Their services are subject to their own terms and privacy practices.
           </p>
         </section>
 
@@ -188,7 +189,15 @@ export default function TermsPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">17. Open Source</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            The letsboulder software is open source under the Apache License 2.0. The source code is available on GitHub. Users retain ownership of their uploaded content, which is governed by Section 6 (User Content).
+            The letsboulder software is open source under the Apache License 2.0. The{' '}
+            <a
+              className="underline"
+              href={SOURCE_REPOSITORY_URL}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              source code is available on GitHub (opens in a new tab)
+            </a>. Users retain ownership of their uploaded content, which is governed by Section 6 (User Content).
           </p>
         </section>
       </div>

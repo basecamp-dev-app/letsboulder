@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 interface ImpactCardProps {
   title: string
-  value: number
+  value: number | null
   description?: string
   trend?: {
     value: number
@@ -35,7 +35,9 @@ export function ImpactCard({
             {title}
           </dt>
           <dd className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100">
-            {value.toLocaleString()}
+            {value === null ? (
+              <span className="text-xl md:text-2xl">Temporarily unavailable</span>
+            ) : value.toLocaleString()}
           </dd>
           {description && (
             <dd className="text-xs text-gray-400 dark:text-gray-500 mt-1">

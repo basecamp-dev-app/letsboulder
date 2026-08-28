@@ -30,6 +30,12 @@ async function createCrag(client: PoolClient) {
      values ($1, 'Legacy image test', 'boulder', 'GB', $2)`,
     [id, `legacy-image-${id}`],
   )
+  await client.query(
+    `update public.crags
+     set publication_status = 'published', published_at = now()
+     where id = $1`,
+    [id],
+  )
   return id
 }
 

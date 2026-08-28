@@ -125,6 +125,9 @@ const getCragByCountrySlug = cache(async (countryCode: string, cragSlug: string)
       `)
       .eq('country_code', countryCode)
       .eq('slug', cragSlug)
+      .eq('publication_status', 'published')
+      .is('deleted_at', null)
+      .is('superseded_by', null)
       .maybeSingle()
 
     return (data as CragSlugRow | null) || null
@@ -140,7 +143,12 @@ export async function generateMetadata({ params }: { params: Promise<CragSlugPar
 
   const crag = await getCragByCountrySlug(country.toUpperCase(), cragSlug)
 
-  if (!crag) return { title: 'Crag Not Found' }
+  if (!crag) {
+    return {
+      title: 'Crag Not Found',
+      robots: { index: false, follow: true },
+    }
+  }
 
   const locationParts = [crag.region_name, crag.country].filter(Boolean) as string[]
   const title = locationParts.length > 0 ? `${crag.name}, ${locationParts[0]}` : `${crag.name}`

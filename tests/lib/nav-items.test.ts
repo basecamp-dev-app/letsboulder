@@ -33,6 +33,7 @@ describe('canonical navigation destinations', () => {
       '/privacy',
       '/terms',
       '/cookies',
+      '/cookies#privacy-choices',
       '/open-data-terms',
     ])
   })

@@ -34,12 +34,16 @@ function createSearchClient(cragsResponse: SearchResponse | Promise<SearchRespon
         ilike: vi.fn(),
         limit: vi.fn(),
         eq: vi.fn(),
+        is: vi.fn(),
+        in: vi.fn(),
         abortSignal: vi.fn(() => Promise.resolve(response)),
       }
       builder.select.mockReturnValue(builder)
       builder.ilike.mockReturnValue(builder)
       builder.limit.mockReturnValue(builder)
       builder.eq.mockReturnValue(builder)
+      builder.is.mockReturnValue(builder)
+      builder.in.mockReturnValue(builder)
       return builder
     }),
   }

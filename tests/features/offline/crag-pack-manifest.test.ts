@@ -21,7 +21,9 @@ function crag(overrides: Partial<CragRow> = {}): CragRow {
     latitude: 51.23456, longitude: -0.87654, location_visibility: 'approximate', updated_at: '2026-07-01',
     created_at: null, created_by: null, deleted_at: null, deletion_reason: null, image_count: null,
     is_flagged: null, last_edited_by: null, location: null, report_count: null, route_count: null,
-    superseded_by: null, synced_at: null, ...overrides,
+    superseded_by: null, synced_at: null, content_origin: 'community', publication_notes: null,
+    publication_status: 'published', published_at: '2026-07-01', published_by: null,
+    readiness_version: 1, reviewed_at: null, reviewed_by: null, ...overrides,
   }
 }
 

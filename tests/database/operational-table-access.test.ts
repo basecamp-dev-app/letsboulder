@@ -81,6 +81,12 @@ async function createFixtures(client: PoolClient) {
     [cragId, `operational-test-${cragId}`],
   )
   await client.query(
+    `update public.crags
+     set publication_status = 'published', published_at = now()
+     where id = $1`,
+    [cragId],
+  )
+  await client.query(
     `insert into public.community_posts (
        id, author_id, place_id, type, body, start_at
      ) values ($1, $2, $3, 'session', 'Test session', now())`,

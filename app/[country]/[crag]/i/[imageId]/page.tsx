@@ -162,7 +162,12 @@ export async function generateMetadata({
     query.route || null,
     query.climb || null,
   )
-  if (!result.payload) return { title: 'Topo Not Found' }
+  if (!result.payload) {
+    return {
+      title: 'Topo Not Found',
+      robots: { index: false, follow: true },
+    }
+  }
 
   const title = getPageTitle(result.payload)
   const description = getPageDescription(result.payload)

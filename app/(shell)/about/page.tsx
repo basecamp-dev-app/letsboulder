@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import SupportCard from '@/components/SupportCard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SOURCE_REPOSITORY_URL } from '@/lib/site'
 
 export const metadata: Metadata = {
   title: 'About',
@@ -90,6 +91,14 @@ export default function AboutPage() {
           <Link href="/impact" className="mt-4 inline-flex min-h-9 items-center rounded-md text-sm font-medium underline underline-offset-4 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:text-gray-300">
             See the community impact
           </Link>
+          <a
+            className="ml-4 mt-4 inline-flex min-h-9 items-center rounded-md text-sm font-medium underline underline-offset-4 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:text-gray-300"
+            href={SOURCE_REPOSITORY_URL}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            View source code (opens in a new tab)
+          </a>
         </section>
       </div>
     </div>

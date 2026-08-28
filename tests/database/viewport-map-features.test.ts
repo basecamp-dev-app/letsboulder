@@ -23,6 +23,14 @@ async function setRequestRole(client: PoolClient, role: 'anon' | 'authenticated'
   await client.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role })])
 }
 
+async function publishCrags(client: PoolClient, ids: string[]) {
+  await client.query(
+    `update public.crags set publication_status = 'published', published_at = now()
+     where id = any($1::uuid[])`,
+    [ids],
+  )
+}
+
 async function expectAdminRoleDenied(client: PoolClient, role: 'anon' | 'authenticated') {
   await setRequestRole(client, role)
   const savepoint = `denied_${role}`
@@ -66,6 +74,7 @@ describe('get_viewport_map_features', () => {
         "insert into public.crags (id, name, latitude, longitude, slug) values ($1, 'Canonical crag', 10, 10, 'canonical-crag')",
         [cragId],
       )
+      await publishCrags(client, [cragId])
       await client.query(
         "insert into public.places (id, name, type, latitude, longitude, slug) values ($1, 'Viewport gym', 'gym', 10.01, 10.01, 'viewport-gym')",
         [gymId],
@@ -96,6 +105,7 @@ describe('get_viewport_map_features', () => {
          values ($1, 'Cluster one', 10, 10, 'cluster-one'), ($2, 'Cluster two', 10.001, 10.001, 'cluster-two')`,
         ids,
       )
+      await publishCrags(client, ids)
       await addImage(client, ids[0], 'approved', 10, 10)
       await addImage(client, ids[1], 'approved', 10.001, 10.001)
 
@@ -118,14 +128,17 @@ describe('get_viewport_map_features', () => {
       const moderationPending = randomUUID()
       const privateImage = randomUUID()
       const rejected = randomUUID()
+      const awaitingReview = randomUUID()
       await client.query(
         `insert into public.crags (id, name, latitude, longitude)
          values ($1, 'East', 0, 179.5), ($2, 'West pending', 0, -179.5),
                  ($3, 'No eligible image', 0, 179.6), ($4, 'Deleted', 0, 179.7),
                  ($5, 'Processing', 0, 179.4), ($6, 'Moderation pending', 0, 179.3),
-                 ($7, 'Private', 0, 179.2), ($8, 'Rejected', 0, 179.1)`,
-        [approved, pending, ineligible, deleted, processing, moderationPending, privateImage, rejected],
+                 ($7, 'Private', 0, 179.2), ($8, 'Rejected', 0, 179.1),
+                 ($9, 'Awaiting publication review', 0, 179.0)`,
+        [approved, pending, ineligible, deleted, processing, moderationPending, privateImage, rejected, awaitingReview],
       )
+      await publishCrags(client, [approved, pending, ineligible, deleted, processing, moderationPending, privateImage, rejected])
       await addImage(client, approved, 'approved', 0, 179.5)
       await addImage(client, approved, 'deleted', 0, 179.5)
       await addImage(client, pending, 'pending', 0, -179.5)
@@ -140,11 +153,12 @@ describe('get_viewport_map_features', () => {
       await addImage(client, moderationPending, 'approved', 0, 179.3, { moderation_status: 'pending' })
       await addImage(client, privateImage, 'approved', 0, 179.2, { visibility: 'private' })
       await addImage(client, rejected, 'deleted', 0, 179.1)
+      await addImage(client, awaitingReview, 'approved', 0, 179.0)
       await client.query("update public.crags set deleted_at = now(), deletion_reason = 'test' where id = $1", [deleted])
 
       await setRequestRole(client, 'anon')
       const approvedOnly = await client.query('select * from public.get_viewport_map_features(1, -1, -179, 179, 12)')
-      const fixtureIds = [approved, pending, ineligible, deleted, processing, moderationPending, privateImage, rejected]
+      const fixtureIds = [approved, pending, ineligible, deleted, processing, moderationPending, privateImage, rejected, awaitingReview]
       const fixtureApprovedOnly = approvedOnly.rows.filter((row) => fixtureIds.includes(row.id))
       expect(fixtureApprovedOnly.map((row) => row.id)).toEqual([approved])
       expect(fixtureApprovedOnly[0].image_count).toBe('1')
@@ -166,7 +180,7 @@ describe('get_viewport_map_features', () => {
       await client.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: 'authenticated', sub: adminId })])
       const withPending = await client.query('select * from public.get_admin_viewport_map_features(1, -1, -179, 179, 12)')
       const fixtureWithPending = withPending.rows.filter((row) => fixtureIds.includes(row.id))
-      expect(fixtureWithPending.map((row) => row.id).sort()).toEqual([approved, pending].sort())
+      expect(fixtureWithPending.map((row) => row.id).sort()).toEqual([approved, pending, awaitingReview].sort())
     })
   })
 
@@ -179,6 +193,7 @@ describe('get_viewport_map_features', () => {
          values ($1, 'Wide inside', 50, 0), ($2, 'Wide outside latitude', 0, 0)`,
         [inside, outsideLatitude],
       )
+      await publishCrags(client, [inside, outsideLatitude])
       await addImage(client, inside, 'approved', 50, 0)
       await addImage(client, outsideLatitude, 'approved', 0, 0)
 

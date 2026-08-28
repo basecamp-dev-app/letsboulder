@@ -83,6 +83,7 @@ function createNearbyPlacesClient(result: QueryResult) {
 function createCragsClient(namedCrags: unknown[], tagRows: unknown[] = []) {
   const nameBuilder = {
     is: vi.fn(() => nameBuilder),
+    eq: vi.fn(() => nameBuilder),
     gte: vi.fn(() => nameBuilder),
     lte: vi.fn(() => nameBuilder),
     ilike: vi.fn(() => nameBuilder),

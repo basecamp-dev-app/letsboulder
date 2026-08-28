@@ -1120,6 +1120,51 @@ export type Database = {
           },
         ]
       }
+      crag_publication_events: {
+        Row: {
+          changed_by: string | null
+          crag_id: string
+          created_at: string
+          id: string
+          next_status: string
+          notes: string | null
+          previous_status: string
+        }
+        Insert: {
+          changed_by?: string | null
+          crag_id: string
+          created_at?: string
+          id?: string
+          next_status: string
+          notes?: string | null
+          previous_status: string
+        }
+        Update: {
+          changed_by?: string | null
+          crag_id?: string
+          created_at?: string
+          id?: string
+          next_status?: string
+          notes?: string | null
+          previous_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crag_publication_events_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "crags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crag_publication_events_crag_id_fkey"
+            columns: ["crag_id"]
+            isOneToOne: false
+            referencedRelation: "public_data_export_crags_v1"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crag_reports: {
         Row: {
           crag_id: string
@@ -1177,6 +1222,7 @@ export type Database = {
       crags: {
         Row: {
           access_notes: string | null
+          content_origin: string
           country: string | null
           country_code: string | null
           country_id: string | null
@@ -1194,9 +1240,16 @@ export type Database = {
           location_visibility: Database["public"]["Enums"]["location_visibility"]
           longitude: number | null
           name: string
+          publication_notes: string | null
+          publication_status: string
+          published_at: string | null
+          published_by: string | null
+          readiness_version: number
           region_id: string | null
           region_name: string | null
           report_count: number | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           rock_type: string | null
           route_count: number | null
           slug: string | null
@@ -1209,6 +1262,7 @@ export type Database = {
         }
         Insert: {
           access_notes?: string | null
+          content_origin?: string
           country?: string | null
           country_code?: string | null
           country_id?: string | null
@@ -1226,9 +1280,16 @@ export type Database = {
           location_visibility?: Database["public"]["Enums"]["location_visibility"]
           longitude?: number | null
           name: string
+          publication_notes?: string | null
+          publication_status?: string
+          published_at?: string | null
+          published_by?: string | null
+          readiness_version?: number
           region_id?: string | null
           region_name?: string | null
           report_count?: number | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           rock_type?: string | null
           route_count?: number | null
           slug?: string | null
@@ -1241,6 +1302,7 @@ export type Database = {
         }
         Update: {
           access_notes?: string | null
+          content_origin?: string
           country?: string | null
           country_code?: string | null
           country_id?: string | null
@@ -1258,9 +1320,16 @@ export type Database = {
           location_visibility?: Database["public"]["Enums"]["location_visibility"]
           longitude?: number | null
           name?: string
+          publication_notes?: string | null
+          publication_status?: string
+          published_at?: string | null
+          published_by?: string | null
+          readiness_version?: number
           region_id?: string | null
           region_name?: string | null
           report_count?: number | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           rock_type?: string | null
           route_count?: number | null
           slug?: string | null
@@ -4811,6 +4880,7 @@ export type Database = {
           username: string
         }[]
       }
+      get_public_impact_metrics_v1: { Args: never; Returns: Json }
       get_rankings_leaderboard: {
         Args: {
           p_gender?: string
@@ -5387,6 +5457,10 @@ export type Database = {
         Args: { p_crag_id: string; p_is_maintainer: boolean; p_user_id: string }
         Returns: boolean
       }
+      set_crag_publication_status: {
+        Args: { p_crag_id: string; p_notes?: string; p_status: string }
+        Returns: string
+      }
       set_topo_replacement_route_resolution: {
         Args: {
           p_climb_id: string
@@ -5442,6 +5516,7 @@ export type Database = {
         Args: { p_crag_id: string; p_reason: string; p_superseded_by?: string }
         Returns: {
           access_notes: string | null
+          content_origin: string
           country: string | null
           country_code: string | null
           country_id: string | null
@@ -5459,9 +5534,16 @@ export type Database = {
           location_visibility: Database["public"]["Enums"]["location_visibility"]
           longitude: number | null
           name: string
+          publication_notes: string | null
+          publication_status: string
+          published_at: string | null
+          published_by: string | null
+          readiness_version: number
           region_id: string | null
           region_name: string | null
           report_count: number | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           rock_type: string | null
           route_count: number | null
           slug: string | null
@@ -6540,3 +6622,4 @@ export const Constants = {
     },
   },
 } as const
+

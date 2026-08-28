@@ -23,4 +23,15 @@ describe('accessibility semantics', () => {
     expect(definitions[0]).toHaveTextContent('1,234')
     expect(definitions[1]).toHaveTextContent('Published routes currently in the guide')
   })
+
+  it('does not present a failed impact metric as zero', () => {
+    render(
+      <dl>
+        <ImpactCard title="Routes Documented" value={null} />
+      </dl>,
+    )
+
+    expect(screen.getByText('Temporarily unavailable')).toBeVisible()
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
+  })
 })
