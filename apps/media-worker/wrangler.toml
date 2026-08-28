@@ -15,11 +15,10 @@ MEDIA_HOST = "https://static.letsboulder.com"
 name = "media-worker-staging"
 
 [env.staging.vars]
-MEDIA_HOST = "https://static.dev.letsboulder.com"
-R2_ORIGIN_URL = "https://r2-origin-dev.letsboulder.com"
-SUPABASE_URL = "https://pfleqxztfiddujvylvaz.supabase.co"
-R2_PRIVATE_BUCKET = "lb-dev-media-private"
-R2_PUBLIC_BUCKET = "lb-dev-media-public"
+MEDIA_HOST = "https://static.staging.letsboulder.com"
+R2_ORIGIN_URL = "https://static.staging.letsboulder.com/origin"
+R2_PRIVATE_BUCKET = "lb-staging-media-private"
+R2_PUBLIC_BUCKET = "lb-staging-media-public"
 
 [env.staging.triggers]
 crons = ["*/2 * * * *"]
@@ -34,18 +33,18 @@ max_batch_size = 1
 
 [[env.staging.r2_buckets]]
 binding = "ORIGINALS_BUCKET"
-bucket_name = "lb-dev-media-private"
+bucket_name = "lb-staging-media-private"
 
 [[env.staging.r2_buckets]]
 binding = "PUBLIC_BUCKET"
-bucket_name = "lb-dev-media-public"
+bucket_name = "lb-staging-media-public"
 
 [env.staging.images]
 binding = "IMAGES"
 
 [[env.staging.routes]]
-pattern = "static.dev.letsboulder.com/*"
-zone_name = "letsboulder.com"
+pattern = "static.staging.letsboulder.com"
+custom_domain = true
 
 [env.production]
 name = "media-worker-production"

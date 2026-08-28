@@ -1,0 +1,78 @@
+name: Media Worker Deploy (Staging)
+
+on:
+  push:
+    branches:
+      - staging
+    paths:
+      - "apps/media-worker/**"
+      - ".github/workflows/media-worker-staging-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-worker-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    name: Deploy Media Worker (Staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Staging
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          cache: npm
+          cache-dependency-path: apps/media-worker/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/media-worker
+
+      - name: Typecheck media worker
+        run: npm run check
+        working-directory: apps/media-worker
+
+      - name: Upload staging media worker secrets
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INGRESS_SECRET: ${{ secrets.INGRESS_SECRET }}
+          INTERNAL_ORIGIN_SECRET: ${{ secrets.INTERNAL_ORIGIN_SECRET }}
+        run: |
+          set -euo pipefail
+          required=(SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INGRESS_SECRET INTERNAL_ORIGIN_SECRET)
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required in the Staging GitHub environment."
+              exit 1
+            fi
+          done
+
+          for name in SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INGRESS_SECRET INTERNAL_ORIGIN_SECRET; do
+            printf '%s' "${!name}" | npx --no-install wrangler secret put "$name" --env staging
+          done
+
+      - name: Deploy staging media worker
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/media-worker
+          command: deploy --env staging
+
+      - name: Smoke test staging media endpoint
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 \
+            https://static.dev.letsboulder.com/ >/dev/null
