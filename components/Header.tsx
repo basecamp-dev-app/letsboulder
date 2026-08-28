@@ -5,7 +5,13 @@ import { useEffect, useId, useState, useRef, useCallback, useMemo, type Keyboard
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { DESKTOP_MORE_MENU_SECTIONS } from '@/lib/nav-items'
+import {
+  DESKTOP_MORE_MENU_SECTIONS,
+  PRIMARY_NAV_ITEMS,
+  isNavItemActive,
+  isNavigationMenuRoute,
+  type NavItem,
+} from '@/lib/nav-items'
 import { useLazyAuthUser } from '@/components/use-lazy-auth-user'
 import { useSignOut } from '@/components/QueryProviders'
 
@@ -280,7 +286,7 @@ export default function Header() {
     }
   }
 
-  const renderMoreMenuSection = (label: string, items: Array<{ label: string; href: string }>) => {
+  const renderMoreMenuSection = (label: string, items: NavItem[]) => {
     if (items.length === 0) return null
 
     return (
@@ -290,8 +296,14 @@ export default function Header() {
           <Link
             key={item.href}
             href={item.href}
+            prefetch={item.prefetch}
             onClick={() => setShowMoreDropdown(false)}
-            className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+            aria-current={isNavItemActive(pathname, item) ? 'page' : undefined}
+            className={`block min-h-9 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 ${
+              isNavItemActive(pathname, item)
+                ? 'font-semibold text-gray-950 underline decoration-2 underline-offset-4 dark:text-white'
+                : 'text-gray-700 dark:text-gray-300'
+            }`}
           >
             {item.label}
           </Link>
@@ -351,14 +363,14 @@ export default function Header() {
 
   return (
     <header ref={headerRef} className="relative z-[3000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none block">
-      <div className="container mx-auto px-4 py-2 flex justify-between items-center gap-4">
-        <Link href="/" className="flex flex-shrink-0 items-center">
+      <div className="container mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2 md:flex-nowrap">
+        <Link href="/" className="flex min-h-9 flex-shrink-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <span className="text-xl font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-2xl">
             letsboulder
           </span>
         </Link>
 
-        <div ref={searchRef} className="relative flex-1 max-w-md">
+        <div ref={searchRef} className="relative order-3 w-full md:order-none md:flex-1 md:max-w-md">
           <input
             id="global-search"
             type="text"
@@ -452,33 +464,47 @@ export default function Header() {
             )}
         </div>
 
-        <nav className="flex items-center gap-1">
-          <Link prefetch={false} href="/logbook" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            Logbook
-          </Link>
-          <Link href="/" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            Map
-          </Link>
-          <Link prefetch={false} href="/submit" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            Contribute
-          </Link>
+        <nav aria-label="Primary navigation" className="hidden items-center gap-1 md:flex">
+          {PRIMARY_NAV_ITEMS.map((item) => {
+            const active = isNavItemActive(pathname, item)
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch={item.prefetch}
+                aria-current={active ? 'page' : undefined}
+                className={`hidden min-h-9 rounded-lg px-3 py-2 text-sm font-medium transition-colors md:block ${
+                  active
+                    ? 'bg-gray-100 text-gray-950 underline decoration-2 underline-offset-4 dark:bg-gray-800 dark:text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
+                }`}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
           <div ref={moreRef} className="relative hidden md:block">
             <button
               ref={moreButtonRef}
               type="button"
               onClick={handleMoreMenuToggle}
               onKeyDown={handleMoreButtonKeyDown}
-              className="flex items-center px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className={`flex min-h-9 items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                isNavigationMenuRoute(pathname)
+                  ? 'bg-gray-100 text-gray-950 underline decoration-2 underline-offset-4 dark:bg-gray-800 dark:text-white'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
+              }`}
               aria-label="More navigation"
               aria-expanded={showMoreDropdown}
               aria-controls={showMoreDropdown ? moreMenuId : undefined}
             >
+              <span>More</span>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
               </svg>
             </button>
               {showMoreDropdown && (
-                <div id={moreMenuId} aria-label="More navigation" className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-40 z-[4000]">
+                <nav id={moreMenuId} aria-label="More navigation" className="absolute right-0 top-full mt-1 min-w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900 z-[4000]">
                   {DESKTOP_MORE_MENU_SECTIONS.map((section) => renderMoreMenuSection(section.label, section.items))}
                 <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                 {user ? (
@@ -490,7 +516,7 @@ export default function Header() {
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                   >
-                    Logout
+                    Sign out
                   </button>
                 ) : (
                   <Link
@@ -498,10 +524,10 @@ export default function Header() {
                     onClick={() => setShowMoreDropdown(false)}
                     className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                   >
-                    Login
+                    Sign in
                   </Link>
                 )}
-              </div>
+              </nav>
             )}
           </div>
         </nav>

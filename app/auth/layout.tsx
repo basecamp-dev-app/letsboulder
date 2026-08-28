@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import StandaloneLayout from '@/components/StandaloneLayout'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,5 +17,9 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <>{children}</>
+  return (
+    <StandaloneLayout backLabel="Back to home">
+      {children}
+    </StandaloneLayout>
+  )
 }

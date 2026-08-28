@@ -48,8 +48,13 @@ export default function SupportCard({ compact = false }: SupportCardProps) {
             Buy the dev a bag of chalk on Ko-fi.
           </p>
           <Button asChild className="bg-emerald-600 text-white hover:bg-emerald-700">
-            <a href={SUPPORT_URL} target="_blank" rel="noreferrer">
-              Support letsboulder
+            <a
+              href={SUPPORT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Donate on Ko-fi (opens in a new tab)"
+            >
+              Donate on Ko-fi
               <ExternalLink className="h-4 w-4" />
             </a>
           </Button>

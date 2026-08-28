@@ -9,7 +9,7 @@ test.describe('Accessibility', () => {
 
     const dialog = page.getByRole('dialog', { name: /navigation menu/i })
     await expect(dialog).toBeVisible()
-    await expect(dialog.getByRole('navigation', { name: /mobile navigation/i })).toBeVisible()
+    await expect(dialog.getByRole('navigation', { name: /more navigation/i })).toBeVisible()
 
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
@@ -18,12 +18,12 @@ test.describe('Accessibility', () => {
   test('@full header search exposes combobox results and keyboard selection', async ({ page }) => {
     await page.goto('/')
 
-    const searchbox = page.getByRole('combobox', { name: /search crags or climbs/i })
+    const searchbox = page.getByRole('combobox', { name: /search all crags and climbs/i })
     await searchbox.fill('a')
     await searchbox.fill('ab')
 
     const listbox = page.getByRole('listbox', { name: /search results/i })
-    const emptyState = page.getByText(/no results found/i)
+    const emptyState = page.getByText(/no crags or climbs matched/i)
 
     await expect(listbox.or(emptyState)).toBeVisible({ timeout: 10000 })
 
@@ -34,18 +34,17 @@ test.describe('Accessibility', () => {
     }
   })
 
-  test('@full desktop more menu exposes menu button semantics', async ({ page }) => {
+  test('@full desktop more navigation exposes disclosure semantics', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await page.goto('/')
 
     const trigger = page.getByRole('button', { name: /more navigation/i })
-    await expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
     await expect(trigger).toHaveAttribute('aria-expanded', 'false')
 
     await trigger.click()
 
     await expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    await expect(page.getByRole('menu', { name: /more navigation/i })).toBeVisible()
+    await expect(page.getByRole('navigation', { name: /more navigation/i })).toBeVisible()
 
     await page.keyboard.press('Escape')
     await expect(trigger).toHaveAttribute('aria-expanded', 'false')
@@ -94,8 +93,51 @@ test.describe('Accessibility', () => {
     await page.goto('/')
 
     const skipLink = page.getByRole('link', { name: /skip to|skip main/i })
+    await skipLink.first().focus()
     await expect(skipLink.first()).toBeVisible({ timeout: 10000 })
+
+    await skipLink.first().click()
+    await expect(page.locator('main#main-content')).toBeFocused()
   })
+
+  const shellRoutes = [
+    '/',
+    '/about',
+    '/impact',
+    '/auth',
+    '/gym-owners',
+    '/gym-owners/apply',
+    '/privacy',
+    '/terms',
+    '/cookies',
+    '/open-data-terms',
+    '/submit',
+    '/logbook',
+    '/this-route-does-not-exist',
+  ]
+
+  for (const route of shellRoutes) {
+    test(`@full ${route} exposes one working main landmark`, async ({ page }) => {
+      await page.goto(route)
+      await expect(page.locator('main#main-content')).toHaveCount(1)
+      await expect(page.locator('#main-content')).toHaveCount(1)
+    })
+  }
+
+  for (const width of [320, 430]) {
+    test(`@full shell navigation reflows at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 })
+      await page.goto('/')
+
+      await expect(page.getByRole('navigation', { name: /mobile primary navigation/i })).toBeVisible()
+      await expect(page.getByRole('link', { name: 'Map', exact: true })).toHaveAttribute('aria-current', 'page')
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+
+      await page.goto('/privacy')
+      await expect(page.getByRole('navigation', { name: /legal navigation/i })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    })
+  }
 
   test('@full submit page has accessible form elements', async ({ page }) => {
     await page.goto('/submit')

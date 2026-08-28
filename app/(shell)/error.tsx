@@ -23,7 +23,7 @@ export default function Error({
 
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8 text-center">
-      <h2 className="text-lg font-semibold">Something went wrong</h2>
+      <h1 className="text-lg font-semibold">Something went wrong</h1>
       <p className="text-sm text-muted-foreground">
         An unexpected error occurred. Error ID:{' '}
         <code className="rounded bg-muted px-1.5 py-0.5 text-xs">

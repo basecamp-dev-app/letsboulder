@@ -22,7 +22,9 @@ export default function GlobalError({
   return (
     <html>
       <body>
-        <div
+        <main
+          id="main-content"
+          tabIndex={-1}
           style={{
             display: 'flex',
             minHeight: '100vh',
@@ -35,9 +37,9 @@ export default function GlobalError({
             fontFamily: 'system-ui, sans-serif',
           }}
         >
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 600 }}>
+          <h1 style={{ fontSize: '1.125rem', fontWeight: 600 }}>
             Something went wrong
-          </h2>
+          </h1>
           <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
             An unexpected error occurred. Error ID:{' '}
             <code
@@ -66,7 +68,12 @@ export default function GlobalError({
           >
             Try again
           </button>
-        </div>
+          {/* The global error replaces the router context, so this recovery link must be a plain anchor. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href="/" style={{ color: '#374151', fontSize: '0.875rem' }}>
+            Go to map
+          </a>
+        </main>
       </body>
     </html>
   )

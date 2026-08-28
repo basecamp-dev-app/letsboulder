@@ -123,7 +123,7 @@ function ImageFirstServerShell({ payload }: { payload: ImageFirstPayload }) {
 
   return (
     <section data-image-first-server-shell="true" className="min-h-screen bg-black text-white">
-      <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center px-4 py-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center px-4 py-8">
         <div className="relative h-[58dvh] w-full md:h-[68dvh] lg:h-[72dvh]">
           <Image
             src={payload.heroImage.src}
@@ -140,7 +140,7 @@ function ImageFirstServerShell({ payload }: { payload: ImageFirstPayload }) {
           {routeMeta ? <p className="mt-3 text-base text-white/70">{routeMeta}</p> : null}
           <p className="mt-4 text-base leading-7 text-white/75">{description}</p>
         </div>
-      </main>
+      </div>
     </section>
   )
 }
