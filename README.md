@@ -30,12 +30,12 @@ letsboulder is open source under the [Apache License 2.0](LICENSE).
 
 ## Architecture
 
-See [docs/architecture.md](docs/architecture.md) for the full system topology.
+See [docs/architecture.md](docs/architecture.md) for the application topology and [docs/deployment.md](docs/deployment.md) for deployed environment isolation and the release contract.
 
-- **Web app**: Next.js deployed on Vercel
-- **Database/Auth**: Supabase (PostgreSQL 17 with PostGIS)
-- **Media pipeline**: Cloudflare Worker in `apps/media-worker` backed by R2 buckets
-- **Media delivery**: CDN at `static.letsboulder.com` (prod) / `static.dev.letsboulder.com` (staging)
+- **Web app**: Next.js deployed on one Vercel project with `main` as Production and `staging` as persistent Pre-Production/Staging
+- **Database/Auth**: Separate production Supabase and `letsboulder-staging` projects
+- **Media pipeline**: Cloudflare Worker in `apps/media-worker` backed by environment-isolated R2 buckets and Queue resources
+- **Media delivery**: `static.letsboulder.com` in production and `static.staging.letsboulder.com` in staging
 - **Network resilience**: Online-first loading with explicit connection and retry states
 - **Open data**: Signed nightly ODbL snapshots in a dedicated public R2 bucket
 
@@ -50,8 +50,9 @@ Use this map to find the right place for a change:
 | Shared UI or app shell | `components/` | `components/ui/` and component tests |
 | Cross-feature technical code | `lib/` | Existing patterns in `docs/patterns.md` |
 | API behavior | `app/api/` | `docs/api/routes.md` and `tests/api/` |
-| Database behavior | `supabase/migrations/` | `docs/db/schema.md`, database tests, and generated `types/database.ts` |
+| Database behavior | `supabase/migrations/` | `docs/db/schema.md`, `docs/db/migrations.md`, database tests, and generated `types/database.ts` |
 | Media processing | `apps/media-worker/` | `docs/media-pipeline.md` and the worker README |
+| Deployment/release behavior | `.github/workflows/` | `docs/deployment.md` |
 | Maintenance and verification | `scripts/` and `docs/verify.sh` | `package.json` scripts |
 
 For the authoritative topic index, see [docs/README.md](docs/README.md). For contribution and validation rules, see [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -96,18 +97,24 @@ See [`.env.example`](.env.example) for the categorized application, media, integ
 | `OPEN_DATA_MINISIGN_PRIVATE_KEY`, `OPEN_DATA_MINISIGN_PUBLIC_KEY` | Export workflow | Matching signing keys stored in the protected Production environment |
 | `OPEN_DATA_R2_ENDPOINT`, `OPEN_DATA_R2_BUCKET`, `OPEN_DATA_PUBLIC_BASE_URL` | Export workflow | Production environment variables for storage and public discovery |
 
+Hosted deployment credentials are stored in protected GitHub environments and must not be committed. See [docs/deployment.md](docs/deployment.md) for the staging and production credential boundaries.
+
 ## Deployment
 
-| Environment | URL | Branch |
-|-------------|-----|--------|
-| Development | [dev.letsboulder.com](https://dev.letsboulder.com) | `dev` |
-| Production | [letsboulder.com](https://letsboulder.com) | `main` |
+| Environment | App URL | Media URL | Branch |
+|-------------|---------|-----------|--------|
+| Staging / Pre-Production | [staging.letsboulder.com](https://staging.letsboulder.com) | [static.staging.letsboulder.com](https://static.staging.letsboulder.com) | `staging` |
+| Production | [letsboulder.com](https://letsboulder.com) | [static.letsboulder.com](https://static.letsboulder.com) | `main` |
 
-**App**: CI triggers the production Vercel deploy hook after successful pushes to `main`. Preview and development deployment behavior is managed in Vercel.
+`staging` is a persistent hosted pre-production environment, not merely a preview branch. Changes intended for production must pass through hosted staging infrastructure, database migration, deployment, and smoke-test validation before promotion to `main`.
 
-**Media Worker**: Cloudflare Worker deployed via Wrangler (`apps/media-worker/wrangler.toml`)
+**App**: One Vercel project maps `staging` to Pre-Production/Staging and `main` to Production.
 
-**Database**: Maintainers verify the linked project and run `npx --no-install supabase db push --linked --dry-run` before deployment
+**Media Worker**: Staging uses the isolated `media-worker-staging` Worker with staging-only R2 buckets and Queue resources. Production media resources remain separate and unchanged.
+
+**Database**: Migrations must successfully apply to the real hosted `letsboulder-staging` Supabase project using the same linked Supabase CLI mechanism used by production before they are considered safe to promote. Local tests and hosted dry-runs remain useful checks but are not substitutes for the staging apply.
+
+See [docs/deployment.md](docs/deployment.md) for the full release sequence, GitHub `Staging` environment contract, Worker smoke test, security/isolation requirements, and production promotion rules.
 
 ## Contributing
 
@@ -121,11 +128,13 @@ git checkout -b my-change
 # work, test, commit
 git push -u origin my-change
 
-# open a pull request against main
-
-# CI runs automatically
-# Vercel deploys to letsboulder.com
+# open a pull request against staging
+# CI/local checks run
+# staging hosted validation runs after merge
+# promote validated staging to main for production release
 ```
+
+Do not bypass `staging` for production-bound changes. See [CONTRIBUTING.md](CONTRIBUTING.md) for review and verification expectations.
 
 ## Documentation
 
@@ -138,6 +147,7 @@ git push -u origin my-change
 ### Reference docs
 
 - [Architecture](docs/architecture.md) — system topology and data flow
+- [Deployment And Release Workflow](docs/deployment.md) — staging architecture, hosted migration gate, promotion path, and production isolation
 - [Documentation Index](docs/README.md) — source-of-truth and topic map
 - [Database Schema](docs/db/schema.md) — tables, RPCs, grade system, cascade logic
 - [Migrations](docs/db/migrations.md) — migration workflow and safety rules
