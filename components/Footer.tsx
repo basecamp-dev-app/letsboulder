@@ -59,6 +59,9 @@ export default function Footer() {
             <Link href="/cookies" aria-current={isActive('/cookies') ? 'page' : undefined} className={footerLinkClassName}>
               Cookies
             </Link>
+            <Link href="/cookies#privacy-choices" className={footerLinkClassName}>
+              Privacy choices
+            </Link>
             <Link href="/open-data-terms" aria-current={isActive('/open-data-terms') ? 'page' : undefined} className={footerLinkClassName}>
               Open data terms
             </Link>

@@ -142,7 +142,7 @@ The versioned database export surfaces are:
 
 | View | Contents |
 |------|----------|
-| `public_data_export_crags_v1` | Active crags with nonblank slug/country code and policy-filtered coordinates |
+| `public_data_export_crags_v1` | Published active crags with nonblank slug/country code and policy-filtered coordinates |
 | `public_data_export_routes_v1` | Active/approved routes under eligible crags, with effective shared climb ID and location policy |
 | `public_data_export_route_lines_v1` | Route geometry for exported routes on ready, approved/skipped, public, approved media with an active crag parent when present |
 | `public_data_export_sectors_v1` | Sectors under eligible crags |
@@ -160,6 +160,7 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 | `topo_replacement_routes` | Per-climb mapping from existing route identity to a replacement draft line or `not_visible` resolution |
 | `topo_route_line_tombstones` | Audited snapshots of perspective-specific route lines removed with a topo |
 | `crag_images` | Multi-image crag gallery |
+| `crag_publication_events` | Immutable audit records for crag publication-state transitions |
 | `submission_collaborators` | Legacy invite-based published collaboration rows; no longer required for published wiki editing |
 | `submission_collaborator_invites` | Legacy token-based invites for published collaboration |
 | `submission_draft_collaborators` | Shared editing access on drafts |
@@ -329,6 +330,7 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 - `claim_media_deletion_job(worker_name, lease_seconds)` reclaims due or expired deletion work with `FOR UPDATE SKIP LOCKED`. Completion/retry/failure RPCs require the current claim token, and completed/cancelled jobs are pruned after 30 days.
 - Active ingest runs through `media_jobs` + the Worker in `apps/media-worker`; `images` remains the source of truth.
 - Canonical publishability is `processing_status = 'ready'` and `moderation_status IN ('approved', 'skipped')`. Public delivery or association additionally requires `visibility = 'public'` and legacy `status = 'approved'`.
+- Public crag discovery is gated by `crags.publication_status = 'published'`. New crags default to `review`; administrators or assigned maintainers transition them through `set_crag_publication_status`, which applies readiness checks and records `crag_publication_events`.
 - `crag_images` is a gallery association, not independent media approval. Public reads require an active crag and a publicly deliverable `linked_image_id`. Unlinked legacy rows fail closed unless individually reviewed through the service-only `mark_legacy_crag_image_published(crag_image_id)` RPC, which records `legacy_published_at`; presence in `crag_images` or a raw storage locator never establishes publication.
 - `assert_media_ready_for_publication(image_ids)` locks and validates authoritative `images` rows inside publication transactions. Draft promotion, unified submission creation, route creation, and linked `crag_images` writes fail with detail code `media_not_ready` until every image is publicly deliverable.
 - Transactional guards require publication RPCs to associate existing upload-session image IDs and preserve worker-produced processing, moderation, visibility, and delivery fields.

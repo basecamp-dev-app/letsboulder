@@ -11,6 +11,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     return {
       title: 'Crag Not Found',
       description: 'This crag could not be found.',
+      robots: { index: false, follow: true },
     }
   }
 

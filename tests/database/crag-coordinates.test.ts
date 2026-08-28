@@ -129,6 +129,11 @@ describe('canonical crag coordinates', () => {
                 ($4, 'Deleted polar crag', 85, 179.9)`,
         [nearestId, antimeridianId, outsideId, deletedId],
       )
+      await client.query(
+        `update public.crags set publication_status = 'published', published_at = now()
+         where id = any($1::uuid[])`,
+        [[nearestId, antimeridianId, outsideId, deletedId]],
+      )
 
       await client.query('set local role service_role')
       await client.query(

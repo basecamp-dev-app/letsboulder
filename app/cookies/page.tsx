@@ -43,7 +43,7 @@ export default function CookiePage() {
             <li><strong>Cookies</strong> for authentication, session continuity, CSRF protection, and redirect handling.</li>
             <li><strong>Local storage</strong> for app preferences and client-side security helpers.</li>
             <li><strong>IndexedDB and browser storage</strong> for selected cached app data and app functionality.</li>
-            <li><strong>Analytics and monitoring technologies</strong> to help us understand service performance, usage patterns, and reliability.</li>
+            <li><strong>Error monitoring</strong> to help us diagnose reliability and performance problems.</li>
           </ul>
         </section>
 
@@ -60,9 +60,9 @@ export default function CookiePage() {
             These technologies remember settings such as theme, app preferences, and other choices that improve the user experience.
           </p>
 
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">3.3 Performance and Analytics</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">3.3 Error Monitoring</h3>
           <p className="text-gray-700 dark:text-gray-300">
-            We use limited analytics and monitoring tools, including Vercel Analytics, Vercel Speed Insights, and Sentry, to understand usage patterns and improve reliability and performance.
+            We use Sentry in production to diagnose errors and performance problems. Application-level Vercel Analytics and Vercel Speed Insights are not currently initialized by letsboulder. We will update this policy and provide any legally required choices before enabling optional analytics.
           </p>
         </section>
 
@@ -79,9 +79,12 @@ export default function CookiePage() {
         </section>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">5. Managing Cookies and Storage</h2>
+          <h2 id="privacy-choices" className="text-xl font-semibold text-gray-900 dark:text-gray-100">5. Managing Cookies, Storage, and Privacy Choices</h2>
           <p className="text-gray-700 dark:text-gray-300">
             Most browsers let you block or delete cookies and clear site storage. Blocking essential technologies may stop parts of letsboulder from working correctly, including sign-in, account settings, and other app features.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            letsboulder does not currently initialize optional application analytics, so there is no analytics preference to save. Error replay is disabled by default. If optional telemetry is introduced, its controls will remain reachable from this section and the site navigation.
           </p>
         </section>
 

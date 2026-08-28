@@ -15,6 +15,7 @@ import {
   INSTAGRAM_URL,
   SITE_URL,
   SUPPORT_EMAIL,
+  SOURCE_REPOSITORY_URL,
   X_HANDLE,
   X_URL,
 } from '@/lib/site'
@@ -155,7 +156,7 @@ export default function RootLayout({
               url: SITE_URL,
               logo: `${SITE_URL}/icon-512.png`,
               description: 'Community-driven climbing platform with an interactive map, photo topos, and a personal logbook.',
-              sameAs: [X_URL, INSTAGRAM_URL],
+              sameAs: [X_URL, INSTAGRAM_URL, SOURCE_REPOSITORY_URL],
               contactPoint: {
                 '@type': 'ContactPoint',
                 email: SUPPORT_EMAIL,

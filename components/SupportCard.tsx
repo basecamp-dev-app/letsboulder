@@ -2,9 +2,7 @@ import { Heart, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  MONTHLY_SUPPORT_CURRENT_USD,
   MONTHLY_SUPPORT_TARGET_USD,
-  MONTHLY_SUPPORT_UPDATED_LABEL,
   SUPPORT_URL,
 } from '@/lib/site'
 
@@ -13,11 +11,6 @@ interface SupportCardProps {
 }
 
 export default function SupportCard({ compact = false }: SupportCardProps) {
-  const progress = Math.min(
-    100,
-    Math.round((MONTHLY_SUPPORT_CURRENT_USD / Math.max(MONTHLY_SUPPORT_TARGET_USD, 1)) * 100),
-  )
-
   return (
     <Card id="support" className="border-emerald-200 bg-gradient-to-br from-white via-emerald-50/60 to-stone-50 dark:border-emerald-900/60 dark:from-gray-900 dark:via-emerald-950/30 dark:to-gray-900">
       <CardHeader className={compact ? 'pb-3' : 'pb-4'}>
@@ -31,15 +24,10 @@ export default function SupportCard({ compact = false }: SupportCardProps) {
       </CardHeader>
       <CardContent className={compact ? 'space-y-4' : 'space-y-5'}>
         <div className="rounded-xl border border-emerald-100 bg-white/80 p-4 shadow-sm dark:border-emerald-900/50 dark:bg-gray-950/50">
-          <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-            <span className="font-medium text-gray-900 dark:text-gray-100">Monthly server costs</span>
-            <span className="text-gray-600 dark:text-gray-400">${MONTHLY_SUPPORT_CURRENT_USD} / ${MONTHLY_SUPPORT_TARGET_USD}</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
-            <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-500" style={{ width: `${progress}%` }} />
-          </div>
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Monthly infrastructure target</p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">${MONTHLY_SUPPORT_TARGET_USD}</p>
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            Updated manually. Last check: {MONTHLY_SUPPORT_UPDATED_LABEL}.
+            This is the operating target, not a live total of donations received.
           </p>
         </div>
 

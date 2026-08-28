@@ -25,6 +25,7 @@ type MaintainerRow = Database['public']['Tables']['crag_maintainers']['Row']
 type ProposeArgs = Database['public']['Functions']['propose_crag_metadata']['Args']
 type ReviewArgs = Database['public']['Functions']['review_crag_metadata_proposal']['Args']
 type SetMaintainerArgs = Database['public']['Functions']['set_crag_maintainer']['Args']
+type SetPublicationArgs = Database['public']['Functions']['set_crag_publication_status']['Args']
 
 const proposeSchema = z.object({
   cragId: z.uuid(),
@@ -46,6 +47,11 @@ const cragSchema = z.object({ cragId: z.uuid() })
 const setMaintainerSchema = cragSchema.extend({
   userReference: z.string().trim().min(1).max(320),
   isMaintainer: z.boolean(),
+})
+const publicationStatusSchema = z.enum(['draft', 'review', 'published', 'archived'])
+const setPublicationSchema = cragSchema.extend({
+  status: publicationStatusSchema,
+  notes: z.string().trim().max(1000).nullable().optional(),
 })
 
 function isRecord(value: Json): value is { [key: string]: Json | undefined } {
@@ -270,4 +276,44 @@ export async function setCragMaintainerAction(input: unknown): Promise<ActionRes
   revalidatePath('/admin/crags')
   revalidatePath('/maintain/crags')
   return ok({ userId, isMaintainer: data })
+}
+
+export async function setCragPublicationStatusAction(
+  input: unknown,
+): Promise<ActionResult<{ status: 'draft' | 'review' | 'published' | 'archived' }>> {
+  const validation = validateActionInput(setPublicationSchema, input)
+  if (!validation.success) {
+    return failureFor<{ status: 'draft' | 'review' | 'published' | 'archived' }>(validation.result)
+  }
+
+  const auth = await getActionAuth()
+  if (!auth.success) {
+    return failureFor<{ status: 'draft' | 'review' | 'published' | 'archived' }>(auth)
+  }
+
+  const args: SetPublicationArgs = {
+    p_crag_id: validation.data.cragId,
+    p_status: validation.data.status,
+    p_notes: validation.data.notes || undefined,
+  }
+  const supabase = await getServerClient()
+  const { data, error } = await supabase.rpc('set_crag_publication_status', args)
+  if (error) {
+    return mapRpcError<{ status: 'draft' | 'review' | 'published' | 'archived' }>(
+      error,
+      'Failed to update publication status',
+    )
+  }
+  const returnedStatus = publicationStatusSchema.safeParse(data)
+  if (!returnedStatus.success) return fail('Publication update returned an invalid response', 500)
+
+  revalidatePath('/')
+  revalidatePath('/impact')
+  revalidatePath('/sitemap.xml')
+  revalidatePath('/sitemaps/crags/[page]', 'page')
+  revalidatePath('/sitemaps/climbs/[page]', 'page')
+  revalidatePath('/maintain/crags')
+  revalidatePath(`/maintain/crags/${validation.data.cragId}`)
+  revalidatePublicCrag(validation.data.cragId)
+  return ok({ status: returnedStatus.data })
 }

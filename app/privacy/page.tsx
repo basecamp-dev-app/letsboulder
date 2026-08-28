@@ -25,7 +25,7 @@ export default function PrivacyPage() {
           </h2>
           <ul className="mb-0 list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
             <li>letsboulder helps climbers log ascents, upload climbing photos, discover routes, and use community features.</li>
-            <li>We collect account details, profile details, climbing activity, uploaded media, location-related data, and limited technical, analytics, and error-monitoring data.</li>
+            <li>We collect account details, profile details, climbing activity, uploaded media, location-related data, and limited technical and error-monitoring data.</li>
             <li>Some content is public by design, including route submissions, map data, public profiles, and community posts.</li>
             <li>You can ask us to access, correct, delete, or export your personal data by emailing hello@letsboulder.com.</li>
             <li>letsboulder is operated by Patrick William Hadow trading as letsboulder, an individual / sole trader based in the United Kingdom.</li>
@@ -74,7 +74,7 @@ export default function PrivacyPage() {
           <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
             <li>IP address, browser type, operating system, referral information, timestamps, and request logs.</li>
             <li>Session identifiers, cookies, CSRF/security tokens, local storage values, IndexedDB records, and browser cache data.</li>
-            <li>Limited analytics, performance, and error-monitoring data from tools we use to understand reliability and usage.</li>
+            <li>Limited performance and error-monitoring data used to understand reliability.</li>
           </ul>
         </section>
 
@@ -117,7 +117,6 @@ export default function PrivacyPage() {
           <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
             <li><strong>Supabase</strong> for authentication, database services, and storage.</li>
             <li><strong>Vercel</strong> for hosting and infrastructure.</li>
-            <li><strong>Vercel Analytics and Vercel Speed Insights</strong> for usage and performance measurement.</li>
             <li><strong>Resend</strong> for transactional email delivery.</li>
             <li><strong>Cloudflare</strong> for image storage, processing, and delivery.</li>
             <li><strong>Sentry</strong> for error tracking and performance monitoring.</li>
@@ -130,10 +129,10 @@ export default function PrivacyPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">8. Cookies, Local Storage, and Similar Technologies</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            We use cookies and similar technologies for authentication, session continuity, security, storing preferences, analytics, and performance monitoring. We also use local storage, IndexedDB, and normal browser caching for app state, CSRF handling, and selected cached content.
+            We use cookies and similar technologies for authentication, session continuity, security, storing preferences, and error monitoring. We also use local storage, IndexedDB, and normal browser caching for app state, CSRF handling, and selected cached content. Application-level Vercel Analytics and Vercel Speed Insights are not currently initialized.
           </p>
           <p className="text-gray-700 dark:text-gray-300">
-            For more detail, see our <Link href="/cookies" className="underline">Cookie Policy</Link>. You can also control many cookies through your browser settings.
+            For more detail, see our <Link href="/cookies" className="underline">Cookie Policy</Link> or go directly to <Link href="/cookies#privacy-choices" className="underline">Privacy choices</Link>. You can also control many cookies through your browser settings.
           </p>
         </section>
 

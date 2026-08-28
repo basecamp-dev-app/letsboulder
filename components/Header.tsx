@@ -177,6 +177,9 @@ export default function Header() {
         supabase
           .from('crags')
           .select('id, name, latitude, longitude, slug, country_code, region_name, sub_area')
+          .eq('publication_status', 'published')
+          .is('deleted_at', null)
+          .is('superseded_by', null)
           .ilike('name', `%${trimmedQuery}%`)
           .limit(5)
           .abortSignal(abortController.signal),
@@ -184,7 +187,10 @@ export default function Header() {
           .from('climbs')
           .select('id, name, crags!inner(name, latitude, longitude, country_code, region_name, sub_area)')
           .ilike('name', `%${trimmedQuery}%`)
-          .eq('status', 'approved')
+          .in('status', ['active', 'approved'])
+          .eq('crags.publication_status', 'published')
+          .is('crags.deleted_at', null)
+          .is('crags.superseded_by', null)
           .limit(10)
           .abortSignal(abortController.signal)
       ])

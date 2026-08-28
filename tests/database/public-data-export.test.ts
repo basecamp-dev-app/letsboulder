@@ -24,6 +24,14 @@ async function asExportReader(client: PoolClient) {
   await client.query('set local role public_data_export_reader')
 }
 
+async function publishCrags(client: PoolClient, ids: string[]) {
+  await client.query(
+    `update public.crags set publication_status = 'published', published_at = now()
+     where id = any($1::uuid[])`,
+    [ids],
+  )
+}
+
 async function expectedFailure(client: PoolClient, sql: string): Promise<string> {
   const savepoint = `expected_error_${randomUUID().replaceAll('-', '')}`
   await client.query(`savepoint ${savepoint}`)
@@ -76,6 +84,7 @@ describe('public data export views', () => {
       const blankSlug = randomUUID()
       const blankCountry = randomUUID()
       const deleted = randomUUID()
+      const awaitingReview = randomUUID()
       await client.query(
         `insert into public.crags (
            id, name, slug, country_code, latitude, longitude, location_visibility
@@ -85,9 +94,11 @@ describe('public data export views', () => {
            ($3, 'Hidden', 'export-hidden', 'GB', 12.345678, -45.678912, 'hidden'),
            ($4, 'Blank slug', ' ', 'GB', 1, 2, 'exact'),
            ($5, 'Blank country', 'blank-country', ' ', 1, 2, 'exact'),
-           ($6, 'Deleted', 'export-deleted', 'GB', 1, 2, 'exact')`,
-        [exact, approximate, hidden, blankSlug, blankCountry, deleted],
+           ($6, 'Deleted', 'export-deleted', 'GB', 1, 2, 'exact'),
+           ($7, 'Awaiting review', 'export-review', 'GB', 1, 2, 'exact')`,
+        [exact, approximate, hidden, blankSlug, blankCountry, deleted, awaitingReview],
       )
+      await publishCrags(client, [exact, approximate, hidden, blankSlug, blankCountry, deleted])
       await markDeleted(client, 'crags', deleted)
 
       await asExportReader(client)
@@ -95,7 +106,7 @@ describe('public data export views', () => {
         `select id, location_visibility, latitude, longitude
          from public.public_data_export_crags_v1
          where id = any($1::uuid[]) order by id`,
-        [[exact, approximate, hidden, blankSlug, blankCountry, deleted]],
+        [[exact, approximate, hidden, blankSlug, blankCountry, deleted, awaitingReview]],
       )
       expect(result.rows.map((row) => row.id).sort()).toEqual([exact, approximate, hidden].sort())
       expect(result.rows.find((row) => row.id === exact)).toMatchObject({
@@ -122,6 +133,7 @@ describe('public data export views', () => {
                 ($3, 'Hidden parent', 'hidden-parent', 'GB', 'hidden')`,
         [exactCrag, approximateCrag, hiddenCrag],
       )
+      await publishCrags(client, [exactCrag, approximateCrag, hiddenCrag])
 
       const shared = randomUUID()
       const exact = randomUUID()
@@ -186,6 +198,7 @@ describe('public data export views', () => {
                 ($3, 'Deleted image parent', 'deleted-image-parent', 'GB')`,
         [crag, ineligibleCrag, deletedImageCrag],
       )
+      await publishCrags(client, [crag, ineligibleCrag, deletedImageCrag])
       const sector = randomUUID()
       const hiddenSector = randomUUID()
       await client.query(
@@ -273,6 +286,7 @@ describe('public data export views', () => {
                 ($2, 'Deleted crag', 'deleted-crag', 'GB')`,
         [replacementCrag, deletedCrag],
       )
+      await publishCrags(client, [replacementCrag, deletedCrag])
       await client.query(
         `insert into public.climbs (id, crag_id, name, grade, status, route_type)
          values ($1, $3, 'Replacement route', '6A', 'approved', 'boulder'),

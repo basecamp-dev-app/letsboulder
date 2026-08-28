@@ -16,6 +16,14 @@ interface SitemapCragRow {
   updated_at: string | null
 }
 
+export function buildSitemapCragEntry(crag: SitemapCragRow): SitemapEntry | null {
+  if (!crag.slug || !crag.country_code) return null
+  return {
+    url: `${SITE_URL}/${String(crag.country_code).toLowerCase()}/${crag.slug}`,
+    lastModified: crag.updated_at ? new Date(crag.updated_at) : undefined,
+  }
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ page: string }> }
@@ -31,6 +39,9 @@ export async function GET(
   const { data, error } = await getUnauthenticatedClient()
     .from('crags')
     .select('slug, country_code, updated_at')
+    .eq('publication_status', 'published')
+    .is('deleted_at', null)
+    .is('superseded_by', null)
     .not('slug', 'is', null)
     .neq('slug', '')
     .not('country_code', 'is', null)
@@ -44,11 +55,8 @@ export async function GET(
   }
 
   const entries: SitemapEntry[] = ((data || []) as SitemapCragRow[])
-    .filter((crag) => crag.slug && crag.country_code)
-    .map((crag) => ({
-      url: `${SITE_URL}/${String(crag.country_code).toLowerCase()}/${crag.slug}`,
-      lastModified: crag.updated_at ? new Date(crag.updated_at) : undefined,
-    }))
+    .map(buildSitemapCragEntry)
+    .filter((entry): entry is SitemapEntry => entry !== null)
 
   if (entries.length === 0) {
     return new Response('Not Found', { status: 404 })

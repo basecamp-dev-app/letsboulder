@@ -57,6 +57,11 @@ describe('get_place_pins', () => {
         [JSON.stringify(Object.entries(states).map(([name, id]) => ({ id, name, slug: name.toLowerCase() })))],
       )
       await client.query(
+        `update public.crags set publication_status = 'published', published_at = now()
+         where id = any($1::uuid[])`,
+        [Object.values(states)],
+      )
+      await client.query(
         "insert into public.places (id, name, type, latitude, longitude, slug) values ($1, 'Visible gym', 'gym', 10, 10, 'visible-gym')",
         [gymId],
       )

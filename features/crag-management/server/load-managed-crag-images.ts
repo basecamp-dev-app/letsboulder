@@ -84,7 +84,7 @@ export async function loadManagedCragImages(
   const [{ data: crag, error: cragError }, canonicalCountResult, legacyCountResult, routeCountResult] = await Promise.all([
     admin
       .from('crags')
-      .select('id, name, country_code, slug, region_name, sub_area')
+      .select('id, name, country_code, slug, region_name, sub_area, publication_status, publication_notes')
       .eq('id', cragId)
       .is('deleted_at', null)
       .maybeSingle(),
@@ -276,6 +276,8 @@ export async function loadManagedCragImages(
         subArea: crag.sub_area,
         routeCount: routeCountResult.count || 0,
         imageCount: total,
+        publicationStatus: crag.publication_status as 'draft' | 'review' | 'published' | 'archived',
+        publicationNotes: crag.publication_notes,
       },
       images,
       page: boundedPage,

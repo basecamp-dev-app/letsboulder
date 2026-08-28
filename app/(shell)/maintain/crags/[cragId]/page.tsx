@@ -5,6 +5,7 @@ import { ArrowLeft, ExternalLink, Images, MapPin, Mountain, Route, ShieldAlert }
 import ManagedCragImages from '@/features/crag-management/components/ManagedCragImages'
 import { loadManagedCragImages } from '@/features/crag-management/server/load-managed-crag-images'
 import { Button } from '@/components/ui/button'
+import CragPublicationControls from '@/features/crags/components/CragPublicationControls'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,9 +56,11 @@ export default async function ManageCragPage({ params, searchParams }: ManageCra
               <MapPin className="h-4 w-4" aria-hidden="true" /> {location}
             </p>
           </div>
-          <Button asChild variant="outline">
-            <Link href={publicCragHref}>View public crag <ExternalLink className="h-4 w-4" aria-hidden="true" /></Link>
-          </Button>
+          {crag.publicationStatus === 'published' ? (
+            <Button asChild variant="outline">
+              <Link href={publicCragHref}>View public crag <ExternalLink className="h-4 w-4" aria-hidden="true" /></Link>
+            </Button>
+          ) : null}
         </div>
         <dl className="mt-6 grid grid-cols-2 gap-3 sm:max-w-md">
           <div className="rounded-xl bg-muted/60 p-3">
@@ -69,6 +72,11 @@ export default async function ManageCragPage({ params, searchParams }: ManageCra
             <dd className="mt-1 text-2xl font-semibold">{crag.imageCount}</dd>
           </div>
         </dl>
+        <CragPublicationControls
+          cragId={crag.id}
+          initialNotes={crag.publicationNotes}
+          initialStatus={crag.publicationStatus}
+        />
       </header>
 
       <section aria-labelledby="managed-images-heading" className="mt-10">

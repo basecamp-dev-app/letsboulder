@@ -57,6 +57,11 @@ async function createCrag(client: PoolClient, name: string) {
      values ($1, $2, 'boulder', 'GB', $3)`,
     [id, name, slug],
   )
+  await client.query(
+    `update public.crags set publication_status = 'published', published_at = now()
+     where id = $1`,
+    [id],
+  )
   return { id, slug }
 }
 

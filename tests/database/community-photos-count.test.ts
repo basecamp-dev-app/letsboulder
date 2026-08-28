@@ -49,6 +49,12 @@ describe('get_community_photos_count', () => {
            ($1, 'Active aggregate crag', $2), ($3, 'Deleted aggregate crag', $4)`,
         [activeCrag, `active-${activeCrag}`, deletedCrag, `deleted-${deletedCrag}`],
       )
+      await client.query(
+        `update public.crags
+         set publication_status = 'published', published_at = now()
+         where id in ($1, $2)`,
+        [activeCrag, deletedCrag],
+      )
       const before = Number((await client.query('select public.get_community_photos_count() as count')).rows[0].count)
       const ready = await addImage(client, activeCrag)
       await addImage(client, activeCrag, { moderation_status: 'skipped' })

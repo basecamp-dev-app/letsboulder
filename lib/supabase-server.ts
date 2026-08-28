@@ -139,6 +139,33 @@ export function fetchAdminViewportMapFeaturesWithClient(
   return fetchViewportMapFeaturesRpc(supabase, bounds, 'get_admin_viewport_map_features')
 }
 
+export interface PublicImpactMetrics {
+  definitionVersion: number
+  generatedAt: string
+  routesDocumented: number
+  cragsMapped: number
+  sendsLogged: number
+  activeClimbers: number
+  photos: number
+  contributors: number
+}
+
+function isPublicImpactMetrics(value: unknown): value is PublicImpactMetrics {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  return typeof record.generatedAt === 'string'
+    && ['definitionVersion', 'routesDocumented', 'cragsMapped', 'sendsLogged',
+      'activeClimbers', 'photos', 'contributors']
+      .every((key) => typeof record[key] === 'number')
+}
+
+export const getPublicImpactMetrics = cache(async (): Promise<PublicImpactMetrics | null> => {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase.rpc('get_public_impact_metrics_v1')
+  if (error || !isPublicImpactMetrics(data)) return null
+  return data
+})
+
 export const getCommunityPhotosCount = cache(async (): Promise<number> => {
   const supabase = await getServerClient()
   const { data, error } = await supabase.rpc('get_community_photos_count')

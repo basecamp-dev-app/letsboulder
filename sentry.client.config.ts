@@ -26,7 +26,7 @@ Sentry.init({
   dsn: process.env.SENTRY_DSN,
   enabled: isProduction,
   replaysOnErrorSampleRate: replayEnabled
-    ? getSampleRate(process.env.NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE, 0.1)
+    ? getSampleRate(process.env.NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE, 0)
     : 0,
   replaysSessionSampleRate: replayEnabled
     ? getSampleRate(process.env.NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE, 0)

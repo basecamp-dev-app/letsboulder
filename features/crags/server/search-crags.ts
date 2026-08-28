@@ -49,6 +49,7 @@ export async function searchCrags({ supabase, query, latitude, longitude }: Sear
     .select('id,name,latitude,longitude,slug,country_code,region_name,sub_area,rock_type')
     .is('deleted_at', null)
     .is('superseded_by', null)
+    .eq('publication_status', 'published')
 
   if (hasLocation) {
     const latRange = 0.1
@@ -85,6 +86,7 @@ export async function searchCrags({ supabase, query, latitude, longitude }: Sear
       .select('id,name,latitude,longitude,slug,country_code,region_name,sub_area,rock_type')
       .is('deleted_at', null)
       .is('superseded_by', null)
+      .eq('publication_status', 'published')
       .gte('latitude', latitude - 0.02)
       .lte('latitude', latitude + 0.02)
       .gte('longitude', longitude - 0.03)
@@ -111,6 +113,7 @@ export async function searchCrags({ supabase, query, latitude, longitude }: Sear
       .select('crag_id, crags!inner(id,name,latitude,longitude,slug,country_code,region_name,sub_area,rock_type), location_tags!inner(name,kind)')
       .is('crags.deleted_at', null)
       .is('crags.superseded_by', null)
+      .eq('crags.publication_status', 'published')
       .eq('location_tags.kind', 'region')
       .ilike('location_tags.name', `%${query}%`)
       .limit(80)

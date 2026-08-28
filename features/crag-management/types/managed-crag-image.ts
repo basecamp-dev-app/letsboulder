@@ -23,6 +23,8 @@ export interface ManagedCragSummary {
   subArea: string | null
   routeCount: number
   imageCount: number
+  publicationStatus: 'draft' | 'review' | 'published' | 'archived'
+  publicationNotes: string | null
 }
 
 export interface ManagedCragImagesPage {

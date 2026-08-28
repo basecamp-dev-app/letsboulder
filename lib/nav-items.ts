@@ -24,6 +24,7 @@ export const LEGAL_NAV_ITEMS: NavItem[] = [
   { label: 'Privacy', href: '/privacy' },
   { label: 'Terms', href: '/terms' },
   { label: 'Cookies', href: '/cookies' },
+  { label: 'Privacy choices', href: '/cookies#privacy-choices' },
   { label: 'Open data terms', href: '/open-data-terms' },
 ]
 
