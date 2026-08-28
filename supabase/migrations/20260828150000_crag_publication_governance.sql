@@ -616,7 +616,9 @@ AFTER INSERT OR UPDATE OF deleted_at, superseded_by, slug, country_code, publica
 ON public.crags FOR EACH ROW EXECUTE FUNCTION public.register_public_data_export_entity();
 
 GRANT CREATE ON SCHEMA public TO public_data_export_owner;
-GRANT public_data_export_owner TO postgres;
+-- Hosted Postgres may select an inherited grantor for role membership.
+-- Admin option ensures the temporary membership can be revoked by postgres.
+GRANT public_data_export_owner TO postgres WITH ADMIN OPTION;
 SET ROLE public_data_export_owner;
 
 CREATE OR REPLACE VIEW public.public_data_export_crags_v1
