@@ -616,9 +616,7 @@ AFTER INSERT OR UPDATE OF deleted_at, superseded_by, slug, country_code, publica
 ON public.crags FOR EACH ROW EXECUTE FUNCTION public.register_public_data_export_entity();
 
 GRANT CREATE ON SCHEMA public TO public_data_export_owner;
--- Hosted Postgres may select an inherited grantor for role membership.
--- Admin option ensures the temporary membership can be revoked by postgres.
-GRANT public_data_export_owner TO postgres WITH ADMIN OPTION;
+GRANT public_data_export_owner TO postgres;
 SET ROLE public_data_export_owner;
 
 CREATE OR REPLACE VIEW public.public_data_export_crags_v1
@@ -669,7 +667,32 @@ WHERE crag.deleted_at IS NULL AND crag.superseded_by IS NULL
   AND NULLIF(btrim(crag.country_code), '') IS NOT NULL;
 
 RESET ROLE;
-REVOKE public_data_export_owner FROM postgres;
+
+-- PostgreSQL 16+ records role memberships per grantor. Hosted Supabase can
+-- select an inherited grantor (for example supabase_admin), while local
+-- Supabase records postgres. Revoke every exact temporary grant so the
+-- least-privilege end state is identical in both environments.
+DO $
+DECLARE
+  membership_grantor name;
+BEGIN
+  FOR membership_grantor IN
+    SELECT grantor_role.rolname
+    FROM pg_auth_members membership
+    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+    JOIN pg_roles member_role ON member_role.oid = membership.member
+    JOIN pg_roles grantor_role ON grantor_role.oid = membership.grantor
+    WHERE granted_role.rolname = 'public_data_export_owner'
+      AND member_role.rolname = 'postgres'
+  LOOP
+    EXECUTE format(
+      'REVOKE public_data_export_owner FROM postgres GRANTED BY %I',
+      membership_grantor
+    );
+  END LOOP;
+END
+$;
+
 REVOKE CREATE ON SCHEMA public FROM public_data_export_owner;
 
 COMMENT ON COLUMN public.crags.publication_status IS
