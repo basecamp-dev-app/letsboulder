@@ -675,7 +675,6 @@ WHERE crag.deleted_at IS NULL AND crag.superseded_by IS NULL
 -- Return to the grantor before revoking, then restore the original session role.
 SET ROLE postgres;
 REVOKE public_data_export_owner FROM postgres GRANTED BY postgres;
-RESET ROLE;
 REVOKE CREATE ON SCHEMA public FROM public_data_export_owner;
 
 COMMENT ON COLUMN public.crags.publication_status IS
@@ -684,3 +683,6 @@ COMMENT ON COLUMN public.crags.content_origin IS
   'Provenance classification; fixture content must never be published in production.';
 COMMENT ON FUNCTION public.get_public_impact_metrics_v1() IS
   'Atomic versioned public impact totals restricted to discoverable published content.';
+
+-- Restore Supabase's original session login role only after owner-only metadata.
+RESET ROLE;
