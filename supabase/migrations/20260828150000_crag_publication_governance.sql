@@ -615,9 +615,8 @@ CREATE TRIGGER crags_register_public_data_export
 AFTER INSERT OR UPDATE OF deleted_at, superseded_by, slug, country_code, publication_status
 ON public.crags FOR EACH ROW EXECUTE FUNCTION public.register_public_data_export_entity();
 
-GRANT CREATE ON SCHEMA public TO public_data_export_owner;
-GRANT public_data_export_owner TO postgres;
-SET ROLE public_data_export_owner;
+-- CREATE OR REPLACE preserves the existing least-privilege view owner and
+-- grants, so no temporary role membership is needed.
 
 CREATE OR REPLACE VIEW public.public_data_export_crags_v1
 WITH (security_barrier = true, security_invoker = false) AS
@@ -665,35 +664,6 @@ WHERE crag.deleted_at IS NULL AND crag.superseded_by IS NULL
   AND crag.publication_status = 'published'
   AND NULLIF(btrim(crag.slug), '') IS NOT NULL
   AND NULLIF(btrim(crag.country_code), '') IS NOT NULL;
-
-RESET ROLE;
-
--- PostgreSQL 16+ records role memberships per grantor. Hosted Supabase can
--- select an inherited grantor (for example supabase_admin), while local
--- Supabase records postgres. Revoke every exact temporary grant so the
--- least-privilege end state is identical in both environments.
-DO $membership$
-DECLARE
-  membership_grantor name;
-BEGIN
-  FOR membership_grantor IN
-    SELECT grantor_role.rolname
-    FROM pg_auth_members membership
-    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
-    JOIN pg_roles member_role ON member_role.oid = membership.member
-    JOIN pg_roles grantor_role ON grantor_role.oid = membership.grantor
-    WHERE granted_role.rolname = 'public_data_export_owner'
-      AND member_role.rolname = 'postgres'
-  LOOP
-    EXECUTE format(
-      'REVOKE public_data_export_owner FROM postgres GRANTED BY %I',
-      membership_grantor
-    );
-  END LOOP;
-END
-$membership$;
-
-REVOKE CREATE ON SCHEMA public FROM public_data_export_owner;
 
 COMMENT ON COLUMN public.crags.publication_status IS
   'Editorial lifecycle boundary shared by public routes, sitemap, search, map, metrics, and exports.';
