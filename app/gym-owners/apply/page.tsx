@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import GymOwnerApplyForm from '@/features/gym-owners/components/GymOwnerApplyForm'
 
 export const metadata: Metadata = {
@@ -17,6 +18,9 @@ export default function GymOwnersApplyPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
       <div className="mx-auto max-w-3xl px-4 py-10 md:py-14">
+        <Link href="/gym-owners" className="mb-4 inline-flex min-h-9 items-center rounded-md px-2 text-sm font-medium text-gray-600 underline-offset-4 hover:text-gray-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-gray-400 dark:hover:text-gray-100">
+          ← Back to For gym owners
+        </Link>
         <header className="rounded-2xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-800 dark:bg-gray-900 md:p-8">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Gym Owners</p>
           <h1 className="mt-2 text-3xl font-bold text-gray-900 dark:text-gray-100">Apply to try for free</h1>

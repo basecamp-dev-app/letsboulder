@@ -22,13 +22,13 @@ export default async function ManageCragPage({ params, searchParams }: ManageCra
     if (result.status === 401) redirect(`/auth?redirect_to=${encodeURIComponent(`/maintain/crags/${cragId}`)}`)
     if (result.status === 404) notFound()
     return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
+      <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6" role="alert">
           <h1 className="text-xl font-semibold">Crag management unavailable</h1>
           <p className="mt-2 text-red-100">{result.error}</p>
           <Button asChild className="mt-5" variant="outline"><Link href="/maintain/crags">Back to stewardship</Link></Button>
         </div>
-      </main>
+      </div>
     )
   }
 
@@ -39,7 +39,7 @@ export default async function ManageCragPage({ params, searchParams }: ManageCra
   const location = [crag.subArea, crag.regionName, crag.countryCode].filter(Boolean).join(', ') || 'Location not specified'
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:py-10">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:py-10">
       <Link className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground" href="/maintain/crags">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to stewardship
       </Link>
@@ -110,6 +110,6 @@ export default async function ManageCragPage({ params, searchParams }: ManageCra
           </div>
         </div>
       </section>
-    </main>
+    </div>
   )
 }

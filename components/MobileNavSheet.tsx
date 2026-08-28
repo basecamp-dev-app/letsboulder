@@ -2,9 +2,10 @@
 
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { ChevronRight } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
-import { MOBILE_NAV_SECTIONS } from '@/lib/nav-items'
+import { MOBILE_NAV_SECTIONS, isNavItemActive } from '@/lib/nav-items'
 import { suppressOverlayCleanup, useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { useLazyAuthUser } from '@/components/use-lazy-auth-user'
 import { useSignOut } from '@/components/QueryProviders'
@@ -20,7 +21,7 @@ const NAV_ITEM_ICONS: Record<string, React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   ),
-  Impact: (
+  'Community impact': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
     </svg>
@@ -30,7 +31,7 @@ const NAV_ITEM_ICONS: Record<string, React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
-  Support: (
+  'Support letsboulder': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 21s-6.716-4.33-9-8.288C1.22 9.587 2.912 6 6.75 6c2.013 0 3.128 1.126 3.75 2.25C11.122 7.126 12.237 6 14.25 6 18.088 6 19.78 9.587 21 12.712 18.716 16.67 12 21 12 21z" />
     </svg>
@@ -92,16 +93,17 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
             key={item.href}
             type="button"
             onClick={() => handleNavigation(item.href)}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
-              pathname === item.href
+            aria-current={isNavItemActive(pathname, item) ? 'page' : undefined}
+            className={`flex min-h-12 w-full items-center gap-4 rounded-lg px-4 py-3 text-left transition-colors ${
+              isNavItemActive(pathname, item)
                 ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
             }`}
           >
-            <span className={pathname === item.href ? 'text-gray-900 dark:text-white' : 'text-gray-500'}>
-              {NAV_ITEM_ICONS[item.label]}
+            <span className={isNavItemActive(pathname, item) ? 'text-gray-900 dark:text-white' : 'text-gray-500'}>
+              {NAV_ITEM_ICONS[item.label] ?? <ChevronRight className="h-5 w-5" />}
             </span>
-            <span className="font-medium">{item.label}</span>
+            <span className={`font-medium ${isNavItemActive(pathname, item) ? 'underline decoration-2 underline-offset-4' : ''}`}>{item.label}</span>
           </button>
         ))}
       </div>
@@ -122,7 +124,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
           <DialogDescription>Access letsboulder destinations, track your climbs, and manage your account.</DialogDescription>
         </VisuallyHidden>
         <div className="w-12 h-1 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" aria-hidden="true" />
-        <nav className="space-y-4" aria-label="Primary navigation">
+        <nav className="space-y-4" aria-label="More navigation">
           {MOBILE_NAV_SECTIONS.map((section) => renderNavSection(section.label, section.items))}
 
           <div className="border-t border-gray-200 pt-3 dark:border-gray-800">
@@ -135,7 +137,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
                 <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-                <span className="font-medium">Logout</span>
+                <span className="font-medium">Sign out</span>
               </button>
             ) : (
               <button
@@ -146,7 +148,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
                 <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                 </svg>
-                <span className="font-medium">Login</span>
+                <span className="font-medium">Sign in</span>
               </button>
             )}
           </div>

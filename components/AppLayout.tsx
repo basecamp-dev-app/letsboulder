@@ -38,12 +38,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [hideFooter])
 
   return (
-    <>
+    <div className={hideFooter ? undefined : 'pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0'}>
       <Header />
-      <main id="main-content" className="min-h-screen">
+      <main id="main-content" tabIndex={-1} className="min-h-screen focus:outline-none">
         {children}
       </main>
       {!hideFooter && <Footer />}
-    </>
+    </div>
   )
 }

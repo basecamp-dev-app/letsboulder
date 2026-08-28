@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function OpenDataTermsPage() {
   return (
-    <main className="container mx-auto max-w-3xl px-4 py-8">
+    <div className="container mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Open Data Contributor Terms</h1>
       <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Version 2026-07-29-v1, effective 29 July 2026</p>
       <div className="mt-8 space-y-8 text-gray-700 dark:text-gray-300">
@@ -16,6 +16,6 @@ export default function OpenDataTermsPage() {
         <section><h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Structured data and geometry</h2><p className="mt-2">Structured climbing facts, coordinates, grades, votes, and route geometry are made available under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" className="underline" rel="license">Open Data Commons Open Database License 1.0</a>.</p></section>
         <section><h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Account-level agreement</h2><p className="mt-2">This agreement applies prospectively to contributions made from your account while this version is active. If these terms materially change, LetsBoulder will ask you to agree to the new version before another contribution.</p></section>
       </div>
-    </main>
+    </div>
   )
 }

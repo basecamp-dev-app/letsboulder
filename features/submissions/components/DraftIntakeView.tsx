@@ -289,7 +289,7 @@ export default function DraftIntakeView({ cragId = null, initialCenter = null }:
       <div className="mx-auto max-w-3xl px-4 py-6">
         <div className="mb-4">
           <Link href="/logbook" prefetch={false} className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">
-            ← Back to submissions
+            ← Back to logbook
           </Link>
         </div>
 

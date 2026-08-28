@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import Link from 'next/link'
 import SupportCard from '@/components/SupportCard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -77,6 +78,19 @@ export default function AboutPage() {
         </Card>
 
         <SupportCard />
+
+        <section className="rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900/50">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Help and contact</h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            For questions, corrections, or account help, email{' '}
+            <a href="mailto:hello@letsboulder.com" className="font-medium underline underline-offset-4 hover:text-gray-900 dark:hover:text-gray-100">
+              hello@letsboulder.com
+            </a>.
+          </p>
+          <Link href="/impact" className="mt-4 inline-flex min-h-9 items-center rounded-md text-sm font-medium underline underline-offset-4 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:text-gray-300">
+            See the community impact
+          </Link>
+        </section>
       </div>
     </div>
   )

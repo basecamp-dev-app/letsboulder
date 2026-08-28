@@ -1,48 +1,72 @@
+import { SUPPORT_URL } from '@/lib/site'
+
 export type NavItem = {
   label: string
   href: string
+  external?: boolean
+  prefetch?: boolean
 }
 
 export const PRIMARY_NAV_ITEMS: NavItem[] = [
-  { label: 'Logbook', href: '/logbook' },
   { label: 'Map', href: '/' },
-  { label: 'Upload', href: '/submit' },
+  { label: 'Logbook', href: '/logbook', prefetch: false },
+  { label: 'Add topo', href: '/submit', prefetch: false },
 ]
 
 export const EXPLORE_NAV_ITEMS: NavItem[] = [
-  { label: 'Impact', href: '/impact' },
   { label: 'About', href: '/about' },
-  { label: 'Support', href: '/about#support' },
+  { label: 'Community impact', href: '/impact' },
+  { label: 'Support letsboulder', href: '/about#support' },
+  { label: 'For gym owners', href: '/gym-owners' },
 ]
 
-export const TRACK_NAV_ITEMS: NavItem[] = [
-  { label: 'Logbook', href: '/logbook' },
-  { label: 'Upload', href: '/submit' },
+export const LEGAL_NAV_ITEMS: NavItem[] = [
+  { label: 'Privacy', href: '/privacy' },
+  { label: 'Terms', href: '/terms' },
+  { label: 'Cookies', href: '/cookies' },
+  { label: 'Open data terms', href: '/open-data-terms' },
 ]
+
+export const DONATE_NAV_ITEM: NavItem = {
+  label: 'Donate on Ko-fi',
+  href: SUPPORT_URL,
+  external: true,
+}
 
 export const ACCOUNT_NAV_ITEMS: NavItem[] = [
-  { label: 'Maintain crags', href: '/maintain/crags' },
-  { label: 'Settings', href: '/settings' },
+  { label: 'Maintain crags', href: '/maintain/crags', prefetch: false },
+  { label: 'Settings', href: '/settings', prefetch: false },
 ]
 
 export const DESKTOP_MORE_MENU_SECTIONS = [
   { label: 'Explore', items: EXPLORE_NAV_ITEMS },
-  { label: 'Track', items: TRACK_NAV_ITEMS },
   { label: 'Account', items: ACCOUNT_NAV_ITEMS },
 ]
 
-export const MOBILE_NAV_SECTIONS = DESKTOP_MORE_MENU_SECTIONS
+export const MOBILE_NAV_SECTIONS = [
+  { label: 'Explore', items: EXPLORE_NAV_ITEMS },
+  { label: 'Legal', items: LEGAL_NAV_ITEMS },
+  { label: 'Account', items: ACCOUNT_NAV_ITEMS },
+]
+
+export function isNavItemActive(pathname: string, item: NavItem): boolean {
+  if (item.external) return false
+  if (item.href.includes('#')) return false
+
+  const path = item.href.split('#')[0]
+  if (path === '/') return pathname === '/'
+  return pathname === path || pathname.startsWith(`${path}/`)
+}
 
 export function isLogbookRoute(pathname: string): boolean {
-  return pathname === '/logbook' || pathname.startsWith('/logbook/')
+  return isNavItemActive(pathname, PRIMARY_NAV_ITEMS[1])
 }
 
 export function isSubmitRoute(pathname: string): boolean {
-  return pathname === '/submit' || pathname.startsWith('/submit/')
+  return isNavItemActive(pathname, PRIMARY_NAV_ITEMS[2])
 }
 
 export function isNavigationMenuRoute(pathname: string): boolean {
-  return EXPLORE_NAV_ITEMS.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
-    || TRACK_NAV_ITEMS.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
-    || ACCOUNT_NAV_ITEMS.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+  return [...EXPLORE_NAV_ITEMS, ...LEGAL_NAV_ITEMS, ...ACCOUNT_NAV_ITEMS]
+    .some((item) => isNavItemActive(pathname, item))
 }

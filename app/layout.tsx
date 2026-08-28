@@ -6,6 +6,7 @@ import './globals.css'
 import JsonLd from '@/components/JsonLd'
 import RootClientUtilities from '@/components/RootClientUtilities'
 import QueryProviders from '@/components/QueryProviders'
+import SkipLink from '@/components/SkipLink'
 import { OpenDataConsentProvider } from '@/features/legal/components/OpenDataConsentProvider'
 
 import '@/lib/env-startup'
@@ -165,14 +166,9 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased md:pb-16 pb-[calc(var(--app-mobile-footer-offset,4rem)+env(safe-area-inset-bottom,0px))] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
+        className={`${geistSans.variable} ${geistMono.variable} bg-white text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-300`}
       >
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-gray-900 focus:text-white focus:rounded-md focus:outline-none"
-        >
-          Skip to main content
-        </a>
+        <SkipLink />
         <QueryProviders>
           <OpenDataConsentProvider>
             {children}

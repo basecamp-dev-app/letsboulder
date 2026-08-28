@@ -103,8 +103,8 @@ export default async function Home() {
     name: 'Main Navigation',
     item: [
       { name: 'Logbook', url: `${SITE_URL}/logbook` },
-      { name: 'Upload Topos', url: `${SITE_URL}/submit` },
-      { name: 'Gym Owners', url: `${SITE_URL}/gym-owners` },
+      { name: 'Add topo', url: `${SITE_URL}/submit` },
+      { name: 'For gym owners', url: `${SITE_URL}/gym-owners` },
       { name: 'About', url: `${SITE_URL}/about` },
     ],
   }

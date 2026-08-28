@@ -277,7 +277,7 @@ function AuthCallbackContent() {
               href="/auth"
               className="block w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             >
-              Back to Login
+              Back to sign in
             </Link>
           </div>
         </div>

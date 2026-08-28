@@ -28,7 +28,7 @@ export default async function MaintainCragsPage({ searchParams }: MaintainCragsP
   ])
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
       <header className="mb-8">
         <p className="text-sm font-semibold uppercase tracking-widest text-blue-400">Crag stewardship</p>
         <h1 className="mt-2 text-3xl font-bold">Crag maintenance</h1>
@@ -75,6 +75,6 @@ export default async function MaintainCragsPage({ searchParams }: MaintainCragsP
           {result.error || 'Unable to load proposals.'}
         </div>
       )}
-    </main>
+    </div>
   )
 }

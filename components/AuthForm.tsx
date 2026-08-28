@@ -134,9 +134,6 @@ export default function AuthForm() {
             >
               {copySuccess ? 'Copied!' : 'Copy Link'}
             </Button>
-            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
-              ← Back to home
-            </Link>
           </div>
         </div>
       </div>
@@ -270,11 +267,8 @@ export default function AuthForm() {
               By signing up, you agree to the{' '}
               <Link href="/terms" className="underline hover:text-gray-900 dark:hover:text-gray-200">Terms of Service</Link>,{' '}
               <Link href="/privacy" className="underline hover:text-gray-900 dark:hover:text-gray-200">Privacy Policy</Link>, and{' '}
-              <Link href="/cookies" className="underline hover:text-gray-900 dark:hover:text-gray-200">Cookie Use</Link>.
+              <Link href="/cookies" className="underline hover:text-gray-900 dark:hover:text-gray-200">Cookies</Link>.
             </p>
-            <Link href="/" className="block text-center text-sm text-muted-foreground hover:text-foreground hover:underline">
-              ← Back to home
-            </Link>
           </div>
         </div>
       </div>
