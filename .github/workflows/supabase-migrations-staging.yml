@@ -141,7 +141,7 @@ jobs:
           set -euo pipefail
           LOCAL_TYPES="$RUNNER_TEMP/database-local-public.ts"
           HOSTED_TYPES="$RUNNER_TEMP/database-hosted-public.ts"
-          npx --no-install supabase gen types typescript --local --schema public > "$LOCAL_TYPES"
+          npx --no-install supabase gen types typescript --db-url postgresql://postgres:postgres@127.0.0.1:54322/postgres --schema public > "$LOCAL_TYPES"
           npx --no-install supabase gen types typescript --linked --schema public > "$HOSTED_TYPES"
 
           # PostgREST server-version metadata is managed by Supabase and is not
