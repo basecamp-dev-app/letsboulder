@@ -129,13 +129,29 @@ jobs:
       - name: Verify hosted staging schema, roles, RLS, RPCs, and synthetic visibility
         run: npx --no-install supabase db query --linked --output json --file scripts/db/hosted-staging-post-migration.sql
 
-      - name: Verify generated types against hosted staging
+      - name: Start local Supabase for application-schema type comparison
+        run: npx --no-install supabase start
+
+      - name: Reset local schema from repository migrations
+        run: npx --no-install supabase db reset
+
+      - name: Verify public generated types match hosted staging
         shell: bash
         run: |
           set -euo pipefail
-          HOSTED_TYPES="$RUNNER_TEMP/database.ts"
-          npx --no-install supabase gen types typescript --linked > "$HOSTED_TYPES"
-          diff -u types/database.ts "$HOSTED_TYPES"
+          LOCAL_TYPES="$RUNNER_TEMP/database-local-public.ts"
+          HOSTED_TYPES="$RUNNER_TEMP/database-hosted-public.ts"
+          npx --no-install supabase gen types typescript --local --schema public > "$LOCAL_TYPES"
+          npx --no-install supabase gen types typescript --linked --schema public > "$HOSTED_TYPES"
+
+          # PostgREST server-version metadata is managed by Supabase and is not
+          # part of the repository-owned application schema.
+          sed -i '/^  \/\/ Allows to automatically instantiate/,/^  }$/d' "$LOCAL_TYPES" "$HOSTED_TYPES"
+          diff -u "$LOCAL_TYPES" "$HOSTED_TYPES"
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx --no-install supabase stop || true
 
       - name: Smoke test staging application database reads
         shell: bash
