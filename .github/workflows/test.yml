@@ -125,14 +125,14 @@ jobs:
             fi
           done
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ github.event_name == 'pull_request' && 'https://example.supabase.co' || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ github.event_name == 'pull_request' && 'anon-test-key' || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: anon-test-key
 
       - name: Build Next.js application
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ github.event_name == 'pull_request' && 'https://example.supabase.co' || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ github.event_name == 'pull_request' && 'anon-test-key' || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: anon-test-key
 
   tests:
     name: ${{ matrix.name }}
@@ -174,28 +174,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  deploy:
-    name: Deploy to Vercel
-    needs: [quality-checks, generated-type-drift, build, tests, media-worker-check]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Trigger Vercel Deployment
-        run: |
-          echo "Triggering Vercel deployment via Deploy Hook..."
-          response=$(curl -s -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}")
-          echo "Response: $response"
-
-          # Check if response contains a valid Vercel job
-          if echo "$response" | grep -q '"state":"PENDING"'; then
-            echo "Vercel deployment triggered successfully"
-          else
-            echo "::error::Failed to trigger Vercel deployment: $response"
-            exit 1
-          fi
-          echo "Vercel deployment triggered successfully"
-
   media-worker-check:
     name: Media Worker Check
     if: github.event_name != 'deployment_status'
@@ -228,6 +206,7 @@ jobs:
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    environment: Production
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -257,7 +236,7 @@ jobs:
           PLAYWRIGHT_REQUESTED_BASE_URL: ${{ github.event_name == 'deployment_status' && 'https://letsboulder.com' || inputs.playwright_base_url || '' }}
           VERCEL_DEPLOYMENT_ID: ${{ inputs.vercel_deployment_id || '' }}
           VERCEL_API_TOKEN: ${{ github.event_name == 'workflow_dispatch' && secrets.VERCEL_API_TOKEN || '' }}
-          VERCEL_PROJECT_ID: ${{ github.event_name == 'workflow_dispatch' && secrets.VERCEL_PROJECT_ID || '' }}
+          VERCEL_PROJECT_ID: ${{ github.event_name == 'workflow_dispatch' && vars.VERCEL_PROJECT_ID || '' }}
 
       - name: Wait for target readiness
         run: |
@@ -310,7 +289,7 @@ jobs:
         run: npx playwright test --project=authenticated --grep @smoke --retries=1
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           DEV_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_AUTH_PATH_SEGMENT: ${{ secrets.TEST_AUTH_PATH_SEGMENT }}

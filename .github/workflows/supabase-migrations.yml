@@ -24,8 +24,14 @@ jobs:
   migrate-prod:
     name: Validate Supabase migrations (Production)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     environment: Production
+    env:
+      SELECTED_COMMIT_SHA: ${{ inputs.commit_sha || github.sha }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.PRODUCTION_SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      EXPECTED_PRODUCTION_PROJECT_REF: glxnbxbkedeogtcivpsx
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,6 +60,21 @@ jobs:
           MAIN_SHA=$(git rev-parse origin/main)
           if [[ "$SELECTED_COMMIT_SHA" != "$MAIN_SHA" ]]; then
             echo "::error::Selected commit is not the current main commit ($MAIN_SHA)."
+            exit 1
+          fi
+
+      - name: Validate production credentials and target
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required in the Production GitHub environment."
+              exit 1
+            fi
+          done
+          if [ "$SUPABASE_PROJECT_REF" != "$EXPECTED_PRODUCTION_PROJECT_REF" ]; then
+            echo '::error::Production isolation check failed: unexpected Supabase project ref.'
             exit 1
           fi
 
@@ -109,14 +130,20 @@ jobs:
       - name: Link Supabase project
         run: npx --no-install supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.PRODUCTION_SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Capture hosted production role context before migration
+        run: npx --no-install supabase db query --linked --output json --file scripts/db/hosted-staging-role-context.sql
+
+      - name: Inspect production migration history read-only
+        run: npx --no-install supabase migration list --linked
 
       - name: Preview migrations
         run: timeout 15m npx --no-install supabase db push --linked --include-all --dry-run
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.PRODUCTION_SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
 
       - name: Verify selected commit is still current main
@@ -135,6 +162,88 @@ jobs:
       - name: Apply migrations
         if: github.event_name == 'workflow_dispatch'
         run: timeout 15m npx --no-install supabase db push --linked --include-all
+
+      - name: Prove production migration bookkeeping completed
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          npx --no-install supabase migration list --linked
+          npx --no-install supabase db push --linked --include-all --dry-run
+
+      - name: Verify production governance schema and roles read-only
+        if: github.event_name == 'workflow_dispatch'
+        run: npx --no-install supabase db query --linked --output json --file scripts/db/hosted-production-post-migration.sql
+
+      - name: Verify selected commit remains current main before deployment
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          MAIN_SHA=$(git rev-parse origin/main)
+          if [ "$SELECTED_COMMIT_SHA" != "$MAIN_SHA" ]; then
+            echo "::error::Main changed after database verification ($MAIN_SHA); production was not deployed."
+            exit 1
+          fi
+
+      - name: Trigger production Vercel deployment
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_DEPLOY_HOOK:-}" ]; then
+            echo '::error::VERCEL_DEPLOY_HOOK is required as a secret in the Production GitHub environment.'
+            exit 1
+          fi
+          RESPONSE="$RUNNER_TEMP/vercel-deploy-response.json"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --output "$RESPONSE" \
+            "$VERCEL_DEPLOY_HOOK"
+          if ! jq -e '.job.id and (.job.state == "PENDING" or .job.state == "QUEUED")' "$RESPONSE" >/dev/null; then
+            echo '::error::Vercel did not accept the production deployment request.'
+            exit 1
+          fi
+          echo 'Vercel accepted the production deployment request.'
+
+      - name: Smoke test production application database reads
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$RUNNER_TEMP/production-crag-search.json"
+          for attempt in $(seq 1 20); do
+            STATUS=$(curl --silent --show-error --location \
+              --output "$RESPONSE" --write-out '%{http_code}' \
+              'https://letsboulder.com/api/crags/search?q=magic' || true)
+            if [ "$STATUS" = '200' ] && jq -e 'type == "array"' "$RESPONSE" >/dev/null; then
+              echo 'Production application successfully read the migrated hosted schema.'
+              exit 0
+            fi
+            sleep 15
+          done
+          echo '::error::Production application database smoke test did not return a JSON array with HTTP 200.'
+          exit 1
+
+      - name: Install Playwright browser
+        if: github.event_name == 'workflow_dispatch'
+        run: npx playwright install chromium
+
+      - name: Run public production Playwright smoke suite
+        if: github.event_name == 'workflow_dispatch'
+        run: npx playwright test --project=public --grep @smoke --retries=1
+        env:
+          PLAYWRIGHT_BASE_URL: https://letsboulder.com
+          CI: true
+
+      - name: Upload production Playwright smoke report
+        if: always() && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-playwright-smoke-${{ github.run_id }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
