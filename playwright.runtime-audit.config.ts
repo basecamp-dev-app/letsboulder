@@ -19,6 +19,7 @@ export default defineConfig({
       ],
   use: {
     ...(baseConfig.use || {}),
+    serviceWorkers: 'block',
     trace: releaseProfile ? 'on' : 'retain-on-failure',
     screenshot: 'off',
     video: releaseProfile ? 'on' : 'retain-on-failure',
