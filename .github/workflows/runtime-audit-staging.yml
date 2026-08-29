@@ -13,6 +13,18 @@ on:
       - 'tests/mobile-runtime-audit*.spec.ts'
       - 'tests/reporters/runtime-audit-reporter.ts'
       - 'tests/workflows/**'
+  push:
+    branches: [staging]
+    paths:
+      - '.github/workflows/e2e-production-nightly.yml'
+      - '.github/workflows/runtime-audit-staging.yml'
+      - 'playwright.runtime-audit.config.ts'
+      - 'package.json'
+      - 'scripts/playwright/**'
+      - 'tests/fixtures/runtime-audit.ts'
+      - 'tests/mobile-runtime-audit*.spec.ts'
+      - 'tests/reporters/runtime-audit-reporter.ts'
+      - 'tests/workflows/**'
   workflow_dispatch:
 
 concurrency:
