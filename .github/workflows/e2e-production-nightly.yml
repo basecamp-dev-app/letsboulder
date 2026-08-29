@@ -107,6 +107,9 @@ jobs:
         id: audit
         continue-on-error: true
         run: npm run test:e2e:production-audit -- --retries=1
+      - name: Inspect raw runtime audit output
+        if: always()
+        run: node scripts/playwright/runtime-audit-artifacts.mjs inspect --root runtime-audit-work
       - name: Finalize runtime audit evidence
         id: artifacts
         if: always()
