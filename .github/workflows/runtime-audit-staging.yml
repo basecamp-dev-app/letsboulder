@@ -21,7 +21,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   staging-mobile-runtime-audit:
@@ -67,16 +66,6 @@ jobs:
         id: workflow_regressions
         continue-on-error: true
         run: npm run test:workflow-regressions
-      - name: Inspect run 139 artifact baseline
-        id: baseline
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          rm -rf /tmp/runtime-audit-baseline && mkdir -p /tmp/runtime-audit-baseline
-          gh run download 33258290684 --repo basecamp-dev-app/letsboulder --name playwright-mobile-runtime-audit-33258290684 --dir /tmp/runtime-audit-baseline
-          node scripts/playwright/runtime-audit-artifacts.mjs inspect --root /tmp/runtime-audit-baseline
-          rm -rf /tmp/runtime-audit-baseline
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -96,6 +85,9 @@ jobs:
         id: audit
         continue-on-error: true
         run: npm run test:e2e:production-audit -- --retries=1
+      - name: Inspect runtime audit raw output
+        if: always()
+        run: node scripts/playwright/runtime-audit-artifacts.mjs inspect --root runtime-audit-work
       - name: Finalize runtime audit evidence
         id: artifacts
         if: always()
