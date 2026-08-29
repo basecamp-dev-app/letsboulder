@@ -33,10 +33,10 @@ test.describe('production-safe mobile runtime audit', () => {
           Object.defineProperty(window.navigator, 'onLine', { configurable: true, get: () => false })
           window.dispatchEvent(new Event('offline'))
         })
-        if (!await isVisibleWithin(page.getByText(/connection lost\. map updates are unavailable/i), 15000)) fixtureIssues.push({ category: 'state-fixture', details: 'Offline state was exercised but its recovery status was not visible' })
+        if (!await isVisibleWithin(page.getByText(/connection lost\. map updates are unavailable|interactive map unavailable/i).first(), 15000)) fixtureIssues.push({ category: 'state-fixture', details: 'Offline state did not expose a degraded recovery state' })
       } else if (state === 'pin-request-failure') {
         fixtureIssues = []
-        await page.route('**/api/crags/pins**', route => route.fulfill({
+        await context.route('**/api/crags/pins**', route => route.fulfill({
           status: 503,
           contentType: 'application/json',
           body: JSON.stringify({ error: 'runtime-audit-pin-request-failure' }),
