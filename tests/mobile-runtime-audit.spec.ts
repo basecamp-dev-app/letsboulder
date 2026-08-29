@@ -22,7 +22,22 @@ test.describe('production-safe mobile runtime audit', () => {
   for (const state of ['webgl-failure', 'map-resource-failure', 'offline-network', 'pin-request-failure', 'geolocation-success', 'geolocation-error', 'geolocation-timeout'] as const) {
     test(`@production-audit state=${state} viewport=${nightlyViewport.label}`, async ({ page, context }, testInfo) => {
       await page.setViewportSize(nightlyViewport)
-      await auditRenderedPage(page, testInfo, '/', state, nightlyViewport, await exerciseRuntimeState(page, context, state))
+      let fixtureIssues: RuntimeAuditIssue[]
+      if (state === 'pin-request-failure') {
+        fixtureIssues = []
+        await page.route('**/api/crags/pins**', route => route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'runtime-audit-pin-request-failure' }),
+        }))
+        await page.goto('/', { waitUntil: 'domcontentloaded' })
+        if (!await isVisibleWithin(page.locator('main#main-content'), 15000)) fixtureIssues.push({ category: 'state-fixture', details: 'The main landmark did not become visible' })
+        await isVisibleWithin(page.locator('.maplibregl-map'), 20000)
+        if (!await isVisibleWithin(page.getByText(/couldn.t load map pins/i), 15000)) fixtureIssues.push({ category: 'state-fixture', details: 'Pin-request failure did not expose its recovery alert' })
+      } else {
+        fixtureIssues = await exerciseRuntimeState(page, context, state)
+      }
+      await auditRenderedPage(page, testInfo, '/', state, nightlyViewport, fixtureIssues)
     })
   }
 })
