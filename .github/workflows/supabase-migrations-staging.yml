@@ -1,0 +1,156 @@
+name: Supabase Migrations (Hosted Staging)
+
+on:
+  push:
+    branches:
+      - staging
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/db/hosted-staging-*.sql'
+      - 'types/database.ts'
+      - '.github/workflows/supabase-migrations-staging.yml'
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Current staging commit SHA to validate and apply'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-migrations-hosted-staging
+  cancel-in-progress: false
+
+jobs:
+  migrate-staging:
+    name: Apply and verify hosted staging migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: Staging
+    env:
+      SELECTED_COMMIT_SHA: ${{ inputs.commit_sha || github.sha }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Validate staging credentials and selected commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required in the Staging GitHub environment."
+              exit 1
+            fi
+          done
+
+          if [[ ! "$SELECTED_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::commit_sha must be a full 40-character commit SHA.'
+            exit 1
+          fi
+
+          git fetch origin staging --quiet
+          STAGING_SHA=$(git rev-parse origin/staging)
+          if [ "$SELECTED_COMMIT_SHA" != "$STAGING_SHA" ]; then
+            echo "::error::Selected commit is not the current staging commit ($STAGING_SHA)."
+            exit 1
+          fi
+
+      - name: Prove the linked project is letsboulder-staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_METADATA="$RUNNER_TEMP/supabase-project.json"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --header 'Accept: application/json' \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF" \
+            --output "$PROJECT_METADATA"
+
+          PROJECT_ID=$(jq -r '.id // .ref // empty' "$PROJECT_METADATA")
+          PROJECT_NAME=$(jq -r '.name // empty' "$PROJECT_METADATA")
+          PROJECT_STATUS=$(jq -r '.status // empty' "$PROJECT_METADATA")
+          if [ "$PROJECT_ID" != "$SUPABASE_PROJECT_REF" ] || [ "$PROJECT_NAME" != 'letsboulder-staging' ]; then
+            echo '::error::Staging isolation check failed: project ref/name did not match letsboulder-staging.'
+            exit 1
+          fi
+          if [ "$PROJECT_STATUS" != 'ACTIVE_HEALTHY' ]; then
+            echo "::error::letsboulder-staging is not healthy (status: $PROJECT_STATUS)."
+            exit 1
+          fi
+          echo 'Verified hosted target: letsboulder-staging.'
+
+      - name: Confirm pinned Supabase CLI
+        run: npx --no-install supabase --version
+
+      - name: Link hosted staging project
+        run: npx --no-install supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Capture hosted role context before migration
+        run: npx --no-install supabase db query --linked --output json --file scripts/db/hosted-staging-role-context.sql
+
+      - name: Preview complete hosted staging migration history
+        run: timeout 15m npx --no-install supabase db push --linked --include-all --dry-run
+
+      - name: Reconfirm current staging commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin staging --quiet
+          STAGING_SHA=$(git rev-parse origin/staging)
+          if [ "$SELECTED_COMMIT_SHA" != "$STAGING_SHA" ]; then
+            echo "::error::Staging changed during validation ($STAGING_SHA); no migrations were applied."
+            exit 1
+          fi
+
+      - name: Apply complete hosted staging migration history
+        run: timeout 15m npx --no-install supabase db push --linked --include-all
+
+      - name: Prove migration bookkeeping completed
+        run: |
+          npx --no-install supabase migration list --linked
+          npx --no-install supabase db push --linked --include-all --dry-run
+
+      - name: Verify hosted staging schema, roles, RLS, RPCs, and synthetic visibility
+        run: npx --no-install supabase db query --linked --output json --file scripts/db/hosted-staging-post-migration.sql
+
+      - name: Verify generated types against hosted staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOSTED_TYPES="$RUNNER_TEMP/database.ts"
+          npx --no-install supabase gen types typescript --linked > "$HOSTED_TYPES"
+          diff -u types/database.ts "$HOSTED_TYPES"
+
+      - name: Smoke test staging application database reads
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$RUNNER_TEMP/staging-crag-search.json"
+          for attempt in $(seq 1 20); do
+            STATUS=$(curl --silent --show-error --location \
+              --output "$RESPONSE" --write-out '%{http_code}' \
+              'https://staging.letsboulder.com/api/crags/search?q=magic' || true)
+            if [ "$STATUS" = '200' ] && jq -e 'type == "array"' "$RESPONSE" >/dev/null; then
+              echo 'Staging application successfully read the migrated hosted schema.'
+              exit 0
+            fi
+            sleep 15
+          done
+          echo '::error::Staging application database smoke test did not return a JSON array with HTTP 200.'
+          exit 1
