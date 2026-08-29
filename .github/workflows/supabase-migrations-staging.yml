@@ -154,6 +154,28 @@ jobs:
         if: always()
         run: npx --no-install supabase stop || true
 
+      - name: Trigger staging Vercel deployment
+        shell: bash
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_DEPLOY_HOOK:-}" ]; then
+            echo '::error::VERCEL_DEPLOY_HOOK is required as a secret in the Staging GitHub environment.'
+            exit 1
+          fi
+
+          RESPONSE="$RUNNER_TEMP/vercel-deploy-response.json"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --output "$RESPONSE" \
+            "$VERCEL_DEPLOY_HOOK"
+          if ! jq -e '.job.id and (.job.state == "PENDING" or .job.state == "QUEUED")' "$RESPONSE" >/dev/null; then
+            echo '::error::Vercel did not accept the staging deployment request.'
+            exit 1
+          fi
+          echo 'Vercel accepted the staging deployment request.'
+
       - name: Smoke test staging application database reads
         shell: bash
         run: |
