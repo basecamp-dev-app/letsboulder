@@ -67,7 +67,7 @@ jobs:
       - name: Validate required configuration
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          CF_MEDIA_WORKER_URL: ${{ secrets.CF_MEDIA_WORKER_URL }}
+          CF_MEDIA_WORKER_URL: ${{ vars.CF_MEDIA_WORKER_URL }}
           CF_MEDIA_WORKER_SECRET: ${{ secrets.CF_MEDIA_WORKER_SECRET }}
         run: |
           required_vars=(CF_MEDIA_WORKER_URL CF_MEDIA_WORKER_SECRET SUPABASE_DB_HOST SUPABASE_DB_USER SUPABASE_DB_NAME SUPABASE_DB_PORT PGPASSWORD)
@@ -180,7 +180,7 @@ jobs:
         shell: bash
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          CF_MEDIA_WORKER_URL: ${{ secrets.CF_MEDIA_WORKER_URL }}
+          CF_MEDIA_WORKER_URL: ${{ vars.CF_MEDIA_WORKER_URL }}
           CF_MEDIA_WORKER_SECRET: ${{ secrets.CF_MEDIA_WORKER_SECRET }}
         run: |
           success=0
