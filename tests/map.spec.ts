@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 
+import { installWebglFailureFixture } from './fixtures/runtime-audit'
+
 test.describe('Map', () => {
   test('@smoke homepage map renders', async ({ page }) => {
     await page.goto('/')
@@ -36,13 +38,7 @@ test.describe('Map', () => {
 
   test.describe('without WebGL', () => {
     test.beforeEach(async ({ page }) => {
-      await page.addInitScript(() => {
-        const originalGetContext = HTMLCanvasElement.prototype.getContext
-        HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, contextId, options) {
-          if (contextId === 'webgl' || contextId === 'webgl2' || contextId === 'experimental-webgl') return null
-          return originalGetContext.call(this, contextId, options)
-        } as typeof HTMLCanvasElement.prototype.getContext
-      })
+      await installWebglFailureFixture(page)
     })
 
     test('home preserves discovery and community content', async ({ page }) => {

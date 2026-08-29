@@ -16,7 +16,7 @@ jobs:
   production-safe-e2e:
     name: Production-Safe E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       CI: 'true'
       IMAGE_FIRST_E2E_URL: '/gg/point-de-la-moye-east/i/39b9871d-071c-4520-b305-8ae57500be05?image=39b9871d-071c-4520-b305-8ae57500be05&route=9a90c2c3-afa1-4a8c-9ca8-77a3435a9b00&climb=0ea40c00-e4de-4b2d-b4ee-42de25261afb'
@@ -35,7 +35,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-playwright-chromium-webkit-${{ hashFiles('package-lock.json') }}
 
       - name: Validate production-safe configuration
         run: |
@@ -57,7 +57,7 @@ jobs:
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium
+        run: npx playwright install chromium webkit
 
       - name: Wait for production readiness
         run: |
@@ -85,6 +85,18 @@ jobs:
           tests/settings.spec.ts
           tests/image-first.spec.ts
 
+      - name: Run deterministic mobile runtime audit
+        env:
+          PLAYWRIGHT_HTML_REPORT: playwright-report-mobile-runtime-audit
+          PLAYWRIGHT_OUTPUT_DIR: test-results-mobile-runtime-audit
+          RUNTIME_AUDIT_RUN: 'true'
+        run: >-
+          npx playwright test
+          --retries=1
+          --project=mobile-chrome
+          --project=mobile-safari
+          tests/mobile-runtime-audit.spec.ts
+
       - name: Upload Playwright production report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -92,6 +104,8 @@ jobs:
           name: playwright-report-production-nightly
           path: |
             playwright-report
+            playwright-report-mobile-runtime-audit
             test-results
+            test-results-mobile-runtime-audit
           if-no-files-found: ignore
           retention-days: 7
