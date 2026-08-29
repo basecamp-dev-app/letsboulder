@@ -91,7 +91,7 @@ export const test = base.extend<AuditFixtures>({
 
 export { expect }
 
-async function isVisibleWithin(locator: import('@playwright/test').Locator, timeout: number) {
+export async function isVisibleWithin(locator: import('@playwright/test').Locator, timeout: number) {
   return locator.waitFor({ state: 'visible', timeout }).then(() => true).catch(() => false)
 }
 
@@ -104,7 +104,7 @@ export async function auditRenderedPage(
   fixtureIssues: RuntimeAuditIssue[] = [],
 ) {
   const issues = [...fixtureIssues]
-  const layout = await page.evaluate(() => {
+  const collectLayout = () => page.evaluate(() => {
     const viewportWidth = document.documentElement.clientWidth
     const viewportHeight = document.documentElement.clientHeight
     const isRendered = (element: Element) => {
@@ -144,6 +144,29 @@ export async function auditRenderedPage(
       gestureSurfaceWithoutControls: Boolean(mapCanvas && getComputedStyle(mapCanvas).touchAction === 'none' && mapControls === 0),
     }
   })
+  let layout: Awaited<ReturnType<typeof collectLayout>>
+  try {
+    layout = await collectLayout()
+  } catch (error) {
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined)
+    try {
+      layout = await collectLayout()
+    } catch (retryError) {
+      const viewportSize = page.viewportSize()
+      layout = {
+        horizontalOverflow: false,
+        scrollWidth: viewportSize?.width ?? viewport.width,
+        viewportWidth: viewportSize?.width ?? viewport.width,
+        overlays: [],
+        clippedActions: [],
+        gestureSurfaceWithoutControls: false,
+      }
+      issues.push({
+        category: 'state-fixture',
+        details: `Layout evidence could not be collected after navigation settled: ${retryError instanceof Error ? retryError.message : String(retryError)} (initial: ${error instanceof Error ? error.message : String(error)})`,
+      })
+    }
+  }
 
   if (layout.horizontalOverflow) {
     issues.push({ category: 'horizontal-overflow', details: `document width ${layout.scrollWidth}px exceeds ${layout.viewportWidth}px viewport` })
@@ -272,9 +295,11 @@ export async function exerciseRuntimeState(page: Page, context: BrowserContext, 
   }
 
   await page.goto('/', { waitUntil: 'domcontentloaded' })
-  await expect(page.locator('main#main-content')).toBeVisible({ timeout: 15000 })
+  const mainVisible = await isVisibleWithin(page.locator('main#main-content'), 15000)
+  if (!mainVisible) issues.push({ category: 'state-fixture', details: 'The main landmark did not become visible' })
 
   if (state === 'offline-network') {
+    await isVisibleWithin(page.locator('.maplibregl-map'), 20000)
     await context.setOffline(true)
     await page.evaluate(() => window.dispatchEvent(new Event('offline')))
     const visible = await isVisibleWithin(page.getByText(/connection lost\. map updates are unavailable/i), 5000)
@@ -286,6 +311,7 @@ export async function exerciseRuntimeState(page: Page, context: BrowserContext, 
     const visible = await isVisibleWithin(page.getByText(/some map resources did not load|interactive map unavailable/i).first(), 15000)
     if (!visible) issues.push({ category: 'state-fixture', details: 'Map-resource failure did not expose a degraded or unavailable state' })
   } else if (state === 'pin-request-failure') {
+    await isVisibleWithin(page.locator('.maplibregl-map'), 20000)
     const visible = await isVisibleWithin(page.getByText(/couldn.t load map pins/i), 15000)
     if (!visible) issues.push({ category: 'state-fixture', details: 'Pin-request failure did not expose its recovery alert' })
   } else {

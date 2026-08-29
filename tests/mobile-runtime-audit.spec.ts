@@ -1,4 +1,4 @@
-import { AUDIT_ROUTES, AUDIT_VIEWPORTS, auditRenderedPage, exerciseRuntimeState, expect, test } from './fixtures/runtime-audit'
+import { AUDIT_ROUTES, AUDIT_VIEWPORTS, auditRenderedPage, exerciseRuntimeState, isVisibleWithin, test, type RuntimeAuditIssue } from './fixtures/runtime-audit'
 
 test.describe('production-safe mobile runtime audit', () => {
   test.skip(process.env.RUNTIME_AUDIT_RUN !== 'true', 'Set RUNTIME_AUDIT_RUN=true to run the production-safe runtime audit')
@@ -9,8 +9,14 @@ test.describe('production-safe mobile runtime audit', () => {
       test(`@production-audit route=${route} viewport=${viewport.label}`, async ({ page }, testInfo) => {
         await page.setViewportSize(viewport)
         await page.goto(route, { waitUntil: 'domcontentloaded' })
-        await expect(page.locator('main#main-content')).toBeVisible({ timeout: 15000 })
-        await auditRenderedPage(page, testInfo, route, 'default', viewport)
+        const issues: RuntimeAuditIssue[] = []
+        if (!await isVisibleWithin(page.locator('main#main-content'), 15000)) {
+          issues.push({ category: 'state-fixture', details: 'The main landmark did not become visible' })
+        }
+        if (!await isVisibleWithin(page.getByRole('heading', { level: 1 }), 15000)) {
+          issues.push({ category: 'state-fixture', details: 'The route heading did not become visible' })
+        }
+        await auditRenderedPage(page, testInfo, route, 'default', viewport, issues)
       })
     }
   }
