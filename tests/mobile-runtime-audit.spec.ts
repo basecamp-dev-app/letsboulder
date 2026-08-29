@@ -1,0 +1,28 @@
+import { AUDIT_ROUTES, AUDIT_VIEWPORTS, auditRenderedPage, exerciseRuntimeState, isVisibleWithin, test, type RuntimeAuditIssue } from './fixtures/runtime-audit'
+
+test.describe('production-safe mobile runtime audit', () => {
+  test.skip(process.env.RUNTIME_AUDIT_RUN !== 'true', 'Set RUNTIME_AUDIT_RUN=true to run the production-safe runtime audit')
+  test.setTimeout(60_000)
+
+  for (const viewport of AUDIT_VIEWPORTS) {
+    for (const route of AUDIT_ROUTES) {
+      test(`@production-audit route=${route} viewport=${viewport.label}`, async ({ page }, testInfo) => {
+        await page.setViewportSize(viewport)
+        await page.goto(route, { waitUntil: 'domcontentloaded' })
+        const issues: RuntimeAuditIssue[] = []
+        if (!await isVisibleWithin(page.locator('main#main-content'), 15000)) issues.push({ category: 'state-fixture', details: 'The main landmark did not become visible' })
+        if (!await isVisibleWithin(page.getByRole('heading', { level: 1 }), 15000)) issues.push({ category: 'state-fixture', details: 'The route heading did not become visible' })
+        await auditRenderedPage(page, testInfo, route, 'default', viewport, issues)
+      })
+    }
+  }
+
+  const nightlyViewport = AUDIT_VIEWPORTS.find(({ label }) => label === 'mobile-390')
+  if (!nightlyViewport) throw new Error('The production audit requires the mobile-390 viewport')
+  for (const state of ['webgl-failure', 'map-resource-failure', 'offline-network', 'pin-request-failure', 'geolocation-success', 'geolocation-error', 'geolocation-timeout'] as const) {
+    test(`@production-audit state=${state} viewport=${nightlyViewport.label}`, async ({ page, context }, testInfo) => {
+      await page.setViewportSize(nightlyViewport)
+      await auditRenderedPage(page, testInfo, '/', state, nightlyViewport, await exerciseRuntimeState(page, context, state))
+    })
+  }
+})
