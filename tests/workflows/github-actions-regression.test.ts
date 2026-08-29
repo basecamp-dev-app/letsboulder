@@ -149,6 +149,23 @@ describe('GitHub Actions security contracts', () => {
     expect(playwrightWorkflow).not.toContain('github.event.deployment_status.target_url')
   })
 
+  it('runs the production-safe mobile audit in Chromium and WebKit without credentials', () => {
+    const nightlyWorkflow = workflow('e2e-production-nightly.yml')
+    const playwrightConfig = readFileSync(path.join(root, 'playwright.config.ts'), 'utf8')
+
+    expect(nightlyWorkflow).toContain('npx playwright install chromium webkit')
+    expect(nightlyWorkflow).toContain('playwright-chromium-webkit-')
+    expect(nightlyWorkflow).toContain('tests/mobile-runtime-audit.spec.ts')
+    expect(nightlyWorkflow).toContain('--project=mobile-chrome')
+    expect(nightlyWorkflow).toContain('--project=mobile-safari')
+    expect(nightlyWorkflow).toContain("RUNTIME_AUDIT_RUN: 'true'")
+    expect(nightlyWorkflow).toContain('playwright-report-mobile-runtime-audit')
+    expect(nightlyWorkflow).toContain('test-results-mobile-runtime-audit')
+    expect(playwrightConfig).toContain("trace: 'retain-on-failure'")
+    expect(playwrightConfig).toContain("screenshot: 'only-on-failure'")
+    expect(playwrightConfig).toContain("video: 'retain-on-failure'")
+  })
+
   it('parameterizes all media backfill SQL inputs', () => {
     const backfill = workflow('media-backfill.yml')
     const hostileValues = [

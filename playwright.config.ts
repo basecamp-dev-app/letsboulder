@@ -22,6 +22,7 @@ console.log(`[playwright] baseURL=${resolvedBaseUrl}`)
 
 export default defineConfig({
   testDir: './tests',
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || 'test-results',
   testMatch: '**/*.spec.ts',
   grep: process.env.PW_GREP ? new RegExp(process.env.PW_GREP) : undefined,
   grepInvert: process.env.PW_GREP_INVERT ? new RegExp(process.env.PW_GREP_INVERT) : undefined,
@@ -32,10 +33,15 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: process.env.CI ? 3 : undefined,
-  reporter: 'html',
+  reporter: [
+    ['html'],
+    [path.resolve(__dirname, 'tests/reporters/runtime-audit-reporter.ts')],
+  ],
   use: {
     baseURL: resolvedBaseUrl,
-    trace: process.env.CI ? 'retain-on-failure' : 'on-first-retry',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
     headless: true,
   },
   projects: [
