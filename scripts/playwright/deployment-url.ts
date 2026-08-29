@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-const DEFAULT_TRUSTED_HOSTS = ['letsboulder.com']
+const DEFAULT_TRUSTED_HOSTS = ['letsboulder.com', 'staging.letsboulder.com']
 const AUTHENTICATED_TRUSTED_HOSTS = new Set<string>()
 
 export function validateTrustedBaseUrl(rawUrl: string, allowVercelHost = false): string {
