@@ -6,8 +6,14 @@ Small fixes are welcome. For larger changes, open an issue or start a discussion
 
 ## Branch Strategy
 
-- Create a feature branch from `main` for each change.
-- Open pull requests against `main`.
+- Create each feature or fix branch from `staging`.
+- Open the change pull request against `staging`; do not target `main` directly.
+- Merge only after CI passes, then verify the resulting deployment at
+  `https://staging.letsboulder.com` using the checks appropriate to the change.
+- Promote a verified release with a pull request from `staging` to `main`.
+  Merging that promotion deploys the application to production through Vercel.
+- Database, media infrastructure, and other protected production operations keep
+  their additional environment approvals and workflow-specific validation gates.
 - Keep changes focused when possible; discuss larger refactors or product changes first.
 
 ## Before You Start
