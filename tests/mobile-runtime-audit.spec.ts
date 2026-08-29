@@ -23,7 +23,18 @@ test.describe('production-safe mobile runtime audit', () => {
     test(`@production-audit state=${state} viewport=${nightlyViewport.label}`, async ({ page, context }, testInfo) => {
       await page.setViewportSize(nightlyViewport)
       let fixtureIssues: RuntimeAuditIssue[]
-      if (state === 'pin-request-failure') {
+      if (state === 'offline-network') {
+        fixtureIssues = []
+        await page.goto('/', { waitUntil: 'domcontentloaded' })
+        if (!await isVisibleWithin(page.locator('main#main-content'), 15000)) fixtureIssues.push({ category: 'state-fixture', details: 'The main landmark did not become visible' })
+        await isVisibleWithin(page.locator('.maplibregl-map'), 20000)
+        await context.setOffline(true)
+        await page.evaluate(() => {
+          Object.defineProperty(window.navigator, 'onLine', { configurable: true, get: () => false })
+          window.dispatchEvent(new Event('offline'))
+        })
+        if (!await isVisibleWithin(page.getByText(/connection lost\. map updates are unavailable/i), 15000)) fixtureIssues.push({ category: 'state-fixture', details: 'Offline state was exercised but its recovery status was not visible' })
+      } else if (state === 'pin-request-failure') {
         fixtureIssues = []
         await page.route('**/api/crags/pins**', route => route.fulfill({
           status: 503,
@@ -33,7 +44,7 @@ test.describe('production-safe mobile runtime audit', () => {
         await page.goto('/', { waitUntil: 'domcontentloaded' })
         if (!await isVisibleWithin(page.locator('main#main-content'), 15000)) fixtureIssues.push({ category: 'state-fixture', details: 'The main landmark did not become visible' })
         await isVisibleWithin(page.locator('.maplibregl-map'), 20000)
-        if (!await isVisibleWithin(page.getByText(/couldn.t load map pins/i), 15000)) fixtureIssues.push({ category: 'state-fixture', details: 'Pin-request failure did not expose its recovery alert' })
+        if (!await isVisibleWithin(page.getByText(/couldn.t load map pins/i), 30000)) fixtureIssues.push({ category: 'state-fixture', details: 'Pin-request failure did not expose its recovery alert after the query retry cycle' })
       } else {
         fixtureIssues = await exerciseRuntimeState(page, context, state)
       }
