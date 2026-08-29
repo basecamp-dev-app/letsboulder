@@ -147,6 +147,7 @@ jobs:
           # PostgREST server-version metadata is managed by Supabase and is not
           # part of the repository-owned application schema.
           sed -i '/^  \/\/ Allows to automatically instantiate/,/^  }$/d' "$LOCAL_TYPES" "$HOSTED_TYPES"
+          perl -0pi -e 's/\n+\z/\n/' "$LOCAL_TYPES" "$HOSTED_TYPES"
           diff -u "$LOCAL_TYPES" "$HOSTED_TYPES"
 
       - name: Stop local Supabase
