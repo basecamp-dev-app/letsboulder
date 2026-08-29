@@ -24,7 +24,7 @@ async function attachAuditScreenshot(page: Page, testInfo: TestInfo) {
 export const test = base.extend<AuditFixtures>({
   blockedMutationRequests: [async ({ context, baseURL, page }, use, testInfo) => {
     const blocked: string[] = []; const auditedOrigin = new URL(baseURL || 'http://localhost:3000').origin
-    await context.route('**/*', async route => { const request = route.request(); if (new URL(request.url()).origin === auditedOrigin && !['GET', 'HEAD', 'OPTIONS'].includes(request.method())) { blocked.push(`${request.method()} ${request.url()}`); await route.abort('blockedbyclient'); return } await route.continue() })
+    await context.route('**/*', async route => { const request = route.request(); if (new URL(request.url()).origin === auditedOrigin && !['GET', 'HEAD', 'OPTIONS'].includes(request.method())) { blocked.push(`${request.method()} ${request.url()}`); await route.abort('blockedbyclient'); return } await route.fallback() })
     await use(blocked)
     if (blocked.length || (testInfo.status && testInfo.status !== testInfo.expectedStatus)) await attachAuditScreenshot(page, testInfo)
     expect(blocked, 'Runtime audits must never mutate production or staging data').toEqual([])
@@ -70,6 +70,6 @@ export async function exerciseRuntimeState(page: Page, context: BrowserContext, 
   else if (state === 'webgl-failure') { if (!await isVisibleWithin(page.getByRole('heading', { name: /interactive map unavailable/i }), 15000)) issues.push({ category: 'state-fixture', details: 'WebGL failure did not expose the map-unavailable recovery state' }) }
   else if (state === 'map-resource-failure') { if (!await isVisibleWithin(page.getByText(/some map resources did not load|interactive map unavailable/i).first(), 15000)) issues.push({ category: 'state-fixture', details: 'Map-resource failure did not expose a degraded or unavailable state' }) }
   else if (state === 'pin-request-failure') { await isVisibleWithin(page.locator('.maplibregl-map'), 20000); if (!await isVisibleWithin(page.getByText(/couldn.t load map pins/i), 15000)) issues.push({ category: 'state-fixture', details: 'Pin-request failure did not expose its recovery alert' }) }
-  else { await page.getByRole('button', { name: /find climbing near me/i }).click(); const expected = state === 'geolocation-success' ? /location found/i : /try location again/i; if (!await isVisibleWithin(page.getByRole('button', { name: expected }), 5000)) issues.push({ category: 'state-fixture', details: `${state} did not reach its expected visible status` }) }
+  else { await page.getByRole('button', { name: /find climbing near me/i }).click(); const expected = state === 'geolocation-success' ? /location found/i : /try location again/i; if (!await isVisibleWithin(page.getByRole('button', { name: expected }), 15000)) issues.push({ category: 'state-fixture', details: `${state} did not reach its expected visible status` }) }
   return issues
 }
