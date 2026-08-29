@@ -193,3 +193,23 @@ jobs:
           done
           echo '::error::Staging application database smoke test did not return a JSON array with HTTP 200.'
           exit 1
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+
+      - name: Run public staging Playwright smoke suite
+        run: npx playwright test --project=public --grep @smoke --retries=1
+        env:
+          PLAYWRIGHT_BASE_URL: https://staging.letsboulder.com
+          CI: true
+
+      - name: Upload staging Playwright smoke report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: staging-playwright-smoke-${{ github.run_id }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
