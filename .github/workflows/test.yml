@@ -174,29 +174,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  deploy:
-    name: Deploy to Vercel
-    needs: [quality-checks, generated-type-drift, build, tests, media-worker-check]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment: Production
-    steps:
-      - name: Trigger Vercel Deployment
-        run: |
-          echo "Triggering Vercel deployment via Deploy Hook..."
-          response=$(curl -s -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}")
-          echo "Response: $response"
-
-          # Check if response contains a valid Vercel job
-          if echo "$response" | grep -q '"state":"PENDING"'; then
-            echo "Vercel deployment triggered successfully"
-          else
-            echo "::error::Failed to trigger Vercel deployment: $response"
-            exit 1
-          fi
-          echo "Vercel deployment triggered successfully"
-
   media-worker-check:
     name: Media Worker Check
     if: github.event_name != 'deployment_status'

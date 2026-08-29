@@ -58,6 +58,18 @@ describe('GitHub Actions security contracts', () => {
     expect(content).not.toContain('supabase/setup-cli')
     expect(content).not.toContain('version: 2.84.2')
     expect(content).toMatch(/name: Apply migrations[\s\S]*if: github\.event_name == 'workflow_dispatch'/)
+
+    const apply = content.indexOf('      - name: Apply migrations')
+    const bookkeeping = content.indexOf('      - name: Prove production migration bookkeeping completed')
+    const verification = content.indexOf('      - name: Verify production governance schema and roles read-only')
+    const deployment = content.indexOf('      - name: Trigger production Vercel deployment')
+    expect(apply).toBeGreaterThan(-1)
+    expect(bookkeeping).toBeGreaterThan(apply)
+    expect(verification).toBeGreaterThan(bookkeeping)
+    expect(deployment).toBeGreaterThan(verification)
+    expect(content).toContain('scripts/db/hosted-production-post-migration.sql')
+    expect(content).toContain('production-playwright-smoke-')
+    expect(workflow('test.yml')).not.toContain('name: Deploy to Vercel')
   })
 
   it('uploads the media delivery key to the production worker environment', () => {
