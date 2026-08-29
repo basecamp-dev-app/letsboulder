@@ -68,7 +68,7 @@ describe('GitHub Actions security contracts', () => {
     )
     const deploy = content.slice(content.indexOf('      - name: Deploy production media worker'))
 
-    expect(secretUpload).toContain('SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}')
+    expect(secretUpload).toContain('SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}')
     expect(secretUpload).toContain('CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}')
     expect(secretUpload).toContain("tr -d '[:space:]'")
     expect(secretUpload).toContain('export CLOUDFLARE_ACCOUNT_ID')
