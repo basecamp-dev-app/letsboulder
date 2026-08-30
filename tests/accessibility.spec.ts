@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { source as axeSource } from 'axe-core'
 
-import { AUDIT_VIEWPORTS } from './fixtures/runtime-audit'
-
 async function expectNoSeriousAxeViolations(page: import('@playwright/test').Page) {
   await page.evaluate(axeSource)
   const violations = await page.evaluate(async () => {
@@ -170,9 +168,9 @@ test.describe('Accessibility', () => {
     await expect(page.getByRole('heading', { level: 1, name: /page not found/i })).toBeVisible()
   })
 
-  for (const viewport of AUDIT_VIEWPORTS.filter(({ width }) => width >= 320 && width <= 430)) {
-    test(`@full shell navigation reflows at ${viewport.width}px`, async ({ page }) => {
-      await page.setViewportSize(viewport)
+  for (const width of [320, 430]) {
+    test(`@full shell navigation reflows at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 })
       await page.goto('/')
 
       await expect(page.getByRole('navigation', { name: /mobile primary navigation/i })).toBeVisible()

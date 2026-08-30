@@ -3,7 +3,7 @@ name: CI
 on:
   deployment_status:
   pull_request:
-    branches: [main]
+    branches: [main, staging]
   push:
     branches: [main, dev]
   workflow_dispatch:

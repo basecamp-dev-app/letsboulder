@@ -22,8 +22,6 @@
 - `npm run test:unit` — `vitest run --config vitest.config.ts`
 - `npm run test:components` — `vitest run --config vitest.component.config.ts`
 - `npm run test:e2e` — `playwright test` (append Playwright options after `--`)
-- `npm run test:e2e:production-audit` — deterministic, anonymous production-safe mobile route/state audit in Chromium and WebKit
-- `npm run test:e2e:release-audit` — the production-safe matrix plus richer state/viewport and throttled-navigation release checks
 - `npm run test:database` — `vitest run --config vitest.database.config.ts`
 - `npm run check:type-drift` — generate types from local Supabase and compare them with `types/database.ts` without modifying the tracked file
 
@@ -62,8 +60,6 @@ tests/
 - `authenticated` — authenticated tests (uses `/api/test/[segment]/auth` endpoint)
 - `mobile-safari` — mobile Safari viewport
 - `mobile-chrome` — mobile Chrome viewport
-
-Runtime audit specs reuse these mobile projects while explicitly setting 320, 375, 390, 430, 768, desktop-portrait, and mobile-landscape viewports. Each route/state/viewport test attaches one JSON evidence row. The audit reporter consolidates those rows in `test-results/runtime-audit-evidence.json`; detected findings fail their regression row, failures retain screenshots, video, and traces, and findings at 320–430 px also receive an issue screenshot.
 
 ## Offline Coverage
 
@@ -111,8 +107,7 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 - **Generated type drift and database semantics** — A dedicated CI job starts the pinned local Supabase stack, resets it from every committed migration, runs `npm run check:type-drift`, then runs `npm run test:database` on every PR, push, and manual workflow run. This gates generated content as well as RLS, grants, triggers, locking, and RPC behavior against the reset local schema.
 - **CI cost tradeoff** — Local Supabase requires Docker images and a migration reset, so this adds a few minutes and a separate Ubuntu runner. Keeping it as one isolated job avoids starting Supabase for every quality/test job while making migration changes fail closed when generated types are stale.
 - **Smoke tests** — Run automatically against `https://letsboulder.com` after successful `main` production deployments and by manual dispatch in `.github/workflows/test.yml`. Manually dispatched public `--grep @smoke` tests can target production or a project-verified Vercel preview; authenticated remote smoke tests remain disabled until a protected non-production origin is available.
-- **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests; test-auth and service credentials are intentionally absent. A dedicated parallel job installs Chromium, WebKit, and their system libraries before running the deterministic mobile route matrix plus representative failure states in both engines, so failures in the legacy production-safe file list cannot suppress the audit evidence. Image-history coverage uses the maintained same-origin `IMAGE_FIRST_E2E_URL` fixture, whose public crag must retain at least two ready images.
-- **Release runtime audit** — Run `PLAYWRIGHT_BASE_URL=https://letsboulder.com PLAYWRIGHT_SKIP_GLOBAL_SETUP=true npm run test:e2e:release-audit` before UX remediation releases. It expands every WebGL, map-resource, offline, pin-request, and geolocation success/error/timeout state across every configured audit viewport and adds throttled navigation checks. Complete real-device checks on current iOS Safari and Android Chrome for software-keyboard resizing, browser chrome/safe-area clipping, page scrolling through the map, pinch/drag escape, and landscape rotation; record those observations beside the generated evidence matrix.
+- **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests; test-auth and service credentials are intentionally absent. Image-history coverage uses the maintained same-origin `IMAGE_FIRST_E2E_URL` fixture, whose public crag must retain at least two ready images.
 
 Run the CI-equivalent quality sequence locally with the same commands (the build requires the public Supabase environment variables). Changes to feature-layout tooling should also run `npm run lint:features`; it is advisory and reports at most one layout warning per feature.
 
@@ -134,7 +129,7 @@ npm run test:components
 npm --prefix apps/media-worker run check
 ```
 
-Database tests run in the local-Supabase CI job; Playwright remains separate. Deployment smoke runs use `npx playwright test --project=public --project=authenticated --grep @smoke --retries=1`; the production nightly disables global setup, runs only fixed anonymous public files plus `tests/mobile-runtime-audit.spec.ts`, and allows one retry. CI uploads unit/component test artifacts and Playwright reports, evidence matrices, screenshots, videos, and traces when available. Artifacts contain test output only and are retained for seven days.
+Database tests run in the local-Supabase CI job; Playwright remains separate. Deployment smoke runs use `npx playwright test --project=public --project=authenticated --grep @smoke --retries=1`; the production nightly disables global setup, runs only a fixed anonymous public file list, and allows one retry. CI uploads unit/component test artifacts and Playwright reports/traces when available. Artifacts contain test output only and are retained for seven days.
 
 ## Conventions
 
