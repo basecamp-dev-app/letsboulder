@@ -1,4 +1,5 @@
 name: Runtime Audit Staging
+# Verification trigger: post-reconciliation staging audit (2026-08-30)
 
 on:
   pull_request:
