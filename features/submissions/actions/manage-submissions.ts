@@ -178,7 +178,7 @@ export async function deleteSubmissionDraftAction(draftId: string): Promise<Acti
   return { success: false, error: 'Failed to delete submission draft', status: 500 }
 }
 
-export async function publishSubmissionDraftAction(draftId: string): Promise<ActionResult<{ published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] }; cragId?: string | null }>> {
+export async function publishSubmissionDraftAction(draftId: string): Promise<ActionResult<{ publication?: { state: 'public' | 'pending_crag_review'; cragId: string | null }; published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] }; cragId?: string | null }>> {
   const validation = validateActionInput(draftIdSchema, { draftId })
   if (!validation.success) return fail<{ published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] }; cragId?: string | null }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
 
@@ -196,7 +196,7 @@ export async function publishSubmissionDraftAction(draftId: string): Promise<Act
   const { data: image } = published.imageId
     ? await supabase.from('images').select('crag_id').eq('id', published.imageId).maybeSingle()
     : { data: null }
-  return { success: true, data: { published, cragId: image?.crag_id ?? null } }
+  return { success: true, data: { publication: result.value.publication, published, cragId: image?.crag_id ?? null } }
 }
 
 export async function deletePublishedSubmissionAction(imageId: string): Promise<ActionResult<{ cragId: string | null }>> {

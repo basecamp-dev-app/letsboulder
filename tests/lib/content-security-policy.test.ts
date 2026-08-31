@@ -14,4 +14,11 @@ describe('getContentSecurityPolicy', () => {
   it('allows direct browser telemetry delivery to Sentry ingest', () => {
     expect(getContentSecurityPolicy('production')).toContain('https://*.sentry.io')
   })
+
+  it('allows the configured staging media origin without accepting arbitrary CSP text', () => {
+    const policy = getContentSecurityPolicy('production', 'https://static.staging.letsboulder.com/path')
+
+    expect(policy).toContain('https://static.staging.letsboulder.com')
+    expect(getContentSecurityPolicy('production', "javascript:alert('x')")).not.toContain('javascript:')
+  })
 })

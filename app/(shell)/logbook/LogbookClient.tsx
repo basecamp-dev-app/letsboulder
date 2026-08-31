@@ -263,6 +263,9 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
     try {
       const result = await publishSubmissionDraftAction(draftId)
       const payload = (result.data || {}) as {
+        publication?: {
+          state?: 'public' | 'pending_crag_review'
+        }
         published?: {
           imageId?: string
           imageIds?: string[]
@@ -290,8 +293,14 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
       const routeCount = Array.isArray(payload.published?.routeLineIds)
         ? payload.published.routeLineIds.length
         : 0
-      addToast(`Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} face${imageCount === 1 ? '' : 's'}.`, 'success')
-      if (imageId) {
+      const isPendingCragReview = payload.publication?.state === 'pending_crag_review'
+      addToast(
+        isPendingCragReview
+          ? 'Submitted for review. Routes and images will appear after the crag is published.'
+          : `Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} face${imageCount === 1 ? '' : 's'}.`,
+        'success'
+      )
+      if (imageId && !isPendingCragReview) {
         startTransition(() => {
           router.push(`/submit?draft=${draftId}&publishedFaces=${imageCount}&publishedRoutes=${routeCount}`)
         })

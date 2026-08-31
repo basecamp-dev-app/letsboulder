@@ -30,6 +30,10 @@ type DraftSupabaseClient = ReturnType<typeof import('@supabase/ssr').createServe
 
 export interface DraftPublishSuccess {
   status: string
+  publication: {
+    state: 'public' | 'pending_crag_review'
+    cragId: string | null
+  }
   published: {
     defaultImageId: string
     imageId: string | undefined
@@ -37,7 +41,7 @@ export interface DraftPublishSuccess {
     climbIds: string[]
     routeLineIds: string[]
     publishedAt: string | null
-    canonicalPath: string
+    canonicalPath: string | null
     countryCode: string
     cragSlug: string
     defaultRouteId: string | null
@@ -209,7 +213,7 @@ async function buildPublishedResponse(input: {
 
   const { data: canonicalImage, error: canonicalImageError } = await supabase
     .from('images')
-    .select('id, crag_id, crags:crag_id(name, country_code, slug), route_lines(id, climb_id, sequence_order, created_at)')
+    .select('id, crag_id, crags:crag_id(name, country_code, slug, publication_status), route_lines(id, climb_id, sequence_order, created_at)')
     .eq('id', defaultImageId)
     .maybeSingle()
 
@@ -224,7 +228,8 @@ async function buildPublishedResponse(input: {
 
   const cragId = typeof canonicalImage.crag_id === 'string' ? canonicalImage.crag_id : null
   const climbIds = normalizeStringArray(result.climb_ids)
-  const notificationClimbs = runPostPublishEffects && climbIds.length > 0
+  const isPublic = crag.publication_status === 'published'
+  const notificationClimbs = runPostPublishEffects && isPublic && climbIds.length > 0
     ? await (async () => {
       const { data: climbRows } = await supabase
         .from('climbs')
@@ -264,10 +269,12 @@ async function buildPublishedResponse(input: {
     return String(left.created_at || '').localeCompare(String(right.created_at || ''))
   })[0] || null
 
-  const canonicalPath = `/${crag.country_code.toLowerCase()}/${crag.slug}/i/${defaultImageId}`
+  const canonicalPath = isPublic
+    ? `/${crag.country_code.toLowerCase()}/${crag.slug}/i/${defaultImageId}`
+    : null
   const imageIds = normalizeStringArray(result.image_ids)
 
-  if (runPostPublishEffects) {
+  if (runPostPublishEffects && isPublic) {
     await recordSubmissionPublishedEvent(defaultImageId).catch((contributorScoreError) => {
       reportError(contributorScoreError, { message: 'Contributor score publish event error' })
     })
@@ -277,7 +284,7 @@ async function buildPublishedResponse(input: {
     ? { id: cragId, countryCode: crag.country_code, slug: crag.slug }
     : null
 
-  if (publishedCrag) {
+  if (publishedCrag && isPublic) {
     revalidatePublicCragPaths({
       cragId: publishedCrag.id,
       countryCode: publishedCrag.countryCode,
@@ -287,6 +294,10 @@ async function buildPublishedResponse(input: {
 
   return { kind: 'success', value: {
     status: result.status || 'submitted',
+    publication: {
+      state: isPublic ? 'public' : 'pending_crag_review',
+      cragId,
+    },
     published: {
       defaultImageId,
       imageId: result.image_id,
