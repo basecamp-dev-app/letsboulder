@@ -2,6 +2,8 @@
 -- public profiles. Auth-schema triggers are not reliably captured by schema dumps,
 -- so hosted staging had the functions without the production trigger bindings.
 
+BEGIN;
+
 DO $migration$
 DECLARE
   trigger_row record;
@@ -66,7 +68,8 @@ END
 $migration$;
 
 -- Keep the diagnostic and write set stable while hosted migrations run alongside
--- authentication traffic. The migration runner wraps each migration atomically.
+-- authentication traffic. The explicit transaction makes trigger restoration and
+-- backfill atomic under both local and hosted Supabase migration runners.
 LOCK TABLE auth.users, public.profiles IN SHARE ROW EXCLUSIVE MODE;
 
 DO $migration$
@@ -136,3 +139,5 @@ BEGIN
     null_email_count;
 END
 $migration$;
+
+COMMIT;

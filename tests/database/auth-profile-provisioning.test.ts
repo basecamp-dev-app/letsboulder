@@ -9,6 +9,9 @@ const migrationSql = readFileSync(
   new URL('../../supabase/migrations/20260830143000_restore_auth_profile_triggers.sql', import.meta.url),
   'utf8',
 )
+const migrationBodySql = migrationSql
+  .replace(/\bBEGIN;\s*/, '')
+  .replace(/\s*COMMIT;\s*$/, '')
 const { pool } = createDatabaseTestHarness({ max: 2, statement_timeout: 15_000 })
 
 async function transaction<T>(run: (client: PoolClient) => Promise<T>): Promise<T> {
@@ -184,7 +187,7 @@ describe('auth profile provisioning', () => {
       await insertAuthUser(client, nullEmailUserId, null)
       await client.query('alter table auth.users enable trigger on_auth_user_created')
 
-      await client.query(migrationSql)
+      await client.query(migrationBodySql)
       const firstPass = await client.query(
         `select id, email, display_name, is_admin, updated_at
          from public.profiles
@@ -193,7 +196,7 @@ describe('auth profile provisioning', () => {
         [[existingUserId, missingUserId, nullEmailUserId]],
       )
 
-      await client.query(migrationSql)
+      await client.query(migrationBodySql)
       const secondPass = await client.query(
         `select id, email, display_name, is_admin, updated_at
          from public.profiles
@@ -238,7 +241,7 @@ describe('auth profile provisioning', () => {
       await insertAuthUser(client, missingUserId, conflictingEmail)
       await client.query('alter table auth.users enable trigger on_auth_user_created')
 
-      const message = await expectQueryToFail(client, migrationSql)
+      const message = await expectQueryToFail(client, migrationBodySql)
       expect(message).toContain('Auth profile reconciliation blocked')
 
       const profiles = await client.query(
