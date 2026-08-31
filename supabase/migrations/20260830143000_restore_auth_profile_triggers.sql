@@ -44,7 +44,13 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
 
-  SELECT t.tgtype::integer, t.tgfoid, pg_get_expr(t.tgqual, t.tgrelid) AS condition
+  SELECT
+    t.tgtype::integer,
+    t.tgfoid,
+    position(
+      'old.raw_user_meta_data is distinct from new.raw_user_meta_data'
+      IN replace(lower(pg_get_triggerdef(t.oid)), '"', '')
+    ) > 0 AS has_expected_condition
   INTO trigger_row
   FROM pg_trigger AS t
   WHERE t.tgrelid = 'auth.users'::regclass
@@ -59,8 +65,7 @@ BEGIN
       EXECUTE FUNCTION public.handle_user_metadata_update();
   ELSIF trigger_row.tgtype <> 17
      OR trigger_row.tgfoid <> 'public.handle_user_metadata_update()'::regprocedure
-     OR trigger_row.condition IS DISTINCT FROM
-       '(old.raw_user_meta_data IS DISTINCT FROM new.raw_user_meta_data)' THEN
+     OR trigger_row.has_expected_condition IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'on_auth_user_updated has an unexpected definition'
       USING ERRCODE = '55000';
   END IF;

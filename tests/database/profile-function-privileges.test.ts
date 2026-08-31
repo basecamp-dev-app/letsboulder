@@ -220,6 +220,10 @@ async function createProfile(client: PoolClient, isPublic: boolean) {
        contributor_tier = excluded.contributor_tier`,
     [userId, `priv-${userId.slice(0, 12)}`, email, isPublic],
   )
+  await client.query(
+    `update public.profiles set display_name = 'Privilege fixture' where id = $1`,
+    [userId],
+  )
   return { email, userId }
 }
 

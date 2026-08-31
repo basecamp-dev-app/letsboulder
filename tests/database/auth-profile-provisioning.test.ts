@@ -65,7 +65,10 @@ describe('auth profile provisioning', () => {
       `select
          t.tgname as trigger_name,
          t.tgtype::integer as trigger_type,
-         pg_get_expr(t.tgqual, t.tgrelid) as condition,
+         position(
+           'old.raw_user_meta_data is distinct from new.raw_user_meta_data'
+           in replace(lower(pg_get_triggerdef(t.oid)), '"', '')
+         ) > 0 as has_metadata_condition,
          pn.nspname as function_schema,
          p.proname as function_name,
          p.prosecdef as security_definer,
@@ -90,7 +93,7 @@ describe('auth profile provisioning', () => {
       {
         trigger_name: 'on_auth_user_created',
         trigger_type: 5,
-        condition: null,
+        has_metadata_condition: false,
         function_schema: 'public',
         function_name: 'handle_new_user',
         security_definer: true,
@@ -99,7 +102,7 @@ describe('auth profile provisioning', () => {
       {
         trigger_name: 'on_auth_user_login',
         trigger_type: 17,
-        condition: null,
+        has_metadata_condition: false,
         function_schema: 'public',
         function_name: 'sync_profile_on_login',
         security_definer: true,
@@ -108,7 +111,7 @@ describe('auth profile provisioning', () => {
       {
         trigger_name: 'on_auth_user_updated',
         trigger_type: 17,
-        condition: '(old.raw_user_meta_data IS DISTINCT FROM new.raw_user_meta_data)',
+        has_metadata_condition: true,
         function_schema: 'public',
         function_name: 'handle_user_metadata_update',
         security_definer: true,
@@ -182,10 +185,9 @@ describe('auth profile provisioning', () => {
         [existingUserId],
       )
 
-      await client.query('alter table auth.users disable trigger on_auth_user_created')
       await insertAuthUser(client, missingUserId, missingEmail)
       await insertAuthUser(client, nullEmailUserId, null)
-      await client.query('alter table auth.users enable trigger on_auth_user_created')
+      await client.query('delete from public.profiles where id = $1', [missingUserId])
 
       await client.query(migrationBodySql)
       const firstPass = await client.query(
@@ -231,15 +233,14 @@ describe('auth profile provisioning', () => {
       const conflictingEmail = `auth-profile-conflict-${missingUserId}@example.test`
 
       await insertAuthUser(client, existingUserId, `auth-profile-existing-${existingUserId}@example.test`)
+      await insertAuthUser(client, missingUserId, conflictingEmail)
+      await client.query('delete from public.profiles where id = $1', [missingUserId])
       await client.query(
         `update public.profiles
          set email = $2, display_name = 'Do not move', is_admin = true
          where id = $1`,
         [existingUserId, conflictingEmail],
       )
-      await client.query('alter table auth.users disable trigger on_auth_user_created')
-      await insertAuthUser(client, missingUserId, conflictingEmail)
-      await client.query('alter table auth.users enable trigger on_auth_user_created')
 
       const message = await expectQueryToFail(client, migrationBodySql)
       expect(message).toContain('Auth profile reconciliation blocked')

@@ -166,6 +166,9 @@ describe('get_viewport_map_features', () => {
       const adminId = randomUUID()
       await client.query('reset role')
       await client.query(
+        "select set_config('request.jwt.claims', '{\"role\":\"service_role\"}', true)",
+      )
+      await client.query(
         `insert into auth.users (id, aud, role, email, encrypted_password, created_at, updated_at)
          values ($1, 'authenticated', 'authenticated', $2, '', now(), now())`,
         [adminId, `${adminId}@example.test`],
