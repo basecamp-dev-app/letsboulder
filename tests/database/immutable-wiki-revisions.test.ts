@@ -40,7 +40,13 @@ async function createUser(client: PoolClient, isAdmin = false) {
   await client.query(
     `insert into public.profiles (
        id, username, email, is_admin, open_data_consent_version, consent_timestamp
-     ) values ($1, $2, $3, $4, public.current_open_data_consent_version(), now())`,
+     ) values ($1, $2, $3, $4, public.current_open_data_consent_version(), now())
+     on conflict (id) do update set
+       username = excluded.username,
+       email = excluded.email,
+       is_admin = excluded.is_admin,
+       open_data_consent_version = excluded.open_data_consent_version,
+       consent_timestamp = excluded.consent_timestamp`,
     [id, `revision-${id.slice(0, 12)}`, email, isAdmin],
   )
   return id

@@ -41,7 +41,8 @@ describe('crag publication governance', () => {
       )
       await client.query(
         `insert into public.profiles (id, username, email)
-         values ($1, $2, $3)`,
+         values ($1, $2, $3)
+         on conflict (id) do update set username = excluded.username, email = excluded.email`,
         [userId, `publisher-${userId}`, `${userId}@example.test`],
       )
 

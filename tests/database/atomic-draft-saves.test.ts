@@ -57,7 +57,12 @@ async function createUser(client: Queryable, label: string) {
   await client.query(
     `insert into public.profiles (
        id, username, email, open_data_consent_version, consent_timestamp
-     ) values ($1, $2, $3, public.current_open_data_consent_version(), now())`,
+     ) values ($1, $2, $3, public.current_open_data_consent_version(), now())
+     on conflict (id) do update set
+       username = excluded.username,
+       email = excluded.email,
+       open_data_consent_version = excluded.open_data_consent_version,
+       consent_timestamp = excluded.consent_timestamp`,
     [userId, `atomic-${label}-${userId.slice(0, 8)}`, email],
   )
   return userId
