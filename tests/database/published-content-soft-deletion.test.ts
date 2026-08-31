@@ -43,7 +43,8 @@ async function createUser(client: PoolClient, isAdmin = false) {
   await client.query(
     `insert into public.profiles (id, username, email, is_admin)
      values ($1, $2, $3, $4)
-     on conflict (id) do update set is_admin = excluded.is_admin`,
+     on conflict (id) do update set
+       username = excluded.username, email = excluded.email, is_admin = excluded.is_admin`,
     [id, `delete-${id.slice(0, 12)}`, email, isAdmin],
   )
   return { email, id }

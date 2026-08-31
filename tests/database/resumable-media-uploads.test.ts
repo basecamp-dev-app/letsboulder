@@ -25,7 +25,11 @@ async function createUser(client: PoolClient) {
      values ($1, 'authenticated', 'authenticated', $2, '', now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now())`,
     [id, email],
   )
-  await client.query('insert into public.profiles (id, username, email) values ($1, $2, $3)', [id, `resume-${id.slice(0, 12)}`, email])
+  await client.query(
+    `insert into public.profiles (id, username, email) values ($1, $2, $3)
+     on conflict (id) do update set username = excluded.username, email = excluded.email`,
+    [id, `resume-${id.slice(0, 12)}`, email],
+  )
   return id
 }
 

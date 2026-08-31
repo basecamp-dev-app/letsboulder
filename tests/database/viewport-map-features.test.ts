@@ -173,7 +173,8 @@ describe('get_viewport_map_features', () => {
       await client.query(
         `insert into public.profiles (id, username, email, is_admin)
          values ($1, $2, $3, true)
-         on conflict (id) do update set is_admin = true`,
+         on conflict (id) do update set
+           username = excluded.username, email = excluded.email, is_admin = excluded.is_admin`,
         [adminId, `admin-${adminId}`, `${adminId}@example.test`],
       )
       await client.query('set local role authenticated')

@@ -62,7 +62,11 @@ async function createUser(client: PoolClient, isAdmin = false) {
   await client.query(
     `insert into public.profiles (id, username, display_name, email, is_admin)
      values ($1, $2, 'Operational access fixture', $3, $4)
-     on conflict (id) do update set is_admin = excluded.is_admin`,
+     on conflict (id) do update set
+       username = excluded.username,
+       display_name = excluded.display_name,
+       email = excluded.email,
+       is_admin = excluded.is_admin`,
     [userId, `ops-${userId.slice(0, 12)}`, email, isAdmin],
   )
   return userId
