@@ -32,6 +32,8 @@ The current `/submit` path creates a private, image-first draft and promotes its
 
 Route/media promotion is direct: there is no separate route-level pending-review step. The RPC reuses the processed image rows, creates `climbs` with `status = 'approved'`, creates route lines for durable draft routes, and permits image-only submissions. The draft becomes `submitted` and stores its published IDs for idempotent retries. These records become publicly discoverable only when the parent crag is `published`; see [Trust And Content Governance](trust-and-content-governance.md#publication-contract).
 
+When the parent crag is not yet published, the publish response reports `pending_crag_review`, omits the public canonical path, suppresses public publication notifications, and returns the editor to the logbook with a “Submitted for review” confirmation. The application must not generate or navigate to a public route URL until a steward explicitly publishes the parent crag.
+
 Contribution scoring is a server-only post-publication/edit effect. The server reloads authoritative image, edit-history, correction, or verification rows to derive the beneficiary and fixed score before invoking service-only contribution and missing-topo bounty writers; request-supplied identities and score context are not trusted.
 
 `sectorId` is currently selected by [`SectorSelector`](../features/submissions/components/SectorSelector.tsx) and saved under draft metadata by [`useEditDraftActions`](../features/draft-editor/hooks/use-edit-draft-actions.ts), but the current promotion RPC does not copy it to `climbs.sector_id` or `crag_images.sector_id`. Do not rely on sector selection surviving publication until that gap is fixed.

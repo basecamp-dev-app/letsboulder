@@ -61,6 +61,7 @@ function makeSupabase(options?: {
   draftStatus?: 'draft' | 'submitted'
   cragCountryCode?: string | null
   cragDeletedAt?: string | null
+  cragPublicationStatus?: 'review' | 'published'
   draftHasLocation?: boolean
 }) {
   const includeFallbackRouteData = options?.includeFallbackRouteData ?? false
@@ -183,7 +184,12 @@ function makeSupabase(options?: {
                 data: {
                   id: 'image-1',
                   crag_id: 'crag-1',
-                  crags: { name: 'Hidden Crag', country_code: 'GG', slug: 'hidden-crag' },
+                  crags: {
+                    name: 'Hidden Crag',
+                    country_code: 'GG',
+                    slug: 'hidden-crag',
+                    publication_status: options?.cragPublicationStatus || 'published',
+                  },
                   route_lines: [
                     { id: 'route-line-1', climb_id: 'climb-1', sequence_order: 0, created_at: '2026-03-01T00:00:00Z' },
                   ],
@@ -331,6 +337,25 @@ describe('promoteDraftToSubmission', () => {
     expect(revalidatePath).toHaveBeenCalledTimes(2)
     expect(revalidateTag).toHaveBeenCalledWith('crag:crag-1', { expire: 0 })
     expect(revalidateTag).toHaveBeenCalledTimes(1)
+  })
+
+  test('returns review state without a public link or public side effects for an unpublished crag', async () => {
+    const supabase = makeSupabase({ cragPublicationStatus: 'review' })
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({
+      publication: { state: 'pending_crag_review', cragId: 'crag-1' },
+      published: expect.objectContaining({ canonicalPath: null }),
+    }))
+    expect(vi.mocked(notifyNewSubmission)).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
+    expect(revalidateTag).not.toHaveBeenCalled()
   })
 
   test('recovers an already-published draft and repairs missing crag country metadata without promoting twice', async () => {

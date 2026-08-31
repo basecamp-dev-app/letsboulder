@@ -5,6 +5,7 @@ import { publishSubmissionDraftAction } from '@/features/submissions/actions/man
 
 interface PublishDraftResult {
   ok: boolean
+  publiclyAvailable: boolean
   imageId: string | null
   imageCount: number
   routeCount: number
@@ -18,6 +19,9 @@ export function usePublishDraft(refresh: () => Promise<void>) {
     try {
       const result = await publishSubmissionDraftAction(draftId)
       const payload = (result.data || {}) as {
+        publication?: {
+          state?: 'public' | 'pending_crag_review'
+        }
         published?: {
           imageId?: string
           imageIds?: string[]
@@ -33,6 +37,7 @@ export function usePublishDraft(refresh: () => Promise<void>) {
       const routeLineIds = Array.isArray(payload.published?.routeLineIds) ? payload.published.routeLineIds : []
       return {
         ok: true,
+        publiclyAvailable: payload.publication?.state !== 'pending_crag_review',
         imageId: payload.published?.imageId || null,
         imageCount: imageIds.length > 0 ? imageIds.length : (payload.published?.imageId ? 1 : 0),
         routeCount: routeLineIds.length,
@@ -40,6 +45,7 @@ export function usePublishDraft(refresh: () => Promise<void>) {
     } catch {
       return {
         ok: false,
+        publiclyAvailable: false,
         imageId: null,
         imageCount: 0,
         routeCount: 0,

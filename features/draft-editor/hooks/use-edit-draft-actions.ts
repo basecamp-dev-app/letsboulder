@@ -384,7 +384,7 @@ export function useEditDraftActions({
       })
       const payload = await response.json().catch(() => ({ error: 'Failed to publish draft' })) as DraftPublishErrorResponse
 
-      if (!response.ok || !payload.published?.defaultImageId || !payload.published.canonicalPath) {
+      if (!response.ok || !payload.published?.defaultImageId) {
         if (response.status === 429) {
           throw new Error(PUBLISH_RATE_LIMIT_ERROR_MESSAGE)
         }
@@ -394,8 +394,11 @@ export function useEditDraftActions({
 
       const imageCount = Array.isArray(payload.published.imageIds) ? payload.published.imageIds.length : 1
       const routeCount = Array.isArray(payload.published.routeLineIds) ? payload.published.routeLineIds.length : 0
+      const isPendingCragReview = payload.publication?.state === 'pending_crag_review'
       addToast(
-        routeCount > 0
+        isPendingCragReview
+          ? 'Submitted for review. Routes and images will appear after the crag is published.'
+          : routeCount > 0
           ? `Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} image${imageCount === 1 ? '' : 's'}.`
           : `Success! Published ${imageCount} image${imageCount === 1 ? '' : 's'} without routes yet. The community can add topo later.`,
         'success'
@@ -409,7 +412,11 @@ export function useEditDraftActions({
         query.set('route', payload.published.defaultRouteId)
       }
       await invalidateCragQueries(queryClient, cragId)
-      router.push(`${payload.published.canonicalPath}?${query.toString()}`)
+      if (isPendingCragReview || !payload.published.canonicalPath) {
+        router.push('/logbook')
+      } else {
+        router.push(`${payload.published.canonicalPath}?${query.toString()}`)
+      }
     } catch (publishError) {
       const message = publishError instanceof Error ? publishError.message : 'Failed to publish draft'
       setError(message)

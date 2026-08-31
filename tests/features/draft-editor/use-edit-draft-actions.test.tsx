@@ -240,6 +240,45 @@ describe('useEditDraftActions', () => {
     expect(mockPush).toHaveBeenCalledWith('/test/crag/i/image-1?publishedImages=2&publishedRoutes=1')
   })
 
+  it('submits unpublished-crag content for review without opening a public route', async () => {
+    const addToast = vi.fn()
+    mockCsrfFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ draft: { updated_at: '2026-04-12T21:15:00.000Z' } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          publication: { state: 'pending_crag_review', cragId: 'crag-1' },
+          published: {
+            defaultImageId: 'image-1',
+            canonicalPath: null,
+            imageIds: ['image-1'],
+            routeLineIds: ['route-line-1'],
+          },
+        }),
+      })
+
+    const { result } = renderHook(
+      () => useEditDraftActions(createActionsParams({ addToast })),
+      { wrapper: createQueryWrapper() },
+    )
+
+    await act(async () => {
+      await result.current.publishDraft()
+    })
+
+    expect(addToast).toHaveBeenCalledWith(
+      'Submitted for review. Routes and images will appear after the crag is published.',
+      'success',
+    )
+    expect(mockPush).toHaveBeenCalledWith('/logbook')
+    expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining('/i/image-1'))
+  })
+
   it('stops publishing when the location flush fails', async () => {
     const flushLocationSync = vi.fn().mockResolvedValue({ ok: false, reason: 'failed' })
     const draft = createDraft()

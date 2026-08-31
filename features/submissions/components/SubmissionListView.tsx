@@ -144,7 +144,7 @@ export default function SubmissionListView() {
                 }}
                 onPublishDraft={(draftIdToPublish) => {
                   void publishDraft(draftIdToPublish).then((result) => {
-                    if (result.ok && result.imageId) {
+                    if (result.ok && result.publiclyAvailable && result.imageId) {
                       const query = new URLSearchParams({
                         publishedFaces: String(result.imageCount),
                         publishedRoutes: String(result.routeCount),
