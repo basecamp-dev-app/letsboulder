@@ -140,6 +140,8 @@ Automated media moderation is disabled and no AWS Rekognition integration is act
 
 ## Network Resilience
 
+The approved target for offline field use is the installed iOS and Android PWA contract in [Offline Field Guide Product Contract](offline-product-contract.md). The bullets below describe the current deployed implementation; they do not imply that it already meets every target acceptance criterion.
+
 - The app is online-first. HTTP caching and React Query handle normal revisits; selected queries opt into IndexedDB persistence.
 - `/offline` is both the navigation fallback and the saved-guide library; `/offline/library` remains a compatible library URL, while `/offline/crag?id=UUID` provides the standalone viewer over installed IndexedDB metadata and immutable cached media. `public/sw.js` precaches those shells and their Next static assets, serves saved-guide navigations cache-first, and persists the build-cache manifest across worker restarts.
 - `GET /api/offline-packs/crags/{cragId}/manifest` returns a deterministic, ETagged snapshot containing only active public routes, publicly deliverable image metadata, route-line geometry, policy-filtered coordinates, and fixed-format immutable media URLs.
