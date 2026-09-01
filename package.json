@@ -34,6 +34,7 @@
     "test:components": "vitest run --config vitest.component.config.ts",
     "test:database": "vitest run --config vitest.database.config.ts",
     "test:e2e": "playwright test",
+    "test:e2e:offline": "playwright test -c playwright.offline.config.ts",
     "test:workflow-regressions": "vitest run --config vitest.config.ts tests/workflows/*.test.ts",
     "test:e2e:production-audit": "RUNTIME_AUDIT_RUN=true playwright test -c playwright.runtime-audit.config.ts --project=mobile-chrome --project=mobile-safari tests/mobile-runtime-audit.spec.ts",
     "test:e2e:release-audit": "RUNTIME_AUDIT_RUN=true RUNTIME_AUDIT_PROFILE=release playwright test -c playwright.runtime-audit.config.ts --retries=2 --project=mobile-chrome --project=mobile-safari tests/mobile-runtime-audit.spec.ts tests/mobile-runtime-audit.release.spec.ts",
