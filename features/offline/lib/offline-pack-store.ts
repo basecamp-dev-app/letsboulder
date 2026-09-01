@@ -3,12 +3,13 @@ import type { OfflinePackSnapshot, OfflineStorageStatus } from '@/features/offli
 
 export class OfflinePackStore {
   private snapshot: OfflinePackSnapshot = { loading: false, packs: [], error: null }
+  private readonly serverSnapshot: OfflinePackSnapshot = { loading: false, packs: [], error: null }
   private readonly listeners = new Set<() => void>()
 
   constructor(private readonly manager: OfflinePackManager) {}
 
   getSnapshot = (): OfflinePackSnapshot => this.snapshot
-  getServerSnapshot = (): OfflinePackSnapshot => ({ loading: false, packs: [], error: null })
+  getServerSnapshot = (): OfflinePackSnapshot => this.serverSnapshot
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
@@ -71,7 +72,13 @@ export class OfflinePackStore {
       return await operation()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Offline pack operation failed'
-      this.setSnapshot({ ...this.snapshot, loading: false, error: message })
+      let packs = this.snapshot.packs
+      try {
+        packs = await this.manager.list()
+      } catch {
+        // Preserve the last readable snapshot when browser storage is also unavailable.
+      }
+      this.setSnapshot({ loading: false, packs, error: message })
       throw error
     }
   }
