@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Page } from '@playwright/test'
+import { expect, test, type BrowserContext, type CDPSession, type Page } from '@playwright/test'
 
 import type { CragPackManifest } from '@/types/crag-pack-manifest'
 
@@ -9,6 +9,17 @@ const MEDIA_CACHE = 'letsboulder-offline-immutable-v1'
 
 async function waitForOfflineReader(page: Page) {
   await page.waitForFunction(() => Boolean(navigator.serviceWorker?.controller))
+}
+
+function waitForServiceWorkerStatus(session: CDPSession, runningStatus: 'running' | 'stopped') {
+  return new Promise<void>((resolve) => {
+    const listener = (event: { versions: Array<{ runningStatus: string }> }) => {
+      if (!event.versions.some((version) => version.runningStatus === runningStatus)) return
+      session.off('ServiceWorker.workerVersionUpdated', listener)
+      resolve()
+    }
+    session.on('ServiceWorker.workerVersionUpdated', listener)
+  })
 }
 
 async function installPack(page: Page) {
@@ -105,7 +116,7 @@ test.describe('mandatory offline reliability harness', () => {
     await expect(page.getByText('Needs repair')).toBeVisible()
     await page.getByRole('link', { name: 'Open saved crag' }).click()
     await expect(page.getByRole('heading', { name: 'Signal Lost Cove' })).toBeVisible()
-    await expect(page.getByRole('alert')).toContainText('Some saved media is missing')
+    await expect(page.locator('main').getByRole('alert')).toContainText('Some saved media is missing')
     await expect(page.locator('figure img')).toHaveCount(1)
   })
 
@@ -134,7 +145,7 @@ test.describe('mandatory offline reliability harness', () => {
 
     await page.goto('/offline/library')
     await page.getByRole('button', { name: 'Update' }).click()
-    await expect(page.getByRole('alert')).toContainText(/asset request failed/i)
+    await expect(page.getByRole('region', { name: 'Saved guides' }).getByRole('alert')).toContainText(/asset request failed/i)
     await expect(page.getByRole('link', { name: 'Open saved crag' })).toBeVisible()
     await page.getByRole('link', { name: 'Open saved crag' }).click()
     await expect(page.getByRole('heading', { name: 'Signal Lost Cove' })).toBeVisible()
@@ -159,7 +170,15 @@ test.describe('mandatory offline reliability harness', () => {
     await expect(page.getByRole('link', { name: 'Open saved crag' })).toBeVisible()
     const session = await context.newCDPSession(page)
     await session.send('ServiceWorker.enable')
+    const stopped = waitForServiceWorkerStatus(session, 'stopped')
     await session.send('ServiceWorker.stopAllWorkers')
+    await stopped
+    const restarted = waitForServiceWorkerStatus(session, 'running')
+    await page.evaluate(async () => {
+      const response = await fetch('/offline/library')
+      if (!response.ok) throw new Error(`Unable to restart service worker: ${response.status}`)
+    })
+    await restarted
     await context.setOffline(true)
 
     await page.goto(`/offline/crag?id=${CRAG_ID}`, { waitUntil: 'domcontentloaded' })
