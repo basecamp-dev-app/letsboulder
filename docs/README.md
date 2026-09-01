@@ -32,6 +32,7 @@ When documentation and implementation disagree, verify the implementation and te
 | Trust and content governance | [Trust And Content Governance](trust-and-content-governance.md) | Publication status, public eligibility, metrics, and processing register |
 | Auth, CSRF, and rate limits | [Auth And Security](auth-security.md) | Auth clients, CSRF helpers, rate-limit configuration |
 | Content Security Policy | [CSP](security/csp.md) | `next.config.ts`, `lib/content-security-policy.ts` |
+| Offline field-guide product contract | [Offline Product Contract](offline-product-contract.md) | Approved supported-platform, completeness, verification, and release requirements |
 | Canvas, maps, GPS, grades, offline | [Patterns](patterns.md) | Feature hooks and platform utilities |
 
 ## Reference
