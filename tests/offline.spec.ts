@@ -156,6 +156,7 @@ test.describe('mandatory offline reliability harness', () => {
   test('navigates offline after the service worker process restarts', async ({ page, context }) => {
     await installPack(page)
     await page.goto('/offline/library')
+    await expect(page.getByRole('link', { name: 'Open saved crag' })).toBeVisible()
     const session = await context.newCDPSession(page)
     await session.send('ServiceWorker.enable')
     await session.send('ServiceWorker.stopAllWorkers')

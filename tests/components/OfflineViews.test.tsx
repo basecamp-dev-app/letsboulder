@@ -29,7 +29,7 @@ vi.mock('@/features/offline/lib/offline-pack-manager', () => ({
 describe('offline standalone views', () => {
   beforeEach(() => {
     useConnectivityMock.mockReturnValue({ status: 'online', check: vi.fn() })
-    useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn() })
+    useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn(), resume: vi.fn(async () => undefined) })
     listMock.mockResolvedValue([])
     getActiveMock.mockResolvedValue(null)
   })
@@ -39,6 +39,7 @@ describe('offline standalone views', () => {
       loading: false,
       error: null,
       repair: vi.fn(),
+      resume: vi.fn(async () => undefined),
       packs: [{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'ready', installedAt: '2026-07-29T10:00:00.000Z', updatedAt: '2026-07-29T10:00:00.000Z', error: null }],
     })
 
@@ -54,6 +55,7 @@ describe('offline standalone views', () => {
       loading: false,
       error: null,
       repair: vi.fn(),
+      resume: vi.fn(async () => undefined),
       packs: [{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'ready', installedAt: '2026-07-29T10:00:00.000Z', updatedAt: '2026-07-29T10:00:00.000Z', error: null }],
     })
 
@@ -64,11 +66,11 @@ describe('offline standalone views', () => {
   })
 
   it('shows loading and empty library states', () => {
-    useOfflinePacksMock.mockReturnValue({ loading: true, packs: [], error: null, repair: vi.fn() })
+    useOfflinePacksMock.mockReturnValue({ loading: true, packs: [], error: null, repair: vi.fn(), resume: vi.fn(async () => undefined) })
     const { rerender } = render(<OfflineLibraryView />)
     expect(screen.getByText('Reading saved guides...')).toBeInTheDocument()
 
-    useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn() })
+    useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn(), resume: vi.fn(async () => undefined) })
     rerender(<OfflineLibraryView />)
     expect(screen.getByRole('heading', { name: 'No guides saved yet' })).toBeInTheDocument()
   })
@@ -83,7 +85,7 @@ describe('offline standalone views', () => {
 
   it('shows degraded packs with repair and failed updates without hiding the active viewer', () => {
     useOfflinePacksMock.mockReturnValue({
-      loading: false, error: null, repair: vi.fn(), update: vi.fn(), remove: vi.fn(), discardFailed: vi.fn(),
+      loading: false, error: null, repair: vi.fn(), update: vi.fn(), remove: vi.fn(), discardFailed: vi.fn(), resume: vi.fn(async () => undefined),
       packs: [{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'degraded', installedAt: null, updatedAt: 'now', error: 'media missing' }],
     })
     render(<OfflineLibraryView />)
@@ -94,12 +96,24 @@ describe('offline standalone views', () => {
 
   it('offers discard for a failed initial download', () => {
     useOfflinePacksMock.mockReturnValue({
-      loading: false, error: null, repair: vi.fn(), update: vi.fn(), remove: vi.fn(), discardFailed: vi.fn(),
+      loading: false, error: null, repair: vi.fn(), update: vi.fn(), remove: vi.fn(), discardFailed: vi.fn(), resume: vi.fn(async () => undefined),
       packs: [{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: null, status: 'error', installedAt: null, updatedAt: 'now', error: 'network interrupted' }],
     })
     render(<OfflineLibraryView />)
     expect(screen.getByRole('button', { name: /discard failed download/i })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open saved crag' })).not.toBeInTheDocument()
+  })
+
+  it('keeps an active guide visible alongside a failed update alert', () => {
+    useOfflinePacksMock.mockReturnValue({
+      loading: false, error: 'Asset request failed', repair: vi.fn(), update: vi.fn(), remove: vi.fn(), discardFailed: vi.fn(), resume: vi.fn(async () => undefined),
+      packs: [{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'ready', installedAt: 'now', updatedAt: 'now', error: 'Asset request failed' }],
+    })
+
+    render(<OfflineLibraryView />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Asset request failed')
+    expect(screen.getByRole('link', { name: 'Open saved crag' })).toBeVisible()
   })
 
   it('renders installed metadata, immutable topo media, route lines, and pins', async () => {
@@ -160,7 +174,7 @@ describe('offline standalone views', () => {
   })
 
   it('offers update and removal for incompatible stored guide metadata', async () => {
-    useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn(), update: vi.fn(), remove: vi.fn() })
+    useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn(), update: vi.fn(), remove: vi.fn(), resume: vi.fn(async () => undefined) })
     listMock.mockResolvedValue([{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, activeVersion: 'v1', status: 'ready' }])
     getActiveMock.mockResolvedValue({
       pack: { packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Broken Crag', manifestUrl: '/pack.json', activeVersion: 'v1', status: 'ready', installedAt: 'now', updatedAt: 'now', error: null },
