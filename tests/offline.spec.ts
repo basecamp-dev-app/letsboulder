@@ -134,7 +134,7 @@ test.describe('mandatory offline reliability harness', () => {
 
     await page.goto('/offline/library')
     await page.getByRole('button', { name: 'Update' }).click()
-    await expect(page.getByText(/asset request failed/i)).toBeVisible()
+    await expect(page.getByRole('alert')).toContainText(/asset request failed/i)
     await expect(page.getByRole('link', { name: 'Open saved crag' })).toBeVisible()
     await page.getByRole('link', { name: 'Open saved crag' }).click()
     await expect(page.getByRole('heading', { name: 'Signal Lost Cove' })).toBeVisible()

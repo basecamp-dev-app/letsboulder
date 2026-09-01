@@ -18,7 +18,7 @@ export default defineConfig({
   },
   projects: [{ name: 'offline-chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npm run dev -- --hostname 127.0.0.1',
+    command: 'npm run build && npm run start -- --hostname 127.0.0.1',
     url: `${baseURL}/offline/fixture`,
     reuseExistingServer: false,
     timeout: 120_000,
