@@ -4,6 +4,29 @@ import Image from 'next/image'
 import { RouteEditorRail } from '@/features/route-editor/public'
 import { UnifiedRouteCanvas } from '@/features/route-editor/public'
 
+function selectRouteWithoutNavigation(
+  routeId: string | null,
+  fallback: (routeId: string | null) => void,
+) {
+  if (typeof window === 'undefined') {
+    fallback(routeId)
+    return
+  }
+
+  try {
+    const nextUrl = new URL(window.location.href)
+    if (routeId) nextUrl.searchParams.set('route', routeId)
+    else nextUrl.searchParams.delete('route')
+    nextUrl.searchParams.delete('climb')
+
+    // Next.js integrates native history updates with useSearchParams, so this
+    // changes the selected route without starting a server-component navigation.
+    window.history.pushState(null, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
+  } catch {
+    fallback(routeId)
+  }
+}
+
 export function ImageFirstHeader(props: {
   cragSlug: string
   activeSectorName: string | null
@@ -60,7 +83,7 @@ export function ImageFirstCanvasCarousel(props: {
                       imageUrl={activeCanvasImageUrl}
                       routes={visibleRoutes as never}
                       activeRouteId={activeRouteId}
-                      onRouteSelect={onRouteSelect}
+                      onRouteSelect={(routeId) => selectRouteWithoutNavigation(routeId, onRouteSelect)}
                     />
                   </>
                 ) : null}
@@ -81,7 +104,11 @@ export function ImageFirstFooterRail(props: {
   return (
     <div className="px-4 pb-4">
       <div className="mx-auto w-full max-w-6xl">
-        <RouteEditorRail routes={props.visibleRoutes as never} selectedRouteId={props.activeRouteId} onSelectRoute={props.onRouteSelect} />
+        <RouteEditorRail
+          routes={props.visibleRoutes as never}
+          selectedRouteId={props.activeRouteId}
+          onSelectRoute={(routeId) => selectRouteWithoutNavigation(routeId, props.onRouteSelect)}
+        />
       </div>
     </div>
   )

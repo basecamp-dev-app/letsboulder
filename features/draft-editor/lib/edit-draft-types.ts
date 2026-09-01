@@ -105,11 +105,15 @@ export interface DraftDeleteImageResponse {
 export interface DraftPublishErrorResponse {
   error?: string
   missing_image_ids?: string[]
+  publication?: {
+    state?: 'public' | 'pending_crag_review'
+    cragId?: string | null
+  }
   published?: {
     defaultImageId?: string
     imageIds?: string[]
     routeLineIds?: string[]
-    canonicalPath?: string
+    canonicalPath?: string | null
     defaultRouteId?: string | null
   }
 }

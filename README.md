@@ -101,9 +101,10 @@ See [`.env.example`](.env.example) for the categorized application, media, integ
 | Environment | URL | Branch |
 |-------------|-----|--------|
 | Development | [dev.letsboulder.com](https://dev.letsboulder.com) | `dev` |
+| Staging | [staging.letsboulder.com](https://staging.letsboulder.com) | `staging` |
 | Production | [letsboulder.com](https://letsboulder.com) | `main` |
 
-**App**: CI triggers the production Vercel deploy hook after successful pushes to `main`. Preview and development deployment behavior is managed in Vercel.
+**App**: The hosted-staging workflow validates the database and triggers the staging Vercel deploy hook after every push to `staging`. CI triggers the production Vercel deploy hook after successful pushes to `main`. Preview and development deployment behavior is managed in Vercel.
 
 **Media Worker**: Cloudflare Worker deployed via Wrangler (`apps/media-worker/wrangler.toml`)
 

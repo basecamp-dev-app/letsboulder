@@ -26,7 +26,8 @@ async function createUser(client: PoolClient, label: string) {
     [id, email],
   )
   await client.query(
-    'insert into public.profiles (id, username, email) values ($1, $2, $3)',
+    `insert into public.profiles (id, username, email) values ($1, $2, $3)
+     on conflict (id) do update set username = excluded.username, email = excluded.email`,
     [id, `draft-attachment-${label}-${id.slice(0, 8)}`, email],
   )
   return id

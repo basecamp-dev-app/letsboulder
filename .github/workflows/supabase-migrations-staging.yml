@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - staging
-    paths:
-      - 'supabase/migrations/**'
-      - 'scripts/db/hosted-staging-*.sql'
-      - 'types/database.ts'
-      - '.github/workflows/supabase-migrations-staging.yml'
   workflow_dispatch:
     inputs:
       commit_sha:
