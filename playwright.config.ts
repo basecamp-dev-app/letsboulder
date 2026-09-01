@@ -13,6 +13,7 @@ if (process.env.CI && process.env.PLAYWRIGHT_AUTHENTICATED_SMOKE === 'true') {
   validateAuthenticatedBaseUrl(resolvedBaseUrl)
 }
 const skipGlobalSetup = process.env.PLAYWRIGHT_SKIP_GLOBAL_SETUP === 'true'
+const offlineReliabilityTest = /offline\.spec\.ts/
 
 if (process.env.CI && !process.env.PLAYWRIGHT_BASE_URL?.trim()) {
   throw new Error('CI requires PLAYWRIGHT_BASE_URL so smoke tests target the resolved environment')
@@ -41,7 +42,7 @@ export default defineConfig({
   projects: [
     {
       name: 'public',
-      testIgnore: /.*\.auth\.spec\.ts/,
+      testIgnore: [/.*\.auth\.spec\.ts/, offlineReliabilityTest],
       use: { ...devices['Desktop Chrome'] },
     },
     {
@@ -65,14 +66,14 @@ export default defineConfig({
     },
     {
       name: 'mobile-safari',
-      testIgnore: /.*\.auth\.spec\.ts/,
+      testIgnore: [/.*\.auth\.spec\.ts/, offlineReliabilityTest],
       use: {
         ...devices['iPhone 12'],
       },
     },
     {
       name: 'mobile-chrome',
-      testIgnore: /.*\.auth\.spec\.ts/,
+      testIgnore: [/.*\.auth\.spec\.ts/, offlineReliabilityTest],
       use: {
         ...devices['Pixel 7'],
       },

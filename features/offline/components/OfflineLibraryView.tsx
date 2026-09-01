@@ -2,15 +2,20 @@
 /* eslint-disable @next/next/no-html-link-for-pages -- Standalone offline routes require service-worker-controlled document navigations. */
 
 import { MapPinned, Mountain, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react'
+import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useConnectivity } from '@/features/offline/hooks/use-connectivity'
 import { useOfflinePacks } from '@/features/offline/hooks/use-offline-packs'
 
 export default function OfflineLibraryView() {
-  const { packs, loading, error, update, repair, remove, discardFailed } = useOfflinePacks()
+  const { packs, loading, error, update, repair, remove, discardFailed, resume } = useOfflinePacks()
   const { status: connectivity } = useConnectivity()
   const connected = connectivity === 'online'
+
+  useEffect(() => {
+    void resume().catch(() => undefined)
+  }, [resume])
 
   const handleUpdate = async (packId: string, displayName: string) => {
     if (!globalThis.confirm(`Check for and download updates to ${displayName}?`)) return
@@ -57,9 +62,8 @@ export default function OfflineLibraryView() {
 
         <section aria-labelledby="saved-guides-heading" className="mt-6">
           <h2 id="saved-guides-heading" className="sr-only">Saved guides</h2>
-          {error ? (
-            <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">{error}</div>
-          ) : loading && packs.length === 0 ? (
+          {error ? <div role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">{error}</div> : null}
+          {loading && packs.length === 0 ? (
             <div aria-live="polite" className="rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">Reading saved guides...</div>
           ) : packs.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-stone-300 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-900">

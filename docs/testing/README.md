@@ -22,6 +22,7 @@
 - `npm run test:unit` — `vitest run --config vitest.config.ts`
 - `npm run test:components` — `vitest run --config vitest.component.config.ts`
 - `npm run test:e2e` — `playwright test` (append Playwright options after `--`)
+- `npm run test:e2e:offline` — mandatory local Chromium reliability harness with its repository-owned fixture and web server
 - `npm run test:database` — `vitest run --config vitest.database.config.ts`
 - `npm run check:type-drift` — generate types from local Supabase and compare them with `types/database.ts` without modifying the tracked file
 
@@ -67,7 +68,9 @@ tests/
 - Manager tests cover resumable versus permanent failures, restart recovery, atomic failed updates, missing assets, quota rejection, partial cleanup, and concurrent operations.
 - `OfflinePackDatabase` tests use a real IndexedDB implementation (`fake-indexeddb`) rather than an in-memory repository.
 - Service-worker tests cover navigation, shell/static assets, every active crag media variant, cache misses, network failures, and non-packed requests.
-- Playwright offline tests must cover online install, offline reload/open, interrupted download resume, failed updates, and media eviction repair across desktop Chrome, mobile Chrome, and mobile Safari-compatible projects.
+- `npm run test:e2e:offline` is mandatory and uses Signal Lost Cove, a repository-owned public fixture with three climbs, two sectors, two topo faces, shared-image relationships, a text-only climb, access and tide notes, and coordinates. It requires no hosted fixture, credential, secret, optional URL, or caller-supplied fixture environment variable.
+- The suite covers online install, readiness, airplane-mode library reload, cache-first saved-crag navigation, page close/reopen, required metadata and topo rendering, interrupted install/resume, media eviction, failed-update preservation, auth-state changes, and service-worker process restart.
+- Playwright's browser projects are automated browser coverage only. Installed-PWA release validation must follow the [physical-device checklist](offline-device-release-checklist.md) on current supported iOS and Android hardware.
 
 CI installs the lockfile exactly with `npm ci --prefer-offline`; use the same command locally when reproducing CI. The media worker is a separate package and is installed with `npm --prefix apps/media-worker ci --prefer-offline`.
 
@@ -105,6 +108,7 @@ The default connection is `postgresql://postgres:postgres@127.0.0.1:54322/postgr
 
 - **Quality gates** — Run on PR/push in `.github/workflows/test.yml` and cover lint, advisory feature layout reporting, architecture boundaries, docs drift, typecheck, build, unit, and component tests
 - **Generated type drift and database semantics** — A dedicated CI job starts the pinned local Supabase stack, resets it from every committed migration, runs `npm run check:type-drift`, then runs `npm run test:database` on every PR, push, and manual workflow run. This gates generated content as well as RLS, grants, triggers, locking, and RPC behavior against the reset local schema.
+- **Offline reliability** — A dedicated PR job starts the repository locally and runs `npm run test:e2e:offline` in Chromium. It has no Supabase, CDN, authentication, hosted-fixture, secret, or optional fixture configuration dependency.
 - **CI cost tradeoff** — Local Supabase requires Docker images and a migration reset, so this adds a few minutes and a separate Ubuntu runner. Keeping it as one isolated job avoids starting Supabase for every quality/test job while making migration changes fail closed when generated types are stale.
 - **Smoke tests** — Run automatically against `https://letsboulder.com` after successful `main` production deployments and by manual dispatch in `.github/workflows/test.yml`. Manually dispatched public `--grep @smoke` tests can target production or a project-verified Vercel preview; authenticated remote smoke tests remain disabled until a protected non-production origin is available.
 - **Production-safe nightly** — Runs in `.github/workflows/e2e-production-nightly.yml` against `https://letsboulder.com` with `globalSetup` disabled and only anonymous public tests; test-auth and service credentials are intentionally absent. Image-history coverage uses the maintained same-origin `IMAGE_FIRST_E2E_URL` fixture, whose public crag must retain at least two ready images.

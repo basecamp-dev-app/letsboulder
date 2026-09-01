@@ -177,9 +177,15 @@ export default function OfflineCragViewer() {
   }
 
   const topos = collectTopos(manifest)
-  const missing = new Set(missingUrls)
-  const availableTopos = topos.filter((topo) => !missing.has(topo.url))
+  const availableTopos = topos.filter((topo) => !missingUrls.some((missingUrl) => (
+    missingUrl === topo.url || new URL(topo.url, missingUrl).href === missingUrl
+  )))
   const pins = manifest.metadata.climbs.filter((climb) => climb.coordinates.latitude !== null && climb.coordinates.longitude !== null)
+  const sectorNames = new Map((manifest.metadata.sectors ?? []).map((sector) => [sector.id, sector.name]))
+  const climbsWithTopos = new Set(manifest.metadata.routeLines.map((line) => line.climbId))
+  const crag = manifest.metadata.crag
+  const cragLatitude = crag.coordinates?.latitude
+  const cragLongitude = crag.coordinates?.longitude
 
   return (
     <main id="main-content" className="min-h-screen bg-stone-100 px-4 py-6 text-stone-950 dark:bg-gray-950 dark:text-gray-50 sm:py-10">
@@ -196,6 +202,13 @@ export default function OfflineCragViewer() {
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">Saved field guide</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">{manifest.metadata.crag.name}</h1>
           <p className="mt-3 text-sm text-emerald-50/80">{manifest.metadata.climbs.length} {manifest.metadata.climbs.length === 1 ? 'route' : 'routes'} · {topos.length} topo {topos.length === 1 ? 'image' : 'images'}</p>
           {manifest.metadata.crag.description ? <p className="mt-4 max-w-2xl text-sm leading-6 text-emerald-50/80">{manifest.metadata.crag.description}</p> : null}
+          <dl className="mt-5 grid gap-3 text-sm text-emerald-50/90 sm:grid-cols-2">
+            <div><dt className="font-semibold text-emerald-200">Location</dt><dd>{[crag.subArea, crag.regionName, crag.country].filter(Boolean).join(', ')}</dd></div>
+            <div><dt className="font-semibold text-emerald-200">Rock</dt><dd>{crag.rockType || 'Not recorded'}</dd></div>
+            {crag.accessNotes ? <div><dt className="font-semibold text-emerald-200">Access</dt><dd>{crag.accessNotes}</dd></div> : null}
+            {crag.tideDependency ? <div><dt className="font-semibold text-emerald-200">Tide</dt><dd>{crag.tideDependency}</dd></div> : null}
+            {typeof cragLatitude === 'number' && typeof cragLongitude === 'number' ? <div><dt className="font-semibold text-emerald-200">Crag coordinates</dt><dd className="font-mono text-xs">Crag: {cragLatitude.toFixed(5)}, {cragLongitude.toFixed(5)}</dd></div> : null}
+          </dl>
         </header>
 
         {missingUrls.length > 0 ? (
@@ -216,7 +229,9 @@ export default function OfflineCragViewer() {
               <h2 id="routes-heading" className="font-semibold">Route details</h2><ul className="mt-3 divide-y divide-stone-200 dark:divide-gray-800">
                 {manifest.metadata.climbs.map((route) => <li key={route.id} className="py-3 first:pt-0 last:pb-0">
                   <div className="flex items-start justify-between gap-3"><h3 className="font-medium">{route.name || 'Unnamed route'}</h3><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{route.consensusGrade || route.grade}</span></div>
-                  {route.routeType ? <p className="mt-1 text-xs capitalize text-stone-500 dark:text-gray-400">{route.routeType}</p> : null}{route.description ? <p className="mt-2 text-sm leading-5 text-stone-600 dark:text-gray-300">{route.description}</p> : null}
+                  <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{[route.sectorId ? sectorNames.get(route.sectorId) : null, route.routeType].filter(Boolean).join(' · ')}</p>
+                  {route.description ? <p className="mt-2 text-sm leading-5 text-stone-600 dark:text-gray-300">{route.description}</p> : null}
+                  {!climbsWithTopos.has(route.id) ? <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">No public topo is available; this climb is saved as text only.</p> : null}
                 </li>)}
               </ul>
             </section>

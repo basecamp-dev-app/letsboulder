@@ -11,6 +11,10 @@ import {
   type CragPackManifest,
   type CragPackManifestSnapshot,
 } from '@/types/crag-pack-manifest'
+import {
+  createPhaseOneOfflineFixtureManifest,
+  PHASE_ONE_FIXTURE_CRAG_ID,
+} from '@/features/offline/server/phase-one-offline-fixture'
 
 type CragRow = Database['public']['Tables']['crags']['Row']
 type ClimbRow = Database['public']['Tables']['climbs']['Row']
@@ -238,6 +242,7 @@ export function buildCragPackManifest(
 }
 
 export async function loadCragPackManifest(cragId: string): Promise<CragPackManifest | null> {
+  if (cragId === PHASE_ONE_FIXTURE_CRAG_ID) return createPhaseOneOfflineFixtureManifest()
   const cdnBaseUrl = serverEnv.NEXT_PUBLIC_MEDIA_CDN_URL
   if (!cdnBaseUrl || new URL(cdnBaseUrl).protocol !== 'https:') throw new Error('HTTPS media CDN URL is required')
   const supabase = getUnauthenticatedClient()

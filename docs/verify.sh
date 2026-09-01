@@ -6,6 +6,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ERRORS=0
+VERIFY_TMP_DIR="$(mktemp -d "$ROOT/.docs-verify.XXXXXX")"
+trap 'rm -r -- "$VERIFY_TMP_DIR"' EXIT
 
 echo "=== Doc Verification ==="
 
@@ -19,6 +21,7 @@ for path in \
   "docs/architecture.md" \
   "docs/feature-structure.md" \
   "docs/testing/README.md" \
+  "docs/testing/offline-device-release-checklist.md" \
   "docs/db/schema.md" \
   "docs/open-data-exports.md" \
   "docs/submission-workflow.md" \
@@ -35,7 +38,7 @@ if ! node "$ROOT/scripts/verify-markdown-links.mjs"; then
   ERRORS=$((ERRORS + 1))
 fi
 
-for script in lint lint:features typecheck check:features check:architecture check:csrf-fetch check:type-drift test:unit test:components test:database test:e2e build; do
+for script in lint lint:features typecheck check:features check:architecture check:csrf-fetch check:type-drift test:unit test:components test:database test:e2e test:e2e:offline build; do
   if ! node -e "const p=require('$ROOT/package.json'); process.exit(p.scripts?.['$script'] ? 0 : 1)"; then
     echo "DRIFT: documented package script is missing: $script"
     ERRORS=$((ERRORS + 1))
@@ -66,8 +69,10 @@ ACTUAL_DIRS=$(find "$ROOT/app/api" -mindepth 1 -maxdepth 1 -type d | while read 
     basename "$dir"
   fi
 done | sort)
-MISSING=$(comm -23 <(echo "$ACTUAL_DIRS") <(echo "$TABLE_ROUTES"))
-EXTRA=$(comm -13 <(echo "$ACTUAL_DIRS") <(echo "$TABLE_ROUTES"))
+printf '%s\n' "$ACTUAL_DIRS" > "$VERIFY_TMP_DIR/actual-dirs"
+printf '%s\n' "$TABLE_ROUTES" > "$VERIFY_TMP_DIR/table-routes"
+MISSING=$(comm -23 "$VERIFY_TMP_DIR/actual-dirs" "$VERIFY_TMP_DIR/table-routes")
+EXTRA=$(comm -13 "$VERIFY_TMP_DIR/actual-dirs" "$VERIFY_TMP_DIR/table-routes")
 
 if [ -z "$MISSING" ] && [ -z "$EXTRA" ]; then
   echo "OK: Route table matches app/api/ directories"
@@ -90,8 +95,10 @@ DOCUMENTED_PATHS=$(awk '
 ' "$ROOT/docs/api/routes.md" | sort)
 ACTUAL_PATHS=$(find "$ROOT/app/api" -type f -name "route.ts" -print \
   | sed -E "s#^$ROOT/app/api/(.*)/route\\.ts#/api/\1#" | sort)
-MISSING_PATHS=$(comm -23 <(printf '%s\n' "$ACTUAL_PATHS") <(printf '%s\n' "$DOCUMENTED_PATHS"))
-EXTRA_PATHS=$(comm -13 <(printf '%s\n' "$ACTUAL_PATHS") <(printf '%s\n' "$DOCUMENTED_PATHS"))
+printf '%s\n' "$ACTUAL_PATHS" > "$VERIFY_TMP_DIR/actual-paths"
+printf '%s\n' "$DOCUMENTED_PATHS" > "$VERIFY_TMP_DIR/documented-paths"
+MISSING_PATHS=$(comm -23 "$VERIFY_TMP_DIR/actual-paths" "$VERIFY_TMP_DIR/documented-paths")
+EXTRA_PATHS=$(comm -13 "$VERIFY_TMP_DIR/actual-paths" "$VERIFY_TMP_DIR/documented-paths")
 
 if [ -z "$MISSING_PATHS" ] && [ -z "$EXTRA_PATHS" ]; then
   echo "OK: Endpoint inventory matches app/api/**/route.ts paths"

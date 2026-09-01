@@ -145,8 +145,16 @@ describe('GitHub Actions security contracts', () => {
     expect(playwrightWorkflow).toMatch(/github\.event_name == 'deployment_status'[\s\S]*github\.event\.deployment_status\.state == 'success'[\s\S]*github\.event\.deployment\.ref == 'main'[\s\S]*github\.event\.deployment\.environment == 'Production'/)
     expect(playwrightWorkflow).toContain("github.event_name == 'workflow_dispatch'")
     expect(playwrightWorkflow).toContain("PLAYWRIGHT_REQUESTED_BASE_URL: ${{ github.event_name == 'deployment_status' && 'https://letsboulder.com' || inputs.playwright_base_url || '' }}")
-    expect(playwrightWorkflow.match(/if: github\.event_name != 'deployment_status'/g)).toHaveLength(5)
+    expect(playwrightWorkflow.match(/if: github\.event_name != 'deployment_status'/g)).toHaveLength(6)
     expect(playwrightWorkflow).not.toContain('github.event.deployment_status.target_url')
+  })
+
+  it('runs the deterministic offline reliability suite for pull requests', () => {
+    const playwrightWorkflow = workflow('test.yml')
+
+    expect(playwrightWorkflow).toContain('offline-reliability:')
+    expect(playwrightWorkflow).toContain('name: Offline Reliability')
+    expect(playwrightWorkflow).toContain('run: npm run test:e2e:offline')
   })
 
   it('parameterizes all media backfill SQL inputs', () => {
