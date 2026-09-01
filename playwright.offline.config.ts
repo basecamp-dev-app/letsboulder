@@ -33,6 +33,9 @@ export default defineConfig({
       R2_PUBLIC_BUCKET: 'offline-fixture-public',
       R2_ACCESS_KEY_ID: 'offline-fixture-access-key',
       R2_SECRET_ACCESS_KEY: 'offline-fixture-secret-key',
+      UPSTASH_REDIS_REST_URL: 'https://offline-fixture.invalid',
+      UPSTASH_REDIS_REST_TOKEN: 'offline-fixture-redis-token',
+      TURNSTILE_SECRET_KEY: 'offline-fixture-turnstile-secret',
     },
   },
 })
