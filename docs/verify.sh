@@ -22,6 +22,8 @@ for path in \
   "docs/feature-structure.md" \
   "docs/testing/README.md" \
   "docs/testing/offline-device-release-checklist.md" \
+  "docs/offline-product-contract.md" \
+  "docs/offline-pack-v2.md" \
   "docs/db/schema.md" \
   "docs/open-data-exports.md" \
   "docs/submission-workflow.md" \

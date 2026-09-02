@@ -6,6 +6,7 @@ import type { Database, Json } from '@/types/database'
 import {
   CRAG_PACK_MIN_READER_VERSION,
   CRAG_PACK_SCHEMA_VERSION,
+  CRAG_PACK_DIGEST_ALGORITHM,
   type CragPackAsset,
   type CragPackCoordinates,
   type CragPackManifest,
@@ -116,29 +117,27 @@ function canonicalOptimizedMetadata(image: ImageRow) {
   return { bytes, width, height }
 }
 
-function estimatedBytes(canonical: { bytes: number; width: number; height: number }, width: number, height: number, storedBytes: number | null): number {
-  if (storedBytes !== null) return storedBytes
-  const ratio = Math.min(1, (width * height) / (canonical.width * canonical.height))
-  return Math.max(1, Math.round(canonical.bytes * ratio))
-}
+type CragPackAssetDraft = Omit<CragPackAsset, 'byteCount' | 'digest' | 'owningClimbIds'>
 
-function imageAssets(image: ImageRow, cdnBaseUrl: string): CragPackAsset[] {
+function imageAssets(image: ImageRow, cdnBaseUrl: string): CragPackAssetDraft[] {
   const canonical = canonicalOptimizedMetadata(image)
   if (!canonical) return []
-  return (['detail', 'topo'] as const).flatMap((variant) => {
+  return (['topo'] as const).flatMap((variant) => {
     const metadata = variantMetadata(image, variant)
     if (!metadata) return []
-    const bytes = estimatedBytes(canonical, metadata.width, metadata.height, metadata.storedBytes)
+    const url = `${cdnBaseUrl}/images/${encodeURIComponent(image.id)}/v${image.asset_version}/${variant}.webp`
     return [{
       id: `${image.id}:${variant}:webp`,
       imageId: image.id,
       variant,
       format: 'webp' as const,
       mediaType: 'image/webp' as const,
-      url: `${cdnBaseUrl}/images/${encodeURIComponent(image.id)}/v${image.asset_version}/${variant}.webp`,
+      url,
+      contentKey: url,
       width: metadata.width,
       height: metadata.height,
-      estimatedBytes: bytes,
+      requirement: 'required' as const,
+      owningImageId: image.id,
     }]
   })
 }
@@ -158,10 +157,11 @@ function canonicalize(value: unknown): unknown {
   }, {})
 }
 
-export function buildCragPackManifest(
+export async function buildCragPackManifest(
   source: CragPackSource,
   cdnBaseUrl: string,
-): CragPackManifest | null {
+  fetcher: typeof fetch = fetch,
+): Promise<CragPackManifest | null> {
   const { crag } = source
   if (crag.deleted_at !== null || crag.superseded_by !== null || !crag.slug?.trim() || !crag.country_code?.trim()) return null
 
@@ -180,11 +180,36 @@ export function buildCragPackManifest(
   const parsedCdnUrl = new URL(cdnBaseUrl)
   if (parsedCdnUrl.protocol !== 'https:') throw new Error('HTTPS media CDN URL is required')
   const normalizedCdnUrl = cdnBaseUrl.replace(/\/+$/, '')
+  const assetDrafts = images.flatMap((image) => imageAssets(image, normalizedCdnUrl)).sort(compareIds)
+  const assets = await Promise.all(assetDrafts.map(async (asset): Promise<CragPackAsset> => {
+    const response = await fetcher(asset.url, { cache: 'no-store', credentials: 'omit' })
+    if (!response.ok || response.type === 'opaque') throw new Error(`Unable to generate integrity metadata for ${asset.url}`)
+    const mediaType = response.headers.get('content-type')?.split(';', 1)[0]?.toLowerCase()
+    if (mediaType !== asset.mediaType) throw new Error(`Integrity media type mismatch for ${asset.url}`)
+    const bytes = Buffer.from(await response.arrayBuffer())
+    if (bytes.byteLength === 0) throw new Error(`Integrity asset is empty: ${asset.url}`)
+    const owningClimbIds = source.routeLines
+      .filter((line) => line.image_id === asset.imageId && climbIds.has(line.climb_id))
+      .map((line) => line.climb_id)
+    return {
+      ...asset,
+      byteCount: bytes.byteLength,
+      digest: `${CRAG_PACK_DIGEST_ALGORITHM}:${createHash('sha256').update(bytes).digest('hex')}`,
+      owningClimbIds: [...new Set(owningClimbIds)].sort(),
+    }
+  }))
+  const requiredAssetImageIds = new Set(assets.filter((asset) => asset.requirement === 'required').map((asset) => asset.imageId))
+  if ([...routeImageIds].some((imageId) => imageIds.has(imageId) && !requiredAssetImageIds.has(imageId))) {
+    throw new Error('A route-bearing image is missing its required lightweight topo asset')
+  }
+  const offlineCragRoute = `/offline/crag?id=${encodeURIComponent(crag.id)}`
 
   const snapshot: CragPackManifestSnapshot = {
     schemaVersion: CRAG_PACK_SCHEMA_VERSION,
     minReaderVersion: CRAG_PACK_MIN_READER_VERSION,
     canonicalPath: `/${crag.country_code.toLowerCase()}/${crag.slug}`,
+    requiredOfflineRoutes: [offlineCragRoute, ...climbs.map((climb) => `${offlineCragRoute}&climb=${encodeURIComponent(climb.id)}`)],
+    reader: { family: 'letsboulder-offline-field-guide', minimumVersion: CRAG_PACK_MIN_READER_VERSION },
     metadata: {
       crag: {
         id: crag.id, name: crag.name, slug: crag.slug, countryCode: crag.country_code.toUpperCase(),
@@ -218,7 +243,7 @@ export function buildCragPackManifest(
           color: line.color, imageWidth: line.image_width, imageHeight: line.image_height, points: line.points as Json,
         })),
     },
-    assets: images.flatMap((image) => imageAssets(image, normalizedCdnUrl)).sort(compareIds),
+    assets,
   }
   const contentVersion = createHash('sha256').update(JSON.stringify(canonicalize(snapshot))).digest('hex')
   const mediaUrls = snapshot.assets.map((asset) => asset.url)
@@ -233,7 +258,8 @@ export function buildCragPackManifest(
     cragId: crag.id,
     cragName: crag.name,
     cragVersionHash: contentVersion,
-    estimatedBytes: snapshot.assets.reduce((total, asset) => total + (asset.estimatedBytes ?? 0), 0),
+    exactTotalBytes: snapshot.assets.filter((asset) => asset.requirement === 'required').reduce((total, asset) => total + asset.byteCount, 0),
+    estimatedBytes: snapshot.assets.filter((asset) => asset.requirement === 'required').reduce((total, asset) => total + asset.byteCount, 0),
     mediaUrls,
     climbs: snapshot.metadata.climbs.map((climb) => ({ climbId: climb.id, mediaUrls: [] })),
     contentVersion,

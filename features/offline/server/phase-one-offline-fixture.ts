@@ -7,6 +7,7 @@ export const PHASE_ONE_FIXTURE_IMAGE_IDS = [
 ] as const
 export const PHASE_ONE_FIXTURE_WEBP_BASE64 = 'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEAAUAmJaQAA3AA/v89WAAAAA=='
 const ASSET_BYTES = 46
+const ASSET_DIGEST = 'sha256:05d3010ac1117dad75abd1617997d5d223ec88142422f6f8f123ed899cd434dc' as const
 
 const SECTOR_IDS = {
   harbour: '33333333-3333-4333-8333-333333333331',
@@ -36,15 +37,22 @@ export function createPhaseOneOfflineFixtureManifest(): CragPackManifest {
     format: 'webp' as const,
     mediaType: 'image/webp' as const,
     url: assetUrl(imageId),
+    contentKey: assetUrl(imageId),
     width: 1,
     height: 1,
-    estimatedBytes: ASSET_BYTES,
+    byteCount: ASSET_BYTES,
+    digest: ASSET_DIGEST,
+    requirement: 'required' as const,
+    owningImageId: imageId,
+    owningClimbIds: imageId === PHASE_ONE_FIXTURE_IMAGE_IDS[0]
+      ? [CLIMB_IDS.shared, CLIMB_IDS.traverse]
+      : [CLIMB_IDS.shared],
   }))
-  const contentVersion = 'phase-one-fixture-v1'
+  const contentVersion = 'pack-v2-signal-lost-cove'
   return {
     type: 'crag',
-    schemaVersion: 1,
-    minReaderVersion: 1,
+    schemaVersion: 2,
+    minReaderVersion: 2,
     packId: `crag:${PHASE_ONE_FIXTURE_CRAG_ID}`,
     cragId: PHASE_ONE_FIXTURE_CRAG_ID,
     cragName: 'Signal Lost Cove',
@@ -52,7 +60,13 @@ export function createPhaseOneOfflineFixtureManifest(): CragPackManifest {
     contentVersion,
     generatedAt: '2026-09-01T00:00:00.000Z',
     canonicalPath: '/gb/signal-lost-cove',
-    estimatedBytes: assets.reduce((total, asset) => total + asset.estimatedBytes, 0),
+    requiredOfflineRoutes: [
+      `/offline/crag?id=${PHASE_ONE_FIXTURE_CRAG_ID}`,
+      ...Object.values(CLIMB_IDS).map((climbId) => `/offline/crag?id=${PHASE_ONE_FIXTURE_CRAG_ID}&climb=${climbId}`),
+    ],
+    reader: { family: 'letsboulder-offline-field-guide', minimumVersion: 2 },
+    exactTotalBytes: assets.reduce((total, asset) => total + asset.byteCount, 0),
+    estimatedBytes: assets.reduce((total, asset) => total + asset.byteCount, 0),
     mediaUrls: assets.map((asset) => asset.url),
     climbs: Object.values(CLIMB_IDS).map((climbId) => ({ climbId, mediaUrls: [] })),
     metadata: {

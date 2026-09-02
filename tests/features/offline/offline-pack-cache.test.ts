@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { CacheApiOfflineMediaCache, OFFLINE_MEDIA_CACHE } from '@/features/offline/lib/offline-pack-cache'
 
+const ABC_DIGEST = 'sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad' as const
+
 const entries = new Map<string, Response>()
 const cache = {
   match: vi.fn(async (url: string) => entries.get(url)),
@@ -51,5 +53,14 @@ describe('CacheApiOfflineMediaCache', () => {
     await expect(new CacheApiOfflineMediaCache().has('/asset.webp')).resolves.toBe(true)
     await new CacheApiOfflineMediaCache().remove('/asset.webp')
     await expect(new CacheApiOfflineMediaCache().has('/asset.webp')).resolves.toBe(false)
+  })
+
+  test('checks exact bytes and SHA-256 before persistence and on local revalidation', async () => {
+    const fetcher = vi.fn(async () => response('abc')) as unknown as typeof fetch
+    const media = new CacheApiOfflineMediaCache()
+    await expect(media.download('/asset.webp', fetcher, 'image/webp', 3, ABC_DIGEST)).resolves.toBe(3)
+    await expect(media.verify('/asset.webp', 'image/webp', 3, ABC_DIGEST)).resolves.toMatchObject({ byteCount: 3, digest: ABC_DIGEST })
+    await expect(media.verify('/asset.webp', 'image/webp', 4, ABC_DIGEST)).rejects.toThrow('byte count does not match')
+    await expect(media.verify('/asset.webp', 'image/webp', 3, `sha256:${'0'.repeat(64)}`)).rejects.toThrow('digest does not match')
   })
 })
