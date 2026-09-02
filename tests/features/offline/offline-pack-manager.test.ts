@@ -140,6 +140,19 @@ describe('offline pack manager v2 integrity', () => {
     expect(harness.cache.remove).not.toHaveBeenCalledWith(sharedUrl)
   })
 
+  test('a verified migration open advances monotonically despite concurrent activation bookkeeping', async () => {
+    const harness = createHarness()
+    await harness.manager.install('https://example.com/manifest')
+    vi.mocked(harness.repository.getMigration!).mockResolvedValue({
+      id: 'crag:1', packId: 'crag:1', legacyVersionId: 'crag:1:v1',
+      targetVersionId: 'crag:1:v2', state: 'verified', error: null, updatedAt: 'now',
+    })
+
+    await harness.manager.markOpened('crag:1')
+
+    expect(harness.repository.setMigration).toHaveBeenCalledWith(expect.objectContaining({ state: 'opened', targetVersionId: 'crag:1:v2' }))
+  })
+
   test('legacy migration is recorded and leaves legacy input untouched', async () => {
     const harness = createHarness()
     vi.mocked(harness.repository.listLegacyPacks!).mockResolvedValue([{ packId: 'crag:1', kind: 'crag', entityId: 'crag-1', displayName: 'Legacy', manifestUrl: 'https://example.com/manifest', activeVersion: 'v1', status: 'needs-repair', installedAt: 'old', updatedAt: 'old', error: null }])

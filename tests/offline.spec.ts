@@ -201,7 +201,7 @@ test.describe('mandatory offline reliability harness', () => {
       database.close()
     })
     await page.goto('/offline/library')
-    await expect(page.getByText('Needs repair', { exact: true })).toBeVisible()
+    await expect.poll(async () => (await readV2State(page)).packs[0]?.status).toBe('needs-repair')
   })
 
   test('quota exhaustion prevents first activation', async ({ page }) => {

@@ -136,7 +136,9 @@ export class OfflinePackManager {
       if (!active || active.version.source === 'legacy') return
       const urls = await this.repository.markOpened?.(active.version.id, this.now()) ?? []
       const migration = await this.repository.getMigration?.(packId)
-      if (migration?.state === 'activated') await this.repository.setMigration?.({ ...migration, state: 'opened', updatedAt: this.now() })
+      if (migration && migration.state !== 'opened' && migration.state !== 'rolled-back') {
+        await this.repository.setMigration?.({ ...migration, targetVersionId: active.version.id, state: 'opened', error: null, updatedAt: this.now() })
+      }
       await this.removeUnowned(urls)
     }))
   }
