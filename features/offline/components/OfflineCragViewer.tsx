@@ -113,13 +113,18 @@ export default function OfflineCragViewer() {
   const [activePack, setActivePack] = useState<ActiveOfflinePack | null | undefined>(undefined)
   const [readError, setReadError] = useState(false)
   const [missingUrls, setMissingUrls] = useState<string[]>([])
-  const [verifiedForOpen, setVerifiedForOpen] = useState(false)
 
   const readActivePack = useCallback(async () => {
     const packs = await packReader.list()
     const pack = packs.find((candidate) => candidate.kind === 'crag' && candidate.entityId === cragId
       && candidate.activeVersion !== null && candidate.status !== 'unsupported')
-    return pack ? packReader.validateActive(pack.packId) : null
+    const validation = pack ? await packReader.validateActive(pack.packId) : null
+    const failures = validation ? [...validation.missingUrls, ...(validation.corruptUrls ?? [])] : []
+    if (validation && failures.length === 0 && validation.active.version.source !== 'legacy'
+      && readOfflineCragPayload(validation.active.version.manifest.payload)) {
+      await packReader.markOpened(validation.active.pack.packId)
+    }
+    return validation
   }, [cragId])
 
   useEffect(() => {
@@ -130,17 +135,11 @@ export default function OfflineCragViewer() {
         if (!active) return
         const failures = validation ? [...validation.missingUrls, ...(validation.corruptUrls ?? [])] : []
         setMissingUrls(failures)
-        setVerifiedForOpen(Boolean(validation) && failures.length === 0 && validation?.active.version.source !== 'legacy')
         setActivePack(validation?.active ?? null)
       })
       .catch(() => { if (active) setReadError(true) })
     return () => { active = false }
   }, [readActivePack, validCragId])
-
-  useEffect(() => {
-    if (!activePack || !verifiedForOpen || !readOfflineCragPayload(activePack.version.manifest.payload)) return
-    void packReader.markOpened(activePack.pack.packId)
-  }, [activePack, verifiedForOpen])
 
   if (validCragId && activePack === undefined && !readError) {
     return <main id="main-content" aria-live="polite" className="min-h-screen bg-stone-100 p-8 text-stone-700 dark:bg-gray-950 dark:text-gray-300">Reading saved crag...</main>
@@ -162,7 +161,6 @@ export default function OfflineCragViewer() {
       const validation = await readActivePack()
       const failures = validation ? [...validation.missingUrls, ...(validation.corruptUrls ?? [])] : []
       setMissingUrls(failures)
-      setVerifiedForOpen(Boolean(validation) && failures.length === 0 && validation?.active.version.source !== 'legacy')
       setActivePack(validation?.active ?? null)
     }
     const removeBroken = async () => {

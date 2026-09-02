@@ -83,7 +83,9 @@ export default function OfflineLibraryView() {
             <ul className="grid gap-4 sm:grid-cols-2">
               {packs.map((pack) => {
                 const usable = pack.activeVersion !== null && pack.status !== 'unsupported'
-                const displayStatus = installedPwa === false ? 'unsupported' : pack.status
+                const displayStatus = installedPwa === false && (pack.status === 'verified' || pack.status === 'at-risk')
+                  ? 'unsupported'
+                  : pack.status
                 return (
                   <li key={pack.packId} className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="flex h-28 items-center justify-center bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
