@@ -109,7 +109,29 @@ export class OfflinePackDatabase {
 
   async listPacks(): Promise<OfflinePackRecord[]> {
     const database = await this.open()
-    const current = await requestResult<OfflinePackRecord[]>(database.transaction(PACKS).objectStore(PACKS).getAll())
+    const transaction = database.transaction([PACKS, VERSIONS, ASSETS], 'readwrite')
+    const packs = transaction.objectStore(PACKS)
+    const current = await requestResult<OfflinePackRecord[]>(packs.getAll())
+    for (let index = 0; index < current.length; index += 1) {
+      const pack = current[index]
+      if (!pack?.activeVersion) continue
+      const versionId = offlineVersionId(pack.packId, pack.activeVersion)
+      const version = await requestResult<OfflinePackVersionRecord | undefined>(transaction.objectStore(VERSIONS).get(versionId))
+      const ownership = await requestResult<OfflineAssetOwnershipRecord[]>(transaction.objectStore(ASSETS).index('versionId').getAll(versionId))
+      const required = version?.manifest.assets.filter((asset) => asset.requirement === 'required') ?? []
+      const ownershipByUrl = new Map(ownership.map((asset) => [asset.url, asset]))
+      const incomplete = !version || required.some((asset) => {
+        const owned = ownershipByUrl.get(asset.url)
+        return !owned || owned.byteCount !== asset.byteCount || owned.digest !== asset.digest
+          || owned.contentKey !== asset.contentKey || owned.requirement !== 'required'
+      })
+      if (incomplete && pack.status !== 'needs-repair') {
+        const repaired = { ...pack, status: 'needs-repair' as const, error: 'Required offline metadata is missing or corrupt' }
+        current[index] = repaired
+        packs.put(repaired)
+      }
+    }
+    await transactionDone(transaction)
     if (!database.objectStoreNames.contains(LEGACY_PACKS)) return current
     const legacy = await requestResult<LegacyPackRecord[]>(database.transaction(LEGACY_PACKS).objectStore(LEGACY_PACKS).getAll())
     const legacyById = new Map(legacy.map((pack) => [pack.packId, pack]))
@@ -402,7 +424,11 @@ export class OfflinePackDatabase {
   async setMigration(record: OfflineMigrationRecord): Promise<void> {
     const database = await this.open()
     const transaction = database.transaction(MIGRATIONS, 'readwrite')
-    transaction.objectStore(MIGRATIONS).put(record)
+    const migrations = transaction.objectStore(MIGRATIONS)
+    const existing = await requestResult<OfflineMigrationRecord | undefined>(migrations.get(record.id))
+    const wouldRegressOpened = existing?.state === 'opened'
+      && record.state !== 'opened' && record.state !== 'rolled-back'
+    if (!wouldRegressOpened) migrations.put(record)
     await transactionDone(transaction)
   }
 

@@ -98,6 +98,9 @@ describe('OfflinePackDatabase with IndexedDB', () => {
     expect(await database.getMigration(manifest.packId)).toMatchObject({ state: 'staging', legacyVersionId: 'legacy:v1' })
     await database.setMigration({ id: manifest.packId, packId: manifest.packId, legacyVersionId: 'legacy:v1', targetVersionId: 'v2', state: 'failed', error: 'offline', updatedAt: 'later' })
     expect(await database.getMigration(manifest.packId)).toMatchObject({ state: 'failed', error: 'offline' })
+    await database.setMigration({ id: manifest.packId, packId: manifest.packId, legacyVersionId: 'legacy:v1', targetVersionId: 'v2', state: 'opened', error: null, updatedAt: 'opened' })
+    await database.setMigration({ id: manifest.packId, packId: manifest.packId, legacyVersionId: 'legacy:v1', targetVersionId: 'v2', state: 'activated', error: null, updatedAt: 'stale' })
+    expect(await database.getMigration(manifest.packId)).toMatchObject({ state: 'opened', updatedAt: 'opened' })
   })
 
   test('atomically rolls back to the retained verified predecessor', async () => {
@@ -141,5 +144,26 @@ describe('OfflinePackDatabase with IndexedDB', () => {
 
     expect((await database.listPacks())[0]).toMatchObject({ activeVersion: 'v1', legacySource: true, status: 'needs-repair', error: 'offline' })
     expect((await database.getActivePack(manifest.packId))?.version).toMatchObject({ version: 'v1', source: 'legacy' })
+  })
+
+  test('downgrades stored readiness when required ownership metadata disappears', async () => {
+    const database = new OfflinePackDatabase()
+    const staged = await database.stage(manifest, '2026-08-10T10:00:00.000Z')
+    await database.checkpointAsset(staged.versionId, manifest.assets[0].url, 3, manifest.assets[0].digest, '2026-08-10T10:01:00.000Z')
+    await database.activate(staged.versionId, '2026-08-10T10:02:00.000Z')
+    const connection = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('letsboulder-offline-packs')
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+    const transaction = connection.transaction('assets-v2', 'readwrite')
+    transaction.objectStore('assets-v2').delete(`${staged.versionId}:${manifest.assets[0].url}`)
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+    })
+    connection.close()
+
+    expect((await database.listPacks())[0]).toMatchObject({ status: 'needs-repair', error: 'Required offline metadata is missing or corrupt' })
   })
 })
