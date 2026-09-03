@@ -24,6 +24,12 @@ describe('phase one offline reliability fixture', () => {
     expect(fixture.assets.every((asset) => asset.byteCount === 46 && /^sha256:[a-f0-9]{64}$/.test(asset.digest))).toBe(true)
     expect(new Set(sharedImageLines.map((line) => line.climbId)).size).toBe(2)
     expect(new Set(sharedClimbLines.map((line) => line.imageId)).size).toBe(2)
+    expect(fixture.metadata.routeLines.every((line) => line.points.length >= 3)).toBe(true)
+    expect(fixture.metadata.routeLines.some((line) => {
+      const [first, middle, last] = line.points
+      return first && middle && last
+        && (middle.x - first.x) * (last.y - first.y) !== (middle.y - first.y) * (last.x - first.x)
+    })).toBe(true)
     expect(fixture.metadata.routeLines.some((line) => line.climbId === textOnly?.id)).toBe(false)
     expect(fixture.metadata.crag).toMatchObject({
       accessNotes: expect.stringContaining('harbour steps'),
