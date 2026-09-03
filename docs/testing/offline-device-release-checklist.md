@@ -29,6 +29,7 @@ Record the iPhone model, iOS version, Safari version, free storage before instal
 - [ ] Fully terminate the installed PWA process from the app switcher.
 - [ ] Relaunch from the Home Screen icon and open the library, Signal Lost Cove, every fixture climb, and both topos without reconnecting.
 - [ ] Capture the same north-face topo after the fully offline cold relaunch and compare it with the online screenshot; confirm every multi-point line retains the same smooth curve, endpoints, placement, color, and start marker.
+- [ ] Select each route by tapping its line and its label; confirm only the chosen route uses the cyan online-selection highlight and that the selected name and grade identify it unambiguously.
 - [ ] Record cold-launch-to-interactive time and any missing, delayed, straightened, displaced, clipped, or otherwise incorrect line or content.
 
 ## Physical Android PWA
@@ -48,6 +49,7 @@ Record the phone model, Android version, Chrome version, free storage before ins
 - [ ] Fully terminate the installed PWA process from Android's recent-apps screen, then force-stop it from App info.
 - [ ] Relaunch from the device launcher and open the library, Signal Lost Cove, every fixture climb, and both topos without reconnecting.
 - [ ] Capture the same north-face topo after the fully offline cold relaunch and compare it with the online screenshot; confirm every multi-point line retains the same smooth curve, endpoints, placement, color, and start marker.
+- [ ] Select each route by tapping its line and its label; confirm only the chosen route uses the cyan online-selection highlight and that the selected name and grade identify it unambiguously.
 - [ ] Record cold-launch-to-interactive time and any missing, delayed, straightened, displaced, clipped, or otherwise incorrect line or content.
 
 ## Release Record
@@ -69,6 +71,7 @@ Cold-launch-to-interactive time:
 Every fixture route opened offline: PASS / FAIL
 Both topo images opened offline: PASS / FAIL
 Multi-point geometry identical online/offline: PASS / FAIL
+Line and label selection identifies/highlights each route: PASS / FAIL
 Online screenshot:
 Offline cold-relaunch screenshot:
 Missing, delayed, straightened, displaced, clipped, or incorrect content:
