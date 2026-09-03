@@ -11,6 +11,7 @@ import { useOfflinePacks } from '@/features/offline/hooks/use-offline-packs'
 import { readOfflineCragPayload } from '@/features/offline/lib/offline-crag-reader'
 import { OfflinePackManager } from '@/features/offline/lib/offline-pack-manager'
 import type { ActiveOfflinePack } from '@/features/offline/lib/offline-pack-types'
+import { createRoutePathData } from '@/lib/route-renderer'
 import type { CragPackManifest } from '@/types/crag-pack-manifest'
 import type { RoutePoint } from '@/types/domain'
 
@@ -87,13 +88,16 @@ function TopoFigure({ topo }: { topo: TopoImage }) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={topo.url} alt={topo.label} className="block h-auto w-full" />
         <svg className="pointer-events-none absolute inset-0 size-full" viewBox={`0 0 ${topo.width} ${topo.height}`} role="img" aria-label={`Route lines on ${topo.label}`} preserveAspectRatio="xMidYMid meet">
-          {topo.routes.map((route) => route.points.length > 1 ? (
-            <g key={route.id}>
-              <polyline points={route.points.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke="rgba(0,0,0,0.65)" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
-              <polyline points={route.points.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke={route.color} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx={route.points[0]?.x} cy={route.points[0]?.y} r="11" fill={route.color} stroke="white" strokeWidth="4" />
-            </g>
-          ) : null)}
+          {topo.routes.map((route) => {
+            const pathData = createRoutePathData(route.points)
+            return pathData ? (
+              <g key={route.id} data-route-line-id={route.id}>
+                <path d={pathData} fill="none" stroke="rgba(0,0,0,0.65)" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={pathData} fill="none" stroke={route.color} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx={route.points[0]?.x} cy={route.points[0]?.y} r="11" fill={route.color} stroke="white" strokeWidth="4" />
+              </g>
+            ) : null
+          })}
         </svg>
       </div>
       <figcaption className="flex flex-wrap gap-2 p-4 text-xs text-white">
