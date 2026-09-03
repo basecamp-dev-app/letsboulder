@@ -144,9 +144,15 @@ describe('offline standalone views', () => {
             metadata: {
               crag: { id: CRAG_ID, name: 'Cobo Bay', slug: 'cobo-bay', countryCode: 'GG', country: 'Guernsey', regionName: null, subArea: null, rockType: 'granite', type: 'bouldering', tideDependency: null, description: 'Wave-washed granite.', accessNotes: null, coordinates: { latitude: 49.48, longitude: -2.62, visibility: 'exact' }, updatedAt: null },
               sectors: [],
-              climbs: [{ id: 'climb-1', sectorId: null, name: 'Sunset Arete', slug: 'sunset-arete', grade: '6B', consensusGrade: null, originalGrade: null, routeType: 'boulder', description: 'Start low and follow the arete.', isVerified: true, verificationCount: 2, coordinates: { latitude: 49.48, longitude: -2.62, visibility: 'exact' }, updatedAt: null }],
+              climbs: [
+                { id: 'climb-1', sectorId: null, name: 'Sunset Arete', slug: 'sunset-arete', grade: '6B', consensusGrade: null, originalGrade: null, routeType: 'boulder', description: 'Start low and follow the arete.', isVerified: true, verificationCount: 2, coordinates: { latitude: 49.48, longitude: -2.62, visibility: 'exact' }, updatedAt: null },
+                { id: 'climb-2', sectorId: null, name: 'Legacy Groove', slug: 'legacy-groove', grade: '5+', consensusGrade: null, originalGrade: null, routeType: 'boulder', description: null, isVerified: true, verificationCount: 1, coordinates: { latitude: null, longitude: null, visibility: 'hidden' }, updatedAt: null },
+              ],
               images: [{ id: 'image-1', captureDate: null, faceDirection: 'W', faceDirections: ['W'], faceOrder: 0, isPrimary: true, width: 1200, height: 800, coordinates: { latitude: 49.48, longitude: -2.62, visibility: 'exact' }, processedAt: null, assetVersion: 1 }],
-              routeLines: [{ id: 'line-1', climbId: 'climb-1', imageId: 'image-1', sequenceOrder: 1, color: '#ef4444', imageWidth: 1200, imageHeight: 800, points: [{ x: 0.1, y: 0.7 }, { x: 0.5, y: 0.1 }] }],
+              routeLines: [
+                { id: 'line-1', climbId: 'climb-1', imageId: 'image-1', sequenceOrder: 1, color: '#ef4444', imageWidth: 1200, imageHeight: 800, points: [{ x: 0.1, y: 0.7 }, { x: 0.3, y: 0.2 }, { x: 0.6, y: 0.5 }, { x: 0.9, y: 0.1 }] },
+                { id: 'line-2', climbId: 'climb-2', imageId: 'image-1', sequenceOrder: 2, color: '#3b82f6', imageWidth: 1200, imageHeight: 800, points: [{ x: 100, y: 700 }, { x: 500, y: 300 }, { x: 900, y: 100 }] },
+              ],
             },
             assets: [{ id: 'image-1:topo:webp', imageId: 'image-1', variant: 'topo', format: 'webp', mediaType: 'image/webp', url: 'https://media.example/topo.webp', width: 1200, height: 800 }],
           },
@@ -161,7 +167,16 @@ describe('offline standalone views', () => {
     expect(screen.getByText('Start low and follow the arete.')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Cobo Bay topo' })).toHaveAttribute('src', 'https://media.example/topo.webp')
     expect(screen.getByRole('img', { name: 'Route lines on Cobo Bay topo' })).toBeInTheDocument()
-    expect(document.querySelector('polyline')).toHaveAttribute('points', '120,560 600,80')
+    const normalizedRoute = document.querySelector('[data-route-line-id="line-1"]')
+    const legacyRoute = document.querySelector('[data-route-line-id="line-2"]')
+    expect(document.querySelector('polyline')).not.toBeInTheDocument()
+    expect(normalizedRoute?.querySelectorAll('path')).toHaveLength(2)
+    expect(normalizedRoute?.querySelector('path')).toHaveAttribute('d', 'M 120 560 Q 360 160 540 280 Q 720 400 900 240 L 1080 80')
+    expect(normalizedRoute?.querySelectorAll('path')[1]).toHaveAttribute('stroke', '#ef4444')
+    expect(normalizedRoute?.querySelector('circle')).toHaveAttribute('cx', '120')
+    expect(normalizedRoute?.querySelector('circle')).toHaveAttribute('cy', '560')
+    expect(legacyRoute?.querySelector('path')).toHaveAttribute('d', 'M 100 700 Q 500 300 700 200 L 900 100')
+    expect(legacyRoute?.querySelectorAll('path')[1]).toHaveAttribute('stroke', '#3b82f6')
     expect(screen.getByText('49.48000, -2.62000')).toBeInTheDocument()
     expect(getActiveMock).toHaveBeenCalledWith('crag-pack')
   })

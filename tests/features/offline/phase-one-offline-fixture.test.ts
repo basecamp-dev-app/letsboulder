@@ -24,6 +24,12 @@ describe('phase one offline reliability fixture', () => {
     expect(fixture.assets.every((asset) => asset.byteCount === 46 && /^sha256:[a-f0-9]{64}$/.test(asset.digest))).toBe(true)
     expect(new Set(sharedImageLines.map((line) => line.climbId)).size).toBe(2)
     expect(new Set(sharedClimbLines.map((line) => line.imageId)).size).toBe(2)
+    expect(fixture.metadata.routeLines[0]?.points).toEqual([
+      { x: 0.2, y: 0.9 },
+      { x: 0.4, y: 0.2 },
+      { x: 0.6, y: 0.6 },
+      { x: 0.8, y: 0.2 },
+    ])
     expect(fixture.metadata.routeLines.some((line) => line.climbId === textOnly?.id)).toBe(false)
     expect(fixture.metadata.crag).toMatchObject({
       accessNotes: expect.stringContaining('harbour steps'),
