@@ -10,7 +10,6 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
-      - "security"
     ignore:
       - dependency-name: "typescript"
         versions: ["7.x"]
@@ -33,7 +32,6 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
-      - "security"
     groups:
       npm-minor-patch:
         update-types:
@@ -46,4 +44,3 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
-      - "security"
