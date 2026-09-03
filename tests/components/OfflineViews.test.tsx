@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import OfflineCragViewer from '@/features/offline/components/OfflineCragViewer'
@@ -170,13 +170,22 @@ describe('offline standalone views', () => {
     const normalizedRoute = document.querySelector('[data-route-line-id="line-1"]')
     const legacyRoute = document.querySelector('[data-route-line-id="line-2"]')
     expect(document.querySelector('polyline')).not.toBeInTheDocument()
-    expect(normalizedRoute?.querySelectorAll('path')).toHaveLength(2)
+    expect(normalizedRoute?.querySelectorAll('path')).toHaveLength(3)
     expect(normalizedRoute?.querySelector('path')).toHaveAttribute('d', 'M 120 560 Q 360 160 540 280 Q 720 400 900 240 L 1080 80')
-    expect(normalizedRoute?.querySelectorAll('path')[1]).toHaveAttribute('stroke', '#ef4444')
+    expect(normalizedRoute?.querySelectorAll('path')[2]).toHaveAttribute('stroke', '#00FFFF')
+    expect(normalizedRoute).toHaveAttribute('aria-pressed', 'true')
     expect(normalizedRoute?.querySelector('circle')).toHaveAttribute('cx', '120')
     expect(normalizedRoute?.querySelector('circle')).toHaveAttribute('cy', '560')
     expect(legacyRoute?.querySelector('path')).toHaveAttribute('d', 'M 100 700 Q 500 300 700 200 L 900 100')
-    expect(legacyRoute?.querySelectorAll('path')[1]).toHaveAttribute('stroke', '#3b82f6')
+    expect(legacyRoute?.querySelectorAll('path')[2]).toHaveAttribute('stroke', '#3b82f6')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Legacy Groove · 5+' }))
+    expect(normalizedRoute?.querySelectorAll('path')[2]).toHaveAttribute('stroke', '#ef4444')
+    expect(legacyRoute?.querySelectorAll('path')[2]).toHaveAttribute('stroke', '#00FFFF')
+    expect(screen.getByRole('button', { name: 'Legacy Groove · 5+' })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Highlight Sunset Arete, 6B' }), { key: 'Enter' })
+    expect(normalizedRoute?.querySelectorAll('path')[2]).toHaveAttribute('stroke', '#00FFFF')
     expect(screen.getByText('49.48000, -2.62000')).toBeInTheDocument()
     expect(getActiveMock).toHaveBeenCalledWith('crag-pack')
   })
