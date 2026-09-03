@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable @next/next/no-html-link-for-pages -- Standalone offline routes require service-worker-controlled document navigations. */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type KeyboardEvent } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ArrowLeft, MapPin, Mountain, RefreshCw, Trash2 } from 'lucide-react'
 
@@ -82,7 +82,7 @@ function collectTopos(manifest: CragPackManifest): TopoImage[] {
 
 function TopoFigure({ topo }: { topo: TopoImage }) {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(topo.routes[0]?.id ?? null)
-  const selectRouteFromKey = (event: React.KeyboardEvent<SVGGElement>, routeId: string) => {
+  const selectRouteFromKey = (event: KeyboardEvent<SVGGElement>, routeId: string) => {
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     setSelectedRouteId(routeId)
