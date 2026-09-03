@@ -6,6 +6,7 @@ Run this checklist for each release candidate. The automated Chromium reliabilit
 
 - [ ] `npm run test:e2e:offline` passes without fixture URLs, credentials, secrets, hosted data, or caller-supplied environment variables.
 - [ ] The suite installs the repository-owned Signal Lost Cove pack through the production manifest parser, IndexedDB repository, pack manager, Cache Storage media cache, and offline reader.
+- [ ] Signal Lost Cove reports **Verified on this device** only after every required asset's exact bytes and SHA-256 have been revalidated locally.
 - [ ] Interruption, resume, media eviction, failed update, auth-state change, new-page reopen, and service-worker restart scenarios pass.
 - [ ] `npm run lint`, `npm run typecheck`, `bash docs/verify.sh`, relevant Vitest suites, and architecture checks pass.
 
@@ -17,6 +18,8 @@ Record the iPhone model, iOS version, Safari version, free storage before instal
 
 - [ ] Open the release candidate in Safari, use **Add to Home Screen**, and launch only from the Home Screen icon.
 - [ ] While connected, install Signal Lost Cove and confirm the guide is usable.
+- [ ] Confirm installation moves through Downloading and Verifying to Verified, shows the exact required byte total, and records the verification time.
+- [ ] Run repair validation and confirm a deliberately evicted/corrupt required topo changes the state to Needs repair before it is presented as ready.
 - [ ] Confirm access notes, low-tide warning, granite rock type, Channel Islands location, and crag coordinates render.
 - [ ] Open Harbour Wall and West Headland content.
 - [ ] Open Shared Signal, Airplane Traverse, and the text-only No Photo Needed entry.
@@ -32,6 +35,8 @@ Record the phone model, Android version, Chrome version, free storage before ins
 
 - [ ] Install the release candidate as a PWA in Chrome and launch only from the device launcher icon.
 - [ ] While connected, install Signal Lost Cove and confirm the guide is usable.
+- [ ] Confirm installation moves through Downloading and Verifying to Verified, shows the exact required byte total, and records the verification time.
+- [ ] Run repair validation and confirm a deliberately evicted/corrupt required topo changes the state to Needs repair before it is presented as ready.
 - [ ] Confirm access notes, low-tide warning, granite rock type, Channel Islands location, and crag coordinates render.
 - [ ] Open Harbour Wall and West Headland content.
 - [ ] Open Shared Signal, Airplane Traverse, and the text-only No Photo Needed entry.
@@ -45,4 +50,4 @@ Record the phone model, Android version, Chrome version, free storage before ins
 
 Attach the completed iOS and Android records to the release candidate. A Playwright pass cannot be substituted for either physical-device record. Any required-content failure blocks the release; record it with the device, OS/browser version, pack state, missing item, and whether a subsequent online repair recovered it.
 
-Pack v2 digest validation and migration, the dedicated field-guide shell, individual offline climb routes, final climb UI, and payload-budget enforcement remain later-phase gates. Their absence must not be described as installed-PWA validation.
+The dedicated field-guide shell, final individual-climb UI, and payload-budget enforcement remain later-phase gates. Pack v2 digest validation and non-destructive migration are required now and must be recorded separately from those later UI and optimization gates.

@@ -117,8 +117,14 @@ export default function OfflineCragViewer() {
   const readActivePack = useCallback(async () => {
     const packs = await packReader.list()
     const pack = packs.find((candidate) => candidate.kind === 'crag' && candidate.entityId === cragId
-      && candidate.activeVersion !== null && candidate.status !== 'error')
-    return pack ? packReader.validateActive(pack.packId) : null
+      && candidate.activeVersion !== null && candidate.status !== 'unsupported')
+    const validation = pack ? await packReader.validateActive(pack.packId) : null
+    const failures = validation ? [...validation.missingUrls, ...(validation.corruptUrls ?? [])] : []
+    if (validation && failures.length === 0 && validation.active.version.source !== 'legacy'
+      && readOfflineCragPayload(validation.active.version.manifest.payload)) {
+      await packReader.markOpened(validation.active.pack.packId)
+    }
+    return validation
   }, [cragId])
 
   useEffect(() => {
@@ -127,7 +133,8 @@ export default function OfflineCragViewer() {
     void readActivePack()
       .then((validation) => {
         if (!active) return
-        setMissingUrls(validation?.missingUrls ?? [])
+        const failures = validation ? [...validation.missingUrls, ...(validation.corruptUrls ?? [])] : []
+        setMissingUrls(failures)
         setActivePack(validation?.active ?? null)
       })
       .catch(() => { if (active) setReadError(true) })
@@ -152,7 +159,8 @@ export default function OfflineCragViewer() {
       if (!activePack) return
       await update(activePack.pack.packId)
       const validation = await readActivePack()
-      setMissingUrls(validation?.missingUrls ?? [])
+      const failures = validation ? [...validation.missingUrls, ...(validation.corruptUrls ?? [])] : []
+      setMissingUrls(failures)
       setActivePack(validation?.active ?? null)
     }
     const removeBroken = async () => {

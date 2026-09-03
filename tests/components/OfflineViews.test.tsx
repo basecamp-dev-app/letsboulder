@@ -19,6 +19,7 @@ vi.mock('@/features/offline/lib/offline-pack-manager', () => ({
   OfflinePackManager: class {
     list = listMock
     getActive = getActiveMock
+    markOpened = vi.fn(async () => undefined)
     validateActive = vi.fn(async (packId: string) => {
       const active = await getActiveMock(packId)
       return active ? { active, missingUrls: [] } : null
@@ -28,6 +29,7 @@ vi.mock('@/features/offline/lib/offline-pack-manager', () => ({
 
 describe('offline standalone views', () => {
   beforeEach(() => {
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({ matches: query === '(display-mode: standalone)', media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })))
     useConnectivityMock.mockReturnValue({ status: 'online', check: vi.fn() })
     useOfflinePacksMock.mockReturnValue({ loading: false, packs: [], error: null, repair: vi.fn(), resume: vi.fn(async () => undefined) })
     listMock.mockResolvedValue([])
@@ -63,6 +65,19 @@ describe('offline standalone views', () => {
 
     expect(await screen.findByRole('link', { name: 'Open saved crag' })).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Connection status' })).not.toBeInTheDocument()
+  })
+
+  it('does not make the installed-PWA reliability claim in a normal browser tab', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })))
+    useOfflinePacksMock.mockReturnValue({
+      loading: false, error: null, repair: vi.fn(), resume: vi.fn(async () => undefined),
+      packs: [{ packId: 'crag-pack', kind: 'crag', entityId: CRAG_ID, displayName: 'Cobo Bay', manifestUrl: '/pack.json', activeVersion: 'v2', status: 'verified', installedAt: 'now', updatedAt: 'now', error: null }],
+    })
+
+    render(<OfflineLibraryView />)
+
+    expect(await screen.findByText('Unsupported')).toBeInTheDocument()
+    expect(screen.queryByText('Verified')).not.toBeInTheDocument()
   })
 
   it('shows loading and empty library states', () => {

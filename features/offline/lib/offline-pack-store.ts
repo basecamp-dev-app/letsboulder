@@ -62,6 +62,7 @@ export class OfflinePackStore {
   async resume(): Promise<void> {
     await this.run(async () => {
       await this.manager.resume()
+      if (typeof navigator !== 'undefined' && navigator.onLine) await this.manager.migrateLegacyPacks()
       this.setSnapshot({ loading: false, packs: await this.manager.list(), error: null })
     })
   }

@@ -1,11 +1,19 @@
 /** The only user-installable offline product. Child climb manifests are internal dependencies. */
 export type OfflinePackKind = 'crag'
-export type OfflinePackStatus = 'installing' | 'ready' | 'degraded' | 'error'
+export type OfflinePackStatus = 'not-saved' | 'downloading' | 'verifying' | 'verified' | 'at-risk' | 'needs-repair' | 'update-failed' | 'unsupported'
+  | 'installing' | 'ready' | 'degraded' | 'error'
 
 export interface OfflinePackAsset {
   url: string
-  estimatedBytes: number | null
+  contentKey: string
+  byteCount: number
   mediaType: string | null
+  digest: `sha256:${string}`
+  requirement: 'required' | 'optional'
+  owningImageId: string | null
+  owningClimbIds: string[]
+  /** Pack v1 compatibility input; never used as Pack v2 integrity evidence. */
+  estimatedBytes?: number | null
 }
 
 export interface OfflinePackManifest {
@@ -15,7 +23,7 @@ export interface OfflinePackManifest {
   displayName: string
   version: string
   manifestUrl: string
-  estimatedBytes: number
+  exactTotalBytes: number
   assets: OfflinePackAsset[]
   dependentManifestUrls: string[]
   payload: unknown
@@ -34,6 +42,8 @@ export interface OfflinePackRecord {
   lastSuccessfulUpdateAt?: string | null
   updatedAt: string
   error: string | null
+  storageRisk?: boolean
+  legacySource?: boolean
 }
 
 export interface OfflinePackVersionRecord {
@@ -41,8 +51,12 @@ export interface OfflinePackVersionRecord {
   packId: string
   version: string
   manifest: OfflinePackManifest
-  state: 'staging' | 'active'
+  state: 'staging' | 'verified' | 'active' | 'retained' | 'rolled-back'
   createdAt: string
+  verifiedAt?: string | null
+  activatedAt?: string | null
+  openedAt?: string | null
+  source?: 'v2' | 'legacy'
 }
 
 export interface OfflineAssetOwnershipRecord {
@@ -51,10 +65,16 @@ export interface OfflineAssetOwnershipRecord {
   packId: string
   version: string
   url: string
-  estimatedBytes: number | null
+  contentKey: string
+  byteCount: number
   mediaType: string | null
-  state: 'pending' | 'cached'
+  digest: `sha256:${string}`
+  requirement: 'required' | 'optional'
+  owningImageId: string | null
+  owningClimbIds: string[]
+  state: 'pending' | 'verified' | 'cached'
   downloadedBytes: number
+  verifiedDigest: `sha256:${string}` | null
 }
 
 export interface OfflineDownloadJobRecord {
@@ -62,7 +82,7 @@ export interface OfflineDownloadJobRecord {
   packId: string
   version: string
   versionId: string
-  state: 'queued' | 'downloading' | 'failed' | 'cancelled' | 'complete'
+  state: 'queued' | 'downloading' | 'verifying' | 'verified' | 'activated' | 'opened' | 'failed' | 'cancelled' | 'rolled-back'
   completedAssets: number
   totalAssets: number
   downloadedBytes: number
@@ -99,4 +119,17 @@ export interface OfflinePackSnapshot {
 export interface OfflinePackValidation {
   active: ActiveOfflinePack
   missingUrls: string[]
+  corruptUrls: string[]
+}
+
+export type OfflineMigrationState = 'not-started' | 'staging' | 'verified' | 'activated' | 'opened' | 'failed' | 'rolled-back'
+
+export interface OfflineMigrationRecord {
+  id: string
+  packId: string
+  legacyVersionId: string
+  targetVersionId: string | null
+  state: OfflineMigrationState
+  error: string | null
+  updatedAt: string
 }

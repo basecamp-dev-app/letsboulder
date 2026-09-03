@@ -23,9 +23,11 @@ function request(ifNoneMatch?: string) {
 
 function manifest(): CragPackManifest {
   return {
-    schemaVersion: 1,
-    minReaderVersion: 1,
+    schemaVersion: 2,
+    minReaderVersion: 2,
     canonicalPath: '/gb/test-crag',
+    requiredOfflineRoutes: ['/offline/crag?id=test'],
+    reader: { family: 'letsboulder-offline-field-guide', minimumVersion: 2 },
     metadata: {
       crag: {
         id: CRAG_ID, name: 'Test Crag', slug: 'test-crag', countryCode: 'GB', country: 'United Kingdom',
@@ -36,7 +38,7 @@ function manifest(): CragPackManifest {
       sectors: [], climbs: [], images: [], routeLines: [],
     },
     assets: [], type: 'crag', packId: `crag:${CRAG_ID}`, cragId: CRAG_ID, cragName: 'Test Crag',
-    cragVersionHash: 'abc123', estimatedBytes: 0, mediaUrls: [], climbs: [], contentVersion: 'abc123',
+    cragVersionHash: 'abc123', exactTotalBytes: 0, estimatedBytes: 0, mediaUrls: [], climbs: [], contentVersion: 'abc123',
     generatedAt: '2026-07-29T12:00:00.000Z',
   }
 }

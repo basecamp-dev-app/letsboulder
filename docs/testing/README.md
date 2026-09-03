@@ -64,12 +64,12 @@ tests/
 
 ## Offline Coverage
 
-- Offline pack unit tests cover Cache API validation for unavailable, non-2xx, opaque, wrong-type, empty, and incorrect-length responses, plus persistence/removal.
-- Manager tests cover resumable versus permanent failures, restart recovery, atomic failed updates, missing assets, quota rejection, partial cleanup, and concurrent operations.
+- Offline pack unit tests cover Cache API validation for unavailable, non-2xx, opaque, wrong-type, empty, exact-length, and SHA-256 mismatch responses, plus local byte revalidation and persistence/removal.
+- Manager and IndexedDB tests cover exact integrity checkpoints, retained predecessors, shared ownership, migration lifecycle, restart recovery, incompatible readers, atomic failed updates, missing assets, quota rejection, and digest-validating repair.
 - `OfflinePackDatabase` tests use a real IndexedDB implementation (`fake-indexeddb`) rather than an in-memory repository.
 - Service-worker tests cover navigation, shell/static assets, every active crag media variant, cache misses, network failures, and non-packed requests.
 - `npm run test:e2e:offline` is mandatory and uses Signal Lost Cove, a repository-owned public fixture with three climbs, two sectors, two topo faces, shared-image relationships, a text-only climb, access and tide notes, and coordinates. It requires no hosted fixture, credential, secret, optional URL, or caller-supplied fixture environment variable.
-- The suite covers online install, readiness, airplane-mode library reload, cache-first saved-crag navigation, page close/reopen, required metadata and topo rendering, interrupted install/resume, media eviction, failed-update preservation, auth-state changes, and service-worker process restart.
+- The suite covers Pack v2 Verified state, exact fixture byte/digest checkpoints, digest and byte-count rejection, missing metadata/media, quota rejection, incompatible/failed update preservation, online install, airplane-mode reload, cache-first navigation, page/process restart, auth-state changes, and service-worker restart.
 - Playwright's browser projects are automated browser coverage only. Installed-PWA release validation must follow the [physical-device checklist](offline-device-release-checklist.md) on current supported iOS and Android hardware.
 
 CI installs the lockfile exactly with `npm ci --prefer-offline`; use the same command locally when reproducing CI. The media worker is a separate package and is installed with `npm --prefix apps/media-worker ci --prefer-offline`.
