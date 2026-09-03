@@ -11,7 +11,7 @@ import { useOfflinePacks } from '@/features/offline/hooks/use-offline-packs'
 import { readOfflineCragPayload } from '@/features/offline/lib/offline-crag-reader'
 import { OfflinePackManager } from '@/features/offline/lib/offline-pack-manager'
 import type { ActiveOfflinePack } from '@/features/offline/lib/offline-pack-types'
-import { createRoutePathData } from '@/lib/route-renderer'
+import { createRoutePathData, SELECTED_ROUTE_COLOR } from '@/lib/route-renderer'
 import type { CragPackManifest } from '@/types/crag-pack-manifest'
 import type { RoutePoint } from '@/types/domain'
 
@@ -81,27 +81,61 @@ function collectTopos(manifest: CragPackManifest): TopoImage[] {
 }
 
 function TopoFigure({ topo }: { topo: TopoImage }) {
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(topo.routes[0]?.id ?? null)
+  const selectRouteFromKey = (event: React.KeyboardEvent<SVGGElement>, routeId: string) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    setSelectedRouteId(routeId)
+  }
+
   return (
     <figure className="overflow-hidden rounded-3xl border border-stone-200 bg-stone-950 shadow-sm dark:border-gray-800">
       <div className="relative">
         {/* Packed URLs are exact immutable assets; generated Next Image variants are not available offline. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={topo.url} alt={topo.label} className="block h-auto w-full" />
-        <svg className="pointer-events-none absolute inset-0 size-full" viewBox={`0 0 ${topo.width} ${topo.height}`} role="img" aria-label={`Route lines on ${topo.label}`} preserveAspectRatio="xMidYMid meet">
+        <svg className="absolute inset-0 size-full" viewBox={`0 0 ${topo.width} ${topo.height}`} role="img" aria-label={`Route lines on ${topo.label}`} preserveAspectRatio="xMidYMid meet">
           {topo.routes.map((route) => {
             const pathData = createRoutePathData(route.points)
+            const selected = route.id === selectedRouteId
+            const displayColor = selected ? SELECTED_ROUTE_COLOR : route.color
             return pathData ? (
-              <g key={route.id} data-route-line-id={route.id}>
-                <path d={pathData} fill="none" stroke="rgba(0,0,0,0.65)" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
-                <path d={pathData} fill="none" stroke={route.color} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx={route.points[0]?.x} cy={route.points[0]?.y} r="11" fill={route.color} stroke="white" strokeWidth="4" />
+              <g
+                key={route.id}
+                data-route-line-id={route.id}
+                data-selected={selected}
+                role="button"
+                tabIndex={0}
+                aria-label={`Highlight ${route.name}, ${route.grade}`}
+                aria-pressed={selected}
+                onClick={() => setSelectedRouteId(route.id)}
+                onKeyDown={(event) => selectRouteFromKey(event, route.id)}
+                className="cursor-pointer focus:outline-none"
+              >
+                <path d={pathData} fill="none" stroke="transparent" strokeWidth="28" strokeLinecap="round" strokeLinejoin="round" pointerEvents="stroke" />
+                <path d={pathData} fill="none" stroke="rgba(0,0,0,0.65)" strokeWidth={selected ? 13 : 10} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+                <path d={pathData} fill="none" stroke={displayColor} strokeWidth={selected ? 7 : 5} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+                <circle cx={route.points[0]?.x} cy={route.points[0]?.y} r={selected ? 13 : 11} fill={displayColor} stroke="white" strokeWidth="4" pointerEvents="none" />
               </g>
             ) : null
           })}
         </svg>
       </div>
       <figcaption className="flex flex-wrap gap-2 p-4 text-xs text-white">
-        {topo.routes.length === 0 ? <span className="text-stone-300">Topo image</span> : topo.routes.map((route) => <span key={route.id} className="rounded-full bg-white/10 px-3 py-1.5"><span className="font-semibold">{route.name}</span> · {route.grade}</span>)}
+        {topo.routes.length === 0 ? <span className="text-stone-300">Topo image</span> : topo.routes.map((route) => {
+          const selected = route.id === selectedRouteId
+          return (
+            <button
+              key={route.id}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => setSelectedRouteId(route.id)}
+              className={`rounded-full px-3 py-1.5 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 ${selected ? 'bg-cyan-300 text-stone-950' : 'bg-white/10 text-white hover:bg-white/20'}`}
+            >
+              <span className="font-semibold">{route.name}</span> · {route.grade}
+            </button>
+          )
+        })}
       </figcaption>
     </figure>
   )
