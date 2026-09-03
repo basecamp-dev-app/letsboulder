@@ -48,7 +48,7 @@ export function createPhaseOneOfflineFixtureManifest(): CragPackManifest {
       ? [CLIMB_IDS.shared, CLIMB_IDS.traverse]
       : [CLIMB_IDS.shared],
   }))
-  const contentVersion = 'pack-v2-signal-lost-cove'
+  const contentVersion = 'pack-v2-signal-lost-cove-curved-routes'
   return {
     type: 'crag',
     schemaVersion: 2,
@@ -120,9 +120,9 @@ export function createPhaseOneOfflineFixtureManifest(): CragPackManifest {
         processedAt: '2026-09-01T00:00:00.000Z', assetVersion: 1,
       })),
       routeLines: [
-        { id: '55555555-5555-4555-8555-555555555551', climbId: CLIMB_IDS.shared, imageId: PHASE_ONE_FIXTURE_IMAGE_IDS[0], sequenceOrder: 1, color: '#10b981', imageWidth: 1, imageHeight: 1, points: [{ x: 0.2, y: 0.9 }, { x: 0.55, y: 0.15 }] },
-        { id: '55555555-5555-4555-8555-555555555552', climbId: CLIMB_IDS.traverse, imageId: PHASE_ONE_FIXTURE_IMAGE_IDS[0], sequenceOrder: 1, color: '#f59e0b', imageWidth: 1, imageHeight: 1, points: [{ x: 0.1, y: 0.6 }, { x: 0.9, y: 0.45 }] },
-        { id: '55555555-5555-4555-8555-555555555553', climbId: CLIMB_IDS.shared, imageId: PHASE_ONE_FIXTURE_IMAGE_IDS[1], sequenceOrder: 2, color: '#10b981', imageWidth: 1, imageHeight: 1, points: [{ x: 0.3, y: 0.85 }, { x: 0.7, y: 0.1 }] },
+        { id: '55555555-5555-4555-8555-555555555551', climbId: CLIMB_IDS.shared, imageId: PHASE_ONE_FIXTURE_IMAGE_IDS[0], sequenceOrder: 1, color: '#10b981', imageWidth: 1, imageHeight: 1, points: [{ x: 0.2, y: 0.9 }, { x: 0.35, y: 0.35 }, { x: 0.7, y: 0.65 }, { x: 0.82, y: 0.12 }] },
+        { id: '55555555-5555-4555-8555-555555555552', climbId: CLIMB_IDS.traverse, imageId: PHASE_ONE_FIXTURE_IMAGE_IDS[0], sequenceOrder: 1, color: '#f59e0b', imageWidth: 1, imageHeight: 1, points: [{ x: 0.1, y: 0.6 }, { x: 0.45, y: 0.2 }, { x: 0.9, y: 0.45 }] },
+        { id: '55555555-5555-4555-8555-555555555553', climbId: CLIMB_IDS.shared, imageId: PHASE_ONE_FIXTURE_IMAGE_IDS[1], sequenceOrder: 2, color: '#10b981', imageWidth: 1, imageHeight: 1, points: [{ x: 0.3, y: 0.85 }, { x: 0.62, y: 0.55 }, { x: 0.7, y: 0.1 }] },
       ],
     },
     assets,
