@@ -102,7 +102,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "fake-indexeddb": "^6.2.5",
-    "jsdom": "^28.1.0",
+    "jsdom": "^30.0.1",
     "p-limit": "^7.3.1",
     "pg": "^8.23.0",
     "supabase": "^2.116.0",
