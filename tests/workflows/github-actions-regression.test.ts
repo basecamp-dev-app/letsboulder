@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -70,6 +72,47 @@ describe('GitHub Actions security contracts', () => {
     expect(content).toContain('scripts/db/hosted-production-post-migration.sql')
     expect(content).toContain('production-playwright-smoke-')
     expect(workflow('test.yml')).not.toContain('name: Deploy to Vercel')
+  })
+
+  it('compares hosted staging schema without generator-only helper formatting', () => {
+    const content = workflow('supabase-migrations-staging.yml')
+    const comparison = content.slice(
+      content.indexOf('      - name: Verify public generated types match hosted staging'),
+      content.indexOf('      - name: Stop local Supabase'),
+    )
+
+    expect(comparison).toContain('node scripts/normalize-supabase-schema-types.mjs')
+    expect(comparison).toContain('diff -u "$LOCAL_TYPES" "$HOSTED_TYPES"')
+    expect(comparison.indexOf('normalize-supabase-schema-types.mjs')).toBeLessThan(
+      comparison.indexOf('diff -u'),
+    )
+
+    const directory = mkdtempSync(path.join(tmpdir(), 'supabase-schema-types-'))
+    const local = path.join(directory, 'local.ts')
+    const hosted = path.join(directory, 'hosted.ts')
+    const schema = 'export type Database = {\n  public: { Tables: {} }\n}\n'
+
+    try {
+      writeFileSync(local, `${schema}\ntype DatabaseWithoutInternals = Database\nexport type Tables<T> = T\n`)
+      writeFileSync(hosted, `${schema}\ntype DatabaseWithoutInternals = Database\nexport type Tables<T> = (T)\n`)
+      execFileSync(process.execPath, [
+        path.join(root, 'scripts', 'normalize-supabase-schema-types.mjs'),
+        local,
+        hosted,
+      ])
+
+      expect(readFileSync(local, 'utf8')).toBe(schema)
+      expect(readFileSync(hosted, 'utf8')).toBe(schema)
+
+      writeFileSync(hosted, `${schema.replace('Tables: {}', 'Tables: { climbs: {} }')}\ntype DatabaseWithoutInternals = Database\n`)
+      execFileSync(process.execPath, [
+        path.join(root, 'scripts', 'normalize-supabase-schema-types.mjs'),
+        hosted,
+      ])
+      expect(readFileSync(hosted, 'utf8')).not.toBe(readFileSync(local, 'utf8'))
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 
   it('uploads the media delivery key to the production worker environment', () => {
@@ -145,8 +188,16 @@ describe('GitHub Actions security contracts', () => {
     expect(playwrightWorkflow).toMatch(/github\.event_name == 'deployment_status'[\s\S]*github\.event\.deployment_status\.state == 'success'[\s\S]*github\.event\.deployment\.ref == 'main'[\s\S]*github\.event\.deployment\.environment == 'Production'/)
     expect(playwrightWorkflow).toContain("github.event_name == 'workflow_dispatch'")
     expect(playwrightWorkflow).toContain("PLAYWRIGHT_REQUESTED_BASE_URL: ${{ github.event_name == 'deployment_status' && 'https://letsboulder.com' || inputs.playwright_base_url || '' }}")
-    expect(playwrightWorkflow.match(/if: github\.event_name != 'deployment_status'/g)).toHaveLength(5)
+    expect(playwrightWorkflow.match(/if: github\.event_name != 'deployment_status'/g)).toHaveLength(6)
     expect(playwrightWorkflow).not.toContain('github.event.deployment_status.target_url')
+  })
+
+  it('runs the deterministic offline reliability suite for pull requests', () => {
+    const playwrightWorkflow = workflow('test.yml')
+
+    expect(playwrightWorkflow).toContain('offline-reliability:')
+    expect(playwrightWorkflow).toContain('name: Offline Reliability')
+    expect(playwrightWorkflow).toContain('run: npm run test:e2e:offline')
   })
 
   it('parameterizes all media backfill SQL inputs', () => {

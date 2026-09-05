@@ -1,7 +1,8 @@
 import type { Json } from '@/types/database'
 
-export const CRAG_PACK_SCHEMA_VERSION = 1 as const
-export const CRAG_PACK_MIN_READER_VERSION = 1 as const
+export const CRAG_PACK_SCHEMA_VERSION = 2 as const
+export const CRAG_PACK_MIN_READER_VERSION = 2 as const
+export const CRAG_PACK_DIGEST_ALGORITHM = 'sha256' as const
 
 export interface CragPackCoordinates {
   latitude: number | null
@@ -16,15 +17,25 @@ export interface CragPackAsset {
   format: 'webp'
   mediaType: 'image/webp'
   url: string
+  contentKey: string
   width: number
   height: number
-  estimatedBytes?: number
+  byteCount: number
+  digest: `${typeof CRAG_PACK_DIGEST_ALGORITHM}:${string}`
+  requirement: 'required' | 'optional'
+  owningImageId: string
+  owningClimbIds: string[]
 }
 
 export interface CragPackManifestSnapshot {
   schemaVersion: typeof CRAG_PACK_SCHEMA_VERSION
   minReaderVersion: typeof CRAG_PACK_MIN_READER_VERSION
   canonicalPath: string
+  requiredOfflineRoutes: string[]
+  reader: {
+    family: 'letsboulder-offline-field-guide'
+    minimumVersion: typeof CRAG_PACK_MIN_READER_VERSION
+  }
   metadata: {
     crag: {
       id: string
@@ -91,6 +102,8 @@ export interface CragPackManifest extends CragPackManifestSnapshot {
   cragId: string
   cragName: string
   cragVersionHash: string
+  exactTotalBytes: number
+  /** Compatibility alias; exact for Pack v2. */
   estimatedBytes: number
   mediaUrls: string[]
   climbs: Array<{ climbId: string; mediaUrls: string[] }>

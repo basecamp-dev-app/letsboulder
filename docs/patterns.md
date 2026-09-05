@@ -177,7 +177,7 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - Do not add live third-party raster basemaps, satellite toggles, or separate raster label layers by default.
 - Use clear connection states when live map data cannot load. Pins-only rendering is a visual degradation, not an offline-availability promise.
 - User-selected crag packs are the only standalone offline product. Store their versioned public metadata in the dedicated `letsboulder-offline-packs` IndexedDB database and immutable fixed-format media in the shared `letsboulder-offline-immutable-v1` Cache API cache. Child climb manifests may be fetched only as internal crag-pack dependencies; standalone climb packs and route viewers are unsupported.
-- Treat manifest installation as add, activate, then garbage collect. Cache and checkpoint every new asset before atomically moving the pack's active-version pointer; never replace a readable version with a partial update.
+- Use Pack v2 as documented in `docs/offline-pack-v2.md`: stage, validate exact bytes and SHA-256, verify relationships/reader compatibility, atomically activate, retain the predecessor through first successful open, then garbage-collect only unowned assets.
 - Keep downloads foreground-resumable instead of assuming a service worker will remain alive. The worker serves shells and cached responses; IndexedDB download jobs own recovery.
 
 ### Key Files
@@ -202,13 +202,13 @@ const { uploadUrl, objectKey } = await createPrivateUploadUrl(
 - **Cache retirement:** Activation deletes only the explicit retired cache names in `/sw.js`; never delete unrelated Cache Storage entries or the active immutable pack cache.
 - **Shell releases:** Bump the shell/static cache suffix when changing the worker or offline shell contract. Installation must fully cache required shells and discovered Next assets before activation removes the preceding owned release cache.
 - **Offline navigation:** `/offline`, `/offline/library`, and `/offline/crag` must resolve from the shell cache before any network request. `/offline` renders the library directly; connectivity verification is informational and must never gate saved content. The worker stores its build-cache manifest in the shell cache so cached application chunks remain readable after the worker is suspended and restarted offline.
-- **Stored data:** Pack versions activate only after every owned immutable asset is cached; removal keeps assets still owned by another installed pack.
+- **Stored data:** Pack versions activate only after every required immutable asset has an exact-byte and SHA-256 checkpoint. Active and retained ownership protects shared assets.
 - **Quota:** Compare browser storage estimates against uncached incremental bytes with safety headroom. Browser persistence requests remain best-effort and the UI must surface failures.
 - **Updates:** Opening a downloaded crag checks its deterministic manifest version while online. Changed packs require user confirmation; a failed update leaves the active version intact.
-- **Compatibility:** Readers accept the legacy `{ manifest, children }` payload wrapper, but new installs must pass reader validation before staging. Incompatible stored metadata stays visible with update/remove recovery actions and is never described as ready.
+- **Compatibility:** Pack v1 stores are read-only migration inputs. Readers keep legacy public guides usable, but only independently downloaded and verified Pack v2 bytes can become Verified.
 - **Connectivity:** Offline screens verify same-origin reachability through `/api/connectivity`; browser online/offline events are hints, not the sole source of truth. Reconnection exposes an explicit return to the online app.
-- **Recovery:** Startup, reconnect, and foreground return resume queued, downloading, and resumable failed jobs only. Permanent validation failures require explicit retry or discard. A failed update keeps the previous active version readable; missing cached media marks it degraded and repair restores media without changing the active version.
-- **Eviction:** Active pack assets are checked in Cache API before opening. Missing media marks the guide degraded and provides repair/redownload without hiding its cached metadata or pins.
+- **Recovery:** Startup, reconnect, and foreground return resume queued, downloading, and resumable failed jobs only. Permanent validation failures require explicit retry or discard. A failed update keeps the previous active version readable; repair rehashes all required bytes.
+- **Eviction:** Active required assets are read and rehashed before readiness is trusted. Missing or corrupt media marks the guide Needs repair without hiding intact metadata or pins.
 - **Auth:** Crag packs contain public content only and are device-local, so auth changes do not remove them. Never mix personal logs, private media, signed URLs, or collaboration data into a public pack.
 - **Network routes:** Preserve the current screen when a refetch fails and provide retry controls for failed initial loads.
 - **Hosted basemap CSP:** `tiles.openfreemap.org` must remain allowed in `connect-src`, `img-src`, and `font-src`.

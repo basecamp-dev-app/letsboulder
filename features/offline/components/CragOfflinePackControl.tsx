@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useConnectivity } from '@/features/offline/hooks/use-connectivity'
 import { useOfflinePacks } from '@/features/offline/hooks/use-offline-packs'
+import { useInstalledPwaSupport } from '@/features/offline/hooks/use-installed-pwa-support'
 import { fetchOfflinePackManifest } from '@/features/offline/lib/offline-pack-manifest'
 import type { OfflinePackManifest, OfflineStorageStatus } from '@/features/offline/lib/offline-pack-types'
 
@@ -17,22 +18,23 @@ function formatBytes(bytes: number) {
 export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
   const { packs, loading, error, install, repair, remove, discardFailed } = useOfflinePacks()
   const { status: connectivity } = useConnectivity()
+  const installedPwa = useInstalledPwaSupport()
   const packId = `crag:${cragId}`
   const manifestUrl = `/api/offline-packs/crags/${encodeURIComponent(cragId)}/manifest`
   const pack = packs.find((candidate) => candidate.packId === packId)
-  const ready = Boolean(pack?.activeVersion) && pack?.status !== 'error'
-  const degraded = pack?.status === 'degraded'
+  const ready = Boolean(pack?.activeVersion) && pack?.status !== 'unsupported'
+  const degraded = pack?.status === 'needs-repair'
   const failedDownload = pack?.error !== null && pack?.error !== undefined
   const [availableUpdate, setAvailableUpdate] = useState<OfflinePackManifest | null>(null)
   const [storageStatus, setStorageStatus] = useState<OfflineStorageStatus | null>(null)
 
   useEffect(() => {
     let active = true
-    if (!ready || connectivity !== 'online') return () => { active = false }
+    if (connectivity !== 'online') return () => { active = false }
 
     void fetchOfflinePackManifest(manifestUrl)
       .then((manifest) => {
-        if (active) setAvailableUpdate(manifest.version === pack?.activeVersion ? null : manifest)
+        if (active) setAvailableUpdate(ready && manifest.version === pack?.activeVersion ? null : manifest)
       })
       .catch(() => undefined)
 
@@ -50,7 +52,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
 
   const handleUpdate = async () => {
     if (!availableUpdate) return
-    const confirmed = globalThis.confirm(`Update this offline guide? The latest pack is up to ${formatBytes(availableUpdate.estimatedBytes)}.`)
+    const confirmed = globalThis.confirm(`Update this offline guide? The verified download is exactly ${formatBytes(availableUpdate.exactTotalBytes)}.`)
     if (!confirmed) return
     try {
       setStorageStatus(await install(manifestUrl))
@@ -97,7 +99,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
         </Button>
       ) : (
         <Button type="button" variant="outline" onClick={() => void handleInstall()} disabled={loading || connectivity !== 'online'} className="min-h-11 rounded-full border-stone-200 bg-stone-50 px-3 text-stone-700 shadow-none hover:bg-stone-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
-          <Download className="size-4" /> {loading ? 'Downloading...' : connectivity === 'checking' ? 'Checking connection...' : connectivity === 'offline' ? 'Reconnect to download' : pack?.status === 'error' ? 'Retry download' : 'Download offline'}
+          <Download className="size-4" /> {loading ? 'Downloading and verifying...' : connectivity === 'checking' ? 'Checking connection...' : connectivity === 'offline' ? 'Reconnect to download' : pack?.status === 'needs-repair' ? 'Retry download' : 'Download offline'}
         </Button>
       )}
       {ready && degraded ? (
@@ -123,7 +125,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
       {storageStatus ? (
         <div className="basis-full rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100" role="status">
           <div className="flex items-start justify-between gap-3">
-            <p className="font-medium">Download complete · {storageStatus.persisted === true ? 'Protected storage enabled' : 'Browser may evict this content'}</p>
+            <p className="font-medium">{installedPwa === false ? 'Unsupported browser-tab mode · integrity checks passed' : 'Verified on this device'} · {storageStatus.persisted === true ? 'Protected storage enabled' : 'Storage is at risk of eviction'}</p>
             <Button type="button" variant="ghost" size="icon-sm" onClick={() => setStorageStatus(null)} aria-label="Dismiss storage status" className="-mr-1 -mt-1 rounded-full">
               <X aria-hidden="true" />
             </Button>
@@ -133,6 +135,7 @@ export default function CragOfflinePackControl({ cragId }: { cragId: string }) {
           ) : null}
         </div>
       ) : null}
+      {!ready && availableUpdate ? <span className="basis-full text-xs text-stone-500 dark:text-gray-400">Exact required download: {formatBytes(availableUpdate.exactTotalBytes)}</span> : null}
       {error ? <span className="max-w-56 text-xs text-red-700 dark:text-red-300">{error}</span> : null}
     </div>
   )

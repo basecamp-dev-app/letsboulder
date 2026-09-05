@@ -18,20 +18,56 @@ export const BROWSE_ROUTE_COLOR = '#dc2626'
 export const ACTIVE_ROUTE_COLOR = '#FFFF00'
 export const SELECTED_ROUTE_COLOR = '#00FFFF'
 
+type RoutePathCommand =
+  | { type: 'move'; point: RoutePoint }
+  | { type: 'quadratic'; control: RoutePoint; end: RoutePoint }
+  | { type: 'line'; point: RoutePoint }
+
+export function createRoutePathCommands(points: RoutePoint[]): RoutePathCommand[] {
+  if (points.length < 2) return []
+
+  const commands: RoutePathCommand[] = [{ type: 'move', point: points[0] }]
+  for (let index = 1; index < points.length - 1; index += 1) {
+    commands.push({
+      type: 'quadratic',
+      control: points[index],
+      end: {
+        x: (points[index].x + points[index + 1].x) / 2,
+        y: (points[index].y + points[index + 1].y) / 2,
+      },
+    })
+  }
+  commands.push({ type: 'line', point: points[points.length - 1] })
+  return commands
+}
+
+export function createRoutePathData(points: RoutePoint[]): string | null {
+  const commands = createRoutePathCommands(points)
+  if (commands.length === 0) return null
+
+  return commands.map((command) => {
+    if (command.type === 'move') return `M ${command.point.x} ${command.point.y}`
+    if (command.type === 'line') return `L ${command.point.x} ${command.point.y}`
+    return `Q ${command.control.x} ${command.control.y} ${command.end.x} ${command.end.y}`
+  }).join(' ')
+}
+
 export function createRoutePath2D(points: RoutePoint[]): Path2D | null {
-  if (typeof Path2D === 'undefined' || points.length < 2) return null
+  if (typeof Path2D === 'undefined') return null
+
+  const commands = createRoutePathCommands(points)
+  if (commands.length === 0) return null
 
   const path = new Path2D()
-  path.moveTo(points[0].x, points[0].y)
-
-  for (let i = 1; i < points.length - 1; i += 1) {
-    const xc = (points[i].x + points[i + 1].x) / 2
-    const yc = (points[i].y + points[i + 1].y) / 2
-    path.quadraticCurveTo(points[i].x, points[i].y, xc, yc)
+  for (const command of commands) {
+    if (command.type === 'move') {
+      path.moveTo(command.point.x, command.point.y)
+    } else if (command.type === 'line') {
+      path.lineTo(command.point.x, command.point.y)
+    } else {
+      path.quadraticCurveTo(command.control.x, command.control.y, command.end.x, command.end.y)
+    }
   }
-
-  path.lineTo(points[points.length - 1].x, points[points.length - 1].y)
-
   return path
 }
 

@@ -142,6 +142,11 @@ jobs:
           # PostgREST server-version metadata is managed by Supabase and is not
           # part of the repository-owned application schema.
           sed -i '/^  \/\/ Allows to automatically instantiate/,/^  }$/d' "$LOCAL_TYPES" "$HOSTED_TYPES"
+
+          # Supabase may render its schema-independent convenience helpers
+          # differently for local and hosted Postgres versions. The Database
+          # declaration above this marker is the complete schema contract.
+          node scripts/normalize-supabase-schema-types.mjs "$LOCAL_TYPES" "$HOSTED_TYPES"
           perl -0pi -e 's/\n+\z/\n/' "$LOCAL_TYPES" "$HOSTED_TYPES"
           diff -u "$LOCAL_TYPES" "$HOSTED_TYPES"
 

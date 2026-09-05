@@ -19,39 +19,48 @@ describe('offline pack manifest validation', () => {
     expect(() => parseOfflinePackManifest(payload, 'https://letsboulder.com/api/offline/climb-1')).toThrow('Only crag guides can be saved offline')
   })
 
-  test('extracts crag child manifests for recursive validated loading', () => {
+  test('parses exact Pack v2 integrity and relationship metadata', () => {
     const manifest = parseOfflinePackManifest({
       type: 'crag',
-      schemaVersion: 1,
-      minReaderVersion: 1,
+      schemaVersion: 2,
+      minReaderVersion: 2,
       packId: 'crag:1',
       cragId: 'crag-1',
       cragName: 'The Glen',
       cragVersionHash: 'v1',
+      contentVersion: 'v1',
+      generatedAt: '2026-09-01T00:00:00.000Z',
+      canonicalPath: '/gb/the-glen',
+      reader: { family: 'letsboulder-offline-field-guide', minimumVersion: 2 },
       manifestUrl: '/api/offline/crag-1',
-      estimatedBytes: 500,
-      climbs: [{ manifestUrl: '/api/offline/climb-1' }],
-      metadata: { crag: {}, climbs: [], images: [], routeLines: [], sectors: [] },
-      tileManifest: { tileUrls: ['/tiles/a.webp'] },
+      exactTotalBytes: 3,
+      climbs: [{ climbId: 'climb-1', mediaUrls: [] }],
+      requiredOfflineRoutes: ['/offline/crag?id=crag-1', '/offline/crag?id=crag-1&climb=climb-1'],
+      metadata: { crag: { id: 'crag-1' }, climbs: [{ id: 'climb-1', sectorId: 'sector-1' }], images: [{ id: 'image-1' }], routeLines: [{ id: 'line-1', climbId: 'climb-1', imageId: 'image-1' }], sectors: [{ id: 'sector-1' }] },
+      assets: [{ url: '/media/a.webp', contentKey: 'asset-a', byteCount: 3, mediaType: 'image/webp', digest: `sha256:${'a'.repeat(64)}`, requirement: 'required', owningImageId: 'image-1', owningClimbIds: ['climb-1'] }],
     }, 'https://letsboulder.com/api/offline/crag-1')
 
-    expect(manifest.dependentManifestUrls).toEqual(['/api/offline/climb-1'])
-    expect(manifest.assets[0]?.url).toBe('https://letsboulder.com/tiles/a.webp')
+    expect(manifest.exactTotalBytes).toBe(3)
+    expect(manifest.assets[0]?.url).toBe('https://letsboulder.com/media/a.webp')
   })
 
   test('rejects malformed network payload fields', () => {
     expect(() => parseOfflinePackManifest({
       type: 'crag',
-      schemaVersion: 1,
-      minReaderVersion: 1,
+      schemaVersion: 2,
+      minReaderVersion: 2,
       packId: 'crag:1',
       cragId: 'crag-1',
       cragName: 'Broken',
       cragVersionHash: 'v1',
-      estimatedBytes: -1,
+      contentVersion: 'v1',
+      generatedAt: '2026-09-01T00:00:00.000Z',
+      canonicalPath: '/gb/broken',
+      reader: { family: 'letsboulder-offline-field-guide', minimumVersion: 2 },
+      exactTotalBytes: -1,
       mediaUrls: [42],
       climbs: [],
       metadata: { crag: {}, climbs: [], images: [], routeLines: [], sectors: [] },
-    }, 'https://letsboulder.com/manifest')).toThrow(/estimatedBytes/)
+    }, 'https://letsboulder.com/manifest')).toThrow(/exactTotalBytes/)
   })
 })
