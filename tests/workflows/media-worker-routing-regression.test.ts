@@ -49,7 +49,7 @@ describe('media worker routing convergence', () => {
     expect(staging).not.toContain('cloudflare/wrangler-action')
 
     const production = read('.github/workflows/media-worker-deploy.yml')
-    expect(production).toContain('queues consumer add')
+    expect(production).toContain('queues consumer worker add')
     expect(production).toContain('media-transform-queue-prod')
     expect(production).toContain("CF_MEDIA_WORKER_URL must target the production static media Custom Domain")
   })
