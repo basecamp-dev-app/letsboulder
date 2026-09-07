@@ -13,7 +13,7 @@ Browser
   |
   |-- presigned PUT ------------------------------> private R2 prepared sources
   |-- MapLibre style/tiles -----------------------> OpenFreeMap (or configured style host)
-  `-- static.* image/map requests ----------------> Cloudflare media Worker
+  `-- static.* image/map requests ----------------> Cloudflare media Worker Custom Domain
                                                         |-- Image Resizing fetch -> private R2 origin
                                                         |-- /maps/* -----------> public R2 bucket
                                                         |-- cron/queue --------> Supabase media jobs/images
@@ -52,7 +52,8 @@ The durable `media_jobs` database outbox is authoritative for media ingest. `med
 - Virtual variants derive from the canonical WebP through Cloudflare Image Resizing on demand and are cached at delivery; they are not stored variant objects.
 - The scheduled Worker drains transactional deletion jobs and removes allowlisted private sources or canonical objects through `ORIGINALS_BUCKET`. Replaced sources remain unclaimable until canonical public delivery has been verified; canonical ingest never deletes them directly.
 - The public R2 bucket backs `/maps/*` and legacy public objects. The active Worker does not write generated image variants there.
-- Environment routes are `static.dev.letsboulder.com` and `static.letsboulder.com`.
+- Staging uses the `static.staging.letsboulder.com` Worker Custom Domain and production uses the `static.letsboulder.com` Worker Custom Domain. Production temporarily retains `media.letsboulder.com` only as a compatibility alias while external fast-path dependencies are audited; it is not a canonical app endpoint.
+- Because the media Worker is the origin/application endpoint, production does not use a `static.letsboulder.com/*` Worker Route in the target architecture.
 
 ### Vector Maps
 
@@ -101,7 +102,7 @@ Do not put server truth into Zustand or infer durable upload recovery from React
 | Private R2 bucket | Private | Prepared JPEG sources and persisted canonical WebPs; replaced sources may already be deleted | Browser presigned PUT; app object checks; Worker binding/private origin |
 | Public R2 bucket | Public through controlled routes | `/maps/*` assets and legacy public objects | Worker `PUBLIC_BUCKET`; not the active image-variant destination |
 | Public-data R2 bucket | Public bulk download | Signed, immutable ODbL snapshots and mutable discovery metadata | Nightly GitHub Actions export; separate credentials and lifecycle policy |
-| Cloudflare edge cache | Public delivery cache | On-demand resized image responses | `static.*` Worker route and Image Resizing |
+| Cloudflare edge cache | Public delivery cache | On-demand resized image responses | `static.*` Worker Custom Domain and Image Resizing |
 | Browser IndexedDB | Per browser; store-specific auth policy | Auth-scoped React Query cache and exact prepared upload Blobs/checkpoints plus device-local public crag-pack versions, ownership, and resumable jobs | Query persister, upload store, and offline pack database |
 | Browser Cache API | Per browser | Versioned offline shells, immutable Next assets, and shared immutable crag-pack media | Service worker and offline pack manager |
 | Browser memory/blob URLs | Page/provider local | Selected upload files, previews, queue state, editor state | React context/hooks/Zustand |
