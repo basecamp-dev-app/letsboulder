@@ -112,7 +112,7 @@ describe('bounded media recovery runtime', () => {
     ])
   })
 
-  it('continues full scheduled media and deletion batches through fresh queue invocations', async () => {
+  it('moves deletion recovery to a fresh invocation after a full scheduled media batch', async () => {
     let claimCount = 0
     rpc.mockImplementation(async (name: string) => {
       if (name === 'claim_media_job') {
@@ -121,13 +121,33 @@ describe('bounded media recovery runtime', () => {
       }
       return { data: null, error: null }
     })
-    deletionDrain.mockResolvedValue(4)
 
     await mediaRuntime.scheduled({}, env())
 
     expect(queueSend).toHaveBeenCalledWith({ kind: 'drain-media' })
     expect(queueSend).toHaveBeenCalledWith({ kind: 'drain-deletions' })
+    expect(deletionDrain).not.toHaveBeenCalled()
+    expect(pruneDeletion).toHaveBeenCalledOnce()
+  })
+
+  it('drains deletions in the scheduled invocation when media work leaves budget', async () => {
+    let claimCount = 0
+    rpc.mockImplementation(async (name: string) => {
+      if (name === 'claim_media_job') {
+        claimCount += 1
+        return claimCount === 1
+          ? { data: job(claimCount), error: null }
+          : { data: null, error: null }
+      }
+      return { data: null, error: null }
+    })
+    deletionDrain.mockResolvedValue(4)
+
+    await mediaRuntime.scheduled({}, env())
+
     expect(deletionDrain).toHaveBeenCalledWith(expect.anything(), 'media-deletion-worker', 4)
+    expect(queueSend).toHaveBeenCalledWith({ kind: 'drain-deletions' })
+    expect(queueSend).not.toHaveBeenCalledWith({ kind: 'drain-media' })
     expect(pruneDeletion).toHaveBeenCalledOnce()
   })
 
