@@ -39,7 +39,14 @@ describe('media worker routing convergence', () => {
     expect(config).toContain('max_retries = 3')
   })
 
-  it('keeps version uploads strict and applies routes/domains explicitly', () => {
+  it('keeps observability defaults explicit for strict remote drift checks', () => {
+    const config = read('apps/media-worker/wrangler.toml')
+
+    expect(config.match(/redact_query_string = false/g)).toHaveLength(3)
+    expect(config.match(/head_sampling_rate = 1/g)).toHaveLength(3)
+  })
+
+  it('keeps version uploads strict and reconciles triggers before upload', () => {
     const production = read('.github/workflows/media-worker-deploy.yml')
     const staging = read('.github/workflows/media-worker-staging-deploy.yml')
 
@@ -47,16 +54,50 @@ describe('media worker routing convergence', () => {
       expect(workflow).toContain('wrangler versions upload')
       expect(workflow).toContain('--strict')
       expect(workflow).toContain('wrangler triggers deploy')
+      expect(workflow).toContain('--dry-run')
       expect(workflow).toContain('wrangler versions deploy')
       expect(workflow).toContain('--version-tag "${WORKER_VERSION_TAG}@100%"')
     }
 
     expect(production.indexOf('Reconcile production routes and cron before strict version upload'))
       .toBeLessThan(production.indexOf('Create production Worker version with synchronized credentials'))
+    expect(staging.indexOf('Reconcile staging routes and cron before strict version upload'))
+      .toBeLessThan(staging.indexOf('Create staging Worker version with synchronized credentials'))
     expect(production).toContain('https://static.letsboulder.com/enqueue')
     expect(staging).toContain('https://static.staging.letsboulder.com/enqueue')
     expect(staging).not.toContain('wrangler secret put')
     expect(staging).not.toContain('Ensure staging media infrastructure exists')
+  })
+
+  it('reconciles the known-missing production queue consumer and verifies staging', () => {
+    const production = read('.github/workflows/media-worker-deploy.yml')
+    const staging = read('.github/workflows/media-worker-staging-deploy.yml')
+
+    expect(production).toContain('wrangler queues consumer list media-transform-queue-prod --json')
+    expect(production).toContain('wrangler queues consumer add')
+    expect(production).toContain('media-worker-production')
+    expect(production).toContain('--batch-size 1')
+    expect(production).toContain('--batch-timeout 5')
+    expect(production).toContain('--message-retries 3')
+    expect(production.indexOf('Reconcile production queue consumer'))
+      .toBeLessThan(production.indexOf('Create production Worker version with synchronized credentials'))
+
+    expect(staging).toContain('wrangler queues consumer list media-transform-queue-staging --json')
+    expect(staging).toContain('media-worker-staging')
+    expect(staging).toContain('Staging media queue consumer is missing')
+    expect(staging.indexOf('Verify staging queue consumer'))
+      .toBeLessThan(staging.indexOf('Create staging Worker version with synchronized credentials'))
+  })
+
+  it('requires canonical media URLs before trigger mutation', () => {
+    const production = read('.github/workflows/media-worker-deploy.yml')
+    const staging = read('.github/workflows/media-worker-staging-deploy.yml')
+
+    for (const workflow of [production, staging]) {
+      expect(workflow).toContain('GITHUB_CF_MEDIA_WORKER_URL')
+      expect(workflow).toContain('GITHUB_MEDIA_CDN_URL')
+      expect(workflow).toMatch(/required=\([^\n]*GITHUB_CF_MEDIA_WORKER_URL GITHUB_MEDIA_CDN_URL\)/)
+    }
   })
 
   it('validates required Worker secrets without copying production-only values between environments', () => {
