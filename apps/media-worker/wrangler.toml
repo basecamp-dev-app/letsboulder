@@ -4,6 +4,7 @@ compatibility_date = "2026-03-22"
 
 [observability]
 enabled = true
+redact_query_string = false
 
 [cache]
 enabled = true
@@ -60,8 +61,15 @@ R2_PUBLIC_BUCKET = "lb-prod-media-public"
 crons = ["*/2 * * * *"]
 
 [[env.production.routes]]
-pattern = "static.letsboulder.com/*"
-zone_name = "letsboulder.com"
+pattern = "static.letsboulder.com"
+custom_domain = true
+
+# Temporary compatibility alias during the Route -> Custom Domain migration.
+# Remove only after Vercel/GitHub CF_MEDIA_WORKER_URL dependencies are verified
+# on https://static.letsboulder.com and production static delivery is healthy.
+[[env.production.routes]]
+pattern = "media.letsboulder.com"
+custom_domain = true
 
 [[env.production.r2_buckets]]
 binding = "ORIGINALS_BUCKET"
