@@ -9,7 +9,7 @@ const BUILD_ASSET_MANIFEST_URL = '/sw-build-assets.json'
 const SHELL_PATHS = ['/offline', '/offline/library', '/offline/crag']
 const APPROVED_MEDIA_ORIGINS = new Set([
   self.location.origin,
-  'https://static.dev.letsboulder.com',
+  'https://static.staging.letsboulder.com',
   'https://static.letsboulder.com',
 ])
 const PACKED_MEDIA_PATH = /^\/images\/[^/]+\/v\d+\/[^/]+\.webp$/
