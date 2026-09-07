@@ -16,6 +16,9 @@ concurrency:
   group: media-worker-production
   cancel-in-progress: false
 
+env:
+  WRANGLER_DEPLOY_VERSION: "4.129.1"
+
 jobs:
   deploy-production:
     name: Deploy Media Worker (Production)
@@ -45,10 +48,12 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MEDIA_CDN_URL: ${{ vars.NEXT_PUBLIC_MEDIA_CDN_URL }}
+          CF_MEDIA_WORKER_URL: ${{ vars.CF_MEDIA_WORKER_URL }}
         run: |
           set -euo pipefail
 
-          required=(CLOUDFLARE_API_TOKEN SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY)
+          required=(CLOUDFLARE_API_TOKEN SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY MEDIA_CDN_URL CF_MEDIA_WORKER_URL)
           for name in "${required[@]}"; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is required in the protected Production GitHub environment."
@@ -62,9 +67,73 @@ jobs:
             exit 1
           fi
 
+          if [ "$MEDIA_CDN_URL" != 'https://static.letsboulder.com' ]; then
+            echo '::error::NEXT_PUBLIC_MEDIA_CDN_URL must target the production static media Custom Domain.'
+            exit 1
+          fi
+          if [ "$CF_MEDIA_WORKER_URL" != 'https://static.letsboulder.com' ]; then
+            echo '::error::CF_MEDIA_WORKER_URL must target the production static media Custom Domain before routing migration.'
+            exit 1
+          fi
+
           # NEXT_PUBLIC_SUPABASE_ANON_KEY is a public Worker var, not a secret
           # binding. Mask it anyway so Wrangler diagnostics cannot echo it.
           echo "::add-mask::$SUPABASE_ANON_KEY"
+
+      - name: Preview production media trigger reconciliation
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" triggers deploy \
+            --env production \
+            --dry-run
+
+      - name: Apply production media domains and cron
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          # Version uploads do not apply routes, Custom Domains, or cron triggers.
+          # Keep the legacy media.letsboulder.com alias declared in wrangler.toml
+          # until Vercel/external dependencies have been verified on static.*.
+          npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" triggers deploy --env production
+
+      - name: Reconcile production queue consumer
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          consumers="$(npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" queues consumer list media-transform-queue-prod --json)"
+          if printf '%s' "$consumers" | grep -Fq 'media-worker-production'; then
+            echo 'Production media queue consumer already exists.'
+          else
+            npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" queues consumer add \
+              media-transform-queue-prod \
+              media-worker-production \
+              --batch-size 1
+          fi
+
+          consumers="$(npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" queues consumer list media-transform-queue-prod --json)"
+          if ! printf '%s' "$consumers" | grep -Fq 'media-worker-production'; then
+            echo '::error::Production media queue consumer was not reconciled.'
+            exit 1
+          fi
 
       - name: Create production Worker version with synchronized credentials
         working-directory: apps/media-worker
@@ -87,7 +156,7 @@ jobs:
           chmod 600 "$secrets_file"
           node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY}))' "$secrets_file"
 
-          npx --no-install wrangler versions upload \
+          npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" versions upload \
             --env production \
             --strict \
             --tag "$WORKER_VERSION_TAG" \
@@ -106,7 +175,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
           export CLOUDFLARE_ACCOUNT_ID
 
-          npx --no-install wrangler versions deploy \
+          npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" versions deploy \
             --env production \
             --version-tag "${WORKER_VERSION_TAG}@100%" \
             --message "Deploy ${GITHUB_SHA}" \
