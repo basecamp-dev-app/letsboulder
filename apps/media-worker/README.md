@@ -46,12 +46,14 @@ The current Cloudflare Images Free plan allows 5,000 unique transformations per 
 
 ## Environments
 
-| Environment | CDN host | Private media bucket | Public map/assets bucket | Supabase |
+| Environment | Worker Custom Domain | Private media bucket | Public map/assets bucket | Supabase |
 |---|---|---|---|---|
-| Staging | `static.dev.letsboulder.com` | `lb-dev-media-private` (prepared sources and canonical WebPs) | `lb-dev-media-public` | `pfleqxztfiddujvylvaz.supabase.co` |
-| Production | `static.letsboulder.com` | `lb-prod-media-private` (prepared sources and canonical WebPs) | `lb-prod-media-public` | `glxnbxbkedeogtcivpsx.supabase.co` |
+| Staging | `static.staging.letsboulder.com` | `lb-staging-media-private` (prepared sources and canonical WebPs) | `lb-staging-media-public` | staging project |
+| Production | `static.letsboulder.com` | `lb-prod-media-private` (prepared sources and canonical WebPs) | `lb-prod-media-public` | production project |
 
 Queues are `media-transform-queue-staging` and `media-transform-queue-prod`, with batch size 1. They are an optional fast path and a compatibility path for backfill, not the durable record of app-owned ingest.
+
+During the production Route-to-Custom-Domain migration, `media.letsboulder.com` is retained only as an explicit compatibility Custom Domain. Remove it from `wrangler.toml` only after Vercel and GitHub `CF_MEDIA_WORKER_URL` references are verified on `https://static.letsboulder.com` and production media delivery has passed smoke/lifecycle verification.
 
 ## Bindings, Vars, And Secrets
 
@@ -61,20 +63,15 @@ R2 bindings in `wrangler.toml`:
 - `PUBLIC_BUCKET` -> the environment's public map/assets bucket.
 - `MEDIA_QUEUE` -> the environment's Cloudflare Queue.
 
-Plain vars in `wrangler.toml`:
+Plain vars in `wrangler.toml` include environment-appropriate values for:
 
-- `SUPABASE_URL`
+- `SUPABASE_URL` where it is intentionally non-secret configuration.
 - `R2_ORIGIN_URL`
 - `R2_PRIVATE_BUCKET`
 - `R2_PUBLIC_BUCKET`
 - `MEDIA_HOST`
 
-Configure Worker secrets with `wrangler secret put`:
-
-- `INGRESS_SECRET`: must equal the Next.js/backfill `CF_MEDIA_WORKER_SECRET`; authenticates `POST /enqueue`.
-- `INTERNAL_ORIGIN_SECRET`: authenticates `GET /origin/*`; it is independent of the enqueue secret.
-- `SUPABASE_ANON_KEY`: RLS-scoped access for public media delivery eligibility reads.
-- `SUPABASE_SERVICE_ROLE_KEY`: server-only Supabase access for job and image updates.
+Worker credentials remain environment-isolated. Deployment workflows pass secret values through temporary secrets files so they are attached to the uploaded Worker version without committing them to Git. Staging keeps `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `INGRESS_SECRET`, and `INTERNAL_ORIGIN_SECRET` as Worker secrets. Production preserves its existing secret model while synchronizing the service-role credential with the version upload.
 
 The Next.js app's R2 access key and secret are used for S3 presigning and are not Worker secrets because the Worker uses R2 bindings.
 
@@ -87,13 +84,13 @@ The Next.js app's R2 access key and secret are used for S3 presigning and are no
 | `src/config.ts` | Named virtual widths and output formats |
 | `src/schema.ts` | Queue payload validation |
 | `src/supabase.ts` | Worker environment contract and Supabase client |
-| `wrangler.toml` | Environment routes, cron, queue, and R2 bindings |
+| `wrangler.toml` | Environment Custom Domains, cron, queue, and R2 bindings |
 
-Production deploys from `.github/workflows/media-worker-deploy.yml` when worker files change. The workflow uses the `Production` GitHub environment.
+Staging and production deployments are versioned. The workflows explicitly reconcile Custom Domains/cron with `wrangler triggers deploy`, require strict version upload, deploy the tagged version, and then smoke-test the environment's canonical static hostname. Production deployment uses the protected `Production` GitHub environment.
+
+For local/read-only inspection, use the repository-pinned Wrangler. Production mutation remains owned by the protected GitHub workflow rather than manual dashboard deployment.
 
 ```bash
-npx wrangler deploy --env staging
-npx wrangler deploy --env production
-npx wrangler tail --env staging
-npx wrangler tail --env production
+npx --no-install wrangler tail --env staging
+npx --no-install wrangler tail --env production
 ```
