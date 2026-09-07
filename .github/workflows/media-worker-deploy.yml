@@ -39,31 +39,87 @@ jobs:
         run: npm run check
         working-directory: apps/media-worker
 
-      - name: Upload production media worker secrets
+      - name: Validate production media worker deployment inputs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+
+          required=(CLOUDFLARE_API_TOKEN SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY)
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required in the protected Production GitHub environment."
+              exit 1
+            fi
+          done
+
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          if ! [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[[:alnum:]_-]+$ ]]; then
+            echo '::error::CLOUDFLARE_ACCOUNT_ID is missing or invalid in the Production GitHub environment.'
+            exit 1
+          fi
+
+          # NEXT_PUBLIC_SUPABASE_ANON_KEY is a public Worker var, not a secret
+          # binding. Mask it anyway so Wrangler diagnostics cannot echo it.
+          echo "::add-mask::$SUPABASE_ANON_KEY"
+
+      - name: Create production Worker version with synchronized credentials
         working-directory: apps/media-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          WORKER_VERSION_TAG: github-${{ github.sha }}
         run: |
           set -euo pipefail
-          if [ -z "$SUPABASE_ANON_KEY" ]; then
-            echo '::error::NEXT_PUBLIC_SUPABASE_ANON_KEY is required for production media delivery.'
-            exit 1
-          fi
-          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
-          if ! [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[[:alnum:]_-]+$ ]]; then
-            echo '::error::CLOUDFLARE_ACCOUNT_ID is missing or invalid after whitespace normalization.'
-            exit 1
-          fi
-          export CLOUDFLARE_ACCOUNT_ID
-          printf '%s' "$SUPABASE_ANON_KEY" \
-            | npx --no-install wrangler secret put SUPABASE_ANON_KEY --env production
 
-      - name: Deploy production media worker
-        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/media-worker
-          command: deploy --env production
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+          echo "::add-mask::$SUPABASE_ANON_KEY"
+          echo "::add-mask::$SUPABASE_SERVICE_ROLE_KEY"
+
+          secrets_file="$(mktemp)"
+          trap 'rm -f "$secrets_file"' EXIT
+          chmod 600 "$secrets_file"
+          node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY}))' "$secrets_file"
+
+          npx --no-install wrangler versions upload \
+            --env production \
+            --strict \
+            --tag "$WORKER_VERSION_TAG" \
+            --message "GitHub ${GITHUB_SHA}" \
+            --var "SUPABASE_ANON_KEY:${SUPABASE_ANON_KEY}" \
+            --secrets-file "$secrets_file"
+
+      - name: Deploy synchronized production Worker version
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER_VERSION_TAG: github-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          npx --no-install wrangler versions deploy \
+            --env production \
+            --version-tag "${WORKER_VERSION_TAG}@100%" \
+            --message "Deploy ${GITHUB_SHA}" \
+            --yes
+
+      - name: Smoke test production media endpoint
+        run: |
+          set -euo pipefail
+
+          status="$(curl --silent --show-error --retry 12 --retry-all-errors --retry-delay 5 --output /dev/null --write-out '%{http_code}' --request POST https://static.letsboulder.com/enqueue)"
+          if [ "$status" != "401" ]; then
+            echo "::error::Expected 401 from production media worker, got $status"
+            exit 1
+          fi
+
+          echo 'Production media worker is reachable and ingress auth is enforced.'

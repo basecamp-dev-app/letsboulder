@@ -173,6 +173,14 @@ function getApiBucket(pathname: string, method: string): RateLimitBucket | null 
     return 'signed_urls'
   }
 
+  // Draft mutations have handler-level, authenticated limits (`draftSave`,
+  // `draftPublish`, or `authenticatedWrite`). Applying the shared IP write
+  // bucket here double-counts autosave/editor traffic and can block a publish
+  // before the per-user handler limit is evaluated.
+  if (pathname.startsWith('/api/submissions/drafts/')) {
+    return null
+  }
+
   if (pathname.startsWith('/api/submissions/') && normalizedMethod === 'POST') {
     return 'submissions'
   }
@@ -218,12 +226,13 @@ export async function applyProxyRateLimit(request: NextRequest): Promise<NextRes
       if (bucketIsWrite) {
         const result = applyInMemoryRateLimit(identifier, config)
         if (!result.success) {
+          const retryAfter = Math.max(1, Math.ceil((result.reset - Date.now()) / 1000))
           return NextResponse.json(
-            { error: 'Rate limit exceeded. Please try again later.' },
+            { error: 'Rate limit exceeded. Please try again later.', retry_after: retryAfter },
             {
               status: 429,
               headers: {
-                'Retry-After': String(Math.max(1, Math.ceil((result.reset - Date.now()) / 1000))),
+                'Retry-After': String(retryAfter),
                 'X-RateLimit-Limit': String(result.limit),
                 'X-RateLimit-Remaining': String(result.remaining),
                 'X-RateLimit-Reset': String(Math.ceil(result.reset / 1000)),
@@ -241,12 +250,13 @@ export async function applyProxyRateLimit(request: NextRequest): Promise<NextRes
 
     if (success) return null
 
+    const retryAfter = Math.max(1, Math.ceil((reset - Date.now()) / 1000))
     return NextResponse.json(
-      { error: 'Rate limit exceeded. Please try again later.' },
+      { error: 'Rate limit exceeded. Please try again later.', retry_after: retryAfter },
       {
         status: 429,
         headers: {
-          'Retry-After': String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))),
+          'Retry-After': String(retryAfter),
           'X-RateLimit-Limit': String(limit),
           'X-RateLimit-Remaining': String(remaining),
           'X-RateLimit-Reset': String(Math.ceil(reset / 1000)),
@@ -257,12 +267,13 @@ export async function applyProxyRateLimit(request: NextRequest): Promise<NextRes
     if (bucketIsWrite) {
       const result = applyInMemoryRateLimit(identifier, config)
       if (!result.success) {
+        const retryAfter = Math.max(1, Math.ceil((result.reset - Date.now()) / 1000))
         return NextResponse.json(
-          { error: 'Rate limit exceeded. Please try again later.' },
+          { error: 'Rate limit exceeded. Please try again later.', retry_after: retryAfter },
           {
             status: 429,
             headers: {
-              'Retry-After': String(Math.max(1, Math.ceil((result.reset - Date.now()) / 1000))),
+              'Retry-After': String(retryAfter),
               'X-RateLimit-Limit': String(result.limit),
               'X-RateLimit-Remaining': String(result.remaining),
               'X-RateLimit-Reset': String(Math.ceil(result.reset / 1000)),

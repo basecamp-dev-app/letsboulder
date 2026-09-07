@@ -174,7 +174,7 @@ Features with both browser-safe and server behavior expose separate `public-clie
 | `lib/supabase.ts` | Browser Supabase client |
 | `lib/supabase-server.ts` | Request/server Supabase clients |
 | `lib/csrf.ts`, `lib/csrf-server.ts` | Route Handler CSRF flow |
-| `lib/rate-limit-config.ts` | Named API rate-limit configuration (15 tiers; operational values remain code-owned) |
+| `lib/rate-limit-config.ts` | Named API rate-limit configuration (16 tiers; operational values remain code-owned) |
 | `app/api/media/upload-sessions/` | Upload session create/status/complete/delete HTTP surface |
 | `lib/media/r2.ts` | App-side R2 presigning and object operations |
 | `apps/media-worker/src/index.ts` | Durable ingest and virtual image/map delivery |

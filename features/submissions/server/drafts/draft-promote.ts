@@ -12,6 +12,7 @@ import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
 import { recordSubmissionPublishedEvent } from '@/features/community/public-server'
 import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
+import { autoPublishCreatedCrag } from '@/features/submissions/server/drafts/auto-publish-created-crag'
 import { OPEN_DATA_CONSENT_REQUIRED } from '@/features/legal/public-server'
 import { revalidatePublicCragPaths } from '@/features/crags/public-server'
 
@@ -395,12 +396,26 @@ export async function promoteDraftToSubmission(input: {
     })
     if (canonicalCragError) return canonicalCragError
 
+    const autoPublication = await autoPublishCreatedCrag({
+      supabase,
+      cragId: draft.crag_id,
+      userId,
+    })
+    if (autoPublication.error) {
+      return publishInternalError(autoPublication.error, 'Failed to publish new crag')
+    }
+
     const publishedResult = resolvePublishedResult(draft.metadata)
     if (!publishedResult) {
       return publishFailure(500, { error: 'Failed to recover published draft destination' })
     }
 
-    return buildPublishedResponse({ supabase, result: publishedResult, userId, runPostPublishEffects: false })
+    return buildPublishedResponse({
+      supabase,
+      result: publishedResult,
+      userId,
+      runPostPublishEffects: autoPublication.published,
+    })
   }
 
   const linkedImageIds = Array.from(new Set(draftImageRows.flatMap((image) => image.linked_image_id ? [image.linked_image_id] : [])))
@@ -552,6 +567,15 @@ export async function promoteDraftToSubmission(input: {
   const result = (Array.isArray(data) ? data[0] : data) as PromoteResult | null
   if (!result?.success || !result.image_id) {
     return publishFailure(500, { error: 'Failed to publish draft' })
+  }
+
+  const autoPublication = await autoPublishCreatedCrag({
+    supabase,
+    cragId: draft.crag_id,
+    userId,
+  })
+  if (autoPublication.error) {
+    return publishInternalError(autoPublication.error, 'Failed to publish new crag')
   }
 
   return buildPublishedResponse({ supabase, result, userId })

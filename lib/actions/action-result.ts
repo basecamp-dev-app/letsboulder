@@ -4,6 +4,8 @@ export interface ActionResult<T = void> {
   error?: string
   status?: number
   fieldErrors?: Record<string, string[] | undefined>
+  retryAfter?: number
+  resetAt?: number
 }
 
 export function ok<T>(data?: T): ActionResult<T> {
