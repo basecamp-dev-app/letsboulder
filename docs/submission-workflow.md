@@ -1,6 +1,6 @@
 # Submission Workflow
 
-The current `/submit` path creates a private, image-first draft and promotes its media and routes directly. Public discovery is still gated by the parent crag's `publication_status`; a newly created crag remains in `review` until a steward publishes it. It is not the older pending-review route form.
+The current `/submit` path creates a private, image-first draft and promotes its media and routes directly. Public discovery is gated by the parent crag's `publication_status`. When a contributor successfully publishes into a new crag they created, the publish flow automatically transitions that crag from `review` to `published` through the audited crag-publication workflow. Other unpublished crags remain gated. This is not the older pending-review route form.
 
 ## Entry And Boundaries
 
@@ -30,9 +30,9 @@ The current `/submit` path creates a private, image-first draft and promotes its
 
 [`publishDraft`](../features/draft-editor/hooks/use-edit-draft-actions.ts) requires finished uploads, a crag, and valid location; it flushes location, forces an explicit save, then calls `POST /api/submissions/drafts/[id]/publish`. [`promoteDraftToSubmission`](../features/submissions/server/drafts/draft-promote.ts) repeats owner/readiness/location checks and invokes `promote_draft_to_submission` atomically.
 
-Route/media promotion is direct: there is no separate route-level pending-review step. The RPC reuses the processed image rows, creates `climbs` with `status = 'approved'`, creates route lines for durable draft routes, and permits image-only submissions. The draft becomes `submitted` and stores its published IDs for idempotent retries. These records become publicly discoverable only when the parent crag is `published`; see [Trust And Content Governance](trust-and-content-governance.md#publication-contract).
+Route/media promotion is direct: there is no separate route-level pending-review step. The RPC reuses the processed image rows, creates `climbs` with `status = 'approved'`, creates route lines for durable draft routes, and permits image-only submissions. The draft becomes `submitted` and stores its published IDs for idempotent retries. After successful promotion, a parent crag that is still in `review` and was created by the publishing user is transitioned to `published` through `set_crag_publication_status`, preserving readiness validation and the publication-event audit trail. The creator is already auto-assigned as that crag's maintainer.
 
-When the parent crag is not yet published, the publish response reports `pending_crag_review`, omits the public canonical path, suppresses public publication notifications, and returns the editor to the logbook with a “Submitted for review” confirmation. The application must not generate or navigate to a public route URL until a steward explicitly publishes the parent crag.
+If the parent crag is already public, or the creator transition succeeds, the response contains the public canonical path and normal public post-publication effects run. If the parent crag is unpublished for another reason—for example, it belongs to another creator—the response remains `pending_crag_review`, omits the public canonical path, and suppresses public publication notifications. The application must not generate or navigate to a public route URL while that pending state remains.
 
 Contribution scoring is a server-only post-publication/edit effect. The server reloads authoritative image, edit-history, correction, or verification rows to derive the beneficiary and fixed score before invoking service-only contribution and missing-topo bounty writers; request-supplied identities and score context are not trusted.
 
