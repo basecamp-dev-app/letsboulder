@@ -71,7 +71,7 @@ Plain vars in `wrangler.toml`:
 - `R2_PUBLIC_BUCKET`
 - `MEDIA_HOST`
 
-Worker secrets are synchronized by the protected GitHub deployment workflows rather than copied between environments:
+Required Worker secret names are declared per environment in `wrangler.toml`. Staging uploads its staging-only secret set alongside the version. Production uploads the service-role value that the protected release owns, while Wrangler validates that the existing production `INGRESS_SECRET` and `INTERNAL_ORIGIN_SECRET` are present and preserves those omitted secret values from the previous version. This avoids copying secret values between staging and production.
 
 - `INGRESS_SECRET`: must equal the Next.js/backfill `CF_MEDIA_WORKER_SECRET`; authenticates `POST /enqueue`.
 - `INTERNAL_ORIGIN_SECRET`: authenticates `GET /origin/*`; it is independent of the enqueue secret.
@@ -90,7 +90,7 @@ The Next.js app's R2 access key and secret are used for S3 presigning and are no
 | `src/config.ts` | Named virtual widths and output formats |
 | `src/schema.ts` | Queue payload validation |
 | `src/supabase.ts` | Worker environment contract and Supabase client |
-| `wrangler.toml` | Environment Custom Domains, cron, queue, and R2 bindings |
+| `wrangler.toml` | Environment Custom Domains, cron, queue, R2 bindings, and required secret names |
 
 Staging deploys from `.github/workflows/media-worker-staging-deploy.yml` after merges to `staging`. Production deploys from `.github/workflows/media-worker-deploy.yml` after the verified staging tree is promoted to `main`. Both workflows use versioned Worker uploads, keep Wrangler strict drift detection, explicitly apply routes/domains and cron with `wrangler triggers deploy`, deploy the tagged version, and then smoke-test the canonical hostname.
 
