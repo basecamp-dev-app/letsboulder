@@ -46,10 +46,12 @@ The current Cloudflare Images Free plan allows 5,000 unique transformations per 
 
 ## Environments
 
-| Environment | CDN host | Private media bucket | Public map/assets bucket | Supabase |
+| Environment | Worker Custom Domain | Private media bucket | Public map/assets bucket | Supabase |
 |---|---|---|---|---|
-| Staging | `static.dev.letsboulder.com` | `lb-dev-media-private` (prepared sources and canonical WebPs) | `lb-dev-media-public` | `pfleqxztfiddujvylvaz.supabase.co` |
+| Staging | `static.staging.letsboulder.com` | `lb-staging-media-private` (prepared sources and canonical WebPs) | `lb-staging-media-public` | `pfleqxztfiddujvylvaz.supabase.co` |
 | Production | `static.letsboulder.com` | `lb-prod-media-private` (prepared sources and canonical WebPs) | `lb-prod-media-public` | `glxnbxbkedeogtcivpsx.supabase.co` |
+
+Production temporarily retains `media.letsboulder.com` as a compatibility Custom Domain while external `CF_MEDIA_WORKER_URL` dependencies are audited. It is not the canonical media hostname and must be removed in a separate reviewed change once Vercel/GitHub/maintenance references are confirmed migrated.
 
 Queues are `media-transform-queue-staging` and `media-transform-queue-prod`, with batch size 1. They are an optional fast path and a compatibility path for backfill, not the durable record of app-owned ingest.
 
@@ -63,18 +65,19 @@ R2 bindings in `wrangler.toml`:
 
 Plain vars in `wrangler.toml`:
 
-- `SUPABASE_URL`
+- `SUPABASE_URL` in production; staging supplies the hosted URL as a Worker secret.
 - `R2_ORIGIN_URL`
 - `R2_PRIVATE_BUCKET`
 - `R2_PUBLIC_BUCKET`
 - `MEDIA_HOST`
 
-Configure Worker secrets with `wrangler secret put`:
+Worker secrets are synchronized by the protected GitHub deployment workflows rather than copied between environments:
 
 - `INGRESS_SECRET`: must equal the Next.js/backfill `CF_MEDIA_WORKER_SECRET`; authenticates `POST /enqueue`.
 - `INTERNAL_ORIGIN_SECRET`: authenticates `GET /origin/*`; it is independent of the enqueue secret.
 - `SUPABASE_ANON_KEY`: RLS-scoped access for public media delivery eligibility reads.
 - `SUPABASE_SERVICE_ROLE_KEY`: server-only Supabase access for job and image updates.
+- `SUPABASE_URL`: staging-only Worker secret because staging keeps hosted-project configuration isolated from production.
 
 The Next.js app's R2 access key and secret are used for S3 presigning and are not Worker secrets because the Worker uses R2 bindings.
 
@@ -87,13 +90,16 @@ The Next.js app's R2 access key and secret are used for S3 presigning and are no
 | `src/config.ts` | Named virtual widths and output formats |
 | `src/schema.ts` | Queue payload validation |
 | `src/supabase.ts` | Worker environment contract and Supabase client |
-| `wrangler.toml` | Environment routes, cron, queue, and R2 bindings |
+| `wrangler.toml` | Environment Custom Domains, cron, queue, and R2 bindings |
 
-Production deploys from `.github/workflows/media-worker-deploy.yml` when worker files change. The workflow uses the `Production` GitHub environment.
+Staging deploys from `.github/workflows/media-worker-staging-deploy.yml` after merges to `staging`. Production deploys from `.github/workflows/media-worker-deploy.yml` after the verified staging tree is promoted to `main`. Both workflows use versioned Worker uploads, keep Wrangler strict drift detection, explicitly apply routes/domains and cron with `wrangler triggers deploy`, deploy the tagged version, and then smoke-test the canonical hostname.
+
+For the production Route-to-Custom-Domain migration, trigger reconciliation occurs before the strict version upload so Cloudflare can replace the old `static.letsboulder.com/*` Route with the declared `static.letsboulder.com` Custom Domain while retaining the temporary compatibility alias. A second trigger reconciliation after upload keeps the normal versioned deployment sequence explicit. If a conflicting CNAME prevents Custom Domain creation, the workflow stops before version activation.
 
 ```bash
-npx wrangler deploy --env staging
-npx wrangler deploy --env production
+npx wrangler versions upload --env staging --strict
+npx wrangler triggers deploy --env staging
+npx wrangler versions deploy --env staging
 npx wrangler tail --env staging
 npx wrangler tail --env production
 ```
