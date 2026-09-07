@@ -172,14 +172,22 @@ export default {
   },
 
   async scheduled(_controller: unknown, env: Env) {
+    let processedMedia = 0
     try {
-      await runMediaDrain(env, SCHEDULED_MEDIA_WORKER)
+      processedMedia = await runMediaDrain(env, SCHEDULED_MEDIA_WORKER)
     } catch (error) {
       console.error('Failed bounded scheduled media drain', { error: stringifyError(error) })
     }
 
     try {
-      await runDeletionDrain(env, SCHEDULED_DELETION_WORKER)
+      if (processedMedia === MEDIA_DRAIN_LIMIT) {
+        // A full media batch has already consumed most of the invocation's
+        // subrequest budget. Move deletion work to a fresh queue invocation so
+        // both durable outboxes continue without approaching the hard ceiling.
+        await enqueueContinuation(env, { kind: 'drain-deletions' })
+      } else {
+        await runDeletionDrain(env, SCHEDULED_DELETION_WORKER)
+      }
     } catch (error) {
       console.error('Failed bounded scheduled media deletion drain', { error: stringifyError(error) })
     }
