@@ -38,6 +38,8 @@ queue = "media-transform-queue-staging"
 [[env.staging.queues.consumers]]
 queue = "media-transform-queue-staging"
 max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 3
 
 [[env.staging.r2_buckets]]
 binding = "ORIGINALS_BUCKET"
@@ -106,3 +108,5 @@ queue = "media-transform-queue-prod"
 [[env.production.queues.consumers]]
 queue = "media-transform-queue-prod"
 max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 3
