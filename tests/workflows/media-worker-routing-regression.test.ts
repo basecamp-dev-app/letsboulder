@@ -59,6 +59,18 @@ describe('media worker routing convergence', () => {
     expect(staging).not.toContain('Ensure staging media infrastructure exists')
   })
 
+  it('validates required Worker secrets without copying production-only values between environments', () => {
+    const config = read('apps/media-worker/wrangler.toml')
+    const production = read('.github/workflows/media-worker-deploy.yml')
+
+    expect(config).toContain('[env.staging.secrets]')
+    expect(config).toContain('[env.production.secrets]')
+    expect(config).toContain('required = ["SUPABASE_SERVICE_ROLE_KEY", "INGRESS_SECRET", "INTERNAL_ORIGIN_SECRET"]')
+    expect(production).toContain('Wrangler preserves existing omitted secrets')
+    expect(production).not.toContain('INGRESS_SECRET: ${{ secrets.INGRESS_SECRET }}')
+    expect(production).not.toContain('INTERNAL_ORIGIN_SECRET: ${{ secrets.INTERNAL_ORIGIN_SECRET }}')
+  })
+
   it('uses only current staging media host and bucket names in runtime-facing references', () => {
     const files = [
       '.env.example',
