@@ -123,7 +123,7 @@ jobs:
           if printf '%s' "$consumers" | grep -Fq 'media-worker-production'; then
             echo 'Production media queue consumer already exists.'
           else
-            npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" queues consumer add \
+            npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" queues consumer worker add \
               media-transform-queue-prod \
               media-worker-production \
               --batch-size 1
