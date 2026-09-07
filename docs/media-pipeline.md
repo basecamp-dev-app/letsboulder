@@ -18,7 +18,7 @@
 2. Cloudflare Image Resizing reads that source and produces a scale-down WebP at maximum width 2560 px and quality 82. WebP output does not retain EXIF metadata; request-time delivery also explicitly sets `metadata: 'none'`.
 3. The Worker hashes the returned bytes, writes them as `images/assets/<image UUID>/<SHA-256>/canonical.webp` in the same private R2 bucket, then verifies the stored size and `image/webp` content type.
 4. Only after verification does service-only `commit_media_webp(...)` lock the image and atomically store the canonical locator and dimensions, virtual manifest, URL, and ready/public state; switch linked draft/public delivery locators to the canonical WebP; recover a missing draft link only for a unique exact locator with a draft owner/collaborator ownership match; and enqueue the old source in `media_deletion_jobs` with reason `source_replaced`.
-5. The Worker then performs an anonymous `GET` through the production media hostname and requires a non-empty image response. Only `verify_media_replacement_delivery(...)` records that proof on the deletion job, and both canonical commit and verification require the active ingest claim token. Unverified source-replacement jobs cannot be claimed, and canonical ingest never deletes the source directly.
+5. The Worker then performs an anonymous `GET` through the environment's configured `MEDIA_HOST` Worker Custom Domain and requires a non-empty image response. Only `verify_media_replacement_delivery(...)` records that proof on the deletion job, and both canonical commit and verification require the active ingest claim token. Unverified source-replacement jobs cannot be claimed, and canonical ingest never deletes the source directly.
 
 The canonical WebP is the persisted delivery source, not a transient response and not a public-bucket object. `original_bucket` and `original_key` remain immutable provenance after the switch, but callers must not assume that object still exists. `media_deletion_jobs.delivery_verified_at` gates source replacement cleanup, while the image lifecycle timestamps distinguish deletion queued from deletion confirmed; scheduled completion records `original_deleted_at` after an idempotent delete.
 
@@ -55,7 +55,7 @@ Database-first deployment is still preferred, but mixed-version rollout order is
 1. Successful ingest stores a virtual `images.variants` manifest whose recipes point at the persisted canonical WebP. Paths describe delivery requests, not additional objects written to R2.
 2. The Next.js loader (`lib/media/cloudflare-loader.ts`) selects a named width and builds a URL under `NEXT_PUBLIC_MEDIA_CDN_URL` only for public Worker paths. Authenticated `/api/media/*` URLs stay on the app route and are never rewritten to the public Worker.
    The application Content Security Policy derives the exact browser media origin from the same configured URL, so isolated staging and production media hostnames remain usable without broad wildcard access.
-3. `static.dev.letsboulder.com` or `static.letsboulder.com` routes the request to the media Worker.
+3. `static.staging.letsboulder.com` or `static.letsboulder.com` invokes the environment's media Worker through a Worker Custom Domain.
 4. For ready public image paths, the Worker prefers `images.optimized_key` and invokes Cloudflare Image Resizing against that private canonical WebP. Legacy ready rows without optimized metadata temporarily resolve to their original until backfill commits a canonical WebP; committed rows never fall back after source deletion.
 5. Cloudflare returns and caches the transformed response. The Worker Cache is enabled and transformed responses use stable named widths, `format=auto`, and immutable URLs. No processed image variant is written to the public R2 bucket by the active pipeline.
 6. Offline pack manifests include only ready public images with a complete canonical optimized WebP tuple. They retain versioned CDN variant URLs for downloads; original locators are provenance and are never used for offline eligibility.
@@ -112,14 +112,18 @@ Media maintenance crosses private storage and job boundaries. Ingest claims, del
 | `R2_PRIVATE_BUCKET` | `ORIGINALS_BUCKET`; mirrored by Worker var `R2_PRIVATE_BUCKET` | Prepared sources and canonical WebPs in private R2 |
 | `R2_PUBLIC_BUCKET` | `PUBLIC_BUCKET`; mirrored by Worker var `R2_PUBLIC_BUCKET` | Public map assets and legacy public objects, not generated variants |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | None; Worker uses R2 bindings | App-side R2 credentials |
-| `NEXT_PUBLIC_MEDIA_CDN_URL` | Worker custom route / `MEDIA_HOST` | Public media base URL |
-| `CF_MEDIA_WORKER_URL` | Worker custom route | Optional fast-path enqueue endpoint |
+| `NEXT_PUBLIC_MEDIA_CDN_URL` | Worker Custom Domain / `MEDIA_HOST` | Public media base URL |
+| `CF_MEDIA_WORKER_URL` | Worker Custom Domain | Optional fast-path enqueue endpoint |
 | `CF_MEDIA_WORKER_SECRET` | Worker secret `INGRESS_SECRET` | Bearer secret for `POST /enqueue`; both sides must contain the same value |
 | None in the app runtime | Worker secret `INTERNAL_ORIGIN_SECRET` | `X-Internal-Secret` accepted by `GET /origin/*` |
 | None in the app runtime | Worker secret `SUPABASE_SERVICE_ROLE_KEY` | Worker database access; never public |
 | None in the app runtime | Worker var `R2_ORIGIN_URL` | Origin hostname used by Cloudflare Image Resizing to fetch private prepared sources and canonical WebPs |
 
-The backfill workflow names its GitHub secrets `CF_MEDIA_WORKER_URL` and `CF_MEDIA_WORKER_SECRET`; the latter is supplied to the Worker's `INGRESS_SECRET` check.
+Canonical app/deployment values are `https://static.staging.letsboulder.com` in staging and `https://static.letsboulder.com` in production. Production temporarily retains `media.letsboulder.com` only as a compatibility Custom Domain until Vercel, GitHub environment, and maintenance/backfill dependencies are confirmed migrated; do not use it for new configuration.
+
+The backfill workflow reads `CF_MEDIA_WORKER_URL` from the protected GitHub `Production` environment and `CF_MEDIA_WORKER_SECRET` from the matching secret. Before the compatibility domain can be removed, the URL variable must resolve to `https://static.letsboulder.com`; the deployment workflow also checks any GitHub-visible media URL variables before changing production triggers.
+
+Worker deployment uses versioned uploads with `--strict`. `wrangler versions upload` does not apply routes/domains or cron, so the deployment workflows explicitly call `wrangler triggers deploy`. Production performs one trigger reconciliation before the strict upload to migrate the old `static.letsboulder.com/*` Route to the canonical Custom Domain without dropping the temporary compatibility alias, then applies triggers again after upload before activating the tagged version. Staging uses the same versioned pattern without the migration-only pre-step.
 
 ## R2 Inventory Credentials
 

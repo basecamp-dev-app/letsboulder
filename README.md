@@ -35,7 +35,7 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology.
 - **Web app**: Next.js deployed on Vercel
 - **Database/Auth**: Supabase (PostgreSQL 17 with PostGIS)
 - **Media pipeline**: Cloudflare Worker in `apps/media-worker` backed by R2 buckets
-- **Media delivery**: CDN at `static.letsboulder.com` (prod) / `static.dev.letsboulder.com` (staging)
+- **Media delivery**: Worker Custom Domains at `static.letsboulder.com` (prod) / `static.staging.letsboulder.com` (staging)
 - **Network resilience**: Online-first loading with explicit connection and retry states
 - **Open data**: Signed nightly ODbL snapshots in a dedicated public R2 bucket
 
@@ -106,7 +106,7 @@ See [`.env.example`](.env.example) for the categorized application, media, integ
 
 **App**: The hosted-staging workflow validates the database and triggers the staging Vercel deploy hook after every push to `staging`. CI triggers the production Vercel deploy hook after successful pushes to `main`. Preview and development deployment behavior is managed in Vercel.
 
-**Media Worker**: Cloudflare Worker deployed via Wrangler (`apps/media-worker/wrangler.toml`)
+**Media Worker**: Cloudflare Worker deployed via Wrangler (`apps/media-worker/wrangler.toml`). Staging and production use Worker Custom Domains because the Worker is the media origin.
 
 **Database**: Maintainers verify the linked project and run `npx --no-install supabase db push --linked --dry-run` before deployment
 
@@ -117,15 +117,17 @@ Small fixes are welcome. For larger changes, open an issue or start a discussion
 Typical workflow:
 
 ```bash
+git checkout staging
+git pull --ff-only
 git checkout -b my-change
 
 # work, test, commit
 git push -u origin my-change
 
-# open a pull request against main
+# open a pull request against staging
 
-# CI runs automatically
-# Vercel deploys to letsboulder.com
+# CI runs automatically; verify staging after merge
+# promote verified staging to main through a protected PR
 ```
 
 ## Documentation
