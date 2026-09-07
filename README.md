@@ -35,7 +35,7 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology.
 - **Web app**: Next.js deployed on Vercel
 - **Database/Auth**: Supabase (PostgreSQL 17 with PostGIS)
 - **Media pipeline**: Cloudflare Worker in `apps/media-worker` backed by R2 buckets
-- **Media delivery**: CDN at `static.letsboulder.com` (prod) / `static.dev.letsboulder.com` (staging)
+- **Media delivery**: Worker Custom Domains at `static.letsboulder.com` (prod) / `static.staging.letsboulder.com` (staging)
 - **Network resilience**: Online-first loading with explicit connection and retry states
 - **Open data**: Signed nightly ODbL snapshots in a dedicated public R2 bucket
 
