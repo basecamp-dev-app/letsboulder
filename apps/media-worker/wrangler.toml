@@ -22,6 +22,9 @@ head_sampling_rate = 1
 [env.staging.cache]
 enabled = true
 
+[env.staging.secrets]
+required = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "INGRESS_SECRET", "INTERNAL_ORIGIN_SECRET"]
+
 [env.staging.vars]
 MEDIA_HOST = "https://static.staging.letsboulder.com"
 R2_ORIGIN_URL = "https://static.staging.letsboulder.com/origin"
@@ -65,6 +68,9 @@ head_sampling_rate = 1
 
 [env.production.cache]
 enabled = true
+
+[env.production.secrets]
+required = ["SUPABASE_SERVICE_ROLE_KEY", "INGRESS_SECRET", "INTERNAL_ORIGIN_SECRET"]
 
 [env.production.vars]
 MEDIA_HOST = "https://static.letsboulder.com"
