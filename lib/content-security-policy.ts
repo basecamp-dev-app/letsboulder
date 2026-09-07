@@ -19,7 +19,7 @@ export function getContentSecurityPolicy(
   const configuredMediaOrigin = getConfiguredMediaOrigin(mediaCdnUrl)
   const mediaSources = [
     'https://static.letsboulder.com',
-    'https://static.dev.letsboulder.com',
+    'https://static.staging.letsboulder.com',
     ...(configuredMediaOrigin ? [configuredMediaOrigin] : []),
   ]
 
