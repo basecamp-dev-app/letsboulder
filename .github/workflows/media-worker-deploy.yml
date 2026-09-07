@@ -156,6 +156,8 @@ jobs:
           chmod 600 "$secrets_file"
           node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY}))' "$secrets_file"
 
+          # Regression contract: wrangler versions upload remains the deployment operation;
+          # the CLI package itself is pinned explicitly for deterministic production deploys.
           npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" versions upload \
             --env production \
             --strict \
@@ -175,6 +177,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
           export CLOUDFLARE_ACCOUNT_ID
 
+          # Regression contract: wrangler versions deploy remains the deployment operation;
+          # the CLI package itself is pinned explicitly for deterministic production deploys.
           npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" versions deploy \
             --env production \
             --version-tag "${WORKER_VERSION_TAG}@100%" \
