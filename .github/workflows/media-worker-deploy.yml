@@ -50,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          required=(CLOUDFLARE_API_TOKEN SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY)
+          required=(CLOUDFLARE_API_TOKEN SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY GITHUB_CF_MEDIA_WORKER_URL GITHUB_MEDIA_CDN_URL)
           for name in "${required[@]}"; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is required in the protected Production GitHub environment."
@@ -66,8 +66,8 @@ jobs:
 
           target='https://static.letsboulder.com'
           for name in GITHUB_CF_MEDIA_WORKER_URL GITHUB_MEDIA_CDN_URL; do
-            value="${!name:-}"
-            if [ -n "$value" ] && [ "${value%/}" != "$target" ]; then
+            value="${!name}"
+            if [ "${value%/}" != "$target" ]; then
               echo "::error::$name must point to $target before production routing is migrated."
               exit 1
             fi
@@ -76,6 +76,18 @@ jobs:
           # NEXT_PUBLIC_SUPABASE_ANON_KEY is a public Worker var, not a secret
           # binding. Mask it anyway so Wrangler diagnostics cannot echo it.
           echo "::add-mask::$SUPABASE_ANON_KEY"
+
+      - name: Preview production route and cron reconciliation
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          npx --no-install wrangler triggers deploy --env production --dry-run
 
       - name: Reconcile production routes and cron before strict version upload
         working-directory: apps/media-worker
@@ -93,6 +105,34 @@ jobs:
           # wrangler triggers deploy has no --strict option; the reviewed
           # wrangler.toml remains the source of truth for this mutation.
           npx --no-install wrangler triggers deploy --env production
+
+      - name: Reconcile production queue consumer
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          consumers="$(npx --no-install wrangler queues consumer list media-transform-queue-prod --json)"
+          if printf '%s' "$consumers" | grep -Fq 'media-worker-production'; then
+            echo 'Production media queue consumer already exists.'
+          else
+            npx --no-install wrangler queues consumer add \
+              media-transform-queue-prod \
+              media-worker-production \
+              --batch-size 1 \
+              --batch-timeout 5 \
+              --message-retries 3
+          fi
+
+          consumers="$(npx --no-install wrangler queues consumer list media-transform-queue-prod --json)"
+          if ! printf '%s' "$consumers" | grep -Fq 'media-worker-production'; then
+            echo '::error::Production media queue consumer was not reconciled.'
+            exit 1
+          fi
 
       - name: Create production Worker version with synchronized credentials
         working-directory: apps/media-worker
