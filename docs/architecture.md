@@ -52,7 +52,7 @@ The durable `media_jobs` database outbox is authoritative for media ingest. `med
 - Virtual variants derive from the canonical WebP through Cloudflare Image Resizing on demand and are cached at delivery; they are not stored variant objects.
 - The scheduled Worker drains transactional deletion jobs and removes allowlisted private sources or canonical objects through `ORIGINALS_BUCKET`. Replaced sources remain unclaimable until canonical public delivery has been verified; canonical ingest never deletes them directly.
 - The public R2 bucket backs `/maps/*` and legacy public objects. The active Worker does not write generated image variants there.
-- Environment routes are `static.dev.letsboulder.com` and `static.letsboulder.com`.
+- Environment delivery endpoints are Worker Custom Domains: `static.staging.letsboulder.com` for staging and `static.letsboulder.com` for production.
 
 ### Vector Maps
 
