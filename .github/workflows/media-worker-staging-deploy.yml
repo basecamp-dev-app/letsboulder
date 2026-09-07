@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          required=(CLOUDFLARE_API_TOKEN SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INGRESS_SECRET INTERNAL_ORIGIN_SECRET)
+          required=(CLOUDFLARE_API_TOKEN SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INGRESS_SECRET INTERNAL_ORIGIN_SECRET GITHUB_CF_MEDIA_WORKER_URL GITHUB_MEDIA_CDN_URL)
           for name in "${required[@]}"; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is required in the Staging GitHub environment."
@@ -69,12 +69,52 @@ jobs:
 
           target='https://static.staging.letsboulder.com'
           for name in GITHUB_CF_MEDIA_WORKER_URL GITHUB_MEDIA_CDN_URL; do
-            value="${!name:-}"
-            if [ -n "$value" ] && [ "${value%/}" != "$target" ]; then
+            value="${!name}"
+            if [ "${value%/}" != "$target" ]; then
               echo "::error::$name must point to $target for staging media isolation."
               exit 1
             fi
           done
+
+      - name: Preview staging route and cron reconciliation
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          npx --no-install wrangler triggers deploy --env staging --dry-run
+
+      - name: Reconcile staging routes and cron before strict version upload
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          npx --no-install wrangler triggers deploy --env staging
+
+      - name: Verify staging queue consumer
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          consumers="$(npx --no-install wrangler queues consumer list media-transform-queue-staging --json)"
+          if ! printf '%s' "$consumers" | grep -Fq 'media-worker-staging'; then
+            echo '::error::Staging media queue consumer is missing; reconcile infrastructure before version upload.'
+            exit 1
+          fi
 
       - name: Create staging Worker version with synchronized credentials
         working-directory: apps/media-worker
@@ -107,18 +147,6 @@ jobs:
             --tag "$WORKER_VERSION_TAG" \
             --message "GitHub ${GITHUB_SHA}" \
             --secrets-file "$secrets_file"
-
-      - name: Apply staging routes and cron
-        working-directory: apps/media-worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
-          export CLOUDFLARE_ACCOUNT_ID
-
-          npx --no-install wrangler triggers deploy --env staging
 
       - name: Deploy synchronized staging Worker version
         working-directory: apps/media-worker
