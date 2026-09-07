@@ -1,5 +1,5 @@
 name = "media-worker"
-main = "src/index.ts"
+main = "src/runtime.ts"
 compatibility_date = "2026-03-22"
 
 [observability]

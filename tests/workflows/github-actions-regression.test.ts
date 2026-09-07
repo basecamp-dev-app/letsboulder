@@ -115,25 +115,29 @@ describe('GitHub Actions security contracts', () => {
     }
   })
 
-  it('uploads the media delivery key to the production worker environment', () => {
+  it('versions production media worker credentials without binding conflicts', () => {
     const content = workflow('media-worker-deploy.yml')
-    const secretUpload = content.slice(
-      content.indexOf('      - name: Upload production media worker secrets'),
-      content.indexOf('      - name: Deploy production media worker'),
+    const versionUpload = content.slice(
+      content.indexOf('      - name: Create production Worker version with synchronized credentials'),
+      content.indexOf('      - name: Deploy synchronized production Worker version'),
     )
-    const deploy = content.slice(content.indexOf('      - name: Deploy production media worker'))
+    const deploy = content.slice(content.indexOf('      - name: Deploy synchronized production Worker version'))
 
-    expect(secretUpload).toContain('SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}')
-    expect(secretUpload).toContain('CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}')
-    expect(secretUpload).toContain("tr -d '[:space:]'")
-    expect(secretUpload).toContain('export CLOUDFLARE_ACCOUNT_ID')
-    expect(secretUpload).toContain('CLOUDFLARE_ACCOUNT_ID is missing or invalid')
-    expect(secretUpload).toContain(
-      'npx --no-install wrangler secret put SUPABASE_ANON_KEY --env production',
-    )
-    expect(secretUpload).toContain('NEXT_PUBLIC_SUPABASE_ANON_KEY is required')
-    expect(deploy).toContain('command: deploy --env production')
-    expect(deploy).not.toMatch(/^\s+secrets:/m)
+    expect(content).toContain('environment: Production')
+    expect(content).toContain('SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}')
+    expect(content).toContain('SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}')
+    expect(content).toContain('CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}')
+    expect(content).toContain("tr -d '[:space:]'")
+    expect(content).toContain('::add-mask::$SUPABASE_ANON_KEY')
+    expect(content).toContain('::add-mask::$SUPABASE_SERVICE_ROLE_KEY')
+    expect(versionUpload).toContain('wrangler versions upload')
+    expect(versionUpload).toContain('--var "SUPABASE_ANON_KEY:${SUPABASE_ANON_KEY}"')
+    expect(versionUpload).toContain('--secrets-file "$secrets_file"')
+    expect(versionUpload).toContain('--strict')
+    expect(content).not.toContain('wrangler secret put SUPABASE_ANON_KEY')
+    expect(deploy).toContain('wrangler versions deploy')
+    expect(deploy).toContain('--version-tag "${WORKER_VERSION_TAG}@100%"')
+    expect(deploy).toContain('--yes')
   })
 
   it('uses the repository Supabase CLI in diagnostics', () => {
