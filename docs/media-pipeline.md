@@ -55,7 +55,7 @@ Database-first deployment is still preferred, but mixed-version rollout order is
 1. Successful ingest stores a virtual `images.variants` manifest whose recipes point at the persisted canonical WebP. Paths describe delivery requests, not additional objects written to R2.
 2. The Next.js loader (`lib/media/cloudflare-loader.ts`) selects a named width and builds a URL under `NEXT_PUBLIC_MEDIA_CDN_URL` only for public Worker paths. Authenticated `/api/media/*` URLs stay on the app route and are never rewritten to the public Worker.
    The application Content Security Policy derives the exact browser media origin from the same configured URL, so isolated staging and production media hostnames remain usable without broad wildcard access.
-3. `static.dev.letsboulder.com` or `static.letsboulder.com` routes the request to the media Worker.
+3. `static.staging.letsboulder.com` or `static.letsboulder.com` reaches the environment's media Worker through its Worker Custom Domain.
 4. For ready public image paths, the Worker prefers `images.optimized_key` and invokes Cloudflare Image Resizing against that private canonical WebP. Legacy ready rows without optimized metadata temporarily resolve to their original until backfill commits a canonical WebP; committed rows never fall back after source deletion.
 5. Cloudflare returns and caches the transformed response. The Worker Cache is enabled and transformed responses use stable named widths, `format=auto`, and immutable URLs. No processed image variant is written to the public R2 bucket by the active pipeline.
 6. Offline pack manifests include only ready public images with a complete canonical optimized WebP tuple. They retain versioned CDN variant URLs for downloads; original locators are provenance and are never used for offline eligibility.
@@ -112,14 +112,14 @@ Media maintenance crosses private storage and job boundaries. Ingest claims, del
 | `R2_PRIVATE_BUCKET` | `ORIGINALS_BUCKET`; mirrored by Worker var `R2_PRIVATE_BUCKET` | Prepared sources and canonical WebPs in private R2 |
 | `R2_PUBLIC_BUCKET` | `PUBLIC_BUCKET`; mirrored by Worker var `R2_PUBLIC_BUCKET` | Public map assets and legacy public objects, not generated variants |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | None; Worker uses R2 bindings | App-side R2 credentials |
-| `NEXT_PUBLIC_MEDIA_CDN_URL` | Worker custom route / `MEDIA_HOST` | Public media base URL |
-| `CF_MEDIA_WORKER_URL` | Worker custom route | Optional fast-path enqueue endpoint |
+| `NEXT_PUBLIC_MEDIA_CDN_URL` | Worker Custom Domain / `MEDIA_HOST` | Public media base URL |
+| `CF_MEDIA_WORKER_URL` | Worker Custom Domain | Optional fast-path enqueue endpoint |
 | `CF_MEDIA_WORKER_SECRET` | Worker secret `INGRESS_SECRET` | Bearer secret for `POST /enqueue`; both sides must contain the same value |
 | None in the app runtime | Worker secret `INTERNAL_ORIGIN_SECRET` | `X-Internal-Secret` accepted by `GET /origin/*` |
 | None in the app runtime | Worker secret `SUPABASE_SERVICE_ROLE_KEY` | Worker database access; never public |
 | None in the app runtime | Worker var `R2_ORIGIN_URL` | Origin hostname used by Cloudflare Image Resizing to fetch private prepared sources and canonical WebPs |
 
-The backfill workflow names its GitHub secrets `CF_MEDIA_WORKER_URL` and `CF_MEDIA_WORKER_SECRET`; the latter is supplied to the Worker's `INGRESS_SECRET` check.
+The backfill workflow reads `CF_MEDIA_WORKER_URL` from the protected Production GitHub environment variable and `CF_MEDIA_WORKER_SECRET` from its matching secret; the latter is supplied to the Worker's `INGRESS_SECRET` check.
 
 ## R2 Inventory Credentials
 
