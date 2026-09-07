@@ -45,10 +45,14 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INGRESS_SECRET: ${{ secrets.INGRESS_SECRET }}
+          INTERNAL_ORIGIN_SECRET: ${{ secrets.INTERNAL_ORIGIN_SECRET }}
+          GITHUB_CF_MEDIA_WORKER_URL: ${{ vars.CF_MEDIA_WORKER_URL }}
+          GITHUB_MEDIA_CDN_URL: ${{ vars.NEXT_PUBLIC_MEDIA_CDN_URL }}
         run: |
           set -euo pipefail
 
-          required=(CLOUDFLARE_API_TOKEN SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY)
+          required=(CLOUDFLARE_API_TOKEN SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INGRESS_SECRET INTERNAL_ORIGIN_SECRET)
           for name in "${required[@]}"; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is required in the protected Production GitHub environment."
@@ -62,9 +66,35 @@ jobs:
             exit 1
           fi
 
+          target='https://static.letsboulder.com'
+          for name in GITHUB_CF_MEDIA_WORKER_URL GITHUB_MEDIA_CDN_URL; do
+            value="${!name:-}"
+            if [ -n "$value" ] && [ "${value%/}" != "$target" ]; then
+              echo "::error::$name must point to $target before production routing is migrated."
+              exit 1
+            fi
+          done
+
           # NEXT_PUBLIC_SUPABASE_ANON_KEY is a public Worker var, not a secret
           # binding. Mask it anyway so Wrangler diagnostics cannot echo it.
           echo "::add-mask::$SUPABASE_ANON_KEY"
+
+      - name: Reconcile production routes and cron before strict version upload
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          # versions upload does not apply routes/domains or cron. Reconcile
+          # those triggers first so the intentional Route -> Custom Domain
+          # migration is not rejected as unrelated remote drift by --strict.
+          # wrangler triggers deploy has no --strict option; the reviewed
+          # wrangler.toml remains the source of truth for this mutation.
+          npx --no-install wrangler triggers deploy --env production
 
       - name: Create production Worker version with synchronized credentials
         working-directory: apps/media-worker
@@ -73,6 +103,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INGRESS_SECRET: ${{ secrets.INGRESS_SECRET }}
+          INTERNAL_ORIGIN_SECRET: ${{ secrets.INTERNAL_ORIGIN_SECRET }}
           WORKER_VERSION_TAG: github-${{ github.sha }}
         run: |
           set -euo pipefail
@@ -81,11 +113,13 @@ jobs:
           export CLOUDFLARE_ACCOUNT_ID
           echo "::add-mask::$SUPABASE_ANON_KEY"
           echo "::add-mask::$SUPABASE_SERVICE_ROLE_KEY"
+          echo "::add-mask::$INGRESS_SECRET"
+          echo "::add-mask::$INTERNAL_ORIGIN_SECRET"
 
           secrets_file="$(mktemp)"
           trap 'rm -f "$secrets_file"' EXIT
           chmod 600 "$secrets_file"
-          node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY}))' "$secrets_file"
+          node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY, INGRESS_SECRET: process.env.INGRESS_SECRET, INTERNAL_ORIGIN_SECRET: process.env.INTERNAL_ORIGIN_SECRET}))' "$secrets_file"
 
           npx --no-install wrangler versions upload \
             --env production \
@@ -94,6 +128,18 @@ jobs:
             --message "GitHub ${GITHUB_SHA}" \
             --var "SUPABASE_ANON_KEY:${SUPABASE_ANON_KEY}" \
             --secrets-file "$secrets_file"
+
+      - name: Apply production routes and cron for synchronized config
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          npx --no-install wrangler triggers deploy --env production
 
       - name: Deploy synchronized production Worker version
         working-directory: apps/media-worker
@@ -122,4 +168,4 @@ jobs:
             exit 1
           fi
 
-          echo 'Production media worker is reachable and ingress auth is enforced.'
+          echo 'Production media worker is reachable on the canonical Custom Domain and ingress auth is enforced.'
