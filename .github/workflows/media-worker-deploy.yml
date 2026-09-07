@@ -45,14 +45,12 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          INGRESS_SECRET: ${{ secrets.INGRESS_SECRET }}
-          INTERNAL_ORIGIN_SECRET: ${{ secrets.INTERNAL_ORIGIN_SECRET }}
           GITHUB_CF_MEDIA_WORKER_URL: ${{ vars.CF_MEDIA_WORKER_URL }}
           GITHUB_MEDIA_CDN_URL: ${{ vars.NEXT_PUBLIC_MEDIA_CDN_URL }}
         run: |
           set -euo pipefail
 
-          required=(CLOUDFLARE_API_TOKEN SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INGRESS_SECRET INTERNAL_ORIGIN_SECRET)
+          required=(CLOUDFLARE_API_TOKEN SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY)
           for name in "${required[@]}"; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is required in the protected Production GitHub environment."
@@ -103,8 +101,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          INGRESS_SECRET: ${{ secrets.INGRESS_SECRET }}
-          INTERNAL_ORIGIN_SECRET: ${{ secrets.INTERNAL_ORIGIN_SECRET }}
           WORKER_VERSION_TAG: github-${{ github.sha }}
         run: |
           set -euo pipefail
@@ -113,14 +109,16 @@ jobs:
           export CLOUDFLARE_ACCOUNT_ID
           echo "::add-mask::$SUPABASE_ANON_KEY"
           echo "::add-mask::$SUPABASE_SERVICE_ROLE_KEY"
-          echo "::add-mask::$INGRESS_SECRET"
-          echo "::add-mask::$INTERNAL_ORIGIN_SECRET"
 
           secrets_file="$(mktemp)"
           trap 'rm -f "$secrets_file"' EXIT
           chmod 600 "$secrets_file"
-          node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY, INGRESS_SECRET: process.env.INGRESS_SECRET, INTERNAL_ORIGIN_SECRET: process.env.INTERNAL_ORIGIN_SECRET}))' "$secrets_file"
+          node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY}))' "$secrets_file"
 
+          # Wrangler preserves existing omitted secrets. The required secret
+          # declarations in wrangler.toml verify INGRESS_SECRET and
+          # INTERNAL_ORIGIN_SECRET already exist without copying their values
+          # into the GitHub Production environment.
           npx --no-install wrangler versions upload \
             --env production \
             --strict \
