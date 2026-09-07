@@ -74,6 +74,14 @@ function isTrustedServerActionRequest(request: NextRequest): boolean {
   }
 }
 
+function shouldDeferServerActionRateLimit(pathname: string): boolean {
+  return pathname === '/submit'
+    || pathname.startsWith('/submit/')
+    || pathname === '/logbook'
+    || pathname.startsWith('/logbook/drafts/')
+    || pathname.startsWith('/logbook/submissions/')
+}
+
 export default async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
   requestHeaders.delete('x-internal-user-id')
@@ -101,8 +109,10 @@ export default async function proxy(request: NextRequest) {
     return response
   }
 
+  const trustedServerAction = isTrustedServerActionRequest(request)
+
   if (shouldRequireCsrf(pathname, request.method)) {
-    const isValid = isTrustedServerActionRequest(request) || await validateCsrfToken(request)
+    const isValid = trustedServerAction || await validateCsrfToken(request)
     if (!isValid) {
       return NextResponse.json({ error: 'Invalid or missing CSRF token' }, { status: 403 })
     }
@@ -121,8 +131,13 @@ export default async function proxy(request: NextRequest) {
     }
   }
 
-  const rateLimitResponse = await applyProxyRateLimit(request)
-  if (rateLimitResponse) return rateLimitResponse
+  // Returning a generic JSON 429 from middleware corrupts the Next.js Server
+  // Action transport. Submission actions on these surfaces enforce their own
+  // authenticated rate limits and return ActionResult errors with retry data.
+  if (!(trustedServerAction && shouldDeferServerActionRateLimit(pathname))) {
+    const rateLimitResponse = await applyProxyRateLimit(request)
+    if (rateLimitResponse) return rateLimitResponse
+  }
 
   return applyProxyAuth({ request, requestHeaders, response })
 }

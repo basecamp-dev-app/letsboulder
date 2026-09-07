@@ -1,6 +1,7 @@
 'use server'
 
 import { getActionAuth } from '@/lib/actions/action-auth'
+import { applyActionRateLimit } from '@/lib/actions/action-rate-limit'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { getAdminClientWithAudit } from '@/lib/supabase-admin'
@@ -65,6 +66,13 @@ export async function createSubmissionDraftAction(input: DraftCreateInput): Prom
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
+
+  const rateLimitResult = await applyActionRateLimit<DraftCreateResult['draft']>(
+    'draftCreate',
+    auth.data.userId,
+    'You have created several drafts recently.',
+  )
+  if (rateLimitResult) return rateLimitResult
 
   const supabase = await getServerClient()
   const images = normalizeCreateImages(validation.data.images)
@@ -169,6 +177,13 @@ export async function deleteSubmissionDraftAction(draftId: string): Promise<Acti
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
   if (!draftId) return { success: false, error: 'Draft ID is required', status: 400 }
 
+  const rateLimitResult = await applyActionRateLimit(
+    'authenticatedWrite',
+    auth.data.userId,
+    'You are changing drafts too quickly right now.',
+  )
+  if (rateLimitResult) return rateLimitResult
+
   const result = await deleteSubmissionDraft({ supabase: await getServerClient(), draftId: validation.data.draftId, cleanupAuditReason: 'cleanup draft storage objects' })
   if (result.kind === 'success') return { success: true }
   if (result.kind === 'not_found') return { success: false, error: 'Draft not found', status: 404 }
@@ -186,6 +201,13 @@ export async function publishSubmissionDraftAction(draftId: string): Promise<Act
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
   if (!draftId) return { success: false, error: 'Draft ID is required', status: 400 }
+
+  const rateLimitResult = await applyActionRateLimit<{ publication?: { state: 'public' | 'pending_crag_review'; cragId: string | null }; published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] }; cragId?: string | null }>(
+    'draftPublish',
+    auth.data.userId,
+    'You have reached the current draft publish limit.',
+  )
+  if (rateLimitResult) return rateLimitResult
 
   const supabase = await getServerClient()
   const result = await promoteDraftToSubmission({ supabase, draftId: validation.data.draftId, userId: auth.data.userId })
@@ -213,6 +235,13 @@ export async function deletePublishedSubmissionAction(imageId: string): Promise<
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
   if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
+
+  const rateLimitResult = await applyActionRateLimit<{ cragId: string | null }>(
+    'authenticatedWrite',
+    auth.data.userId,
+    'You are changing submissions too quickly right now.',
+  )
+  if (rateLimitResult) return rateLimitResult
 
   const supabase = await getServerClient()
   const supabaseAdmin = getAdminClientWithAudit('delete published submission')
