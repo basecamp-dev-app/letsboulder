@@ -54,18 +54,28 @@ describe('media worker routing convergence', () => {
     expect(production).toContain("CF_MEDIA_WORKER_URL must target the production static media Custom Domain")
   })
 
-  it('allows offline and browser delivery from the current staging hostname', () => {
-    const csp = read('lib/content-security-policy.ts')
-    const serviceWorker = read('public/sw.js')
-    const envExample = read('.env.example')
+  it('removes stale staging media hosts and resource names from runtime and docs', () => {
+    const files = [
+      '.env.example',
+      'README.md',
+      'apps/media-worker/README.md',
+      'docs/architecture.md',
+      'docs/media-pipeline.md',
+      'lib/content-security-policy.ts',
+      'public/sw.js',
+    ]
 
-    for (const content of [csp, serviceWorker, envExample]) {
+    for (const path of files) {
+      const content = read(path)
       expect(content).toContain('static.staging.letsboulder.com')
       expect(content).toContain('static.letsboulder.com')
       expect(content).not.toContain('static.dev.letsboulder.com')
     }
 
-    expect(envExample).not.toContain('lb-dev-media-private')
-    expect(envExample).not.toContain('lb-dev-media-public')
+    for (const path of ['.env.example', 'apps/media-worker/README.md']) {
+      const content = read(path)
+      expect(content).not.toContain('lb-dev-media-private')
+      expect(content).not.toContain('lb-dev-media-public')
+    }
   })
 })
