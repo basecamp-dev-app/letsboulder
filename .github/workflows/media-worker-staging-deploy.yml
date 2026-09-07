@@ -16,6 +16,9 @@ concurrency:
   group: media-worker-staging
   cancel-in-progress: false
 
+env:
+  WRANGLER_DEPLOY_VERSION: "4.129.1"
+
 jobs:
   deploy-staging:
     name: Deploy Media Worker (Staging)
@@ -39,16 +42,21 @@ jobs:
         run: npm run check
         working-directory: apps/media-worker
 
-      - name: Validate staging media worker secrets
+      - name: Validate staging media worker deployment inputs
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           INGRESS_SECRET: ${{ secrets.INGRESS_SECRET }}
           INTERNAL_ORIGIN_SECRET: ${{ secrets.INTERNAL_ORIGIN_SECRET }}
+          MEDIA_CDN_URL: ${{ vars.NEXT_PUBLIC_MEDIA_CDN_URL }}
+          CF_MEDIA_WORKER_URL: ${{ vars.CF_MEDIA_WORKER_URL }}
         run: |
           set -euo pipefail
-          required=(SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INGRESS_SECRET INTERNAL_ORIGIN_SECRET)
+
+          required=(CLOUDFLARE_API_TOKEN SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INGRESS_SECRET INTERNAL_ORIGIN_SECRET MEDIA_CDN_URL CF_MEDIA_WORKER_URL)
           for name in "${required[@]}"; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is required in the Staging GitHub environment."
@@ -56,87 +64,120 @@ jobs:
             fi
           done
 
-      - name: Ensure staging media infrastructure exists
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          if ! [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[[:alnum:]_-]+$ ]]; then
+            echo '::error::CLOUDFLARE_ACCOUNT_ID is missing or invalid in the Staging GitHub environment.'
+            exit 1
+          fi
+
+          if [ "$MEDIA_CDN_URL" != 'https://static.staging.letsboulder.com' ]; then
+            echo '::error::NEXT_PUBLIC_MEDIA_CDN_URL must target the staging static media Custom Domain.'
+            exit 1
+          fi
+          if [ "$CF_MEDIA_WORKER_URL" != 'https://static.staging.letsboulder.com' ]; then
+            echo '::error::CF_MEDIA_WORKER_URL must target the staging static media Custom Domain.'
+            exit 1
+          fi
+
+      - name: Preview staging media trigger reconciliation
         working-directory: apps/media-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
 
-          if npx --no-install wrangler r2 bucket list | grep -Fq 'lb-staging-media-private'; then
-            echo 'lb-staging-media-private already exists'
-          else
-            npx --no-install wrangler r2 bucket create lb-staging-media-private
-          fi
+          npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" triggers deploy \
+            --env staging \
+            --dry-run
 
-          if npx --no-install wrangler r2 bucket list | grep -Fq 'lb-staging-media-public'; then
-            echo 'lb-staging-media-public already exists'
-          else
-            npx --no-install wrangler r2 bucket create lb-staging-media-public
-          fi
-
-          if npx --no-install wrangler queues list | grep -Fq 'media-transform-queue-staging'; then
-            echo 'media-transform-queue-staging already exists'
-          else
-            npx --no-install wrangler queues create media-transform-queue-staging
-          fi
-
-      # The legacy staging Worker has SUPABASE_URL stored as a plain-text var.
-      # Deploying the current config first removes that old binding so the same
-      # name can then be recreated as a Worker secret without Cloudflare 10053.
-      - name: Reconcile staging worker bindings
-        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/media-worker
-          command: deploy --env staging
-
-      - name: Upload staging media worker secrets
+      - name: Apply staging media domain and cron
         working-directory: apps/media-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" triggers deploy --env staging
+
+      - name: Verify staging queue consumer
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          consumers="$(npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" queues consumer list media-transform-queue-staging --json)"
+          if ! printf '%s' "$consumers" | grep -Fq 'media-worker-staging'; then
+            echo '::error::Staging media queue consumer is missing; reconcile infrastructure before version upload.'
+            exit 1
+          fi
+
+      - name: Create staging Worker version with synchronized credentials
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           INGRESS_SECRET: ${{ secrets.INGRESS_SECRET }}
           INTERNAL_ORIGIN_SECRET: ${{ secrets.INTERNAL_ORIGIN_SECRET }}
+          WORKER_VERSION_TAG: github-${{ github.sha }}
         run: |
           set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
           for name in SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY INGRESS_SECRET INTERNAL_ORIGIN_SECRET; do
-            printf '%s' "${!name}" | npx --no-install wrangler secret put "$name" --env staging
+            echo "::add-mask::${!name}"
           done
 
-      - name: Deploy staging media worker
-        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/media-worker
-          command: deploy --env staging
+          secrets_file="$(mktemp)"
+          trap 'rm -f "$secrets_file"' EXIT
+          chmod 600 "$secrets_file"
+          node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({SUPABASE_URL:process.env.SUPABASE_URL,SUPABASE_ANON_KEY:process.env.SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY:process.env.SUPABASE_SERVICE_ROLE_KEY,INGRESS_SECRET:process.env.INGRESS_SECRET,INTERNAL_ORIGIN_SECRET:process.env.INTERNAL_ORIGIN_SECRET}))' "$secrets_file"
+
+          npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" versions upload \
+            --env staging \
+            --strict \
+            --tag "$WORKER_VERSION_TAG" \
+            --message "GitHub ${GITHUB_SHA}" \
+            --secrets-file "$secrets_file"
+
+      - name: Deploy synchronized staging Worker version
+        working-directory: apps/media-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER_VERSION_TAG: github-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID
+
+          npx --yes "wrangler@${WRANGLER_DEPLOY_VERSION}" versions deploy \
+            --env staging \
+            --version-tag "${WORKER_VERSION_TAG}@100%" \
+            --message "Deploy ${GITHUB_SHA}" \
+            --yes
 
       - name: Smoke test staging media endpoint
         run: |
           set -euo pipefail
 
-          status="$(
-            curl \
-              --silent \
-              --show-error \
-              --retry 12 \
-              --retry-all-errors \
-              --retry-delay 5 \
-              --output /dev/null \
-              --write-out '%{http_code}' \
-              --request POST \
-              https://static.staging.letsboulder.com/enqueue
-          )"
-
+          status="$(curl --silent --show-error --retry 12 --retry-all-errors --retry-delay 5 --output /dev/null --write-out '%{http_code}' --request POST https://static.staging.letsboulder.com/enqueue)"
           if [ "$status" != "401" ]; then
             echo "::error::Expected 401 from staging media worker, got $status"
             exit 1
           fi
 
-          echo "Staging media worker is reachable and ingress auth is enforced."
+          echo 'Staging media worker is reachable and ingress auth is enforced.'
