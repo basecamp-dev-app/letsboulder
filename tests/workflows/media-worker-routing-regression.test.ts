@@ -46,7 +46,7 @@ describe('media worker routing convergence', () => {
     expect(config.match(/head_sampling_rate = 1/g)).toHaveLength(3)
   })
 
-  it('keeps version uploads strict and reconciles triggers before upload', () => {
+  it('keeps version uploads strict by default and reconciles triggers before upload', () => {
     const production = read('.github/workflows/media-worker-deploy.yml')
     const staging = read('.github/workflows/media-worker-staging-deploy.yml')
 
@@ -59,14 +59,32 @@ describe('media worker routing convergence', () => {
       expect(workflow).toContain('--version-tag "${WORKER_VERSION_TAG}@100%"')
     }
 
-    expect(production.indexOf('Reconcile production routes and cron before strict version upload'))
+    expect(production.indexOf('Reconcile production routes and cron before version upload'))
       .toBeLessThan(production.indexOf('Create production Worker version with synchronized credentials'))
     expect(staging.indexOf('Reconcile staging routes and cron before strict version upload'))
       .toBeLessThan(staging.indexOf('Create staging Worker version with synchronized credentials'))
+    expect(production).toContain('strict_args=(--strict)')
     expect(production).toContain('https://static.letsboulder.com/enqueue')
     expect(staging).toContain('https://static.staging.letsboulder.com/enqueue')
     expect(staging).not.toContain('wrangler secret put')
     expect(staging).not.toContain('Ensure staging media infrastructure exists')
+  })
+
+  it('gates the incident-only production convergence path to an exact manual main commit', () => {
+    const production = read('.github/workflows/media-worker-deploy.yml')
+
+    expect(production).toContain('allow_known_config_convergence:')
+    expect(production).toContain('expected_main_sha:')
+    expect(production).toContain('default: false')
+    expect(production).toContain('Authorize one-time production configuration convergence')
+    expect(production).toContain("if: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_known_config_convergence }}")
+    expect(production).toContain('if [ "$GITHUB_REF" != "refs/heads/main" ]; then')
+    expect(production).toContain('if [ "$EXPECTED_MAIN_SHA" != "$GITHUB_SHA" ]; then')
+    expect(production).toContain("ALLOW_KNOWN_CONFIG_CONVERGENCE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_known_config_convergence && 'true' || 'false' }}")
+    expect(production).toContain('strict_args=()')
+    expect(production).toContain('incident-only non-strict upload')
+    expect(production.indexOf('Authorize one-time production configuration convergence'))
+      .toBeLessThan(production.indexOf('Preview production route and cron reconciliation'))
   })
 
   it('reconciles the known-missing production queue consumer and verifies staging', () => {
