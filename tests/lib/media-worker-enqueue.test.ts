@@ -12,7 +12,7 @@ vi.mock('@/lib/errors', () => ({
 }))
 
 import { reportError } from '@/lib/errors'
-import { enqueueMediaWorkerFastPath } from '@/lib/media/worker-enqueue'
+import { enqueueMediaWorkerFastPath, normalizeMediaWorkerBaseUrl } from '@/lib/media/worker-enqueue'
 
 const payload = {
   imageId: '5a60f240-df39-4d64-8689-6176539f09a4',
@@ -27,6 +27,10 @@ const payload = {
 describe('enqueueMediaWorkerFastPath', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+  })
+
+  it('normalizes a schemeless worker hostname to HTTPS', () => {
+    expect(normalizeMediaWorkerBaseUrl('static.letsboulder.com/')).toBe('https://static.letsboulder.com')
   })
 
   it('dispatches the durable payload to the worker queue', async () => {
