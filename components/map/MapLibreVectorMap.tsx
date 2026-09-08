@@ -13,6 +13,11 @@ export type { MapBounds } from '@/lib/map/map-bounds'
 export type MapLibreLngLat = [number, number]
 export type MapLibreFitBounds = [MapLibreLngLat, MapLibreLngLat]
 
+export interface MapLibreClusterSelection {
+  bounds: MapLibreFitBounds
+  queryZoom: number
+}
+
 interface LocationPoint {
   latitude: number
   longitude: number
@@ -25,7 +30,7 @@ interface MapLibreVectorMapProps {
   minZoom?: number
   maxZoom?: number
   fitBounds?: MapLibreFitBounds | null
-  focusTarget?: { center: MapLibreLngLat; zoom: number } | null
+  focusBounds?: MapLibreFitBounds | null
   pinsGeoJson: GeoJSON.FeatureCollection<GeoJSON.Point>
   clustersGeoJson?: GeoJSON.FeatureCollection<GeoJSON.Point>
   userLocation?: LocationPoint | null
@@ -37,7 +42,7 @@ interface MapLibreVectorMapProps {
   onReady?: () => void
   onViewportChange?: (state: { zoom: number; bounds: MapBounds }) => void
   onPinSelect?: (id: string) => void
-  onClusterSelect?: (clusterId: number, coordinates: MapLibreLngLat) => void
+  onClusterSelect?: (selection: MapLibreClusterSelection) => void
   onFailure?: (failure: MapFailure) => void
   focusOnReady?: boolean
 }
@@ -79,6 +84,45 @@ function fitMapToBounds(map: MapLibreMap, bounds: MapLibreFitBounds, maxZoom: nu
   map.fitBounds(bounds, { padding: 28, maxZoom: Math.min(16, maxZoom), duration: 0 })
 }
 
+const CLUSTER_MAX_ZOOM = 12
+const CLUSTER_FIT_DURATION_MS = 350
+const CLUSTER_FIT_PADDING = 28
+
+function parseClusterBounds(properties: Record<string, unknown>): MapLibreFitBounds | null {
+  const minLng = Number(properties.minLng)
+  const minLat = Number(properties.minLat)
+  const maxLng = Number(properties.maxLng)
+  const maxLat = Number(properties.maxLat)
+
+  if (![minLng, minLat, maxLng, maxLat].every(Number.isFinite)) return null
+  if (minLng > maxLng || minLat > maxLat) return null
+
+  return [[minLng, minLat], [maxLng, maxLat]]
+}
+
+function getClusterQueryZoom(map: MapLibreMap, bounds: MapLibreFitBounds, maxZoom: number) {
+  const cappedMaxZoom = Math.min(CLUSTER_MAX_ZOOM, maxZoom)
+  const camera = map.cameraForBounds(bounds, {
+    padding: CLUSTER_FIT_PADDING,
+    maxZoom: cappedMaxZoom,
+  })
+  const cameraZoom = typeof camera?.zoom === 'number' && Number.isFinite(camera.zoom)
+    ? camera.zoom
+    : cappedMaxZoom
+
+  // The RPC clusters at integer zooms. Query the integer level the fit animation is
+  // entering rather than flooring back to the previous cluster bucket.
+  return Math.min(cappedMaxZoom, Math.max(0, Math.ceil(cameraZoom)))
+}
+
+function fitMapToClusterBounds(map: MapLibreMap, bounds: MapLibreFitBounds, maxZoom: number) {
+  map.fitBounds(bounds, {
+    padding: CLUSTER_FIT_PADDING,
+    maxZoom: Math.min(CLUSTER_MAX_ZOOM, maxZoom),
+    duration: CLUSTER_FIT_DURATION_MS,
+  })
+}
+
 export default function MapLibreVectorMap({
   'aria-label': ariaLabel,
   center,
@@ -86,7 +130,7 @@ export default function MapLibreVectorMap({
   minZoom = 0,
   maxZoom = 19,
   fitBounds = null,
-  focusTarget = null,
+  focusBounds = null,
   pinsGeoJson,
   clustersGeoJson,
   userLocation = null,
@@ -104,6 +148,7 @@ export default function MapLibreVectorMap({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const readyRef = useRef(false)
+  const clusterMoveRef = useRef(false)
   const onReadyRef = useRef(onReady)
   const onViewportChangeRef = useRef(onViewportChange)
   const onPinSelectRef = useRef(onPinSelect)
@@ -181,8 +226,16 @@ export default function MapLibreVectorMap({
       if (viewportTimer) clearTimeout(viewportTimer)
       viewportTimer = null
     }
+    const handleMoveEnd = () => {
+      if (clusterMoveRef.current) {
+        clusterMoveRef.current = false
+        cancelPendingViewport()
+        return
+      }
+      emitViewportDebounced()
+    }
     map.on('movestart', cancelPendingViewport)
-    map.on('moveend', emitViewportDebounced)
+    map.on('moveend', handleMoveEnd)
 
     map.on('error', (event) => {
       const error = 'error' in event ? event.error : new Error('Map resource failed to load')
@@ -297,13 +350,15 @@ export default function MapLibreVectorMap({
         const feature = event.features?.[0]
         const properties = feature?.properties
         if (!feature || !properties || feature.geometry.type !== 'Point') return
-        const clusterId = Number(properties.clusterId)
-        const expansionZoom = Number(properties.expansionZoom)
-        const coordinates = feature.geometry.coordinates as MapLibreLngLat
-        if (Number.isFinite(expansionZoom)) {
-          map.easeTo({ center: coordinates, zoom: Math.min(expansionZoom, maxZoom), duration: 450 })
-        }
-        if (Number.isFinite(clusterId)) onClusterSelectRef.current?.(clusterId, coordinates)
+
+        const bounds = parseClusterBounds(properties as Record<string, unknown>)
+        if (!bounds) return
+
+        const queryZoom = getClusterQueryZoom(map, bounds, maxZoom)
+        clusterMoveRef.current = true
+        cancelPendingViewport()
+        onClusterSelectRef.current?.({ bounds, queryZoom })
+        fitMapToClusterBounds(map, bounds, maxZoom)
       })
       map.on('mouseenter', 'letsboulder-pin-hit-targets', () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mouseleave', 'letsboulder-pin-hit-targets', () => { map.getCanvas().style.cursor = '' })
@@ -369,9 +424,13 @@ export default function MapLibreVectorMap({
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !readyRef.current || !focusTarget) return
-    map.easeTo({ center: focusTarget.center, zoom: Math.min(focusTarget.zoom, maxZoom), duration: 450 })
-  }, [focusTarget, maxZoom])
+    if (!map || !readyRef.current || !focusBounds) return
+
+    const queryZoom = getClusterQueryZoom(map, focusBounds, maxZoom)
+    clusterMoveRef.current = true
+    onClusterSelectRef.current?.({ bounds: focusBounds, queryZoom })
+    fitMapToClusterBounds(map, focusBounds, maxZoom)
+  }, [focusBounds, maxZoom])
 
   return <div ref={containerRef} className={className} data-testid="maplibre-vector-map" role="region" aria-label={ariaLabel} tabIndex={focusOnReady ? -1 : undefined} />
 }

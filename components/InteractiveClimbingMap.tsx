@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, X } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
-import MapLibreVectorMap, { type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
+import MapLibreVectorMap, { type MapLibreClusterSelection, type MapLibreFitBounds } from '@/components/map/MapLibreVectorMap'
 import type { BrowserLocationPoint } from '@/hooks/use-browser-geolocation'
 import { reportError } from '@/lib/errors'
 import type { MapFailure } from '@/lib/map/map-failure'
@@ -45,6 +45,13 @@ function buildFitBounds(features: PinFeature[]): MapLibreFitBounds | null {
   ]
 }
 
+function getClusterFitBounds(cluster: ViewportPinCluster): MapLibreFitBounds {
+  return [
+    [cluster.min_lng, cluster.min_lat],
+    [cluster.max_lng, cluster.max_lat],
+  ]
+}
+
 export default function InteractiveClimbingMap({
   initialPlacePins = [],
   onReady,
@@ -64,7 +71,7 @@ export default function InteractiveClimbingMap({
   const [isOffline, setIsOffline] = useState(false)
   const [viewport, setViewport] = useState<MapViewportQuery | null>(null)
   const [selectedPlace, setSelectedPlace] = useState<PlacePin | null>(null)
-  const [clusterFocus, setClusterFocus] = useState<{ center: [number, number]; zoom: number } | null>(null)
+  const [clusterFocusBounds, setClusterFocusBounds] = useState<MapLibreFitBounds | null>(null)
 
   const pinsQuery = useQuery({
     ...mapPinsQueryOptions(viewport ?? WORLD_VIEWPORT),
@@ -89,6 +96,19 @@ export default function InteractiveClimbingMap({
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     void queryClient.cancelQueries({ queryKey: ['map-pins'] })
     setViewport(normalizePaddedViewport(state.bounds, state.zoom))
+  }, [queryClient])
+
+  const handleClusterSelect = useCallback(({ bounds, queryZoom }: MapLibreClusterSelection) => {
+    const targetViewport = normalizePaddedViewport({
+      west: bounds[0][0],
+      south: bounds[0][1],
+      east: bounds[1][0],
+      north: bounds[1][1],
+    }, queryZoom)
+
+    void queryClient.cancelQueries({ queryKey: ['map-pins'] })
+    void queryClient.prefetchQuery(mapPinsQueryOptions(targetViewport))
+    setViewport(targetViewport)
   }, [queryClient])
 
   useEffect(() => {
@@ -136,10 +156,13 @@ export default function InteractiveClimbingMap({
         properties: {
           clusterId: cluster.id,
           pointCount: cluster.point_count,
-          expansionZoom: Math.min((viewport?.zoom ?? WORLD_DEFAULT_ZOOM) + 1, 17),
+          minLng: cluster.min_lng,
+          minLat: cluster.min_lat,
+          maxLng: cluster.max_lng,
+          maxLat: cluster.max_lat,
         },
       })),
-  }), [clusters, viewport?.zoom])
+  }), [clusters])
 
   useEffect(() => {
     if (!pinsQuery.error) return
@@ -156,7 +179,7 @@ export default function InteractiveClimbingMap({
         maxZoom={19}
         aria-label="Climbing locations map"
         fitBounds={userFitBounds ?? offlineFitBounds}
-        focusTarget={clusterFocus}
+        focusBounds={clusterFocusBounds}
         pinsGeoJson={pinsGeoJson}
         clustersGeoJson={clustersGeoJson}
         userLocation={userLocation}
@@ -167,6 +190,7 @@ export default function InteractiveClimbingMap({
           onReady?.()
         }}
         onViewportChange={handleMapStateChange}
+        onClusterSelect={handleClusterSelect}
         onPinSelect={(id) => {
           const place = placesById.get(id)
           if (place) setSelectedPlace(place)
@@ -192,10 +216,7 @@ export default function InteractiveClimbingMap({
             <li key={cluster.id}>
               <button
                 type="button"
-                onClick={() => setClusterFocus({
-                  center: [cluster.longitude, cluster.latitude],
-                  zoom: Math.min((viewport?.zoom ?? WORLD_DEFAULT_ZOOM) + 1, 17),
-                })}
+                onClick={() => setClusterFocusBounds(getClusterFitBounds(cluster))}
                 className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-stone-800 outline-none hover:bg-stone-100 focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 Explore cluster of {cluster.point_count} locations near {cluster.latitude.toFixed(2)}, {cluster.longitude.toFixed(2)}
@@ -254,7 +275,7 @@ export default function InteractiveClimbingMap({
             Connection lost. Map updates are unavailable.
           </div>
         ) : null}
-        {!isOffline && pinsQuery.isFetching ? (
+        {!isOffline && pinsQuery.isFetching && !pinsQuery.data ? (
           <div role="status" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
             <Loader2 className="size-3.5 animate-spin" />
             Loading crags...

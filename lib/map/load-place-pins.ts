@@ -21,7 +21,13 @@ function isViewportMapFeature(value: unknown): value is ViewportMapFeature {
     || typeof value.point_count !== 'number'
     || typeof value.is_cluster !== 'boolean') return false
 
-  if (value.is_cluster) return value.type === 'cluster'
+  if (value.is_cluster) {
+    return value.type === 'cluster'
+      && typeof value.min_lng === 'number'
+      && typeof value.min_lat === 'number'
+      && typeof value.max_lng === 'number'
+      && typeof value.max_lat === 'number'
+  }
 
   return (value.type === 'crag' || value.type === 'gym')
     && typeof value.name === 'string'
@@ -29,6 +35,10 @@ function isViewportMapFeature(value: unknown): value is ViewportMapFeature {
     && isNullableString(value.country_code)
     && (typeof value.image_count === 'number' || value.image_count === null)
     && (typeof value.route_count === 'number' || value.route_count === null)
+    && value.min_lng === null
+    && value.min_lat === null
+    && value.max_lng === null
+    && value.max_lat === null
 }
 
 function isMapPinsSuccess(payload: unknown): payload is Extract<MapPinsApiResponse, { pins: ViewportMapFeature[] }> {
