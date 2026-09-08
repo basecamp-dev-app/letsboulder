@@ -75,13 +75,14 @@ describe('schema audit integrity and access contracts', () => {
       )
       await client.query(
         `insert into public.images (id, url, created_by, status, moderation_status, visibility, processing_status)
-         values ($1, 'https://example.test/private-topo.jpg', $2, 'approved', 'skipped', 'private', 'ready')`,
+         values ($1, 'https://example.test/private-topo.jpg', $2, 'approved', 'skipped', 'public', 'ready')`,
         [image, owner],
       )
       await client.query(
         `insert into public.route_lines (id, image_id, climb_id, points)
          values ($1, $2, $3, '[{"x":0,"y":0},{"x":1,"y":1}]'::jsonb)`, [line, image, climb],
       )
+      await client.query("update public.images set visibility = 'private' where id = $1", [image])
       await setRole(client, 'anon')
       expect((await client.query('select id from public.route_lines where id = $1', [line])).rows).toEqual([])
       await setRole(client, 'authenticated', other)
