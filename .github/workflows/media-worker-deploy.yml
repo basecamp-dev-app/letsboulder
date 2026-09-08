@@ -174,6 +174,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID_RAW: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CF_MEDIA_WORKER_SECRET: ${{ secrets.CF_MEDIA_WORKER_SECRET }}
           WORKER_VERSION_TAG: github-${{ github.sha }}
           ALLOW_KNOWN_CONFIG_CONVERGENCE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_known_config_convergence && 'true' || 'false' }}
         run: |
@@ -183,16 +184,45 @@ jobs:
           export CLOUDFLARE_ACCOUNT_ID
           echo "::add-mask::$SUPABASE_ANON_KEY"
           echo "::add-mask::$SUPABASE_SERVICE_ROLE_KEY"
+          if [ -n "${CF_MEDIA_WORKER_SECRET:-}" ]; then
+            echo "::add-mask::$CF_MEDIA_WORKER_SECRET"
+          fi
+
+          INCIDENT_INGRESS_SECRET=''
+          INCIDENT_INTERNAL_ORIGIN_SECRET=''
+          if [ "$ALLOW_KNOWN_CONFIG_CONVERGENCE" = "true" ]; then
+            current_secrets="$(npx --no-install wrangler secret list --env production --format json)"
+            has_secret() {
+              node -e 'const list=JSON.parse(process.argv[1]); process.exit(list.some(item => item.name === process.argv[2]) ? 0 : 1)' "$current_secrets" "$1"
+            }
+
+            if ! has_secret INGRESS_SECRET; then
+              if [ -z "${CF_MEDIA_WORKER_SECRET:-}" ]; then
+                echo '::error::Production INGRESS_SECRET is missing and CF_MEDIA_WORKER_SECRET is unavailable to restore it safely.'
+                exit 1
+              fi
+              INCIDENT_INGRESS_SECRET="$CF_MEDIA_WORKER_SECRET"
+              export INCIDENT_INGRESS_SECRET
+              echo "::add-mask::$INCIDENT_INGRESS_SECRET"
+              echo '::warning::Seeding missing INGRESS_SECRET from the protected app enqueue secret for this convergence upload.'
+            fi
+
+            if ! has_secret INTERNAL_ORIGIN_SECRET; then
+              INCIDENT_INTERNAL_ORIGIN_SECRET="$(openssl rand -hex 32)"
+              export INCIDENT_INTERNAL_ORIGIN_SECRET
+              echo "::add-mask::$INCIDENT_INTERNAL_ORIGIN_SECRET"
+              echo '::warning::Seeding missing INTERNAL_ORIGIN_SECRET with a fresh production-only value for this convergence upload.'
+            fi
+          fi
 
           secrets_file="$(mktemp)"
           trap 'rm -f "$secrets_file"' EXIT
           chmod 600 "$secrets_file"
-          node -e 'const fs=require("fs"); fs.writeFileSync(process.argv[1], JSON.stringify({SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY}))' "$secrets_file"
+          node -e 'const fs=require("fs"); const payload={SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY}; if (process.env.INCIDENT_INGRESS_SECRET) payload.INGRESS_SECRET=process.env.INCIDENT_INGRESS_SECRET; if (process.env.INCIDENT_INTERNAL_ORIGIN_SECRET) payload.INTERNAL_ORIGIN_SECRET=process.env.INCIDENT_INTERNAL_ORIGIN_SECRET; fs.writeFileSync(process.argv[1], JSON.stringify(payload))' "$secrets_file"
 
-          # Wrangler preserves existing omitted secrets. The required secret
-          # declarations in wrangler.toml verify INGRESS_SECRET and
-          # INTERNAL_ORIGIN_SECRET already exist without copying their values
-          # into the GitHub Production environment.
+          # Existing omitted secrets are preserved. The incident-only path may
+          # seed a required secret only when Cloudflare reports it missing;
+          # ordinary strict uploads keep preserving those secret values.
           strict_args=(--strict)
           if [ "$ALLOW_KNOWN_CONFIG_CONVERGENCE" = "true" ]; then
             strict_args=()
