@@ -89,6 +89,26 @@ jobs:
       - name: Reset local database
         run: npx --no-install supabase db reset
 
+      - name: Prepare schema audit migration
+        run: |
+          npx --no-install supabase migration new schema_audit
+          MIGRATION=$(find supabase/migrations -name '*_schema_audit.sql' -print)
+          test -n "$MIGRATION"
+          cp scripts/db/pending-schema-audit.sql "$MIGRATION"
+          npx --no-install supabase db reset
+          npx --no-install supabase gen types typescript --local > "$RUNNER_TEMP/database.ts"
+          mkdir -p "$RUNNER_TEMP/schema-audit-generated"
+          cp "$MIGRATION" "$RUNNER_TEMP/schema-audit-generated/"
+          cp "$RUNNER_TEMP/database.ts" "$RUNNER_TEMP/schema-audit-generated/"
+
+      - name: Upload generated schema audit files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: schema-audit-generated
+          path: ${{ runner.temp }}/schema-audit-generated
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Check generated database types
         run: npm run check:type-drift
 
