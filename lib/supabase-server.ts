@@ -86,6 +86,10 @@ export interface ViewportMapFeature {
   route_count: number | null
   is_cluster: boolean
   point_count: number
+  min_lng: number | null
+  min_lat: number | null
+  max_lng: number | null
+  max_lat: number | null
 }
 
 type GeneratedViewportMapFeatureRow = Database['public']['Functions']['get_viewport_map_features']['Returns'][number]
@@ -95,6 +99,10 @@ type ViewportMapFeatureRow = Omit<GeneratedViewportMapFeatureRow, 'name' | 'slug
   country_code: string | null
   image_count: number | null
   route_count: number | null
+  min_lng: number | null
+  min_lat: number | null
+  max_lng: number | null
+  max_lat: number | null
 }
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof getServerClient>>
@@ -122,6 +130,10 @@ async function fetchViewportMapFeaturesRpc(
     image_count: row.image_count === null ? null : Number(row.image_count),
     route_count: row.route_count === null ? null : Number(row.route_count),
     point_count: Number(row.point_count),
+    min_lng: row.min_lng === null ? null : Number(row.min_lng),
+    min_lat: row.min_lat === null ? null : Number(row.min_lat),
+    max_lng: row.max_lng === null ? null : Number(row.max_lng),
+    max_lat: row.max_lat === null ? null : Number(row.max_lat),
   }))
 }
 

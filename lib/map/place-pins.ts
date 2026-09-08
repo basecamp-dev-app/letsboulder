@@ -15,6 +15,10 @@ export interface PlacePin {
 export interface ViewportPlacePin extends PlacePin {
   is_cluster: false
   point_count: number
+  min_lng: null
+  min_lat: null
+  max_lng: null
+  max_lat: null
 }
 
 export interface ViewportPinCluster {
@@ -29,6 +33,10 @@ export interface ViewportPinCluster {
   route_count: number | null
   is_cluster: true
   point_count: number
+  min_lng: number
+  min_lat: number
+  max_lng: number
+  max_lat: number
 }
 
 export type ViewportMapFeature = ViewportPlacePin | ViewportPinCluster
