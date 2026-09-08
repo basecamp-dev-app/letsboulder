@@ -87,6 +87,25 @@ describe('media worker routing convergence', () => {
       .toBeLessThan(production.indexOf('Preview production route and cron reconciliation'))
   })
 
+  it('seeds only missing required production secrets during the authorized convergence', () => {
+    const production = read('.github/workflows/media-worker-deploy.yml')
+
+    const convergenceGuard = production.indexOf('if [ "$ALLOW_KNOWN_CONFIG_CONVERGENCE" = "true" ]; then')
+    const secretList = production.indexOf('wrangler secret list --env production --format json')
+    const upload = production.indexOf('wrangler versions upload')
+
+    expect(convergenceGuard).toBeGreaterThan(-1)
+    expect(secretList).toBeGreaterThan(convergenceGuard)
+    expect(secretList).toBeLessThan(upload)
+    expect(production).toContain('CF_MEDIA_WORKER_SECRET: ${{ secrets.CF_MEDIA_WORKER_SECRET }}')
+    expect(production).toContain('if ! has_secret INGRESS_SECRET; then')
+    expect(production).toContain('INCIDENT_INGRESS_SECRET="$CF_MEDIA_WORKER_SECRET"')
+    expect(production).toContain('if ! has_secret INTERNAL_ORIGIN_SECRET; then')
+    expect(production).toContain('INCIDENT_INTERNAL_ORIGIN_SECRET="$(openssl rand -hex 32)"')
+    expect(production).toContain('payload.INGRESS_SECRET=process.env.INCIDENT_INGRESS_SECRET')
+    expect(production).toContain('payload.INTERNAL_ORIGIN_SECRET=process.env.INCIDENT_INTERNAL_ORIGIN_SECRET')
+  })
+
   it('reconciles the known-missing production queue consumer and verifies staging', () => {
     const production = read('.github/workflows/media-worker-deploy.yml')
     const staging = read('.github/workflows/media-worker-staging-deploy.yml')
@@ -125,7 +144,7 @@ describe('media worker routing convergence', () => {
     expect(config).toContain('[env.staging.secrets]')
     expect(config).toContain('[env.production.secrets]')
     expect(config).toContain('required = ["SUPABASE_SERVICE_ROLE_KEY", "INGRESS_SECRET", "INTERNAL_ORIGIN_SECRET"]')
-    expect(production).toContain('Wrangler preserves existing omitted secrets')
+    expect(production).toContain('Existing omitted secrets are preserved')
     expect(production).not.toContain('INGRESS_SECRET: ${{ secrets.INGRESS_SECRET }}')
     expect(production).not.toContain('INTERNAL_ORIGIN_SECRET: ${{ secrets.INTERNAL_ORIGIN_SECRET }}')
   })
