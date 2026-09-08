@@ -10,7 +10,7 @@ const mapMocks = vi.hoisted(() => ({
   instances: [] as Array<{ handlers: Map<string, MapEventHandler> }>,
   fitBounds: vi.fn(),
   easeTo: vi.fn(),
-  cameraForBounds: vi.fn(() => ({ zoom: 7.2 })),
+  cameraForBounds: vi.fn((_bounds: unknown, _options: unknown) => ({ zoom: 7.2 })),
   setData: vi.fn(),
 }))
 
