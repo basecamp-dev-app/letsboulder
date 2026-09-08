@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MapLibreVectorMap from '@/components/map/MapLibreVectorMap'
 
+type MapEventHandler = (...args: unknown[]) => void
+
 const mapMocks = vi.hoisted(() => ({
   failConstruction: false,
-  instances: [] as Array<{ handlers: Map<string, (...args: any[]) => void> }>,
+  instances: [] as Array<{ handlers: Map<string, MapEventHandler> }>,
   fitBounds: vi.fn(),
   easeTo: vi.fn(),
   cameraForBounds: vi.fn(() => ({ zoom: 7.2 })),
@@ -16,7 +18,7 @@ vi.mock('maplibre-gl', () => {
   const interaction = () => ({ enable: vi.fn(), disable: vi.fn() })
 
   class MockMap {
-    handlers = new Map<string, (...args: any[]) => void>()
+    handlers = new Map<string, MapEventHandler>()
     dragPan = interaction()
     scrollZoom = interaction()
     boxZoom = interaction()
@@ -56,7 +58,7 @@ vi.mock('maplibre-gl', () => {
     easeTo(options: unknown) {
       mapMocks.easeTo(options)
     }
-    on(event: string, layerOrHandler: string | ((...args: any[]) => void), handler?: (...args: any[]) => void) {
+    on(event: string, layerOrHandler: string | MapEventHandler, handler?: MapEventHandler) {
       if (typeof layerOrHandler === 'string') {
         if (handler) this.handlers.set(`${event}:${layerOrHandler}`, handler)
       } else {
