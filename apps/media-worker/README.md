@@ -92,9 +92,13 @@ The Next.js app's R2 access key and secret are used for S3 presigning and are no
 | `src/supabase.ts` | Worker environment contract and Supabase client |
 | `wrangler.toml` | Environment Custom Domains, cron, queue, R2 bindings, and required secret names |
 
-Staging deploys from `.github/workflows/media-worker-staging-deploy.yml` after merges to `staging`. Production deploys from `.github/workflows/media-worker-deploy.yml` after the verified staging tree is promoted to `main`. Both workflows use versioned Worker uploads, keep Wrangler strict drift detection, explicitly apply routes/domains and cron with `wrangler triggers deploy`, deploy the tagged version, and then smoke-test the canonical hostname.
+Staging deploys from `.github/workflows/media-worker-staging-deploy.yml` after merges to `staging`. Production deploys from `.github/workflows/media-worker-deploy.yml` after the verified staging tree is promoted to `main`. Both workflows use versioned Worker uploads, explicitly apply routes/domains and cron with `wrangler triggers deploy`, deploy the tagged version, and then smoke-test the canonical hostname. Staging and all ordinary production runs keep Wrangler `--strict` drift detection enabled.
 
-For the production Route-to-Custom-Domain migration, trigger reconciliation occurs before the strict version upload so Cloudflare can replace the old `static.letsboulder.com/*` Route with the declared `static.letsboulder.com` Custom Domain while retaining the temporary compatibility alias. A second trigger reconciliation after upload keeps the normal versioned deployment sequence explicit. If a conflicting CNAME prevents Custom Domain creation, the workflow stops before version activation.
+The production workflow also contains an incident-only configuration convergence path for the current Route-to-Custom-Domain migration. It is disabled by default and is available only on a manual `workflow_dispatch` from `main`. Enabling `allow_known_config_convergence` also requires `expected_main_sha` to exactly match the checked-out `main` commit. The protected `Production` environment still applies. Only that explicitly authorized upload omits `--strict`; trigger reconciliation, queue verification, tagged deployment, and the canonical 401 smoke test remain mandatory. After one successful convergence, subsequent deployments must return to the default strict path. If strict drift remains afterward, investigate it rather than reusing the exception.
+
+The migration first reconciles `static.letsboulder.com` and the temporary `media.letsboulder.com` compatibility Custom Domains plus cron, then verifies the production queue consumer. Cloudflare can still report version-level drift against the previously active Worker after those trigger changes succeed; the incident-only path exists to replace that known legacy version configuration once. A conflicting CNAME or any unrelated prerequisite still stops before version activation.
+
+See `docs/media-worker-production-convergence.md` for the incident runbook and the exact post-convergence verification sequence.
 
 ```bash
 npx wrangler versions upload --env staging --strict
