@@ -21,6 +21,11 @@ describe('get_crag_route_targets_page', () => {
         [cragId, otherCragId],
       )
       await client.query(
+        `update public.crags set publication_status = 'published', published_at = now()
+         where id = any($1::uuid[])`,
+        [[cragId, otherCragId]],
+      )
+      await client.query(
         `insert into public.climbs (id, crag_id, name, slug, grade, status, route_type) values
           ($1, $3, 'Target route', 'target-route', '6A', 'approved', 'boulder'),
           ($2, $4, 'Other route', 'other-route', '6A', 'approved', 'boulder')`,

@@ -207,6 +207,10 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 | Parent | Child | Delete Behavior |
 |--------|-------|-----------------|
 | `auth.users` | `profiles` | CASCADE |
+| `auth.users` | `climbs.user_id` | SET NULL |
+| `auth.users` | `images.created_by`, `images.last_edited_by` | SET NULL |
+| `auth.users` | `crags.last_edited_by` | SET NULL |
+| `auth.users` | Published/draft collaborator and invite `created_by` | SET NULL |
 | `auth.users` | `community_posts` | CASCADE |
 | `auth.users` | `community_post_comments` | CASCADE |
 | `auth.users` | `community_post_rsvps` | CASCADE |
@@ -222,7 +226,7 @@ These security-barrier views are owned by `public_data_export_owner`, a `NOLOGIN
 | `auth.users` | `route_lines` | CASCADE |
 | `auth.users` | `saved_climbs` | CASCADE |
 | `auth.users` | `saved_crags` | CASCADE |
-| `auth.users` | `user_climbs` | no action |
+| `auth.users` | `user_climbs` | CASCADE |
 | `auth.users` | `submission_edit_history.edited_by` | SET NULL |
 | `auth.users` | `crag_metadata_proposals.proposer_id` | SET NULL |
 | `auth.users` | `crag_metadata_proposals.reviewer_id` | SET NULL |
@@ -689,3 +693,36 @@ Maintainers may periodically verify a deliberately linked hosted project matches
 npx --no-install supabase db diff --linked
 ```
 Any diff indicates drift — backfill missing migrations immediately.
+
+## Schema Audit Hardening
+
+The September 2026 schema audit migration adds missing foreign-key indexes, removes
+two redundant profile indexes, and caches statement-constant identity/admin checks
+in RLS policies. Client roles lose table-wide maintenance privileges; staging-only
+DML grants are reconciled to production. Sanitized aggregate/export view owners and
+internal RLS-without-policy tables retain their existing access contracts.
+
+`route_lines` client reads require both its image and climb to be readable under
+existing RLS. Owner and collaborator image visibility is preserved; private topo
+geometry is unavailable to unrelated clients. Administrative audit policies use
+`is_current_user_admin()` rather than the JWT's top-level database role.
+
+Missing creator links use `ON DELETE SET NULL`, preserving climbs and images after
+account deletion. Nullable editor/inviter links also clear attribution on deletion.
+`user_climbs.user_id` cascades only when the account is physically deleted, matching
+the account-cleanup RPC. The migration repairs dangling climb creator UUIDs without
+removing routes or logs. Historical audit identifiers remain unlinked intentionally.
+
+`update_climb_consensus_safe` counts all votes, resolves tied consensus summaries
+deterministically, and updates both parents if a vote moves between climbs. It is
+an internal privileged trigger with API execution revoked. Existing derived
+summaries are rebuilt; grade-vote rows and climb identities are preserved.
+
+`set_record_updated_at` touches unchanged timestamps when ordinary profile, community,
+gym or location-tag records change. Explicit timestamps, monotonic draft clocks,
+log mutation ordering and immutable revision timestamps keep their existing semantics.
+The obsolete one-argument `add_correction_type_value` utility fails with a message
+directing changes through migrations; its two-argument overload is unchanged.
+
+After deployment, run `scripts/db/schema-audit-post-migration.sql` for read-only
+integrity and privilege checks, then run the Supabase advisors.
