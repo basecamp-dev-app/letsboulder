@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import InteractiveClimbingMap from '@/components/InteractiveClimbingMap'
-import type { PlacePin } from '@/lib/map/place-pins'
+import type { PlacePin, ViewportPlacePin, ViewportPinCluster } from '@/lib/map/place-pins'
 
 const mockPush = vi.fn()
 
@@ -13,15 +13,21 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/components/map/MapLibreVectorMap', () => ({
-  default: ({ onPinSelect, onReady, onViewportChange, fitBounds, focusTarget, ...props }: {
+  default: ({ onPinSelect, onReady, onViewportChange, onClusterSelect, fitBounds, focusBounds, ...props }: {
     onPinSelect: (id: string) => void
     onReady?: () => void
     onViewportChange?: (state: { zoom: number; bounds: { west: number; south: number; east: number; north: number } }) => void
+    onClusterSelect?: (selection: { bounds: [[number, number], [number, number]]; queryZoom: number }) => void
     fitBounds?: [[number, number], [number, number]] | null
-    focusTarget?: { center: [number, number]; zoom: number } | null
+    focusBounds?: [[number, number], [number, number]] | null
     'aria-label'?: string
   }) => (
-    <div role="region" aria-label={props['aria-label']} data-fit-bounds={JSON.stringify(fitBounds)} data-focus-target={JSON.stringify(focusTarget)}>
+    <div
+      role="region"
+      aria-label={props['aria-label']}
+      data-fit-bounds={JSON.stringify(fitBounds)}
+      data-focus-bounds={JSON.stringify(focusBounds)}
+    >
       <button type="button" onClick={() => onPinSelect('gym-1')}>Select gym</button>
       <button type="button" onClick={() => onPinSelect('crag-1')}>Select crag</button>
       <button type="button" onClick={() => {
@@ -31,6 +37,9 @@ vi.mock('@/components/map/MapLibreVectorMap', () => ({
       <button type="button" onClick={() => {
         onViewportChange?.({ zoom: 7.2, bounds: { west: 30, south: 40, east: 50, north: 60 } })
       }}>Move viewport</button>
+      <button type="button" onClick={() => {
+        onClusterSelect?.({ bounds: [[19, 29], [21, 31]], queryZoom: 9 })
+      }}>Select cluster bounds</button>
     </div>
   ),
 }))
@@ -39,6 +48,18 @@ const places: PlacePin[] = [
   { id: 'gym-1', name: 'Training Hall', type: 'gym', latitude: 1, longitude: 1, slug: 'training-hall', country_code: 'GG', image_count: 0, route_count: 20 },
   { id: 'crag-1', name: 'Granite Bay', type: 'crag', latitude: 2, longitude: 2, slug: 'granite-bay', country_code: 'GG', image_count: 3, route_count: 10 },
 ]
+
+function viewportPin(place: PlacePin): ViewportPlacePin {
+  return {
+    ...place,
+    is_cluster: false,
+    point_count: 1,
+    min_lng: null,
+    min_lat: null,
+    max_lng: null,
+    max_lat: null,
+  }
+}
 
 function renderMap(element: React.ReactElement) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -100,13 +121,15 @@ describe('InteractiveClimbingMap destinations', () => {
     )
   })
 
-  it('fetches the loaded viewport and preserves selection through a refetch', async () => {
+  it('preserves previous pins without showing the global spinner during a viewport refetch', async () => {
     const user = userEvent.setup()
-    const firstPin = { ...places[1], is_cluster: false, point_count: 1 }
-    const secondPin = { ...places[0], is_cluster: false, point_count: 1 }
+    const firstPin = viewportPin(places[1])
+    const secondPin = viewportPin(places[0])
+    let resolveSecond: ((response: Response) => void) | undefined
+    const secondResponse = new Promise<Response>((resolve) => { resolveSecond = resolve })
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ pins: [firstPin] })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ pins: [secondPin] })))
+      .mockReturnValueOnce(secondResponse)
     vi.stubGlobal('fetch', fetchMock)
     renderMap(<InteractiveClimbingMap />)
 
@@ -115,18 +138,47 @@ describe('InteractiveClimbingMap destinations', () => {
     await user.click(screen.getByRole('button', { name: 'Move viewport' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      '/api/crags/pins?west=5&south=15&east=35&north=45&zoom=6',
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
-    )
+    expect(screen.queryByText('Loading crags...')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Granite Bay, crag' })).toBeInTheDocument()
+
+    resolveSecond?.(new Response(JSON.stringify({ pins: [secondPin] })))
+
     expect(await screen.findByRole('button', { name: 'Training Hall, gym' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Granite Bay' })).toBeInTheDocument()
   })
 
+  it('prefetches the bounds-derived cluster viewport immediately', async () => {
+    const user = userEvent.setup()
+    const cluster: ViewportPinCluster = {
+      id: 'cluster:6:1:1', name: null, type: 'cluster', latitude: 30, longitude: 20,
+      slug: null, country_code: null, image_count: 4, route_count: 8,
+      is_cluster: true, point_count: 3,
+      min_lng: 19, min_lat: 29, max_lng: 21, max_lat: 31,
+    }
+    const childPin = viewportPin(places[1])
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ pins: [cluster] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ pins: [childPin] })))
+    vi.stubGlobal('fetch', fetchMock)
+    renderMap(<InteractiveClimbingMap />)
+
+    await user.click(screen.getByRole('button', { name: 'Load viewport' }))
+    expect(await screen.findByRole('button', { name: 'Explore cluster of 3 locations near 30.00, 20.00' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Select cluster bounds' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/crags/pins?west=18.5&south=28.5&east=21.5&north=31.5&zoom=9',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(screen.queryByText('Loading crags...')).not.toBeInTheDocument()
+  })
+
   it('keeps fetched pins when the connection drops', async () => {
     const user = userEvent.setup()
-    const pin = { ...places[1], is_cluster: false, point_count: 1 }
+    const pin = viewportPin(places[1])
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ pins: [pin] }))))
     renderMap(<InteractiveClimbingMap />)
 
@@ -141,12 +193,13 @@ describe('InteractiveClimbingMap destinations', () => {
     window.dispatchEvent(new Event('online'))
   })
 
-  it('provides keyboard controls that focus server clusters', async () => {
+  it('provides keyboard controls that focus the server-provided cluster bounds', async () => {
     const user = userEvent.setup()
-    const cluster = {
+    const cluster: ViewportPinCluster = {
       id: 'cluster:6:1:1', name: null, type: 'cluster', latitude: 30, longitude: 20,
       slug: null, country_code: null, image_count: 4, route_count: 8,
       is_cluster: true, point_count: 3,
+      min_lng: 19, min_lat: 29, max_lng: 21, max_lat: 31,
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ pins: [cluster] }))))
     renderMap(<InteractiveClimbingMap />)
@@ -159,8 +212,8 @@ describe('InteractiveClimbingMap destinations', () => {
     ))
 
     expect(screen.getByRole('region', { name: 'Climbing locations map' })).toHaveAttribute(
-      'data-focus-target',
-      JSON.stringify({ center: [20, 30], zoom: 7 })
+      'data-focus-bounds',
+      JSON.stringify([[19, 29], [21, 31]])
     )
   }, 15_000)
 })
