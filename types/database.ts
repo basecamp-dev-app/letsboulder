@@ -4574,6 +4574,10 @@ export type Database = {
           is_cluster: boolean
           latitude: number
           longitude: number
+          max_lat: number
+          max_lng: number
+          min_lat: number
+          min_lng: number
           name: string
           point_count: number
           route_count: number
@@ -4950,6 +4954,10 @@ export type Database = {
           is_cluster: boolean
           latitude: number
           longitude: number
+          max_lat: number
+          max_lng: number
+          min_lat: number
+          min_lng: number
           name: string
           point_count: number
           route_count: number
@@ -4973,6 +4981,10 @@ export type Database = {
           is_cluster: boolean
           latitude: number
           longitude: number
+          max_lat: number
+          max_lng: number
+          min_lat: number
+          min_lng: number
           name: string
           point_count: number
           route_count: number
