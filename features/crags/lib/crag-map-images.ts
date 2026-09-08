@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isMediaPubliclyDeliverable } from '@/lib/media/readiness'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
+import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import type { ImageData } from '@/features/crags/lib/crag-page-types'
 import type { Database } from '@/types/database'
 
@@ -126,10 +127,23 @@ export function buildCragMapImages(rows: CragMapImageRow[], links: CragMapImageL
 
   const primaryImageIdByImageId = new Map<string, string>()
   for (const familyRows of locatedRowsByFamily.values()) {
-    familyRows.sort((first, second) => compareImageRows(first, second, canonicalImageIds))
-    const primaryImageId = familyRows[0]?.id
-    if (!primaryImageId) continue
-    for (const row of familyRows) primaryImageIdByImageId.set(row.id, primaryImageId)
+    const spatialOrder = getStableSpatialOrder(familyRows.map((row) => ({
+      displayImageId: row.id,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      createdAt: row.created_at,
+    })))
+
+    for (const stack of spatialOrder.orderedStacks) {
+      const stackRows = stack.images.flatMap((node) => {
+        const row = rowById.get(node.displayImageId)
+        return row ? [row] : []
+      })
+      stackRows.sort((first, second) => compareImageRows(first, second, canonicalImageIds))
+      const primaryImageId = stackRows[0]?.id
+      if (!primaryImageId) continue
+      for (const row of stackRows) primaryImageIdByImageId.set(row.id, primaryImageId)
+    }
   }
 
   return deliverableRows
