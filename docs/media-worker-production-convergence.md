@@ -22,6 +22,7 @@ Use the exception only when all of the following are already true:
 3. `wrangler triggers deploy --env production` succeeds and reports both `static.letsboulder.com` and the temporary `media.letsboulder.com` compatibility alias as Custom Domains.
 4. The production queue consumer `media-worker-production` exists on `media-transform-queue-prod` with batch size 1, timeout 5, and retries 3.
 5. A normal strict version upload still fails because the previously active Worker version contains the reviewed legacy route/variable/queue configuration being replaced by the repository configuration.
+6. Any required-secret failure is limited to the reviewed production Worker secret names in `wrangler.toml`. The current incident may include a missing `INTERNAL_ORIGIN_SECRET`; the workflow is allowed to create a fresh production-only value for that secret during the convergence upload. If `INGRESS_SECRET` is missing, the workflow may restore it only from the protected `CF_MEDIA_WORKER_SECRET` that the app already uses for authenticated enqueue calls.
 
 If any different or unexplained drift is present, stop and investigate it instead of enabling the exception.
 
@@ -42,17 +43,20 @@ The workflow must still pass, in order:
 - trigger dry-run;
 - actual route/domain and cron reconciliation;
 - production queue consumer reconciliation;
+- required-secret inspection and incident-only seeding when Cloudflare reports one missing;
 - version upload using the reviewed incident-only non-strict path;
 - post-upload trigger reconciliation;
 - tagged version deployment at 100%;
 - `POST https://static.letsboulder.com/enqueue` returning `401`.
 
+During required-secret inspection, existing production secret values are never read back. Wrangler exposes only secret names. Existing omitted secrets remain preserved. The workflow supplies a value only when a required secret name is absent: `INGRESS_SECRET` comes from the protected app enqueue credential, while `INTERNAL_ORIGIN_SECRET` is generated with a fresh random production-only value. This behavior is confined to the authorized convergence branch of the workflow.
+
 Do not use Cloudflare Dashboard edits as a substitute for these workflow gates.
 
 ## Required post-convergence verification
 
-After the convergence run succeeds, manually dispatch `Media Worker Deploy` again from the same `main` commit with `allow_known_config_convergence` left at its default `false` value. The ordinary `--strict` upload must now pass.
+After the convergence run succeeds, manually dispatch `Media Worker Deploy` again from the same `main` commit with `allow_known_config_convergence` left at its default `false` value. The ordinary `--strict` upload must now pass without the incident-only secret seeding path.
 
-That strict-clean rerun is the proof that the exception is no longer required. If it fails, do not re-enable the convergence exception. Inspect the new strict diff and reconcile the remaining source of drift through a reviewed staging-first change.
+That strict-clean rerun is the proof that the exception is no longer required and that the required production secret names are now present for additive preservation. If it fails, do not re-enable the convergence exception. Inspect the new strict diff and reconcile the remaining source of drift through a reviewed staging-first change.
 
 The temporary `media.letsboulder.com` compatibility Custom Domain remains intentionally in place until a separate dependency audit proves that it can be removed safely.
