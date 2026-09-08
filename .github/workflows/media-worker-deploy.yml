@@ -8,6 +8,16 @@ on:
       - "apps/media-worker/**"
       - ".github/workflows/media-worker-deploy.yml"
   workflow_dispatch:
+    inputs:
+      allow_known_config_convergence:
+        description: "Incident-only: allow one non-strict production Worker version upload"
+        required: false
+        default: false
+        type: boolean
+      expected_main_sha:
+        description: "Required with convergence: exact main commit SHA being deployed"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -77,6 +87,30 @@ jobs:
           # binding. Mask it anyway so Wrangler diagnostics cannot echo it.
           echo "::add-mask::$SUPABASE_ANON_KEY"
 
+      - name: Authorize one-time production configuration convergence
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_known_config_convergence }}
+        env:
+          EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo '::error::Known production configuration convergence may run only from main.'
+            exit 1
+          fi
+
+          if [ -z "$EXPECTED_MAIN_SHA" ]; then
+            echo '::error::expected_main_sha is required when known configuration convergence is enabled.'
+            exit 1
+          fi
+
+          if [ "$EXPECTED_MAIN_SHA" != "$GITHUB_SHA" ]; then
+            echo "::error::expected_main_sha must exactly match the checked-out main commit ($GITHUB_SHA)."
+            exit 1
+          fi
+
+          echo '::warning::Incident-only production Worker configuration convergence is explicitly authorized for this exact main commit.'
+
       - name: Preview production route and cron reconciliation
         working-directory: apps/media-worker
         env:
@@ -89,7 +123,7 @@ jobs:
 
           npx --no-install wrangler triggers deploy --env production --dry-run
 
-      - name: Reconcile production routes and cron before strict version upload
+      - name: Reconcile production routes and cron before version upload
         working-directory: apps/media-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -100,10 +134,9 @@ jobs:
           export CLOUDFLARE_ACCOUNT_ID
 
           # versions upload does not apply routes/domains or cron. Reconcile
-          # those triggers first so the intentional Route -> Custom Domain
-          # migration is not rejected as unrelated remote drift by --strict.
-          # wrangler triggers deploy has no --strict option; the reviewed
-          # wrangler.toml remains the source of truth for this mutation.
+          # those triggers first so the reviewed Custom Domains and cron are
+          # present before either the normal strict upload or the incident-only
+          # configuration convergence upload.
           npx --no-install wrangler triggers deploy --env production
 
       - name: Reconcile production queue consumer
@@ -142,6 +175,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           WORKER_VERSION_TAG: github-${{ github.sha }}
+          ALLOW_KNOWN_CONFIG_CONVERGENCE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_known_config_convergence && 'true' || 'false' }}
         run: |
           set -euo pipefail
 
@@ -159,9 +193,15 @@ jobs:
           # declarations in wrangler.toml verify INGRESS_SECRET and
           # INTERNAL_ORIGIN_SECRET already exist without copying their values
           # into the GitHub Production environment.
+          strict_args=(--strict)
+          if [ "$ALLOW_KNOWN_CONFIG_CONVERGENCE" = "true" ]; then
+            strict_args=()
+            echo '::warning::Using the reviewed incident-only non-strict upload to converge known production Worker configuration drift.'
+          fi
+
           npx --no-install wrangler versions upload \
             --env production \
-            --strict \
+            "${strict_args[@]}" \
             --tag "$WORKER_VERSION_TAG" \
             --message "GitHub ${GITHUB_SHA}" \
             --var "SUPABASE_ANON_KEY:${SUPABASE_ANON_KEY}" \
@@ -197,6 +237,8 @@ jobs:
             --yes
 
       - name: Smoke test production media endpoint
+        env:
+          ALLOW_KNOWN_CONFIG_CONVERGENCE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_known_config_convergence && 'true' || 'false' }}
         run: |
           set -euo pipefail
 
@@ -207,3 +249,6 @@ jobs:
           fi
 
           echo 'Production media worker is reachable on the canonical Custom Domain and ingress auth is enforced.'
+          if [ "$ALLOW_KNOWN_CONFIG_CONVERGENCE" = "true" ]; then
+            echo 'Controlled production Worker configuration convergence completed; subsequent deployments must use the default strict upload path.'
+          fi
