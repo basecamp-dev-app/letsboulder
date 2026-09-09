@@ -3,16 +3,23 @@ import { describe, expect, it, vi } from 'vitest'
 
 import MapLibreStaticLocationMap from '@/components/map/MapLibreStaticLocationMap'
 
-vi.mock('maplibre-gl', () => ({
-  default: {
-    Map: class {
-      constructor() {
-        throw new Error('Failed to initialize WebGL')
-      }
+vi.mock('maplibre-gl', () => {
+  class MockMap {
+    constructor() {
+      throw new Error('Failed to initialize WebGL')
+    }
+  }
+  class MockMarker {}
+
+  return {
+    Map: MockMap,
+    Marker: MockMarker,
+    default: {
+      Map: MockMap,
+      Marker: MockMarker,
     },
-    Marker: class {},
-  },
-}))
+  }
+})
 
 describe('MapLibreStaticLocationMap capability failure', () => {
   it('reports WebGL absence without escaping the climb location region', async () => {
