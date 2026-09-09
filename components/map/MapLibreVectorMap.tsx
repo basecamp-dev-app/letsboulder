@@ -148,6 +148,7 @@ export default function MapLibreVectorMap({
 }: MapLibreVectorMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const baseStyleReadyRef = useRef(false)
   const readyRef = useRef(false)
   const clusterMoveRef = useRef(false)
   const onReadyRef = useRef(onReady)
@@ -225,6 +226,12 @@ export default function MapLibreVectorMap({
       initialViewportEmitted = true
       emitViewport()
     }
+    const markBaseStyleReady = () => {
+      if (baseStyleReadyRef.current) return
+      baseStyleReadyRef.current = true
+      if (focusOnReady) container.focus({ preventScroll: true })
+      onReadyRef.current?.()
+    }
     const emitViewportDebounced = () => {
       if (viewportTimer) clearTimeout(viewportTimer)
       viewportTimer = setTimeout(emitViewport, 250)
@@ -246,141 +253,144 @@ export default function MapLibreVectorMap({
 
     map.on('error', (event) => {
       const error = 'error' in event ? event.error : new Error('Map resource failed to load')
-      onFailureRef.current?.(classifyMapFailure(error, { resource: true, fatal: !readyRef.current }))
+      onFailureRef.current?.(classifyMapFailure(error, { resource: true, fatal: !baseStyleReadyRef.current }))
     })
 
-    // A loaded style is enough to know the initial camera bounds, so start the viewport
-    // query here without mutating the base style or declaring the map visually ready.
-    map.on('style.load', emitInitialViewport)
+    // Once the base style exists, the map can be shown and its initial camera queried.
+    // Keep letsboulder-owned source/layer mutations on full `load` so they cannot disturb
+    // MapLibre's first basemap render, but do not keep the loading shell over a usable map.
+    map.on('style.load', () => {
+      markBaseStyleReady()
+      emitInitialViewport()
+    })
 
     map.on('load', () => {
       try {
-      map.addSource('letsboulder-pins', { type: 'geojson', data: pinsGeoJsonRef.current })
-      map.addLayer({
-        id: 'letsboulder-pin-circles',
-        type: 'circle',
-        source: 'letsboulder-pins',
-        paint: {
-          'circle-radius': ['case', ['boolean', ['get', 'active'], false], 13, 11],
-          'circle-color': ['case', ['boolean', ['get', 'active'], false], '#d4a017', ['==', ['get', 'placeType'], 'gym'], '#2563eb', '#ef4444'],
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2,
-          'circle-opacity': ['case', ['==', ['get', 'tone'], 'published'], 0.75, 1],
-        },
-      })
-      map.addLayer({
-        id: 'letsboulder-pin-labels',
-        type: 'symbol',
-        source: 'letsboulder-pins',
-        layout: {
-          'text-field': ['to-string', ['get', 'label']],
-          'text-size': 11,
-          'text-font': ['Noto Sans Bold'],
-          'text-allow-overlap': true,
-        },
-        paint: { 'text-color': '#ffffff' },
-      })
-      map.addLayer({
-        id: 'letsboulder-pin-hit-targets',
-        type: 'circle',
-        source: 'letsboulder-pins',
-        paint: {
-          'circle-radius': 22,
-          'circle-color': '#ffffff',
-          'circle-opacity': 0,
-        },
-      })
+        map.addSource('letsboulder-pins', { type: 'geojson', data: pinsGeoJsonRef.current })
+        map.addLayer({
+          id: 'letsboulder-pin-circles',
+          type: 'circle',
+          source: 'letsboulder-pins',
+          paint: {
+            'circle-radius': ['case', ['boolean', ['get', 'active'], false], 13, 11],
+            'circle-color': ['case', ['boolean', ['get', 'active'], false], '#d4a017', ['==', ['get', 'placeType'], 'gym'], '#2563eb', '#ef4444'],
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 2,
+            'circle-opacity': ['case', ['==', ['get', 'tone'], 'published'], 0.75, 1],
+          },
+        })
+        map.addLayer({
+          id: 'letsboulder-pin-labels',
+          type: 'symbol',
+          source: 'letsboulder-pins',
+          layout: {
+            'text-field': ['to-string', ['get', 'label']],
+            'text-size': 11,
+            'text-font': ['Noto Sans Bold'],
+            'text-allow-overlap': true,
+          },
+          paint: { 'text-color': '#ffffff' },
+        })
+        map.addLayer({
+          id: 'letsboulder-pin-hit-targets',
+          type: 'circle',
+          source: 'letsboulder-pins',
+          paint: {
+            'circle-radius': 22,
+            'circle-color': '#ffffff',
+            'circle-opacity': 0,
+          },
+        })
 
-      map.addSource('letsboulder-clusters', { type: 'geojson', data: clustersGeoJsonRef.current || { type: 'FeatureCollection', features: [] } })
-      map.addLayer({
-        id: 'letsboulder-cluster-circles',
-        type: 'circle',
-        source: 'letsboulder-clusters',
-        paint: {
-          'circle-radius': 18,
-          'circle-color': '#111827',
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2,
-          'circle-opacity': 0.88,
-        },
-      })
-      map.addLayer({
-        id: 'letsboulder-cluster-hit-targets',
-        type: 'circle',
-        source: 'letsboulder-clusters',
-        paint: {
-          'circle-radius': 22,
-          'circle-color': '#ffffff',
-          'circle-opacity': 0,
-        },
-      })
-      map.addLayer({
-        id: 'letsboulder-cluster-labels',
-        type: 'symbol',
-        source: 'letsboulder-clusters',
-        layout: {
-          'text-field': ['to-string', ['get', 'pointCount']],
-          'text-size': 12,
-          'text-font': ['Noto Sans Bold'],
-          'text-allow-overlap': true,
-        },
-        paint: { 'text-color': '#ffffff' },
-      })
+        map.addSource('letsboulder-clusters', { type: 'geojson', data: clustersGeoJsonRef.current || { type: 'FeatureCollection', features: [] } })
+        map.addLayer({
+          id: 'letsboulder-cluster-circles',
+          type: 'circle',
+          source: 'letsboulder-clusters',
+          paint: {
+            'circle-radius': 18,
+            'circle-color': '#111827',
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 2,
+            'circle-opacity': 0.88,
+          },
+        })
+        map.addLayer({
+          id: 'letsboulder-cluster-hit-targets',
+          type: 'circle',
+          source: 'letsboulder-clusters',
+          paint: {
+            'circle-radius': 22,
+            'circle-color': '#ffffff',
+            'circle-opacity': 0,
+          },
+        })
+        map.addLayer({
+          id: 'letsboulder-cluster-labels',
+          type: 'symbol',
+          source: 'letsboulder-clusters',
+          layout: {
+            'text-field': ['to-string', ['get', 'pointCount']],
+            'text-size': 12,
+            'text-font': ['Noto Sans Bold'],
+            'text-allow-overlap': true,
+          },
+          paint: { 'text-color': '#ffffff' },
+        })
 
-      map.addSource('letsboulder-user-location', { type: 'geojson', data: userLocationGeoJsonRef.current })
-      map.addLayer({
-        id: 'letsboulder-user-location-halo',
-        type: 'circle',
-        source: 'letsboulder-user-location',
-        paint: {
-          'circle-radius': 13,
-          'circle-color': '#2563eb',
-          'circle-opacity': 0.18,
-        },
-      })
-      map.addLayer({
-        id: 'letsboulder-user-location-dot',
-        type: 'circle',
-        source: 'letsboulder-user-location',
-        paint: {
-          'circle-radius': 6,
-          'circle-color': '#2563eb',
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2,
-        },
-      })
+        map.addSource('letsboulder-user-location', { type: 'geojson', data: userLocationGeoJsonRef.current })
+        map.addLayer({
+          id: 'letsboulder-user-location-halo',
+          type: 'circle',
+          source: 'letsboulder-user-location',
+          paint: {
+            'circle-radius': 13,
+            'circle-color': '#2563eb',
+            'circle-opacity': 0.18,
+          },
+        })
+        map.addLayer({
+          id: 'letsboulder-user-location-dot',
+          type: 'circle',
+          source: 'letsboulder-user-location',
+          paint: {
+            'circle-radius': 6,
+            'circle-color': '#2563eb',
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 2,
+          },
+        })
 
-      map.on('click', 'letsboulder-pin-hit-targets', (event) => {
-        const feature = event.features?.[0]
-        const properties = feature?.properties
-        if (!properties || properties.interactive === false) return
-        const selectId = typeof properties.selectId === 'string' ? properties.selectId : properties.id
-        if (typeof selectId === 'string') onPinSelectRef.current?.(selectId)
-      })
-      map.on('click', 'letsboulder-cluster-hit-targets', (event) => {
-        const feature = event.features?.[0]
-        const properties = feature?.properties
-        if (!feature || !properties || feature.geometry.type !== 'Point') return
+        map.on('click', 'letsboulder-pin-hit-targets', (event) => {
+          const feature = event.features?.[0]
+          const properties = feature?.properties
+          if (!properties || properties.interactive === false) return
+          const selectId = typeof properties.selectId === 'string' ? properties.selectId : properties.id
+          if (typeof selectId === 'string') onPinSelectRef.current?.(selectId)
+        })
+        map.on('click', 'letsboulder-cluster-hit-targets', (event) => {
+          const feature = event.features?.[0]
+          const properties = feature?.properties
+          if (!feature || !properties || feature.geometry.type !== 'Point') return
 
-        const bounds = parseClusterBounds(properties as Record<string, unknown>)
-        if (!bounds) return
+          const bounds = parseClusterBounds(properties as Record<string, unknown>)
+          if (!bounds) return
 
-        const queryZoom = getClusterQueryZoom(map, bounds, maxZoom)
-        clusterMoveRef.current = true
-        cancelPendingViewport()
-        onClusterSelectRef.current?.({ bounds, queryZoom })
-        fitMapToClusterBounds(map, bounds, maxZoom)
-      })
-      map.on('mouseenter', 'letsboulder-pin-hit-targets', () => { map.getCanvas().style.cursor = 'pointer' })
-      map.on('mouseleave', 'letsboulder-pin-hit-targets', () => { map.getCanvas().style.cursor = '' })
-      map.on('mouseenter', 'letsboulder-cluster-hit-targets', () => { map.getCanvas().style.cursor = 'pointer' })
-      map.on('mouseleave', 'letsboulder-cluster-hit-targets', () => { map.getCanvas().style.cursor = '' })
+          const queryZoom = getClusterQueryZoom(map, bounds, maxZoom)
+          clusterMoveRef.current = true
+          cancelPendingViewport()
+          onClusterSelectRef.current?.({ bounds, queryZoom })
+          fitMapToClusterBounds(map, bounds, maxZoom)
+        })
+        map.on('mouseenter', 'letsboulder-pin-hit-targets', () => { map.getCanvas().style.cursor = 'pointer' })
+        map.on('mouseleave', 'letsboulder-pin-hit-targets', () => { map.getCanvas().style.cursor = '' })
+        map.on('mouseenter', 'letsboulder-cluster-hit-targets', () => { map.getCanvas().style.cursor = 'pointer' })
+        map.on('mouseleave', 'letsboulder-cluster-hit-targets', () => { map.getCanvas().style.cursor = '' })
 
-      readyRef.current = true
-      if (fitBoundsRef.current) fitMapToBounds(map, fitBoundsRef.current, maxZoom)
-      emitInitialViewport()
-      if (focusOnReady) container.focus({ preventScroll: true })
-      onReadyRef.current?.()
+        readyRef.current = true
+        if (fitBoundsRef.current) fitMapToBounds(map, fitBoundsRef.current, maxZoom)
+        markBaseStyleReady()
+        emitInitialViewport()
       } catch (error) {
         onFailureRef.current?.(classifyMapFailure(error))
       }
@@ -388,6 +398,7 @@ export default function MapLibreVectorMap({
 
     return () => {
       if (viewportTimer) clearTimeout(viewportTimer)
+      baseStyleReadyRef.current = false
       readyRef.current = false
       map.remove()
       mapRef.current = null
