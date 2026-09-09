@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
-import maplibregl, { type Map as MapLibreMap, type Marker } from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
+import type { Map as MapLibreMap, Marker } from 'maplibre-gl'
 
 import { buildMapLibreStyle } from '@/lib/map/maplibre-style'
 import { getVectorMapConfig } from '@/lib/map/vector-map-config'
@@ -100,7 +101,7 @@ export default function MapLibreLocationPicker({
       markerRef.current = new maplibregl.Marker({ element: createMarkerElement(), draggable: true })
         .setLngLat(lngLat)
         .addTo(map)
-      markerRef.current.on('dragend', () => {
+      markerRef.current!.on('dragend', () => {
         const next = markerRef.current?.getLngLat()
         if (next) onChangeRef.current({ latitude: next.lat, longitude: next.lng })
       })
