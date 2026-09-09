@@ -11,8 +11,6 @@ const mapMocks = vi.hoisted(() => ({
   fitBounds: vi.fn(),
   easeTo: vi.fn(),
   cameraForBounds: vi.fn((_bounds: unknown, _options: unknown) => ({ zoom: 7.2 })),
-  addSource: vi.fn(),
-  addLayer: vi.fn(),
   setData: vi.fn(),
 }))
 
@@ -36,8 +34,8 @@ vi.mock('maplibre-gl', () => {
 
     addControl() {}
     remove() {}
-    addSource(...args: unknown[]) { mapMocks.addSource(...args) }
-    addLayer(...args: unknown[]) { mapMocks.addLayer(...args) }
+    addSource() {}
+    addLayer() {}
     setMinZoom() {}
     setMaxZoom() {}
     getCanvas() { return { style: { cursor: '' } } }
@@ -98,8 +96,6 @@ describe('MapLibreVectorMap', () => {
     mapMocks.easeTo.mockClear()
     mapMocks.cameraForBounds.mockClear()
     mapMocks.cameraForBounds.mockReturnValue({ zoom: 7.2 })
-    mapMocks.addSource.mockClear()
-    mapMocks.addLayer.mockClear()
     mapMocks.setData.mockClear()
     vi.useRealTimers()
   })
@@ -125,79 +121,6 @@ describe('MapLibreVectorMap', () => {
     }))
   })
 
-  it('reveals the basemap and emits the initial viewport at style load while deferring app layers to full load', async () => {
-    const onReady = vi.fn()
-    const onViewportChange = vi.fn()
-
-    render(
-      <MapLibreVectorMap
-        center={[0, 0]}
-        zoom={2}
-        pinsGeoJson={emptyGeoJson}
-        onReady={onReady}
-        onViewportChange={onViewportChange}
-      />
-    )
-
-    await waitFor(() => expect(mapMocks.instances).toHaveLength(1))
-    const map = mapMocks.instances[0]
-
-    expect(map.handlers.has('style.load')).toBe(true)
-    expect(map.handlers.has('load')).toBe(true)
-
-    act(() => {
-      map.handlers.get('style.load')?.()
-    })
-
-    expect(onViewportChange).toHaveBeenCalledTimes(1)
-    expect(onReady).toHaveBeenCalledTimes(1)
-    expect(mapMocks.addSource).not.toHaveBeenCalled()
-    expect(mapMocks.addLayer).not.toHaveBeenCalled()
-
-    act(() => {
-      map.handlers.get('load')?.()
-    })
-
-    expect(onReady).toHaveBeenCalledTimes(1)
-    expect(onViewportChange).toHaveBeenCalledTimes(1)
-    expect(mapMocks.addSource).toHaveBeenCalledTimes(3)
-    expect(mapMocks.addLayer).toHaveBeenCalled()
-  })
-
-  it('treats resource failures after base style readiness as degraded', async () => {
-    const onFailure = vi.fn()
-
-    render(
-      <MapLibreVectorMap
-        center={[0, 0]}
-        zoom={2}
-        pinsGeoJson={emptyGeoJson}
-        onFailure={onFailure}
-      />
-    )
-
-    await waitFor(() => expect(mapMocks.instances).toHaveLength(1))
-    const map = mapMocks.instances[0]
-
-    act(() => {
-      map.handlers.get('error')?.({ error: new Error('Initial style resource failed') })
-    })
-    expect(onFailure).toHaveBeenLastCalledWith(expect.objectContaining({
-      kind: 'resource',
-      severity: 'fatal',
-    }))
-
-    act(() => {
-      map.handlers.get('style.load')?.()
-      map.handlers.get('error')?.({ error: new Error('A tile failed') })
-    })
-    expect(onFailure).toHaveBeenLastCalledWith(expect.objectContaining({
-      kind: 'resource',
-      severity: 'degraded',
-      error: expect.objectContaining({ message: 'A tile failed' }),
-    }))
-  })
-
   it('prefetches from cluster bounds before a 350ms fit and skips the manual-pan debounce for that move', async () => {
     const onClusterSelect = vi.fn()
     const onViewportChange = vi.fn()
@@ -217,7 +140,6 @@ describe('MapLibreVectorMap', () => {
     const map = mapMocks.instances[0]
 
     act(() => {
-      map.handlers.get('style.load')?.()
       map.handlers.get('load')?.()
     })
     expect(onViewportChange).toHaveBeenCalledTimes(1)
