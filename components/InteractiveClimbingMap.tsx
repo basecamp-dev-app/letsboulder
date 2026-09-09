@@ -16,6 +16,7 @@ import { buildPinFeatures, type PinFeature, type PlacePin, type ViewportPinClust
 const WORLD_DEFAULT_CENTER: [number, number] = [0, 20]
 const WORLD_DEFAULT_ZOOM = 2
 const WORLD_VIEWPORT = normalizePaddedViewport({ west: -180, south: -85, east: 180, north: 85 }, WORLD_DEFAULT_ZOOM)
+const PIN_QUERY_FALLBACK_DELAY_MS = 1500
 
 function buildPlaceHref(place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | 'type'>) {
   if (place.type === 'gym') return null
@@ -123,6 +124,16 @@ export default function InteractiveClimbingMap({
       window.removeEventListener('offline', updateOnlineStatus)
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isOffline || viewport !== null) return
+
+    const fallbackTimer = window.setTimeout(() => {
+      setViewport((current) => current ?? WORLD_VIEWPORT)
+    }, PIN_QUERY_FALLBACK_DELAY_MS)
+
+    return () => window.clearTimeout(fallbackTimer)
+  }, [isOffline, viewport])
 
   const placesById = useMemo(() => new Map(placePins.map((place) => [place.id, place])), [placePins])
   const accessiblePlaceLimit = clusters.length > 0 ? 10 : 20
