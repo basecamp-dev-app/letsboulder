@@ -121,7 +121,7 @@ describe('MapLibreVectorMap', () => {
     }))
   })
 
-  it('becomes app-ready when the style loads without waiting for the full map load event', async () => {
+  it('emits the initial viewport at style load but waits for full load before declaring readiness', async () => {
     const onReady = vi.fn()
     const onViewportChange = vi.fn()
 
@@ -139,11 +139,17 @@ describe('MapLibreVectorMap', () => {
     const map = mapMocks.instances[0]
 
     expect(map.handlers.has('style.load')).toBe(true)
-    expect(map.handlers.has('load')).toBe(false)
-    expect(onReady).not.toHaveBeenCalled()
+    expect(map.handlers.has('load')).toBe(true)
 
     act(() => {
       map.handlers.get('style.load')?.()
+    })
+
+    expect(onViewportChange).toHaveBeenCalledTimes(1)
+    expect(onReady).not.toHaveBeenCalled()
+
+    act(() => {
+      map.handlers.get('load')?.()
     })
 
     expect(onReady).toHaveBeenCalledTimes(1)
@@ -170,6 +176,7 @@ describe('MapLibreVectorMap', () => {
 
     act(() => {
       map.handlers.get('style.load')?.()
+      map.handlers.get('load')?.()
     })
     expect(onViewportChange).toHaveBeenCalledTimes(1)
 
