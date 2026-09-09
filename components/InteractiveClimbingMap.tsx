@@ -67,7 +67,6 @@ export default function InteractiveClimbingMap({
 }) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const [mapLoaded, setMapLoaded] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [viewport, setViewport] = useState<MapViewportQuery | null>(null)
   const [selectedPlace, setSelectedPlace] = useState<PlacePin | null>(null)
@@ -75,7 +74,7 @@ export default function InteractiveClimbingMap({
 
   const pinsQuery = useQuery({
     ...mapPinsQueryOptions(viewport ?? WORLD_VIEWPORT),
-    enabled: mapLoaded && viewport !== null && !isOffline,
+    enabled: viewport !== null && !isOffline,
   })
   const onlineFeatures = pinsQuery.data?.features
   const { placePins, clusters } = useMemo(() => {
@@ -185,10 +184,7 @@ export default function InteractiveClimbingMap({
         userLocation={userLocation}
         offline={isOffline}
         className="h-full w-full"
-        onReady={() => {
-          setMapLoaded(true)
-          onReady?.()
-        }}
+        onReady={onReady}
         onViewportChange={handleMapStateChange}
         onClusterSelect={handleClusterSelect}
         onPinSelect={(id) => {
