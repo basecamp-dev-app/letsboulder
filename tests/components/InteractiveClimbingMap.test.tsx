@@ -121,6 +121,21 @@ describe('InteractiveClimbingMap destinations', () => {
     )
   })
 
+  it('starts the viewport pin query before the map declares visual readiness', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ pins: [] })))
+    vi.stubGlobal('fetch', fetchMock)
+    renderMap(<InteractiveClimbingMap />)
+
+    await user.click(screen.getByRole('button', { name: 'Move viewport' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/crags/pins?'),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
   it('preserves previous pins without showing the global spinner during a viewport refetch', async () => {
     const user = userEvent.setup()
     const firstPin = viewportPin(places[1])

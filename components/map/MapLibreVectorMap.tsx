@@ -216,8 +216,14 @@ export default function MapLibreVectorMap({
     }
 
     let viewportTimer: ReturnType<typeof setTimeout> | null = null
+    let initialViewportEmitted = false
     const emitViewport = () => {
       onViewportChangeRef.current?.({ zoom: map.getZoom(), bounds: getBoundsState(map) })
+    }
+    const emitInitialViewport = () => {
+      if (initialViewportEmitted) return
+      initialViewportEmitted = true
+      emitViewport()
     }
     const emitViewportDebounced = () => {
       if (viewportTimer) clearTimeout(viewportTimer)
@@ -243,9 +249,11 @@ export default function MapLibreVectorMap({
       onFailureRef.current?.(classifyMapFailure(error, { resource: true, fatal: !readyRef.current }))
     })
 
-    // App-owned GeoJSON layers only need the base style to exist. Waiting for MapLibre's
-    // full `load` event couples pin queries to completion of unrelated first-render resources.
-    map.on('style.load', () => {
+    // A loaded style is enough to know the initial camera bounds, so start the viewport
+    // query here without mutating the base style or declaring the map visually ready.
+    map.on('style.load', emitInitialViewport)
+
+    map.on('load', () => {
       try {
       map.addSource('letsboulder-pins', { type: 'geojson', data: pinsGeoJsonRef.current })
       map.addLayer({
@@ -370,7 +378,7 @@ export default function MapLibreVectorMap({
 
       readyRef.current = true
       if (fitBoundsRef.current) fitMapToBounds(map, fitBoundsRef.current, maxZoom)
-      emitViewport()
+      emitInitialViewport()
       if (focusOnReady) container.focus({ preventScroll: true })
       onReadyRef.current?.()
       } catch (error) {
