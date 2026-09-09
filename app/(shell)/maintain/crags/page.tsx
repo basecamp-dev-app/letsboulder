@@ -24,6 +24,7 @@ export default async function MaintainCragsPage({ searchParams }: MaintainCragsP
       .from('crag_maintainers')
       .select('crag_id, crags!inner(id, name, region_name, sub_area)')
       .eq('user_id', user.id)
+      .is('crags.deleted_at', null)
       .order('created_at'),
   ])
 
