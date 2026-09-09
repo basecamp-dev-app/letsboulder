@@ -11,7 +11,11 @@ Small fixes are welcome. For larger changes, open an issue or start a discussion
 - Merge only after CI passes, then verify the resulting deployment at
   `https://staging.letsboulder.com` using the checks appropriate to the change.
 - Promote a verified release with a pull request from `staging` to `main`.
-  Merging that promotion deploys the application to production through Vercel.
+  Merging that promotion starts the guarded **Production Release** flow after the
+  required `main` checks complete. Code-only releases deploy automatically once
+  the workflow proves there are no pending production migrations. Releases with
+  pending migrations stop before Vercel until the protected migration apply path
+  completes for the exact current `main` SHA.
 - Database, media infrastructure, and other protected production operations keep
   their additional environment approvals and workflow-specific validation gates.
 - Keep changes focused when possible; discuss larger refactors or product changes first.
@@ -80,7 +84,7 @@ Use the smallest relevant checks during development, then run the complete quali
 - Never edit Supabase dashboard directly
 - Reset local Supabase and run `npm run test:database` for migrations, RLS, triggers, and RPC changes
 - Regenerate types with `npx --no-install supabase gen types typescript --local > types/database.ts`
-- Hosted pushes are maintainer-only; pushes to `main` trigger a production dry-run and never apply migrations. Applying requires manually dispatching the `Supabase Migrations` workflow with the current `main` commit SHA; the workflow validates that SHA again immediately before applying. For local pushes, verify the linked project and run `npx --no-install supabase db push --linked --dry-run` first
+- Hosted production changes are maintainer-only. After a verified `staging → main` promotion and successful release checks, the **Production Release** workflow validates the exact current `main` SHA, the production Supabase target, and a migration dry-run. If the remote migration history is current, the code-only application release continues automatically. If migrations are pending or cannot be proven current, the automatic run stops before Vercel. A maintainer must manually dispatch **Production Release** with the exact current `main` SHA; the protected workflow repeats the dry-run, rechecks `main`, applies and verifies the migrations, and only then triggers the production application deploy. For local hosted diagnostics, verify the linked project and run `npx --no-install supabase db push --linked --dry-run` before any push.
 
 ## PR Verification Checklist
 

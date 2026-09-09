@@ -68,11 +68,17 @@ vi.mock('maplibre-gl', () => {
     }
   }
 
+  class MockAttributionControl {}
+  class MockNavigationControl {}
+
   return {
+    Map: MockMap,
+    AttributionControl: MockAttributionControl,
+    NavigationControl: MockNavigationControl,
     default: {
       Map: MockMap,
-      AttributionControl: class {},
-      NavigationControl: class {},
+      AttributionControl: MockAttributionControl,
+      NavigationControl: MockNavigationControl,
     },
   }
 })

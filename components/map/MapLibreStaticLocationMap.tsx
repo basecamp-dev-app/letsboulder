@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
-import maplibregl, { type Map as MapLibreMap, type Marker } from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
+import type { Map as MapLibreMap, Marker } from 'maplibre-gl'
 
 import { buildMapLibreStyle } from '@/lib/map/maplibre-style'
 import { classifyMapFailure, type MapFailure } from '@/lib/map/map-failure'
