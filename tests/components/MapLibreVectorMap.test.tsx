@@ -121,6 +121,35 @@ describe('MapLibreVectorMap', () => {
     }))
   })
 
+  it('becomes app-ready when the style loads without waiting for the full map load event', async () => {
+    const onReady = vi.fn()
+    const onViewportChange = vi.fn()
+
+    render(
+      <MapLibreVectorMap
+        center={[0, 0]}
+        zoom={2}
+        pinsGeoJson={emptyGeoJson}
+        onReady={onReady}
+        onViewportChange={onViewportChange}
+      />
+    )
+
+    await waitFor(() => expect(mapMocks.instances).toHaveLength(1))
+    const map = mapMocks.instances[0]
+
+    expect(map.handlers.has('style.load')).toBe(true)
+    expect(map.handlers.has('load')).toBe(false)
+    expect(onReady).not.toHaveBeenCalled()
+
+    act(() => {
+      map.handlers.get('style.load')?.()
+    })
+
+    expect(onReady).toHaveBeenCalledTimes(1)
+    expect(onViewportChange).toHaveBeenCalledTimes(1)
+  })
+
   it('prefetches from cluster bounds before a 350ms fit and skips the manual-pan debounce for that move', async () => {
     const onClusterSelect = vi.fn()
     const onViewportChange = vi.fn()
@@ -140,7 +169,7 @@ describe('MapLibreVectorMap', () => {
     const map = mapMocks.instances[0]
 
     act(() => {
-      map.handlers.get('load')?.()
+      map.handlers.get('style.load')?.()
     })
     expect(onViewportChange).toHaveBeenCalledTimes(1)
 

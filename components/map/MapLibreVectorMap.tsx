@@ -243,7 +243,9 @@ export default function MapLibreVectorMap({
       onFailureRef.current?.(classifyMapFailure(error, { resource: true, fatal: !readyRef.current }))
     })
 
-    map.on('load', () => {
+    // App-owned GeoJSON layers only need the base style to exist. Waiting for MapLibre's
+    // full `load` event couples pin queries to completion of unrelated first-render resources.
+    map.on('style.load', () => {
       try {
       map.addSource('letsboulder-pins', { type: 'geojson', data: pinsGeoJsonRef.current })
       map.addLayer({
