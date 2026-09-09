@@ -10,13 +10,16 @@ vi.mock('maplibre-gl', () => {
     }
   }
   class MockMarker {}
+  const setWorkerUrl = vi.fn()
 
   return {
     Map: MockMap,
     Marker: MockMarker,
+    setWorkerUrl,
     default: {
       Map: MockMap,
       Marker: MockMarker,
+      setWorkerUrl,
     },
   }
 })

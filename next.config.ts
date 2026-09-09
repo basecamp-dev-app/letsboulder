@@ -1,6 +1,7 @@
 import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 
+import './scripts/copy-maplibre-worker.mjs'
 import { getContentSecurityPolicy } from './lib/content-security-policy'
 
 function getMediaCdnRemotePattern(): URL | null {

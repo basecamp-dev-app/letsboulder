@@ -12,6 +12,7 @@ const mapMocks = vi.hoisted(() => ({
   easeTo: vi.fn(),
   cameraForBounds: vi.fn((_bounds: unknown, _options: unknown) => ({ zoom: 7.2 })),
   setData: vi.fn(),
+  setWorkerUrl: vi.fn(),
 }))
 
 vi.mock('maplibre-gl', () => {
@@ -75,10 +76,12 @@ vi.mock('maplibre-gl', () => {
     Map: MockMap,
     AttributionControl: MockAttributionControl,
     NavigationControl: MockNavigationControl,
+    setWorkerUrl: mapMocks.setWorkerUrl,
     default: {
       Map: MockMap,
       AttributionControl: MockAttributionControl,
       NavigationControl: MockNavigationControl,
+      setWorkerUrl: mapMocks.setWorkerUrl,
     },
   }
 })
@@ -97,6 +100,7 @@ describe('MapLibreVectorMap', () => {
     mapMocks.cameraForBounds.mockClear()
     mapMocks.cameraForBounds.mockReturnValue({ zoom: 7.2 })
     mapMocks.setData.mockClear()
+    mapMocks.setWorkerUrl.mockClear()
     vi.useRealTimers()
   })
 
@@ -114,6 +118,7 @@ describe('MapLibreVectorMap', () => {
     )).not.toThrow()
 
     await waitFor(() => expect(onFailure).toHaveBeenCalledTimes(1))
+    expect(mapMocks.setWorkerUrl).toHaveBeenCalledWith('/maplibre/maplibre-gl-worker.mjs')
     expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'webgl-unavailable',
       severity: 'fatal',
@@ -138,6 +143,8 @@ describe('MapLibreVectorMap', () => {
 
     await waitFor(() => expect(mapMocks.instances).toHaveLength(1))
     const map = mapMocks.instances[0]
+
+    expect(mapMocks.setWorkerUrl).toHaveBeenCalledWith('/maplibre/maplibre-gl-worker.mjs')
 
     act(() => {
       map.handlers.get('load')?.()
