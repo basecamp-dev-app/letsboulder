@@ -62,3 +62,7 @@ proxy.out.json
 
 # Supabase local development
 supabase/.temp/
+
+# Generated offline build assets
+/public/maplibre/
+/public/sw-build-version.js

@@ -12,7 +12,7 @@ on:
         type: string
 
 permissions:
-  checks: read
+  actions: read
   contents: read
   pull-requests: read
 
@@ -106,67 +106,7 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          required_checks=(
-            'Quality Checks'
-            'Generated Database Type Drift'
-            'Next.js Build'
-            'Unit Tests'
-            'Component Tests'
-            'Offline Reliability'
-            'Media Worker Check'
-            'Dependency audits'
-          )
-
-          for attempt in $(seq 1 80); do
-            RESPONSE="$RUNNER_TEMP/check-runs.json"
-            curl --fail-with-body --silent --show-error \
-              --header "Authorization: Bearer $GITHUB_TOKEN" \
-              --header 'Accept: application/vnd.github+json' \
-              --header 'X-GitHub-Api-Version: 2022-11-28' \
-              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/commits/$SELECTED_COMMIT_SHA/check-runs?per_page=100" \
-              --output "$RESPONSE"
-
-            waiting=false
-            for check_name in "${required_checks[@]}"; do
-              CHECK=$(
-                jq -c \
-                  --arg name "$check_name" \
-                  '[.check_runs[] | select(.name == $name)] | sort_by(.started_at // .created_at) | last // empty' \
-                  "$RESPONSE"
-              )
-
-              if [ -z "$CHECK" ]; then
-                echo "Waiting for required check: $check_name"
-                waiting=true
-                continue
-              fi
-
-              STATUS=$(jq -r '.status' <<<"$CHECK")
-              CONCLUSION=$(jq -r '.conclusion // empty' <<<"$CHECK")
-              if [ "$STATUS" != 'completed' ]; then
-                echo "Waiting for required check: $check_name ($STATUS)"
-                waiting=true
-                continue
-              fi
-
-              if [ "$CONCLUSION" != 'success' ]; then
-                echo "::error::Required release check failed: $check_name ($CONCLUSION)."
-                exit 1
-              fi
-            done
-
-            if [ "$waiting" = false ]; then
-              echo 'All mandatory release checks passed for the selected main SHA.'
-              exit 0
-            fi
-
-            sleep 15
-          done
-
-          echo '::error::Timed out waiting for mandatory release checks.'
-          exit 1
+        run: npx --no-install tsx scripts/release/verify-checks.ts
 
       - name: Validate production credentials and target
         shell: bash
