@@ -34,8 +34,11 @@ describe('production release workflow', () => {
       'Media Worker Check',
       'Dependency audits',
     ]) {
-      expect(content).toContain(`'${check}'`)
+      expect(readFileSync(path.join(root, 'scripts/release/verify-checks.ts'), 'utf8')).toContain(`'${check}'`)
     }
+
+    expect(content).toContain('actions: read')
+    expect(content).toContain('npx --no-install tsx scripts/release/verify-checks.ts')
 
     const checkGate = content.indexOf(
       '      - name: Verify mandatory release checks for selected main SHA',

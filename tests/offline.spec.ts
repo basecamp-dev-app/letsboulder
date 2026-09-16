@@ -363,7 +363,21 @@ test.describe('mandatory offline reliability harness', () => {
       if (!response.ok) throw new Error(`Unable to restart service worker: ${response.status}`)
     })
     await restarted
+    await session.send('Network.clearBrowserCache')
     await context.setOffline(true)
+
+    // Boot the real module worker after clearing the HTTP cache: both its entry
+    // point and its relative shared-module import must come from CacheStorage.
+    const workerReady = await page.evaluate(() => new Promise<string>((resolve, reject) => {
+      const entry = new URL('/maplibre/maplibre-gl-worker.mjs', location.origin).href
+      const url = URL.createObjectURL(new Blob([`import ${JSON.stringify(entry)}; postMessage('ready')`], { type: 'text/javascript' }))
+      const worker = new Worker(url, { type: 'module' })
+      const cleanup = () => { worker.terminate(); URL.revokeObjectURL(url); clearTimeout(timer) }
+      const timer = setTimeout(() => { cleanup(); reject(new Error('Offline MapLibre worker did not start')) }, 10_000)
+      worker.onmessage = (event) => { cleanup(); resolve(String(event.data)) }
+      worker.onerror = (event) => { cleanup(); reject(new Error(event.message)) }
+    }))
+    expect(workerReady).toBe('ready')
 
     await page.goto(`/offline/crag?id=${CRAG_ID}`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('heading', { name: 'Signal Lost Cove' })).toBeVisible()

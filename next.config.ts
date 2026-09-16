@@ -84,6 +84,10 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/sw-build-version.js',
+        headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }],
+      },
+      {
         source: '/sw-build-assets.json',
         headers: [
           {
