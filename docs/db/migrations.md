@@ -84,7 +84,13 @@ Commit the migration and regenerated `types/database.ts` together.
 
 ## Hosted Deployment (Maintainers Only)
 
-Linked commands are not part of the contributor workflow. Pushes to `main` run the production validation and dry-run automatically; they never apply migrations. To apply a reviewed migration, a maintainer must manually run the **Supabase Migrations** workflow from GitHub and enter the current `main` commit SHA in `commit_sha`. The workflow rejects malformed, stale, or non-`main` SHAs, repeats the dry-run, rechecks that `main` did not move, and applies only after that check succeeds. The workflow's Production environment approval remains part of the manual apply step.
+Linked commands are not part of the contributor workflow. Production application release authority lives in the **Production Release** workflow (`.github/workflows/supabase-migrations.yml`). A verified `staging → main` promotion must first pass the mandatory release checks for the exact current `main` SHA. Production Release validates the protected production Supabase target and runs `npx --no-install supabase db push --linked --include-all --dry-run` before any application deployment.
+
+For a code-only release, the automatic run proves that the hosted migration history is already current, rechecks that the selected commit is still current `main`, and then triggers the production Vercel hook. No maintainer needs to start a separate migration workflow for that release.
+
+If the dry-run reports pending or otherwise unverified production migrations, the automatic run stops before Vercel and does not apply anything. A maintainer must manually dispatch **Production Release** and enter the exact current `main` commit SHA in `commit_sha`. The protected workflow rejects malformed, stale, non-`main`, or non-`staging → main` release commits; repeats the mandatory release checks and production target validation; repeats the dry-run; rechecks `main`; applies the pending migrations; proves migration bookkeeping is complete; verifies the production governance schema and roles; rechecks `main` again; and only then triggers the same production Vercel deploy hook. The `Production` GitHub environment remains the credential and approval boundary for both code-only release validation/deployment and migration application.
+
+The workflow serializes production releases with one concurrency group, and the repository has only one production Vercel hook trigger. Do not start a competing production apply/deploy path. After Vercel reports a successful Production deployment for `main`, the existing `deployment_status` CI path runs the production browser smoke tests; manually dispatched migration releases also run the database-read and public Playwright smoke checks in the release workflow.
 
 For local maintainer operations, deliberately select the intended project, review the dry-run, and then push:
 
@@ -94,7 +100,7 @@ npx --no-install supabase db push --linked --dry-run
 npx --no-install supabase db push --linked
 ```
 
-The GitHub workflow serializes production migration runs. Do not start a second apply while one is queued or running, and never print or paste the database password or access token into logs or issue comments.
+Do not start a second production migration apply while one is queued or running, and never print or paste the database password or access token into logs or issue comments.
 
 ## If `db push` Fails With "Remote migration versions not found"
 

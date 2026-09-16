@@ -2,6 +2,8 @@
 // and static assets under letsboulder-next-static-{build-manifest.version}.
 // Responsible for offline shell precaching, navigation fallback, Next static
 // asset caching, immutable packed-media caching, cache retirement, and updates.
+importScripts('/sw-build-version.js')
+const MAPLIBRE_ASSETS = ['/maplibre/maplibre-gl-worker.mjs', '/maplibre/maplibre-gl-shared.mjs']
 const SHELL_CACHE = 'letsboulder-offline-shell-v4'
 const STATIC_CACHE_PREFIX = 'letsboulder-next-static-'
 const PACKED_MEDIA_CACHE = 'letsboulder-offline-immutable-v1'
@@ -25,30 +27,30 @@ const RETIRED_CACHE_NAMES = new Set([
   'letsboulder-offline-shell-v3',
   'letsboulder-next-static-v1',
 ])
-let staticCacheName
-
-async function getStaticCacheName({ refresh = false } = {}) {
-  if (staticCacheName && !refresh) return staticCacheName
-
-  const shellCache = await caches.open(SHELL_CACHE)
-  let response = refresh ? undefined : await shellCache.match(BUILD_ASSET_MANIFEST_URL)
-  if (!response) {
-    response = await fetch(BUILD_ASSET_MANIFEST_URL, { cache: 'no-store' })
-    if (response.ok) await shellCache.put(BUILD_ASSET_MANIFEST_URL, response.clone())
-  }
-  if (!response.ok) throw new Error('Unable to load the service worker build manifest')
-  const manifest = await response.json()
-  if (typeof manifest.version !== 'string' || manifest.version.length === 0) {
-    throw new Error('Service worker build manifest has no version')
-  }
-
-  staticCacheName = `${STATIC_CACHE_PREFIX}${manifest.version}`
-  return staticCacheName
+// The imported build version survives worker restarts and is isolated from a
+// newer worker installing alongside this one. Never discover it in a shared cache.
+async function getStaticCacheName() {
+  const version = self.__LETSBOULDER_BUILD_VERSION
+  if (typeof version !== 'string' || version.length === 0) throw new Error('Missing service worker build version')
+  return `${STATIC_CACHE_PREFIX}${version}`
 }
 
 async function cacheShell() {
   const shellCache = await caches.open(SHELL_CACHE)
-  const staticCache = await caches.open(await getStaticCacheName({ refresh: true }))
+  const staticCache = await caches.open(await getStaticCacheName())
+  const manifestResponse = await fetch(BUILD_ASSET_MANIFEST_URL, { cache: 'no-store' })
+  if (!manifestResponse.ok) throw new Error('Unable to load the service worker build manifest')
+  const manifest = await manifestResponse.clone().json()
+  if (manifest.version !== self.__LETSBOULDER_BUILD_VERSION
+    || !MAPLIBRE_ASSETS.every((asset) => manifest.assets?.includes(asset))) {
+    throw new Error('Service worker build manifest does not match this release')
+  }
+  await Promise.all(MAPLIBRE_ASSETS.map(async (asset) => {
+    const response = await fetch(asset, { cache: 'no-store' })
+    if (!response.ok) throw new Error(`Unable to cache MapLibre asset: ${asset}`)
+    await staticCache.put(asset, response)
+  }))
+  await shellCache.put(BUILD_ASSET_MANIFEST_URL, manifestResponse)
 
   await Promise.all(SHELL_PATHS.map(async (path) => {
     const response = await fetch(path)
@@ -77,6 +79,16 @@ async function cacheFirstStatic(request) {
   if (cached) return cached
 
   const response = await fetch(request)
+  if (response.ok) await cache.put(request, response.clone())
+  return response
+}
+
+async function cacheFirstMapLibre(request) {
+  const cache = await caches.open(await getStaticCacheName())
+  // Stable module URLs must never be resolved from a previous release's cache.
+  const cached = await cache.match(request)
+  if (cached) return cached
+  const response = await fetch(request, { cache: 'no-store' })
   if (response.ok) await cache.put(request, response.clone())
   return response
 }
@@ -161,6 +173,8 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(SHELL_PATHS.includes(url.pathname)
       ? offlineNavigationCacheFirst(request)
       : navigationNetworkFirst(request))
+  } else if (url.origin === self.location.origin && MAPLIBRE_ASSETS.includes(url.pathname)) {
+    event.respondWith(cacheFirstMapLibre(request))
   } else if (url.origin === self.location.origin && url.pathname.startsWith('/_next/static/')) {
     event.respondWith(cacheFirstStatic(request))
   } else if (isPackedMediaRequest(request, url)) {

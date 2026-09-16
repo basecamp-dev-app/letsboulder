@@ -1,6 +1,7 @@
 import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 
+import './scripts/copy-maplibre-worker.mjs'
 import { getContentSecurityPolicy } from './lib/content-security-policy'
 
 function getMediaCdnRemotePattern(): URL | null {
@@ -81,6 +82,10 @@ const nextConfig: NextConfig = {
             value: 'no-cache, must-revalidate',
           },
         ],
+      },
+      {
+        source: '/sw-build-version.js',
+        headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }],
       },
       {
         source: '/sw-build-assets.json',

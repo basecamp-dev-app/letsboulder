@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
-import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
+import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl'
 
 import type { MapBounds } from '@/lib/map/map-bounds'
 import { buildMapLibreStyle } from '@/lib/map/maplibre-style'

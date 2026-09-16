@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type WorkerHandler = (event: { waitUntil(promise: Promise<unknown>): void; request?: Request; respondWith?(promise: Promise<Response>): void; data?: unknown }) => void
 
+const maplibreAssets = ['/maplibre/maplibre-gl-worker.mjs', '/maplibre/maplibre-gl-shared.mjs']
+
 const handlers = new Map<string, WorkerHandler>()
 const shellEntries = new Map<string, Response>()
 const staticEntries = new Map<string, Response>()
@@ -13,10 +15,11 @@ const fetchMock = vi.fn()
 const staticCacheName = 'letsboulder-next-static-test-release'
 
 function cacheFor(entries: Map<string, Response>) {
+  const key = (request: Request | string) => new URL(typeof request === 'string' ? request : request.url, 'https://letsboulder.com').pathname
   return {
-    match: vi.fn(async (request: Request | string) => entries.get(typeof request === 'string' ? request : request.url)),
+    match: vi.fn(async (request: Request | string) => entries.get(key(request))?.clone() || entries.get(typeof request === 'string' ? request : request.url)?.clone()),
     put: vi.fn(async (request: Request | string, response: Response) => {
-      entries.set(typeof request === 'string' ? request : request.url, response)
+      entries.set(key(request), response.clone())
     }),
   }
 }
@@ -26,6 +29,7 @@ const staticCache = cacheFor(staticEntries)
 const mediaCache = cacheFor(mediaEntries)
 
 vi.stubGlobal('self', {
+  __LETSBOULDER_BUILD_VERSION: 'test-release',
   location: { origin: 'https://letsboulder.com' },
   clients: { claim },
   skipWaiting,
@@ -38,6 +42,7 @@ vi.stubGlobal('caches', {
   match: vi.fn(async (request: Request) => staticEntries.get(request.url) || shellEntries.get(request.url)),
 })
 vi.stubGlobal('fetch', fetchMock)
+vi.stubGlobal('importScripts', vi.fn())
 
 async function dispatch(type: string, event: Partial<Parameters<WorkerHandler>[0]> = {}) {
   let pending: Promise<unknown> = Promise.resolve()
@@ -60,7 +65,7 @@ describe('active service worker', () => {
     vi.clearAllMocks()
     fetchMock.mockImplementation(async (input: string | Request | URL) => {
       const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
-      if (url === '/sw-build-assets.json') return new Response(JSON.stringify({ version: 'test-release' }))
+      if (url === '/sw-build-assets.json') return new Response(JSON.stringify({ version: 'test-release', assets: maplibreAssets }))
       if (url.startsWith('/offline')) return new Response('<script src="/_next/static/chunks/offline.js"></script>')
       return new Response('asset')
     })
@@ -82,11 +87,51 @@ describe('active service worker', () => {
   it('does not install when a required shell cannot be cached', async () => {
     fetchMock.mockImplementation(async (input: string | Request | URL) => {
       const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
-      if (url === '/sw-build-assets.json') return new Response(JSON.stringify({ version: 'test-release' }))
+      if (url === '/sw-build-assets.json') return new Response(JSON.stringify({ version: 'test-release', assets: maplibreAssets }))
       return url === '/offline/library' ? new Response('unavailable', { status: 503 }) : new Response('ok')
     })
 
     await expect(dispatch('install')).rejects.toThrow('Unable to cache offline shell')
+  })
+
+  it('pre-caches both MapLibre modules and serves them after an offline worker restart', async () => {
+    await dispatch('install')
+    for (const asset of maplibreAssets) {
+      expect(fetchMock).toHaveBeenCalledWith(asset, { cache: 'no-store' })
+      expect(staticEntries.has(asset)).toBe(true)
+    }
+    handlers.clear()
+    fetchMock.mockClear()
+    fetchMock.mockRejectedValue(new Error('airplane mode'))
+    vi.resetModules()
+    await import('../../public/sw.js')
+    for (const asset of maplibreAssets) {
+      const response = await dispatch('fetch', { request: new Request(`https://letsboulder.com${asset}`) })
+      expect(await response?.text()).toBe('asset')
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not reuse MapLibre modules from another release cache', async () => {
+    vi.mocked(caches.match).mockResolvedValueOnce(new Response('old module'))
+    const request = new Request(`https://letsboulder.com${maplibreAssets[0]}`)
+    const response = await dispatch('fetch', { request })
+    expect(await response?.text()).toBe('asset')
+    expect(caches.match).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledWith(request, { cache: 'no-store' })
+    vi.mocked(caches.match).mockReset()
+  })
+
+  it.each(maplibreAssets)('rejects installation if %s is unavailable', async (asset) => {
+    const original = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation((input, init) => input === asset
+      ? Promise.resolve(new Response('missing', { status: 404 })) : original(input, init))
+    await expect(dispatch('install')).rejects.toThrow('Unable to cache MapLibre asset')
+  })
+
+  it('rejects a manifest from a different deployment', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: 'other-release', assets: maplibreAssets })))
+    await expect(dispatch('install')).rejects.toThrow('does not match this release')
   })
 
   it('deletes retired and previous static caches while preserving the current static cache', async () => {

@@ -104,11 +104,17 @@ See [`.env.example`](.env.example) for the categorized application, media, integ
 | Staging | [staging.letsboulder.com](https://staging.letsboulder.com) | `staging` |
 | Production | [letsboulder.com](https://letsboulder.com) | `main` |
 
-**App**: The hosted-staging workflow validates the database and triggers the staging Vercel deploy hook after every push to `staging`. CI triggers the production Vercel deploy hook after successful pushes to `main`. Preview and development deployment behavior is managed in Vercel.
+**Staging app release**: Every push to `staging` runs the hosted-staging migration workflow. It validates the exact current `staging` SHA and the isolated staging Supabase project, applies and verifies the hosted staging migration history, compares generated schema types, and only then calls the staging `VERCEL_DEPLOY_HOOK` from the protected `Staging` GitHub environment. A failed staging database or verification gate prevents the staging application deploy.
+
+**Production code-only release**: A verified release is promoted by PR from `staging` to `main`. After the `CI` workflow succeeds for that `main` push, the **Production Release** workflow verifies that the selected SHA is still current `main` and is associated with a merged `staging → main` PR. It then requires the release checks for that exact SHA, including Quality Checks, generated database type drift, build, unit/component tests, Offline Reliability, Media Worker Check, and Dependency audits. The workflow validates the production Supabase target and runs a production migration dry-run. When production migration history is already current, it calls the production `VERCEL_DEPLOY_HOOK` automatically from the protected `Production` GitHub environment.
+
+**Production release with database migrations**: If the automatic Production Release dry-run finds pending or unverified production migrations, the application deploy stops before Vercel. A maintainer then manually dispatches the same **Production Release** workflow with the exact current `main` SHA. The protected path repeats the release and target checks, repeats the dry-run, applies the migrations, verifies migration bookkeeping and the production governance schema/roles, rechecks that the selected SHA is still current `main`, and only then calls the same production Vercel hook. This keeps database changes ahead of application deployment without creating a second production deploy authority.
+
+**Release gates and smoke tests**: Any mandatory release-check failure, stale/non-`main` SHA, non-`staging → main` promotion, production-target mismatch, migration validation failure, or rejected Vercel hook request blocks production deployment. After Vercel reports a successful Production deployment for `main`, the existing `deployment_status` path in `CI` runs the production Playwright smoke suite. Manually dispatched migration releases also run the production application database-read smoke and public Playwright smoke before completing.
 
 **Media Worker**: Cloudflare Worker deployed via Wrangler (`apps/media-worker/wrangler.toml`). Staging and production use Worker Custom Domains because the Worker is the media origin.
 
-**Database**: Maintainers verify the linked project and run `npx --no-install supabase db push --linked --dry-run` before deployment
+**Database**: Repository migrations remain canonical. Hosted production migration application is performed only by the protected Production Release workflow; maintainers doing local hosted diagnostics must verify the linked project and run `npx --no-install supabase db push --linked --dry-run` before any push.
 
 ## Contributing
 
