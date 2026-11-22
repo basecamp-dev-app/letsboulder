@@ -77,10 +77,14 @@ export function parseMissingDrafts(input: unknown): Array<Omit<MissingReference,
     if (typeof key !== 'string' || !Array.isArray(surfaces)) throw new Error('Invalid missing-object finding')
     for (const surface of surfaces) {
       if (!isRecord(surface) || surface.surface !== 'submission_draft_images.storage') continue
-      if (typeof surface.recordId !== 'string' || !UUID.test(surface.recordId) || surface.imageId !== null) {
+      if (typeof surface.recordId !== 'string' || !UUID.test(surface.recordId)) {
         throw new Error('Invalid missing draft-image surface')
       }
-      result.push({ kind: 'draft_image', id: surface.recordId, objectKey: key })
+      if (surface.imageId === null) {
+        result.push({ kind: 'draft_image', id: surface.recordId, objectKey: key })
+      } else if (typeof surface.imageId !== 'string' || !UUID.test(surface.imageId)) {
+        throw new Error('Invalid linked draft-image surface')
+      }
     }
   }
   return result
