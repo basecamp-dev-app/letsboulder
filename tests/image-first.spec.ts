@@ -14,7 +14,7 @@ test.describe('image-first navigation history', () => {
   test('@smoke restores the URL-driven active image through browser back and forward', async ({ page }) => {
     const previousButton = page.getByRole('button', { name: 'Prev' })
     const nextButton = page.getByRole('button', { name: 'Next' })
-    const viewer = page.locator('main[data-active-image-id]')
+    const viewer = page.locator('[data-active-image-id]')
     expect(imageFirstUrl, 'IMAGE_FIRST_E2E_URL must be a same-origin image-first path').toMatch(/^\/[a-z]{2}\/[^/]+\/i\/[^/?]+(?:\?.*)?$/)
     await page.goto(imageFirstUrl as string)
     await expect(previousButton).toBeVisible()
